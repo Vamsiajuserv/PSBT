@@ -48,8 +48,8 @@ git push -u origin main
 
 ### 3a. App Service (the API)
 Azure Portal → **Create a resource** → **Web App**:
-- **Resource Group:** create `psbt-portal`
-- **Name:** `psbt-api`  ← must be globally unique. If taken, pick another (e.g. `psbt-api-hyd`) **and** update `AZURE_WEBAPP_NAME` + `API_BASE_URL` in `.github/workflows/deploy-app.yml`.
+- **Resource Group:** create `aj-psbt-rg`
+- **Name:** `aj-psbt-api`  ← must be globally unique. If taken, pick another (e.g. `aj-psbt-api-hyd`) **and** update `AZURE_WEBAPP_NAME` + `API_BASE_URL` in `.github/workflows/deploy-app.yml`.
 - **Publish:** Code · **Runtime:** Python 3.12 · **OS:** Linux · **Region:** same as your DB
 - **Plan:** Basic **B1** (fine for Phase 1)
 - Create. Then in the App Service:
@@ -71,7 +71,7 @@ Azure Portal → **Create a resource** → **Web App**:
 
 ### 3b. Static Web App (the website)
 Azure Portal → **Create a resource** → **Static Web App**:
-- **Resource Group:** `psbt-portal` · **Name:** `psbt-frontend`
+- **Resource Group:** `aj-psbt-rg` · **Name:** `psbt-frontend`
 - **Plan:** Free
 - **Deployment:** choose **Other** (we deploy via GitHub Actions ourselves, not the wizard)
 - Create. Copy its URL, e.g. `https://<something>.azurestaticapps.net`.
@@ -83,7 +83,7 @@ Azure Portal → **Create a resource** → **Static Web App**:
 GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**:
 
 1. **`AZURE_WEBAPP_PUBLISH_PROFILE`**
-   Azure → App Service `psbt-api` → **Overview → Download publish profile**. Open the file, copy **all** its contents, paste as the secret value.
+   Azure → App Service `aj-psbt-api` → **Overview → Download publish profile**. Open the file, copy **all** its contents, paste as the secret value.
 2. **`AZURE_STATIC_WEB_APPS_API_TOKEN`**
    Azure → Static Web App `psbt-frontend` → **Overview → Manage deployment token** → copy → paste as the secret value.
 
@@ -93,9 +93,9 @@ GitHub repo → **Settings → Secrets and variables → Actions → New reposit
 Any push to `main` triggers it. To run it now without a code change:
 GitHub repo → **Actions → Deploy PSBT-Portal to Azure → Run workflow**.
 
-Watch the 4 jobs go green. The API health check hits `https://psbt-api.azurewebsites.net/api/health`.
+Watch the 4 jobs go green. The API health check hits `https://aj-psbt-api.azurewebsites.net/api/health`.
 When done:
-- API: `https://psbt-api.azurewebsites.net`  (docs at `/docs`)
+- API: `https://aj-psbt-api.azurewebsites.net`  (docs at `/docs`)
 - Website: your `*.azurestaticapps.net` URL
 
 ---
