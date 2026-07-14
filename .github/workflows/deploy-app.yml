@@ -15,7 +15,7 @@ env:
   PYTHON_VERSION: '3.12'
   NODE_VERSION: '20'
   AZURE_WEBAPP_NAME: aj-psbt-api          # your Azure App Service name
-  API_BASE_URL: https://aj-psbt-api.azurewebsites.net/api   # = https://<AZURE_WEBAPP_NAME>.azurewebsites.net/api
+  API_BASE_URL: aj-psbt-api-fcg0fbe3gaeveqgy.southindia-01.azurewebsites.net   # = https://<AZURE_WEBAPP_NAME>.azurewebsites.net/api
 
 jobs:
   # ── Build & syntax-check the API ──────────────────────────────────
