@@ -1,0 +1,22 @@
+{
+  "name": "psbt-portal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Punjagutta Sri Shirdi Sai Baba Temple — management portal (frontend + backend monorepo)",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "node scripts/dev-api.cjs",
+    "dev:web": "npm run dev --workspace=frontend",
+    "setup:api": "node scripts/setup-api.cjs",
+    "build": "npm run build --workspace=frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,152 @@
+import React, { useEffect, useState, useMemo } from 'react'
+import { Plus, Pencil, Trash2, X, Save, RotateCcw, Search } from 'lucide-react'
+import { PageTitle, StatTile, Pill, num } from './ui.jsx'
+import { useAuth } from '../../auth/AuthContext.jsx'
+
+// Generic list + drawer master screen.
+// config: { title, subtitle, api, statCards, columns, fields, searchPlaceholder, addLabel, entity }
+export default function MasterScreen({ config }) {
+  const { title, subtitle, api, statCards = [], columns, fields, searchPlaceholder = 'Search…', addLabel = 'Add New', entity = 'record' } = config
+  const { user } = useAuth()
+  const canWrite = user?.role !== 'Accountant'
+  const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
+
+  const [items, setItems] = useState([])
+  const [stats, setStats] = useState(null)
+  const [q, setQ] = useState('')
+  const [status, setStatus] = useState('')
+  const [drawer, setDrawer] = useState(null)
+  const [err, setErr] = useState('')
+
+  const load = () => Promise.all([api.list({ q, status }), api.stats().catch(() => null)])
+    .then(([d, s]) => { setItems(d.items || d); if (s) setStats(s) })
+  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [q, status]) // eslint-disable-line
+
+  const empty = useMemo(() => {
+    const o = {}
+    fields.forEach((f) => { o[f.k] = f.type === 'active' ? true : f.type === 'multiselect' ? [] : f.type === 'number' ? '' : (f.default ?? '') })
+    return o
+  }, [fields])
+
+  const setD = (patch) => setDrawer((d) => ({ ...d, data: { ...d.data, ...patch } }))
+  async function save(e) {
+    e.preventDefault(); setErr('')
+    const d = { ...drawer.data }
+    fields.forEach((f) => { if (f.type === 'number') d[f.k] = d[f.k] === '' ? 0 : Number(d[f.k]) })
+    try {
+      if (drawer.mode === 'create') await api.create(d)
+      else await api.update(d.id, d)
+      setDrawer(null); load()
+    } catch (ex) { setErr(ex.detail || ex.message || 'Failed to save.') }
+  }
+  async function remove(row) { if (confirm(`Delete this ${entity}?`)) { try { await api.remove(row.id); load() } catch (ex) { alert(ex.detail || 'Failed') } } }
+
+  const statusOf = (row) => (row.active !== undefined ? (row.active ? 'Active' : 'Inactive') : row.status)
+
+  return (
+    <div>
+      <PageTitle title={title} subtitle={subtitle}
+        actions={canWrite && <button onClick={() => { setErr(''); setDrawer({ mode: 'create', data: { ...empty } }) }} className="btn-maroon !py-2.5"><Plus size={16} /> {addLabel}</button>} />
+
+      {statCards.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {statCards.map((c) => (
+            <StatTile key={c.key} icon={c.icon} color={c.color} bg={c.bg} title={c.title}
+              value={stats ? num(stats[c.key]) : '—'} sub={c.sub} />
+          ))}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-5 flex flex-col lg:flex-row lg:items-end gap-4">
+          <div className="flex-1 max-w-sm relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={searchPlaceholder} className="input !pl-9" /></div>
+          <div><label className="block text-[12px] text-gray-500 mb-1.5">Status</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">All</option><option>Active</option><option>Inactive</option></select></div>
+          <div className="lg:ml-auto flex gap-2"><button onClick={() => { setQ(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button></div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+              {columns.map((c) => <th key={c.key} className="px-4 py-3 font-semibold whitespace-nowrap">{c.label}</th>)}
+              <th className="px-4 py-3 font-semibold">Status</th>
+              <th className="px-4 py-3 font-semibold">Actions</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-100">
+              {items.map((row) => (
+                <tr key={row.id} className="hover:bg-gray-50/60">
+                  {columns.map((c) => (
+                    <td key={c.key} className={`px-4 py-3.5 ${c.mono ? 'font-mono text-[12px] text-gray-500' : c.strong ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
+                      {c.render ? c.render(row) : (row[c.key] ?? '—')}
+                    </td>
+                  ))}
+                  <td className="px-4 py-3.5"><Pill tone={statusOf(row) === 'Active' ? 'green' : 'gray'}>{statusOf(row)}</Pill></td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2">
+                      {canWrite && <button onClick={() => { setErr(''); setDrawer({ mode: 'edit', data: { ...empty, ...row } }) }} title="Edit" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Pencil size={15} /></button>}
+                      {isAdmin && <button onClick={() => remove(row)} title="Delete" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300"><Trash2 size={15} /></button>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {items.length === 0 && <tr><td colSpan={columns.length + 2} className="px-4 py-12 text-center text-gray-400">No {entity}s found.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-5 py-3.5 border-t border-gray-100 text-[13px] text-gray-500">Showing 1 to {items.length} of {items.length} {entity}s</div>
+      </div>
+
+      {drawer && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
+          <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
+              <h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.mode === 'create' ? addLabel : `Edit ${entity}`}</h3>
+              <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4 flex-1">
+              {fields.map((f) => (
+                <div key={f.k} className={f.full ? '' : ''}>
+                  <label className="label">{f.label}{f.required && ' *'}</label>
+                  {f.type === 'select' ? (
+                    <select required={f.required} className="input" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })}>
+                      <option value="">Select…</option>{f.options.map((o) => <option key={o}>{o}</option>)}
+                    </select>
+                  ) : f.type === 'active' ? (
+                    <select className="input" value={drawer.data.active ? 'Active' : 'Inactive'} onChange={(e) => setD({ active: e.target.value === 'Active' })}><option>Active</option><option>Inactive</option></select>
+                  ) : f.type === 'textarea' ? (
+                    <textarea className="input min-h-[72px]" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
+                  ) : f.type === 'date' ? (
+                    <input type="date" required={f.required} className="input" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
+                  ) : f.type === 'number' ? (
+                    <input type="number" step="0.01" min="0" required={f.required} className="input" value={drawer.data[f.k]} onChange={(e) => setD({ [f.k]: e.target.value })} />
+                  ) : f.type === 'multiselect' ? (
+                    <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+                      {(f.options || []).map((o) => {
+                        const on = (drawer.data[f.k] || []).includes(o.value)
+                        return (
+                          <label key={o.value} className="flex items-center gap-2 text-[13px] text-gray-700 px-1 py-0.5">
+                            <input type="checkbox" className="accent-maroon-700" checked={on} onChange={() => setD({ [f.k]: on ? drawer.data[f.k].filter((x) => x !== o.value) : [...(drawer.data[f.k] || []), o.value] })} /> {o.label}
+                          </label>
+                        )
+                      })}
+                      {(f.options || []).length === 0 && <div className="text-[12px] text-gray-400 px-1">No options.</div>}
+                    </div>
+                  ) : (
+                    <input required={f.required} className="input" placeholder={f.placeholder} value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
+                  )}
+                </div>
+              ))}
+              {err && <div className="text-[13px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{err}</div>}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
+              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center">Cancel</button>
+              <button className="btn-maroon flex-1 justify-center"><Save size={15} /> Save</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}

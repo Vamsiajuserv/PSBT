@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-cream text-gray-800 font-sans;
+  }
+  /* Compact the whole UI to fit typical laptop screens. `zoom` scales fixed-px
+     and rem sizing uniformly while leaving responsive breakpoints (evaluated on
+     the real viewport) unchanged, so layout still reflows correctly on resize. */
+  #root {
+    zoom: 0.9;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-semibold text-sm
+           px-5 py-2.5 transition-all cursor-pointer disabled:opacity-50;
+  }
+  /* Gold gradient CTA — primary call to action */
+  .btn-primary {
+    @apply btn font-bold text-maroon-900 bg-gold-cta border border-gold-500/40
+           hover:brightness-105 shadow-gold;
+  }
+  /* Solid maroon — secondary actions, logins */
+  .btn-maroon {
+    @apply btn bg-maroon-700 text-cream hover:bg-maroon-800 shadow-soft;
+  }
+  .btn-outline {
+    @apply btn border border-maroon-300 text-maroon-700 bg-white/80 hover:bg-maroon-50;
+  }
+  .btn-gold-outline {
+    @apply btn border border-gold-400 text-gold-600 bg-white hover:bg-gold-50;
+  }
+  .btn-ghost {
+    @apply btn text-gray-600 hover:bg-gray-100;
+  }
+  .btn-green {
+    @apply btn bg-emerald-600 text-white hover:bg-emerald-700 shadow-soft;
+  }
+  .card {
+    @apply bg-white rounded-2xl border border-gold-200/70 shadow-card;
+  }
+  .input {
+    @apply w-full rounded-lg border border-gold-200 bg-white px-3.5 py-2.5 text-sm
+           focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent;
+  }
+  .label {
+    @apply block text-[11px] font-bold uppercase tracking-wide text-maroon-700/70 mb-1.5;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold;
+  }
+  /* Top utility-bar links */
+  .util-link {
+    @apply inline-flex items-center gap-1.5 text-gold-200/90 hover:text-gold-100 transition-colors;
+  }
+}
+
+@layer utilities {
+  /* Subtle lotus/mandala watermark feel via radial gradients (overlay only) */
+  .bg-mandala {
+    background-image:
+      radial-gradient(circle at 12% 20%, rgba(212,160,23,0.06) 0, transparent 18%),
+      radial-gradient(circle at 88% 80%, rgba(212,160,23,0.06) 0, transparent 18%);
+  }
+  /* Deep maroon surface WITH mandala baked into one background stack */
+  .bg-temple {
+    background-color: #380a0a;
+    background-image:
+      radial-gradient(circle at 10% 15%, rgba(212,160,23,0.12) 0, transparent 26%),
+      radial-gradient(circle at 90% 85%, rgba(212,160,23,0.12) 0, transparent 26%),
+      linear-gradient(135deg, #5a0f0f 0%, #380a0a 100%);
+  }
+}
+
+/* ── Printable receipt / ticket ──────────────────────────────────────────── */
+.receipt {
+  max-width: 340px;
+  margin: 0 auto;
+  background: #fff;
+  color: #1f2937;
+  padding: 18px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+@media print {
+  /* Print only the receipt — hide the rest of the app */
+  body * { visibility: hidden !important; }
+  #print-area, #print-area * { visibility: visible !important; }
+  #print-area {
+    position: absolute;
+    left: 0; top: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 0;
+  }
+  .receipt { border: none !important; border-radius: 0 !important; max-width: 320px; }
+  .no-print { display: none !important; }
+  @page { margin: 12mm; }
+}

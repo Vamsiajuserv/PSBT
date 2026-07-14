@@ -1,0 +1,20 @@
+# Dependencies (regenerated with `npm install` / `npm run setup:api`)
+node_modules/
+frontend/node_modules/
+backend/.venv/
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Build output
+dist/
+frontend/dist/
+
+# Secrets — never commit
+backend/.env
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.log
