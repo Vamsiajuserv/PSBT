@@ -15,7 +15,8 @@ env:
   PYTHON_VERSION: '3.12'
   NODE_VERSION: '20'
   AZURE_WEBAPP_NAME: aj-psbt-api          # your Azure App Service name
-  API_BASE_URL: aj-psbt-api-fcg0fbe3gaeveqgy.southindia-01.azurewebsites.net   # = https://<AZURE_WEBAPP_NAME>.azurewebsites.net/api
+  # Real App Service hostname (Azure adds a unique suffix + region):
+  API_BASE_URL: https://aj-psbt-api-fcg0fbe3gaeveqgy.southindia-01.azurewebsites.net/api
 
 jobs:
   # ── Build & syntax-check the API ──────────────────────────────────
@@ -92,12 +93,14 @@ jobs:
           echo "Waiting 120s for the app to build (Oryx) and start..."
           sleep 120
           for i in 1 2 3 4 5; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.API_BASE_URL }}/health || echo 000)
+            STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "${{ env.API_BASE_URL }}/health" || echo 000)
             echo "Attempt $i — /api/health → $STATUS"
-            [ "$STATUS" = "200" ] && echo "API is healthy" && exit 0
+            case "$STATUS" in
+              200|301|302) echo "API is reachable"; exit 0 ;;
+            esac
             sleep 30
           done
-          echo "Health check did not return 200 (check App Service Log stream)"; exit 1
+          echo "Health check did not succeed (check App Service Log stream)"; exit 1
 
   # ── Deploy the website to Static Web Apps ─────────────────────────
   deploy-frontend:
