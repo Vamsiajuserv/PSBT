@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Plus, Search, ChevronRight, Crown, Users as UsersIcon, ShieldCheck, UserCog, Lock,
   CheckCircle2, XCircle, Info, X, Save, LayoutDashboard, Flame, HeartHandshake, Landmark,
-  Gavel, UtensilsCrossed, Recycle, FileBarChart, Settings as SettingsIcon,
+  Gavel, UtensilsCrossed, Recycle, FileBarChart, Settings as SettingsIcon, RefreshCw,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num } from '../../components/admin/ui.jsx'
+import { LOAD_ERROR } from '../../components/common/states.jsx'
 import { RolesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
@@ -27,15 +28,22 @@ export default function RoleAccess() {
   const [saved, setSaved] = useState(false)
   const [creating, setCreating] = useState(null)   // { name, description } while the Add-Role modal is open
   const [createErr, setCreateErr] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
 
   const reloadRoles = (selectId) =>
     Promise.all([RolesAPI.list(), RolesAPI.stats().catch(() => null)])
       .then(([l, s]) => { setRoles(l.items); if (s) setStats(s); if (selectId) pick(selectId) })
 
-  useEffect(() => {
+  const loadAll = useCallback(() => {
+    setLoading(true); setLoadErr('')
     Promise.all([RolesAPI.list(), RolesAPI.stats().catch(() => null), RolesAPI.catalog().catch(() => null)])
       .then(([l, s, c]) => { setRoles(l.items); if (s) setStats(s); if (c) setCatalog(c.modules); if (l.items[0]) pick(l.items[0].id) })
+      .catch((ex) => { setLoadErr(ex?.detail || LOAD_ERROR); setRoles([]) })
+      .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { loadAll() }, [loadAll])
 
   async function createRole(e) {
     e.preventDefault()
@@ -84,7 +92,15 @@ export default function RoleAccess() {
             <select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-28 text-[13px]"><option value="">All Status</option><option>Active</option><option>Inactive</option></select>
           </div>
           <div className="space-y-2">
-            {filtered.map((r) => {
+            {loading && <div className="py-8 text-center text-gray-400 text-sm">Loading…</div>}
+            {!loading && loadErr && (
+              <div className="py-8 text-center">
+                <div className="text-sm text-red-600 mb-3">{loadErr}</div>
+                <button onClick={loadAll} className="btn-outline !py-1.5 mx-auto"><RefreshCw size={14} /> Retry</button>
+              </div>
+            )}
+            {!loading && !loadErr && filtered.length === 0 && <div className="py-8 text-center text-gray-400 text-sm">No roles found.</div>}
+            {!loading && !loadErr && filtered.map((r) => {
               const on = sel?.id === r.id; const Icon = r.code === 'ADMINISTRATOR' ? Crown : UsersIcon
               return (
                 <button key={r.id} onClick={() => pick(r.id)} className={`w-full flex items-center gap-3 text-left px-3 py-3 rounded-xl border transition-colors ${on ? 'border-maroon-300 bg-amber-50/60 ring-1 ring-maroon-100' : 'border-gray-100 hover:border-maroon-200'}`}>

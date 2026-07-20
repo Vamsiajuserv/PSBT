@@ -1,10 +1,9 @@
-import React, { useState } from 'react'
-import { MapPin, Phone, Mail, Clock, CheckCircle2 } from 'lucide-react'
-import { Flourish, DemoNote, PageBanner } from '../../components/common/UI.jsx'
+import React from 'react'
+import { MapPin, Phone, Mail, Clock } from 'lucide-react'
+import { Flourish, TempleBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 
 export default function Contact() {
-  const [sent, setSent] = useState(false)
   const site = useSite()
   const TEMPLE = site?.temple || {}
 
@@ -17,7 +16,7 @@ export default function Contact() {
 
   return (
     <div className="bg-cream">
-      <PageBanner title="Contact Us" breadcrumb="Home  ›  Contact Us" />
+      <TempleBanner title="Contact Us" breadcrumb="Home  ›  Contact Us" />
 
       <div className="max-w-6xl mx-auto px-4 py-12 grid md:grid-cols-2 gap-6">
         {/* Details */}
@@ -35,36 +34,56 @@ export default function Contact() {
             )
           })}
           <div className="card overflow-hidden">
-            <div className="aspect-[16/9] bg-gradient-to-br from-gold-100 to-maroon-200 grid place-items-center text-maroon-600/60 text-sm">
-              🗺️ Map placeholder — embed in Phase 1
-            </div>
+            <iframe
+              title="Sri Shirdi Sai Baba Temple location map"
+              src="https://www.google.com/maps?q=Shirdi+Sai+Baba+Temple+Dwarakapuri+Colony+Punjagutta+Hyderabad&z=16&output=embed"
+              className="w-full aspect-[16/9] border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
+            <a
+              href="https://www.google.com/maps/search/?api=1&query=Shirdi+Sai+Baba+Temple+Dwarakapuri+Colony+Punjagutta+Hyderabad"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-maroon-700 bg-gold-50 border-t border-gold-200 hover:bg-gold-100 transition-colors"
+            >
+              <MapPin size={14} /> View on Google Maps &amp; Get Directions
+            </a>
           </div>
         </div>
 
-        {/* Enquiry form */}
+        {/* Get in touch — static contact info */}
         <div>
-          {sent ? (
-            <div className="card p-8 text-center">
-              <CheckCircle2 className="mx-auto text-emerald-500" size={56} />
-              <h3 className="font-serif text-2xl font-bold text-maroon-700 mt-3">Message Sent</h3>
-              <p className="text-sm text-gray-500 mt-1">We will get back to you shortly. 🙏</p>
-              <button className="btn-outline mt-5" onClick={() => setSent(false)}>Send Another</button>
+          <div className="card p-6">
+            <div className="font-script text-2xl text-gold-500 leading-none">Get in Touch</div>
+            <h3 className="font-serif text-xl font-bold text-maroon-700">We'd Love to Hear From You</h3>
+            <Flourish className="justify-start my-2" width="w-10" />
+            <p className="text-sm text-gray-600 leading-relaxed">
+              For enquiries about poojas, sevas, donations, or temple events, please reach out to us directly.
+              Our office is happy to assist you during temple hours.
+            </p>
+            <div className="mt-5 space-y-3">
+              {TEMPLE.phone && (
+                <a href={`tel:${String(TEMPLE.phone).replace(/\s+/g, '')}`} className="flex items-center gap-3 text-sm text-gray-700 hover:text-maroon-700">
+                  <span className="w-9 h-9 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><Phone size={16} /></span>
+                  {TEMPLE.phone}
+                </a>
+              )}
+              {TEMPLE.email && (
+                <a href={`mailto:${TEMPLE.email}`} className="flex items-center gap-3 text-sm text-gray-700 hover:text-maroon-700">
+                  <span className="w-9 h-9 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><Mail size={16} /></span>
+                  {TEMPLE.email}
+                </a>
+              )}
+              {TEMPLE.address && (
+                <div className="flex items-start gap-3 text-sm text-gray-700">
+                  <span className="w-9 h-9 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><MapPin size={16} /></span>
+                  {TEMPLE.address}
+                </div>
+              )}
             </div>
-          ) : (
-            <form onSubmit={(e) => { e.preventDefault(); setSent(true) }} className="card p-6">
-              <div className="font-script text-2xl text-gold-500 leading-none">Get in Touch</div>
-              <h3 className="font-serif text-xl font-bold text-maroon-700">Send an Enquiry</h3>
-              <Flourish className="justify-start my-2" width="w-10" />
-              <div className="mb-4"><DemoNote>Demo — message is not delivered.</DemoNote></div>
-              <div className="space-y-4">
-                <div><label className="label">Full Name *</label><input required className="input" placeholder="Enter name" /></div>
-                <div><label className="label">Mobile *</label><input required className="input" placeholder="10-digit number" /></div>
-                <div><label className="label">Email</label><input type="email" className="input" placeholder="Optional" /></div>
-                <div><label className="label">Message *</label><textarea required rows={4} className="input" placeholder="How can we help?" /></div>
-              </div>
-              <button className="btn-primary w-full mt-5">Send Message</button>
-            </form>
-          )}
+          </div>
         </div>
       </div>
     </div>

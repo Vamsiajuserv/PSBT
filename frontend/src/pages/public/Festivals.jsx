@@ -1,12 +1,12 @@
 import React from 'react'
-import { Badge, PageBanner } from '../../components/common/UI.jsx'
+import { Badge, TempleBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 
 export default function Festivals() {
   const site = useSite()
   return (
     <div className="bg-cream">
-      <PageBanner title="Festivals & Events" breadcrumb="Home  ›  Festivals" />
+      <TempleBanner title="Festivals & Events" breadcrumb="Home  ›  Festivals" />
 
       <div className="max-w-7xl mx-auto px-4 py-14">
         <p className="text-center text-gray-500 max-w-xl mx-auto -mt-2 mb-10">

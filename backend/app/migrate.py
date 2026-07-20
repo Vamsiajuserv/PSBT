@@ -4,7 +4,7 @@ Postgres supports ADD COLUMN IF NOT EXISTS, so these are safe to run on every
 startup. New tables are handled by Base.metadata.create_all — this only patches
 columns added to tables that already exist.
 """
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 COLUMN_MIGRATIONS = {
     "bookings": [
@@ -56,11 +56,37 @@ COLUMN_MIGRATIONS = {
 }
 
 
+# Poojas that belong in the public "Festivals & Special" category rather than
+# "Occasion / Special Pooja" (which is for one-time life-event ceremonies).
+_FESTIVAL_POOJAS = (
+    "Devi Navaratri Pooja",
+    "Vinayaka Chavithi Pooja",
+    "Karthika Masam Pooja",
+    "Sri Rama Navami",
+)
+
+
 def run_migrations(engine) -> None:
     with engine.begin() as conn:
         for table, cols in COLUMN_MIGRATIONS.items():
             for col, ddl in cols:
                 conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}'))
+        # Atomic code-number allocator (see helpers.next_code_seq). Replaces the
+        # old COUNT(*)+1 scheme that reused receipt numbers after a row was deleted.
+        conn.execute(text(
+            'CREATE TABLE IF NOT EXISTS counters ('
+            'name VARCHAR(40) PRIMARY KEY, value BIGINT NOT NULL)'
+        ))
+        # Festival poojas were originally filed under "Occasion", which mixed them
+        # in with the one-time life-event ceremonies (Namakaranam, Annaprasana…)
+        # and left the public "Festivals & Special" category empty. Move them to
+        # their own category. Idempotent: rows already set to 'Festival' don't match.
+        conn.execute(
+            text("UPDATE poojas SET category = 'Festival' "
+                 "WHERE category = 'Occasion' AND name IN :names")
+            .bindparams(bindparam("names", expanding=True)),
+            {"names": list(_FESTIVAL_POOJAS)},
+        )
 
 
 # ── Data repair: canonicalize module permission keys ─────────────────────────

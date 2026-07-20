@@ -8,6 +8,11 @@ ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_PATH, extra="ignore")
 
+    # Deployment environment. Defaults to "production" so that demo-only behaviour
+    # (e.g. rolling mock transaction dates forward) never runs unless explicitly
+    # opted in with ENVIRONMENT=development. Never let a demo path touch prod data.
+    ENVIRONMENT: str = "production"
+
     # Database
     PGHOST: str
     PGUSER: str
@@ -29,6 +34,10 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
     RAZORPAY_WEBHOOK_SECRET: str = ""
+
+    @property
+    def is_development(self) -> bool:
+        return self.ENVIRONMENT.strip().lower() in ("development", "dev", "local")
 
     @property
     def payment_provider(self) -> str:

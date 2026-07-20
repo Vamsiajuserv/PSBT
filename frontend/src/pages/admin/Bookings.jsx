@@ -5,6 +5,7 @@ import {
   Flame, CalendarDays, CalendarRange, TicketCheck, Clock, Plus, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { BookingsAPI, PoojasAPI } from '../../api/client.js'
+import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
 // Page-number list with ellipsis, e.g. 1 … 4 5 [6] 7 8 … 12
@@ -67,11 +68,18 @@ export default function Bookings() {
   const [end, setEnd] = useState('')
   const [page, setPage] = useState(1)
   const [applied, setApplied] = useState({ q: '', pooja: '', plan: '', status: '', payment: '', start: '', end: '' })
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
 
   const loadStats = useCallback(() => BookingsAPI.stats().then(setStats).catch(() => {}), [])
   const loadList = useCallback(async (f, pg) => {
-    const d = await BookingsAPI.list({ ...f, page: pg, size: SIZE })
-    setRows(d.items); setTotal(d.total)
+    setLoading(true); setLoadErr('')
+    try {
+      const d = await BookingsAPI.list({ ...f, page: pg, size: SIZE })
+      setRows(d.items); setTotal(d.total)
+    } catch (ex) {
+      setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
+    } finally { setLoading(false) }
   }, [])
 
   useEffect(() => { loadStats(); PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => {}) }, [loadStats])
@@ -212,7 +220,7 @@ export default function Bookings() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={10} className="px-5 py-12 text-center text-gray-400">No bookings found.</td></tr>}
+              {rows.length === 0 && <TableStates colSpan={10} loading={loading} error={loadErr} onRetry={() => loadList(applied, page)} empty="No bookings found." />}
             </tbody>
           </table>
         </div>

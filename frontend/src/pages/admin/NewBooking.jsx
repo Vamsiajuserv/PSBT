@@ -48,26 +48,17 @@ function validityRange(pl, from) {
   return `${d} Day${d > 1 ? 's' : ''} (${fmtDate(from)} to ${fmtDate(to)})`
 }
 
-// Decorative QR — deterministic pattern from the booking code (no external dep)
-function QRCode({ seed = 'PSBT', px = 96 }) {
-  const N = 25
-  let h = 2166136261
-  for (const ch of (seed + 'psbt')) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0 }
-  const bit = (i) => { h = Math.imul(h ^ i, 2246822519) >>> 0; return (h >>> 13) & 1 }
-  const finderOn = (x, y) => {
-    const local = (bx, by) => { const lx = x - bx, ly = y - by; return (lx === 0 || lx === 6 || ly === 0 || ly === 6) || (lx >= 2 && lx <= 4 && ly >= 2 && ly <= 4) }
-    if (x < 7 && y < 7) return local(0, 0)
-    if (x >= N - 7 && y < 7) return local(N - 7, 0)
-    if (x < 7 && y >= N - 7) return local(0, N - 7)
-    return null
-  }
-  const rects = []
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const f = finderOn(x, y)
-    const on = f === null ? bit(y * N + x) : f
-    if (on) rects.push(<rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" />)
-  }
-  return <svg viewBox={`0 0 ${N} ${N}`} width={px} height={px} shapeRendering="crispEdges" fill="#3a0909">{rects}</svg>
+// Honest ticket reference (see gap register SYS-01). A real scannable QR + a
+// server-side verify endpoint is a planned feature; until then we print the
+// booking code as a plain reference, not a graphic that looks scannable.
+function TicketRef({ code }) {
+  return (
+    <div className="text-right shrink-0">
+      <div className="text-[9px] uppercase tracking-wider text-gray-400">Ref No.</div>
+      <div className="font-mono text-[13px] font-bold text-maroon-800 leading-tight">{code}</div>
+      <div className="text-[9px] text-gray-400 mt-0.5">Verify at counter</div>
+    </div>
+  )
 }
 
 function Stepper({ step }) {
@@ -112,6 +103,9 @@ export default function NewBooking() {
   const [poojariId, setPoojariId] = useState('')
   const [method, setMethod] = useState('Cash')
   const [utr, setUtr] = useState('')
+  // Committee-decided plans have no fixed fee — the operator enters the amount the
+  // committee set for this occurrence. Kept separate from the fixed-fee path.
+  const [committeeAmt, setCommitteeAmt] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [ticket, setTicket] = useState(null)
@@ -122,6 +116,8 @@ export default function NewBooking() {
   const [qaErr, setQaErr] = useState('')
 
   useEffect(() => { PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => {}) }, [])
+  // A fresh plan selection clears any previously entered committee amount.
+  useEffect(() => { setCommitteeAmt('') }, [plan])
   useEffect(() => { PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => {}) }, [])
 
   // Debounced auto-search as the user types (mirrors the Devotees master screen).
@@ -134,8 +130,10 @@ export default function NewBooking() {
   }, [devQ, devotee])
 
   const pooja = poojas.find((p) => String(p.id) === String(poojaId)) || null
-  const fee = plan?.committee_decided ? 0 : Number(plan?.fee || 0)
+  const fee = plan?.committee_decided ? Number(committeeAmt || 0) : Number(plan?.fee || 0)
   const rateType = plan?.committee_decided ? 'Committee Decided' : 'Fixed Amount'
+  // Committee-decided bookings must carry a positive, operator-entered amount.
+  const amountReady = fee > 0
 
   async function search() {
     const r = await DevoteesAPI.list({ q: devQ, size: 8 })
@@ -164,7 +162,11 @@ export default function NewBooking() {
     } catch (ex) { setQaErr(ex.detail || 'Could not create devotee.') } finally { setQaBusy(false) }
   }
   async function pay() {
-    setError(''); setBusy(true)
+    setError('')
+    if (plan?.committee_decided && !amountReady) {
+      setError('Enter the committee-decided amount for this pooja before confirming.'); return
+    }
+    setBusy(true)
     try {
       const b = await BookingsAPI.create({
         devotee_id: devotee.id, devotee_name: devotee.name, mobile: devotee.mobile,
@@ -408,7 +410,16 @@ export default function NewBooking() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center gap-2 text-maroon-700 mb-4"><IndianRupee size={18} /><h3 className="font-serif text-lg font-bold">Booking Amount Summary</h3></div>
               <div className="flex justify-between py-2 text-[13.5px]"><span className="text-gray-500">Rate Type</span><span className="font-medium text-gray-800">{rateType}</span></div>
-              <div className="flex justify-between py-2 text-[13.5px] border-t border-gray-100"><span className="text-gray-500">Rate (₹)</span><span className="font-medium text-gray-800">{money2(fee)}</span></div>
+              {plan?.committee_decided ? (
+                <div className="py-2 border-t border-gray-100">
+                  <label className="label">Committee-Decided Amount (₹) *</label>
+                  <input type="number" min="1" step="1" className="input mt-1" placeholder="Enter amount set by the committee"
+                         value={committeeAmt} onChange={(e) => setCommitteeAmt(e.target.value.replace(/[^\d.]/g, ''))} />
+                  {!amountReady && <div className="text-[11px] text-amber-600 mt-1">This pooja has no fixed fee — enter the committee's amount to continue.</div>}
+                </div>
+              ) : (
+                <div className="flex justify-between py-2 text-[13.5px] border-t border-gray-100"><span className="text-gray-500">Rate (₹)</span><span className="font-medium text-gray-800">{money2(fee)}</span></div>
+              )}
               <div className="flex justify-between py-2 text-[13.5px] border-t border-gray-100"><span className="text-gray-500">Discount (₹)</span><span className="font-medium text-gray-800">0.00</span></div>
               <div className="flex justify-between items-center py-3 mt-1 border-t border-gray-200"><span className="font-bold text-maroon-800">Total Amount (₹)</span><span className="text-xl font-extrabold text-maroon-800">{money2(fee)}</span></div>
             </div>
@@ -417,7 +428,7 @@ export default function NewBooking() {
 
           <div className="lg:col-span-2 flex justify-between">
             <button onClick={() => setStep(0)} className="btn-outline"><ArrowLeft size={15} /> Previous</button>
-            <button onClick={pay} disabled={busy} className="btn-maroon disabled:opacity-60">{busy ? 'Processing…' : <>Confirm Booking &amp; Pay <ArrowRight size={15} /></>}</button>
+            <button onClick={pay} disabled={busy || !amountReady} className="btn-maroon disabled:opacity-60">{busy ? 'Processing…' : <>Confirm Booking &amp; Pay <ArrowRight size={15} /></>}</button>
           </div>
         </div>
       )}
@@ -453,7 +464,7 @@ export default function NewBooking() {
                     <Landmark size={34} className="text-amber-600" />
                     <div><div className="font-display font-bold text-maroon-800 text-[15px] tracking-wide">SRI SHIRDI SAI BABA TEMPLE</div><div className="text-[10px] text-gray-500">Endowments Department, Government of Telangana</div></div>
                   </div>
-                  <div className="bg-white p-1 rounded"><QRCode seed={ticket.booking_code} px={72} /></div>
+                  <TicketRef code={ticket.booking_code} />
                 </div>
                 <div className="text-center my-4"><span className="inline-block bg-maroon-800 text-cream text-[12px] font-bold tracking-wider rounded px-4 py-1.5">POOJA BOOKING TICKET</span></div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-dashed border-amber-200 pt-4">
@@ -479,7 +490,7 @@ export default function NewBooking() {
           <div className="flex flex-wrap gap-3 justify-center mt-6 no-print">
             <button onClick={() => window.print()} className="btn-outline"><Printer size={15} /> Print Ticket / Receipt</button>
             <button onClick={() => window.print()} className="btn-outline"><Download size={15} /> Download PDF</button>
-            <button onClick={() => { setStep(0); setDevotee(null); setPoojaId(''); setPlan(null); setTicket(null); setDevResults(null); setUtr(''); setSlot(SLOTS[0]); setPoojariId(''); setQuickAdd(null); setDevQ('') }} className="btn-outline"><Plus size={15} /> New Booking</button>
+            <button onClick={() => { setStep(0); setDevotee(null); setPoojaId(''); setPlan(null); setTicket(null); setDevResults(null); setUtr(''); setCommitteeAmt(''); setSlot(SLOTS[0]); setPoojariId(''); setQuickAdd(null); setDevQ('') }} className="btn-outline"><Plus size={15} /> New Booking</button>
             <button onClick={() => nav('/admin/bookings')} className="btn-maroon"><ArrowLeft size={15} /> Back to Bookings</button>
           </div>
         </div>

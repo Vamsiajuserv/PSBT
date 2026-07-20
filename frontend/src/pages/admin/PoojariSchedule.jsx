@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  Plus, Pencil, MoreVertical, X, Save, RotateCcw, Search, Clock, Info, CalendarDays, List,
+  Plus, Pencil, X, Save, RotateCcw, Search, Clock, Info, CalendarDays, List,
   CalendarCheck, UserCheck, CalendarClock, UserX,
 } from 'lucide-react'
 import { PageTitle, Pill, num } from '../../components/admin/ui.jsx'
@@ -136,7 +136,6 @@ export default function PoojariSchedule() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
                           {canWrite && <button onClick={() => setDrawer({ data: { ...emptyForm(), ...s, pooja_id: s.pooja_id || '', plan_id: s.plan_id || '', poojari_id: s.poojari_id || '' }, id: s.id })} title="Edit" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
-                          <button className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><MoreVertical size={15} /></button>
                         </div>
                       </td>
                     </tr>

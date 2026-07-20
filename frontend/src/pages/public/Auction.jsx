@@ -45,7 +45,7 @@ export default function Auction() {
                 title={a.status === 'Closed' ? 'This auction has closed' : 'Bids are placed with the temple'}
                 className="btn-primary !py-2 text-xs disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                {a.status === 'Closed' ? 'Auction Closed' : 'Place Bid'}
+                {a.status === 'Closed' ? 'Auction Closed' : 'How to Bid'}
               </button>
             </div>
           </div>

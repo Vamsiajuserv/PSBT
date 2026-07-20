@@ -90,7 +90,7 @@ export default function Auction() {
 
   return (
     <div>
-      <PageTitle title="Auction Management" subtitle="Manage temple auctions – create auctions, track bidders, record bids and finalize with payment."
+      <PageTitle title="Auction Management" subtitle="Record temple auctions and their winning devotees."
         actions={canWrite && <button onClick={() => { setDrawer(emptyForm()); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} /> Create New Auction</button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -164,7 +164,7 @@ export default function Auction() {
       </div>
 
       <div className="mt-4 flex items-start gap-2 text-[13px] text-gray-600 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-3">
-        <Info size={16} className="text-blue-500 shrink-0 mt-0.5" /> After starting an auction, add bidders, record their bids, select the highest bidder, record payment and generate receipt.
+        <Info size={16} className="text-blue-500 shrink-0 mt-0.5" /> Record each auction with its item, base amount and the winning devotee. Live bid tracking and auction payment receipts are planned; for now, collect payment at the counter.
       </div>
 
       {/* ── Create New Auction drawer ── */}
@@ -232,14 +232,9 @@ export default function Auction() {
                   <textarea className="input min-h-[44px]" maxLength={250} placeholder="Enter notes…" value={drawer.notes} onChange={(e) => setM({ notes: e.target.value })} />
                   <div className="text-right text-[11px] text-gray-400 mt-0.5">{drawer.notes.length} / 250</div></div>
               </div>
-              <div className="bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-3.5">
-                <div className="flex items-center gap-2 text-[13px] font-semibold text-blue-700 mb-2"><Info size={15} /> Next Steps After Creation</div>
-                <ol className="list-decimal ml-5 space-y-1 text-[12.5px] text-gray-600">
-                  <li>Add bidders/devotees to participate in the auction.</li>
-                  <li>Record bids offered by bidders.</li>
-                  <li>Select the highest bidder and finalize the auction.</li>
-                  <li>Record payment and generate receipt.</li>
-                </ol>
+              <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-4 py-3.5">
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-amber-700 mb-2"><Info size={15} /> Note</div>
+                <p className="text-[12.5px] text-gray-600">This records the auction and its winning devotee. Live bid-by-bid tracking and on-system payment receipts are not yet available — settle the winning payment at the counter and record it there.</p>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">

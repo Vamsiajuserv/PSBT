@@ -1,13 +1,36 @@
 """Small helpers shared across routers."""
 from datetime import datetime
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 
 def next_seq(db: Session, model, column) -> int:
-    """Return the next integer sequence for a table (max(id)+1)."""
+    """Return the next integer sequence for a table (COUNT(*)+1).
+
+    NOT collision-safe — it reuses numbers after deletes and races under
+    concurrency. Kept only for non-receipt master codes. For anything that
+    issues a receipt / financial record, use next_code_seq() instead.
+    """
     current = db.query(func.count(model.id)).scalar() or 0
     return current + 1
+
+
+def next_code_seq(db: Session, name: str, baseline: int = 0) -> int:
+    """Atomically allocate the next number in a code series (concurrency- and
+    delete-safe). Backed by a single-statement upsert on the `counters` table,
+    so — unlike COUNT(*)+1 — a number is never reused once issued, even after a
+    row is deleted. `baseline` seeds the series the first time it is used
+    (typically the table's current MAX(id)), so freshly issued codes always sort
+    above any previously issued ones. Postgres-specific (ON CONFLICT)."""
+    val = db.execute(
+        text(
+            "INSERT INTO counters (name, value) VALUES (:n, :v) "
+            "ON CONFLICT (name) DO UPDATE SET value = counters.value + 1 "
+            "RETURNING value"
+        ),
+        {"n": name, "v": int(baseline) + 1},
+    ).scalar()
+    return int(val)
 
 
 def gen_code(prefix: str, seq: int, width: int = 4) -> str:

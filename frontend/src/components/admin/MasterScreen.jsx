@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { Plus, Pencil, Trash2, X, Save, RotateCcw, Search } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num } from './ui.jsx'
+import { TableStates, LOAD_ERROR } from '../common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
 // Generic list + drawer master screen.
@@ -17,9 +18,19 @@ export default function MasterScreen({ config }) {
   const [status, setStatus] = useState('')
   const [drawer, setDrawer] = useState(null)
   const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
 
-  const load = () => Promise.all([api.list({ q, status }), api.stats().catch(() => null)])
-    .then(([d, s]) => { setItems(d.items || d); if (s) setStats(s) })
+  const load = () => {
+    setLoading(true); setLoadErr('')
+    // The primary list call must be caught: if it throws, we surface a distinct
+    // error state (not the "no records" empty state) so staff don't think the
+    // records were deleted. Stats stay best-effort.
+    return Promise.all([api.list({ q, status }), api.stats().catch(() => null)])
+      .then(([d, s]) => { setItems(d.items || d); if (s) setStats(s) })
+      .catch((ex) => { setLoadErr(ex?.detail || LOAD_ERROR); setItems([]) })
+      .finally(() => setLoading(false))
+  }
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [q, status]) // eslint-disable-line
 
   const empty = useMemo(() => {
@@ -90,7 +101,7 @@ export default function MasterScreen({ config }) {
                   </td>
                 </tr>
               ))}
-              {items.length === 0 && <tr><td colSpan={columns.length + 2} className="px-4 py-12 text-center text-gray-400">No {entity}s found.</td></tr>}
+              {items.length === 0 && <TableStates colSpan={columns.length + 2} loading={loading} error={loadErr} onRetry={load} empty={`No ${entity}s found.`} />}
             </tbody>
           </table>
         </div>

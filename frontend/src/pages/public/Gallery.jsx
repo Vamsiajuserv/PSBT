@@ -1,12 +1,12 @@
 import React from 'react'
-import { PageBanner } from '../../components/common/UI.jsx'
+import { TempleBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 
 export default function Gallery() {
   const site = useSite()
   return (
     <div className="bg-cream">
-      <PageBanner title="Gallery" breadcrumb="Home  ›  Gallery" />
+      <TempleBanner title="Gallery" breadcrumb="Home  ›  Gallery" />
 
       <div className="max-w-7xl mx-auto px-4 py-14">
         <p className="text-center text-gray-500 max-w-xl mx-auto -mt-2 mb-10">

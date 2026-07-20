@@ -1,15 +1,16 @@
 """Hundi, Auction and Annadanam routers (grouped)."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import HundiCollection, Auction, Annadanam
+from ..models import HundiCollection, HundiCollectionItem, Auction, Annadanam
 from ..schemas import (HundiCreate, HundiOut, AuctionCreate, AuctionOut,
                        AnnadanamCreate, AnnadanamOut)
-from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import gen_code
+from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
+from ..helpers import gen_code, next_code_seq
 
 # ── Hundi ────────────────────────────────────────────────────────────────────
 hundi_router = APIRouter(prefix="/api/hundi", tags=["hundi"])
@@ -75,17 +76,49 @@ def list_hundi(q: str = "", verification: str = "", deposit: str = "",
 def create_hundi(body: HundiCreate, request: Request,
                  db: Session = Depends(get_db), user=Depends(h_write)):
     year = date.today().year
-    seq = (db.query(func.count(HundiCollection.id)).scalar() or 0)
+    seq = next_code_seq(db, "hundi", db.query(func.max(HundiCollection.id)).scalar() or 0)
     data = body.model_dump()
     members = data.pop("committee_members", []) or []
     joined = ", ".join(m for m in members if m)
+    item_lines = data.pop("items", []) or []
+    # When an item-wise breakdown is supplied, the counted total is the sum of the
+    # lines — the server is the source of truth, not a free-typed amount.
+    if item_lines:
+        data["counted_amount"] = sum((Decimal(str(li.get("value") or 0)) for li in item_lines), Decimal("0"))
+    if data.get("counted_amount") is None:
+        raise HTTPException(422, "Provide the counted amount or an item-wise breakdown.")
     h = HundiCollection(code=f"HUN-{year}-{str(seq).zfill(5)}", created_by=user.username,
                         committee_members=joined, committee_member=joined,
                         status=data.get("deposit_status") == "Deposited" and "Deposited" or "Verified",
                         **data)
+    for li in item_lines:
+        h.items.append(HundiCollectionItem(
+            hundi_item_id=li.get("hundi_item_id"), item_name=li.get("item_name"),
+            item_type=li.get("item_type"), quantity=li.get("quantity"),
+            unit=li.get("unit"), value=li.get("value") or 0, remarks=li.get("remarks")))
     db.add(h); db.commit(); db.refresh(h)
     log_action(db, username=user.username, action="CREATE", entity="Hundi",
-               detail=f"{h.code} ₹{h.counted_amount}", ip=client_ip(request))
+               detail=f"{h.code} ₹{h.counted_amount} ({len(item_lines)} items)", ip=client_ip(request))
+    return h
+
+
+@hundi_router.put("/{hid}/verify", response_model=HundiOut)
+def verify_hundi(hid: int, request: Request, db: Session = Depends(get_db),
+                 user=Depends(RequireRole("Committee"))):
+    """Committee (or Administrator) attests a counted collection. Deliberately a
+    separate act from recording it — the counter cannot verify its own count."""
+    h = db.get(HundiCollection, hid)
+    if not h:
+        raise HTTPException(404, "Hundi collection not found")
+    if h.verification_status == "Verified":
+        raise HTTPException(409, "This collection is already verified.")
+    h.verification_status = "Verified"
+    h.verified_by = user.name or user.username
+    h.verified_on = datetime.utcnow()
+    h.status = "Verified"
+    db.commit(); db.refresh(h)
+    log_action(db, username=user.username, action="UPDATE", entity="Hundi",
+               detail=f"Verified {h.code} ₹{h.counted_amount}", ip=client_ip(request))
     return h
 
 
@@ -130,7 +163,7 @@ def list_auctions(q: str = "", status: str = "",
 def create_auction(body: AuctionCreate, request: Request,
                    db: Session = Depends(get_db), user=Depends(a_write)):
     year = date.today().year
-    seq = (db.query(func.count(Auction.id)).scalar() or 0) + 1
+    seq = next_code_seq(db, "auction", db.query(func.max(Auction.id)).scalar() or 0)
     data = body.model_dump()
     if data.get("current_amount") is None:
         data["current_amount"] = data.get("base_amount") or 0
@@ -202,8 +235,18 @@ def list_annadanam(q: str = "", mode: str = "",
 def create_annadanam(body: AnnadanamCreate, request: Request,
                      db: Session = Depends(get_db), user=Depends(an_write)):
     year = date.today().year
-    seq = (db.query(func.count(Annadanam.id)).scalar() or 0) + 1
-    a = Annadanam(code=f"ANND-{year}-{str(seq).zfill(4)}", created_by=user.username, **body.model_dump())
+    seq = next_code_seq(db, "annadanam", db.query(func.max(Annadanam.id)).scalar() or 0)
+    data = body.model_dump()
+    # Amount is derived on the server from persons × rate — never trusted from the
+    # client, which previously let a caller post any amount independent of plates.
+    plates = int(data.get("plates") or 0)
+    rate = Decimal(str(data.get("rate") or 0))
+    if plates <= 0:
+        raise HTTPException(422, "Number of persons must be greater than zero.")
+    if rate <= 0:
+        raise HTTPException(422, "Per-plate rate must be greater than zero.")
+    data["amount"] = plates * rate
+    a = Annadanam(code=f"ANND-{year}-{str(seq).zfill(4)}", created_by=user.username, **data)
     db.add(a)
     if a.devotee_id:
         from ..models import Devotee

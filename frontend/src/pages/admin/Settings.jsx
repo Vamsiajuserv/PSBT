@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   Landmark, Settings as SettingsIcon, Users as UsersIcon, FileText, Shield, Database,
-  ChevronDown, ChevronRight, Save, Upload, CheckCircle2, Info,
+  ChevronDown, ChevronRight, Save, Upload, CheckCircle2, Info, AlertTriangle,
 } from 'lucide-react'
 import { PageTitle } from '../../components/admin/ui.jsx'
+import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { SettingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
@@ -75,21 +76,33 @@ export default function Settings() {
   const [sub, setSub] = useState('basic')
   const [open, setOpen] = useState({ temple: true })
   const [saved, setSaved] = useState(false)
+  const [loadErr, setLoadErr] = useState('')
+  const [saveErr, setSaveErr] = useState('')
 
-  useEffect(() => { SettingsAPI.get().then(setData).catch(() => {}) }, [])
+  const loadSettings = useCallback(() => {
+    setLoadErr('')
+    SettingsAPI.get().then(setData).catch((ex) => setLoadErr(ex?.detail || "Couldn't load settings — check your connection and retry."))
+  }, [])
+  useEffect(() => { loadSettings() }, [loadSettings])
 
   const category = CATS.find((c) => c.key === cat)
   const section = category?.subs.find((s) => s.key === sub) || category?.subs[0]
   const set = (k, v) => setData((d) => ({ ...d, [k]: v }))
 
   async function save() {
-    const res = await SettingsAPI.update(data)
-    setData(res); setSaved(true); setTimeout(() => setSaved(false), 2500)
+    setSaveErr('')
+    try {
+      const res = await SettingsAPI.update(data)
+      setData(res); setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch (ex) {
+      setSaveErr(ex?.detail || 'Could not save settings — check your connection and try again.')
+    }
   }
 
   function selectCat(c) { setCat(c.key); setSub(c.subs[0].key); setOpen((o) => ({ ...o, [c.key]: true })) }
 
-  if (!data) return <div className="text-gray-400 text-sm">Loading…</div>
+  if (loadErr) return <ErrorBlock message={loadErr} onRetry={loadSettings} />
+  if (!data) return <LoadingBlock />
 
   return (
     <div>
@@ -192,6 +205,7 @@ export default function Settings() {
               </div>
             )}
             {saved && <div className="mt-4 text-[13px] text-emerald-700 flex items-center gap-2"><CheckCircle2 size={15} /> Settings saved successfully.</div>}
+            {saveErr && <div className="mt-4 text-[13px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 flex items-center gap-2"><AlertTriangle size={15} /> {saveErr}</div>}
           </div>
 
           {/* Audit Information */}

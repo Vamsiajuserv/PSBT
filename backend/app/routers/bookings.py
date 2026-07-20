@@ -9,10 +9,10 @@ from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Booking, Devotee
+from ..models import Booking, Devotee, PoojaPlan
 from ..schemas import BookingCreate, BookingOut
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import booking_code, ticket_no
+from ..helpers import booking_code, ticket_no, next_code_seq
 from .. import notifications as notif
 
 
@@ -108,9 +108,15 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
 @router.post("", response_model=BookingOut, status_code=201)
 def create_booking(body: BookingCreate, request: Request,
                    db: Session = Depends(get_db), user=Depends(bill)):
-    seq = (db.query(func.count(Booking.id)).scalar() or 0) + 1
-    code = booking_code(seq)
     data = body.model_dump()
+    # A committee-decided plan has no fixed fee; the counter must enter a positive
+    # amount. Reject the ₹0 booking that the client used to send for these poojas.
+    if data.get("plan_id"):
+        plan = db.get(PoojaPlan, data["plan_id"])
+        if plan and plan.committee_decided and not (float(data.get("amount") or 0) > 0):
+            raise HTTPException(422, "This pooja's fee is committee-decided — a positive amount is required.")
+    seq = next_code_seq(db, "booking", db.query(func.max(Booking.id)).scalar() or 0)
+    code = booking_code(seq)
     # Receipt/ticket is issued only once payment is confirmed (see /payments/verify).
     paid = data.get("payment_status") == "Paid"
     b = Booking(booking_code=code, receipt_no=(f"RCPT{code[2:]}" if paid else None),

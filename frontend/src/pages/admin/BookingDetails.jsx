@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Printer, Download, User, Landmark, IndianRupee, CreditCard, ClipboardList,
   Ticket, Calendar, UserCheck, Building2, CheckCircle2, ShieldCheck, CalendarDays, Tag, Info,
 } from 'lucide-react'
 import { PageTitle, inr, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI, BookingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -30,14 +31,20 @@ export default function BookingDetails() {
   const nav = useNavigate()
   const { user } = useAuth()
   const [d, setD] = useState(null)
-  useEffect(() => { PoojaHistoryAPI.detail(id).then(setD).catch(() => setD(null)) }, [id])
+  const [loadErr, setLoadErr] = useState('')
+  const load = useCallback(() => {
+    setLoadErr('')
+    PoojaHistoryAPI.detail(id).then(setD).catch((ex) => { setD(null); setLoadErr(ex?.detail || "Couldn't load this booking — check your connection and retry.") })
+  }, [id])
+  useEffect(() => { load() }, [load])
   const canOperate = ['Admin', 'Administrator', 'Counter Staff', 'Poojari'].includes(user?.role)
   async function complete() {
     if (!confirm(`Mark ${d.booking_code} as completed? It will move to Pooja History.`)) return
     try { await BookingsAPI.complete(id); PoojaHistoryAPI.detail(id).then(setD) }
     catch (ex) { alert(ex.detail || 'Could not complete this booking.') }
   }
-  if (!d) return <div className="text-gray-400 text-sm">Loading…</div>
+  if (loadErr) return <ErrorBlock message={loadErr} onRetry={load} />
+  if (!d) return <LoadingBlock />
 
   const dev = d.devotee || {}
   const plan = d.plan || {}

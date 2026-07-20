@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarDays, HeartHandshake, HandHeart, HandCoins, Gavel, Flame, Recycle,
-  Calendar, Filter, RotateCcw, TrendingUp, ArrowRight, Clock, ChevronRight,
+  Calendar, Filter, RotateCcw, TrendingUp, ArrowRight, Clock, ChevronRight, BarChart3,
 } from 'lucide-react'
 import { Donut } from '../../components/common/UI.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -46,6 +46,14 @@ function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, foot
 
 function BarChart({ days }) {
   const max = Math.max(...days.map((d) => d.count), 1)
+  if (!days.length || days.every((d) => !d.count)) {
+    return (
+      <div className="mt-4 h-44 flex flex-col items-center justify-center text-gray-400">
+        <BarChart3 size={28} className="mb-2 opacity-50" />
+        <span className="text-sm">No booking data for this period.</span>
+      </div>
+    )
+  }
   return (
     <div className="mt-4">
       <div className="flex items-end justify-between gap-2 h-44">

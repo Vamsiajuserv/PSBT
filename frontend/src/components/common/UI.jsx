@@ -1,5 +1,4 @@
 import React from 'react'
-import { useSite } from '../../lib/SiteContext.jsx'
 
 // ── Gold flourish divider ────────────────────────────────────────────────────
 export function Flourish({ className = '', width = 'w-24' }) {
@@ -9,6 +8,257 @@ export function Flourish({ className = '', width = 'w-24' }) {
       <span className="text-sm leading-none">❖</span>
       <span className={`h-px ${width} bg-gradient-to-l from-transparent to-gold-400`} />
     </div>
+  )
+}
+
+/* ── Shared gold ornaments ────────────────────────────────────────────────────
+   Decorative primitives used by the temple banner and the public pages. All are
+   purely visual and marked aria-hidden.                                      */
+
+export const GOLD = '#D4AF37'
+export const GOLD_DEEP = '#C89B3C'
+
+// Tapering gold hairline. `dir` is the side the gold sits on.
+export function GoldRule({ width = 'w-20', dir = 'right', glow = false }) {
+  return (
+    <span className={`h-px ${width}`} aria-hidden="true"
+          style={{ background: `linear-gradient(to ${dir}, transparent, ${GOLD})`,
+                   boxShadow: glow ? `0 0 8px ${GOLD}b3` : undefined }} />
+  )
+}
+
+// Concentric-ring mandala watermark. Corner watermarks use the bare form
+// (`dots`/`innerRing` off); the large page motif uses the full one.
+export function Mandala({ petals = 12, dots = true, innerRing = true, strokeWidth = 0.7, className = '', style }) {
+  const angles = Array.from({ length: petals }, (_, i) => i * (360 / petals))
+  return (
+    <svg viewBox="0 0 100 100" className={className} style={style} fill="none" stroke="currentColor"
+         strokeWidth={strokeWidth} aria-hidden="true">
+      {[48, 39, 23, 13, 5].map((r) => <circle key={r} cx="50" cy="50" r={r} />)}
+      {angles.map((a) => (
+        <g key={a} transform={`rotate(${a} 50 50)`}>
+          <ellipse cx="50" cy="31" rx="6.5" ry="15" />
+          <path d="M50 16 L50 6" />
+          {dots && <circle cx="50" cy="4" r="1.5" />}
+        </g>
+      ))}
+      {innerRing && angles.map((a) => (
+        <ellipse key={`i${a}`} cx="50" cy="43" rx="3.5" ry="7.5"
+                 transform={`rotate(${a + 180 / petals} 50 50)`} />
+      ))}
+    </svg>
+  )
+}
+
+// Field of drifting golden motes. `items` are {left, bottom, size, delay}.
+export function Particles({ items, core = '#F6E3A8', glow = 'rgba(212,175,55,0.8)' }) {
+  return items.map((p, i) => (
+    <span key={i} className="particle absolute rounded-full pointer-events-none"
+          style={{ left: p.left, bottom: p.bottom, width: p.size, height: p.size,
+                   animationDelay: p.delay,
+                   background: `radial-gradient(circle, ${core}, rgba(212,175,55,0))`,
+                   boxShadow: `0 0 8px ${glow}` }} />
+  ))
+}
+
+/* ── Premium temple banner ────────────────────────────────────────────────────
+   Luxury South-Indian temple hero: deep maroon gradient, temple silhouette,
+   antique-gold ornaments and hanging brass diyas. Purely a visual treatment —
+   it renders only the `title` / `breadcrumb` text it is given.              */
+
+// Shared gradients (defined once so multiple lamps can reference them).
+function BannerDefs() {
+  return (
+    <svg width="0" height="0" className="absolute" aria-hidden="true">
+      <defs>
+        <linearGradient id="brassGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#F3DA95" />
+          <stop offset="45%" stopColor="#D4AF37" />
+          <stop offset="100%" stopColor="#7A5A12" />
+        </linearGradient>
+        <radialGradient id="flameGrad" cx="50%" cy="78%" r="70%">
+          <stop offset="0%" stopColor="#FFF6D0" />
+          <stop offset="38%" stopColor="#FFD700" />
+          <stop offset="78%" stopColor="#FF9D2E" />
+          <stop offset="100%" stopColor="rgba(255,120,20,0)" />
+        </radialGradient>
+      </defs>
+    </svg>
+  )
+}
+
+// A single hanging brass diya: chain → glow → flickering flame → brass bowl.
+function Diya({ chain = 40, delay = '0s', className = '', style }) {
+  return (
+    <div className={`lamp absolute top-0 flex flex-col items-center ${className}`}
+         style={{ ...style, animationDelay: delay }} aria-hidden="true">
+      {/* chain */}
+      <span className="w-px" style={{ height: chain, background: 'linear-gradient(to bottom, rgba(212,175,55,0.25), #C89B3C)' }} />
+      <span className="relative block">
+        {/* warm glow around the flame */}
+        <span className="absolute left-1/2 -translate-x-1/2 -top-6 w-14 h-14 rounded-full pointer-events-none"
+              style={{ background: 'radial-gradient(circle, rgba(255,196,80,0.5), transparent 70%)', filter: 'blur(7px)' }} />
+        {/* flame */}
+        <svg width="11" height="16" viewBox="0 0 12 18"
+             className="flame absolute left-1/2 -translate-x-1/2 -top-[13px]"
+             style={{ animationDelay: delay }}>
+          <path d="M6 0 C 9 5, 11 7, 11 11 A 5 5 0 0 1 1 11 C 1 7, 3 5, 6 0 Z" fill="url(#flameGrad)" />
+        </svg>
+        {/* brass bowl */}
+        <svg width="30" height="17" viewBox="0 0 30 17" className="block">
+          <path d="M1 2 H29 C29 10, 23 16, 15 16 S1 10, 1 2 Z" fill="url(#brassGrad)" />
+          <ellipse cx="15" cy="2.4" rx="14" ry="2.4" fill="#E8C76A" />
+          <path d="M2.5 3.5 C 4 9, 8 13, 15 13.6" stroke="rgba(255,240,200,0.5)" strokeWidth="0.8" fill="none" />
+        </svg>
+      </span>
+    </div>
+  )
+}
+
+// Subtle South-Indian gopuram silhouette used as a background motif.
+function TempleSilhouette({ className = '' }) {
+  return (
+    <svg viewBox="0 0 800 200" className={className} fill="currentColor"
+         preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+      <rect x="0" y="182" width="800" height="18" />
+      {/* side shrines */}
+      <path d="M70 182 v-44 h26 v-14 h56 v14 h26 v44 z" />
+      <path d="M96 124 q28-30 56 0 z" />
+      <path d="M622 182 v-44 h26 v-14 h56 v14 h26 v44 z" />
+      <path d="M648 124 q28-30 56 0 z" />
+      {/* central gopuram tiers */}
+      <path d="M318 182 v-42 h164 v42 z" />
+      <path d="M332 140 v-28 h136 v28 z" />
+      <path d="M346 112 v-26 h108 v26 z" />
+      <path d="M360 86  v-24 h80  v24 z" />
+      {/* finial / kalasha */}
+      <path d="M386 62 q14-22 14-30 q0 8 14 30 z" />
+      <circle cx="400" cy="24" r="7" />
+      <path d="M400 10 v-8" stroke="currentColor" strokeWidth="3" />
+    </svg>
+  )
+}
+
+// Symmetrical ornament + glowing line placed either side of the title.
+function SideOrnament({ flip = false }) {
+  return (
+    <span className="hidden sm:flex items-center gap-2 shrink-0"
+          style={{ transform: flip ? 'scaleX(-1)' : undefined }} aria-hidden="true">
+      <GoldRule width="w-10 md:w-24" glow />
+      <svg width="26" height="16" viewBox="0 0 26 16" fill="none" stroke={GOLD} strokeWidth="1.1">
+        <path d="M25 8 C 18 8, 14 2, 8 3 C 2 4, 2 12, 8 13 C 12 13.7, 14 11, 13 8" />
+        <circle cx="8" cy="8" r="2" fill="#D4AF37" stroke="none" />
+      </svg>
+    </span>
+  )
+}
+
+// Gold ornamental divider with a lotus motif at its centre.
+function LotusDivider() {
+  return (
+    <div className="divider-glow flex items-center justify-center gap-2.5 mt-1.5" aria-hidden="true">
+      <GoldRule width="w-10 sm:w-20" />
+      <svg width="26" height="14" viewBox="0 0 34 18" fill="none" stroke={GOLD} strokeWidth="1">
+        <path d="M17 2 C 20 7, 20 12, 17 16 C 14 12, 14 7, 17 2Z" fill="rgba(212,175,55,.38)" />
+        <path d="M17 16 C 13 15, 10 11, 9 6 C 13 7, 16 11, 17 16Z" fill="rgba(212,175,55,.26)" />
+        <path d="M17 16 C 21 15, 24 11, 25 6 C 21 7, 18 11, 17 16Z" fill="rgba(212,175,55,.26)" />
+        <path d="M17 16 C 12 17, 7 16, 4 13 C 9 12, 14 13, 17 16Z" fill="rgba(212,175,55,.18)" />
+        <path d="M17 16 C 22 17, 27 16, 30 13 C 25 12, 20 13, 17 16Z" fill="rgba(212,175,55,.18)" />
+      </svg>
+      <GoldRule width="w-10 sm:w-20" dir="left" />
+    </div>
+  )
+}
+
+// Corner mandala watermarks — the bottom pair is hidden on small screens.
+const CORNERS = [
+  { at: '-left-8 -top-8', opacity: 0.09, extra: '' },
+  { at: '-right-8 -top-8', opacity: 0.09, extra: '' },
+  { at: '-left-8 -bottom-8', opacity: 0.07, extra: 'hidden sm:block' },
+  { at: '-right-8 -bottom-8', opacity: 0.07, extra: 'hidden sm:block' },
+]
+
+// Drifting motes behind the banner title.
+const BANNER_PARTICLES = [
+  { left: '28%', bottom: '18%', size: 3, delay: '0s' },
+  { left: '44%', bottom: '10%', size: 4, delay: '2.4s' },
+  { left: '58%', bottom: '22%', size: 3, delay: '4.1s' },
+  { left: '68%', bottom: '12%', size: 3, delay: '6.2s' },
+]
+
+// Left/right diya positions — innermost pair hides on small screens.
+const LAMPS = [
+  { pos: '3%', chain: 16, delay: '0s' },
+  { pos: '10%', chain: 30, delay: '0.7s' },
+  { pos: '17.5%', chain: 10, delay: '1.4s', hideOnMobile: true },
+]
+
+export function TempleBanner({ title, breadcrumb }) {
+  return (
+    <section className="temple-banner relative overflow-hidden min-h-[112px] sm:min-h-[124px] animate-fade-in">
+      <BannerDefs />
+
+      {/* Thin antique-gold border on the top edge */}
+      <span className="absolute top-0 inset-x-0 h-px pointer-events-none"
+            style={{ background: 'linear-gradient(to right, transparent, #D4AF37 18%, #FFD700 50%, #D4AF37 82%, transparent)' }} />
+
+      {/* Background layers */}
+      <div className="temple-banner-texture absolute inset-0 pointer-events-none" />
+      <div className="temple-banner-rays absolute inset-0 pointer-events-none" />
+      <TempleSilhouette className="absolute inset-x-0 bottom-0 w-full h-[82%] text-[#D4AF37] opacity-[0.07] pointer-events-none" />
+      {/* Mandala watermarks in the corners */}
+      {CORNERS.map((c) => (
+        <Mandala key={c.at} petals={8} dots={false} innerRing={false}
+                 className={`absolute ${c.at} w-28 h-28 pointer-events-none ${c.extra}`}
+                 style={{ color: GOLD, opacity: c.opacity }} />
+      ))}
+
+      <div className="temple-banner-light absolute inset-0 pointer-events-none" />
+      <div className="temple-banner-vignette absolute inset-0 pointer-events-none" />
+
+      {/* Carved gold ornament along the bottom edge */}
+      <div className="temple-banner-footer absolute bottom-0 inset-x-0 h-2.5 pointer-events-none" />
+
+      {/* Floating golden particles */}
+      <Particles items={BANNER_PARTICLES} core="#FFE9A8" glow="rgba(255,215,0,0.85)" />
+
+      {/* Hanging brass diyas — three per side */}
+      {LAMPS.map((l) => (
+        <Diya key={`L${l.pos}`} chain={l.chain} delay={l.delay}
+              className={`scale-[0.6] sm:scale-75 md:scale-[0.85] ${l.hideOnMobile ? 'hidden sm:flex' : ''}`}
+              style={{ left: l.pos }} />
+      ))}
+      {LAMPS.map((l) => (
+        <Diya key={`R${l.pos}`} chain={l.chain} delay={`${parseFloat(l.delay) + 0.35}s`}
+              className={`scale-[0.6] sm:scale-75 md:scale-[0.85] ${l.hideOnMobile ? 'hidden sm:flex' : ''}`}
+              style={{ right: l.pos }} />
+      ))}
+
+      {/* Content — text unchanged */}
+      <div className="relative min-h-[112px] sm:min-h-[124px] flex flex-col items-center justify-center text-center px-4 py-5">
+        {/* soft blurred glow behind the title */}
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-16 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse, rgba(255,205,110,0.22), transparent 70%)', filter: 'blur(18px)' }} />
+
+        <div className="relative flex items-center justify-center gap-4 animate-slide-up">
+          <SideOrnament />
+          <h1 className="font-display font-bold text-white leading-tight tracking-[0.02em]"
+              style={{ fontSize: 'clamp(20px, 3.4vw, 34px)', textShadow: '0 0 16px rgba(212,175,55,0.55), 0 2px 6px rgba(0,0,0,0.6)' }}>
+            {title}
+          </h1>
+          <SideOrnament flip />
+        </div>
+
+        <LotusDivider />
+
+        {breadcrumb && (
+          <div className="relative mt-1.5 text-[11px] sm:text-xs animate-slide-up"
+               style={{ color: 'rgba(255,255,255,0.88)', animationDelay: '120ms' }}>
+            {breadcrumb}
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -59,23 +309,6 @@ export function StatBand({ stats }) {
             <div className="text-xs md:text-sm text-cream/80 mt-1">{s.label}</div>
           </div>
         ))}
-      </div>
-    </section>
-  )
-}
-
-// ── Page-hero banner for inner public pages ─────────────────────────────────
-export function PageBanner({ title, breadcrumb, image }) {
-  const site = useSite()
-  const bannerImage = image || site?.images?.banner || ''
-  return (
-    <section className="relative bg-maroon-900 text-cream overflow-hidden">
-      <img src={bannerImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-35" loading="lazy" />
-      <div className="absolute inset-0 bg-gradient-to-r from-maroon-900 via-maroon-900/85 to-maroon-900/45" />
-      <div className="relative max-w-6xl mx-auto px-4 py-14">
-        <h1 className="font-serif text-3xl md:text-4xl font-bold">{title}</h1>
-        <Flourish className="mt-3 justify-start" width="w-12" />
-        {breadcrumb && <div className="text-xs text-cream/70 mt-3">{breadcrumb}</div>}
       </div>
     </section>
   )

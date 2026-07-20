@@ -2,9 +2,10 @@ import React, { useEffect, useState, useCallback } from 'react'
 import {
   Plus, X, Eye, Search, RotateCcw, Calendar, Info, ChevronDown, Trash2, Upload,
   HandCoins, IndianRupee, Landmark, CalendarClock, FileText, Calculator, Users, ShieldCheck, Building2,
+  Package, CheckCircle2,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
-import { HundiAPI, DevoteesAPI, CommitteeAPI, SettingsAPI } from '../../api/client.js'
+import { HundiAPI, HundiItemsAPI, DevoteesAPI, CommitteeAPI, SettingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
@@ -14,9 +15,12 @@ const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padSta
 const today = () => nowLocal().slice(0, 10)
 const memberCount = (s) => (s ? s.split(',').filter((x) => x.trim()).length : 0)
 
+const emptyLine = () => ({ hundi_item_id: '', item_name: '', item_type: '', quantity: '', unit: '', value: '', remarks: '' })
+const lineTotal = (lines) => lines.reduce((s, l) => s + Number(l.value || 0), 0)
+
 const emptyForm = () => ({
-  collected_on: today(), counted_amount: '', counting_completed_on: nowLocal(),
-  denomination: 'Mixed', officer: '',
+  collected_on: today(), counting_completed_on: nowLocal(),
+  denomination: 'Mixed', officer: '', lines: [emptyLine()],
   members: [], verified_by: '', verified_on: nowLocal(),
   deposit_status: 'Deposited', deposited_on: today(), bank_name: '', bank_ref: '', attachment: '',
 })
@@ -24,6 +28,7 @@ const emptyForm = () => ({
 export default function Hundi() {
   const { user } = useAuth()
   const canWrite = user?.role !== 'Accountant'
+  const canVerify = ['Committee', 'Administrator', 'Admin'].includes(user?.role)
   const SIZE = 15
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
@@ -33,6 +38,7 @@ export default function Hundi() {
   const [view, setView] = useState(null)
   const [committee, setCommittee] = useState([])
   const [banks, setBanks] = useState([])
+  const [itemMaster, setItemMaster] = useState([])
 
   const [q, setQ] = useState('')
   const [verification, setVerification] = useState('')
@@ -57,34 +63,67 @@ export default function Hundi() {
     SettingsAPI.config()
       .then((c) => setBanks(Array.isArray(c?.banks) ? c.banks : []))
       .catch(() => {})
+    HundiItemsAPI.list()
+      .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setItemMaster(arr.filter((i) => i.active)) })
+      .catch(() => {})
   }, [])
 
   const committeeNames = committee.map((c) => c.name)
   const openCreate = () => setDrawer({ ...emptyForm(), bank_name: banks[0] || '' })
   const toggleMember = (name) => setDrawer((d) => ({ ...d, members: d.members.includes(name) ? d.members.filter((x) => x !== name) : [...d.members, name] }))
 
+  // ── Item-wise counting register helpers ──
+  const setLine = (i, patch) => setDrawer((d) => ({ ...d, lines: d.lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) }))
+  const addLine = () => setDrawer((d) => ({ ...d, lines: [...d.lines, emptyLine()] }))
+  const removeLine = (i) => setDrawer((d) => ({ ...d, lines: d.lines.length > 1 ? d.lines.filter((_, idx) => idx !== i) : d.lines }))
+  const pickItem = (i, id) => {
+    const it = itemMaster.find((x) => String(x.id) === String(id))
+    if (!it) { setLine(i, { hundi_item_id: '', item_name: '', item_type: '', unit: '' }); return }
+    setLine(i, { hundi_item_id: it.id, item_name: it.name, item_type: it.item_type || '', unit: it.unit || '' })
+  }
+
+  async function verify(h) {
+    try { await HundiAPI.verify(h.id); load() }
+    catch (ex) { alert(ex.detail || 'Could not verify this collection.') }
+  }
+
   async function save(e) {
     e.preventDefault()
     const m = drawer
+    const items = m.lines
+      .filter((l) => l.item_name.trim() && l.value !== '')
+      .map((l) => ({
+        hundi_item_id: l.hundi_item_id || null,
+        item_name: l.item_name.trim(),
+        item_type: l.item_type || null,
+        quantity: l.quantity !== '' ? Number(l.quantity) : null,
+        unit: l.unit || null,
+        value: Number(l.value || 0),
+        remarks: l.remarks || null,
+      }))
+    if (items.length === 0) { alert('Add at least one counted item line with a value.'); return }
     const deposited = m.deposit_status === 'Deposited'
     const verified = !!m.verified_by
-    await HundiAPI.create({
-      collected_on: m.collected_on || null,
-      counted_amount: Number(m.counted_amount || 0),
-      counting_completed_on: m.counting_completed_on || null,
-      denomination: m.denomination || null,
-      officer: m.officer || null,
-      committee_members: m.members.map((x) => x.trim()).filter(Boolean),
-      verification_status: verified ? 'Verified' : 'Pending Verification',
-      verified_by: verified ? m.verified_by : null,
-      verified_on: verified ? (m.verified_on || null) : null,
-      deposit_status: m.deposit_status,
-      bank_name: deposited ? m.bank_name : null,
-      bank_ref: deposited ? (m.bank_ref || null) : null,
-      deposited_on: deposited ? (m.deposited_on || null) : null,
-      attachment: m.attachment || null,
-    })
-    setDrawer(null); load()
+    try {
+      await HundiAPI.create({
+        collected_on: m.collected_on || null,
+        counted_amount: lineTotal(m.lines),   // server recomputes from items; sent for the no-items fallback path
+        counting_completed_on: m.counting_completed_on || null,
+        denomination: m.denomination || null,
+        officer: m.officer || null,
+        items,
+        committee_members: m.members.map((x) => x.trim()).filter(Boolean),
+        verification_status: verified ? 'Verified' : 'Pending Verification',
+        verified_by: verified ? m.verified_by : null,
+        verified_on: verified ? (m.verified_on || null) : null,
+        deposit_status: m.deposit_status,
+        bank_name: deposited ? m.bank_name : null,
+        bank_ref: deposited ? (m.bank_ref || null) : null,
+        deposited_on: deposited ? (m.deposited_on || null) : null,
+        attachment: m.attachment || null,
+      })
+      setDrawer(null); load()
+    } catch (ex) { alert(ex.detail || 'Could not save this collection.') }
   }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
 
@@ -150,7 +189,12 @@ export default function Hundi() {
                   <td className="px-4 py-3 text-gray-600 text-[13px]">{h.deposited_on ? fmtDate(h.deposited_on) : <span className="text-gray-300">-</span>}</td>
                   <td className="px-4 py-3 text-gray-600 text-[13px]">{h.bank_name || <span className="text-gray-300">-</span>}</td>
                   <td className="px-4 py-3">
-                    <button onClick={() => setView(h)} title="View details" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setView(h)} title="View details" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      {canVerify && h.verification_status === 'Pending Verification' && (
+                        <button onClick={() => verify(h)} title="Verify collection" className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-emerald-200 text-emerald-700 text-[12.5px] font-semibold hover:bg-emerald-50"><CheckCircle2 size={15} /> Verify</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -180,11 +224,41 @@ export default function Hundi() {
               </DSection>
 
               <DSection n="2" icon={Calculator} title="Counting Details">
-                <div><label className="label">Total Amount Counted (₹) *</label><input required type="number" min="0" className="input" value={drawer.counted_amount} onChange={(e) => setM({ counted_amount: e.target.value })} /></div>
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="label !mb-0 flex items-center gap-1.5"><Package size={13} /> Item-wise Counting Register *</label>
+                    <button type="button" onClick={addLine} className="inline-flex items-center gap-1 text-[12px] font-semibold text-maroon-700 hover:text-maroon-800"><Plus size={13} /> Add Item</button>
+                  </div>
+                  <div className="space-y-2.5">
+                    {drawer.lines.map((l, i) => (
+                      <div key={i} className="border border-gray-200 rounded-lg p-2.5 space-y-2 bg-gray-50/40">
+                        <div className="flex items-center gap-2">
+                          <select className="input !py-1.5 text-[12.5px] flex-1" value={l.hundi_item_id} onChange={(e) => pickItem(i, e.target.value)}>
+                            <option value="">Select item…</option>
+                            {itemMaster.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}
+                          </select>
+                          <button type="button" onClick={() => removeLine(i)} disabled={drawer.lines.length <= 1} title="Remove line"
+                            className="w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 disabled:opacity-40"><Trash2 size={14} /></button>
+                        </div>
+                        <input className="input !py-1.5 text-[12.5px]" placeholder="Item name (or free text)" value={l.item_name}
+                          onChange={(e) => setLine(i, { item_name: e.target.value, hundi_item_id: '' })} />
+                        <div className="grid grid-cols-3 gap-2">
+                          <input type="number" min="0" step="any" className="input !py-1.5 text-[12.5px]" placeholder="Qty" value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
+                          <input className="input !py-1.5 text-[12.5px]" placeholder="Unit" value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />
+                          <input required type="number" min="0" step="any" className="input !py-1.5 text-[12.5px]" placeholder="Value ₹ *" value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between bg-maroon-50 border border-maroon-100 rounded-lg px-3 py-2.5 mt-3">
+                    <span className="text-[12.5px] font-semibold text-maroon-800">Total Amount Counted</span>
+                    <span className="text-[15px] font-extrabold text-maroon-800 tabular-nums">{inr(lineTotal(drawer.lines))}</span>
+                  </div>
+                </div>
                 <div><label className="label">Counting Completed On *</label><input required type="datetime-local" className="input" value={drawer.counting_completed_on} onChange={(e) => setM({ counting_completed_on: e.target.value })} /></div>
                 <div><label className="label">Denomination *</label>
                   <select className="input" value={drawer.denomination} onChange={(e) => setM({ denomination: e.target.value })}>{DENOMINATIONS.map((d) => <option key={d}>{d}</option>)}</select></div>
-                <div><label className="label">Officer</label>
+                <div className="col-span-2"><label className="label">Officer</label>
                   <select className="input" value={drawer.officer} onChange={(e) => setM({ officer: e.target.value })}>
                     <option value="">Select…</option>{committeeNames.map((n) => <option key={n}>{n}</option>)}
                   </select></div>
@@ -259,6 +333,32 @@ export default function Hundi() {
                 <VField label="Committee Members" value={`${memberCount(view.committee_members)} Members`} />
                 <VField label="Members" value={view.committee_members || '—'} wide />
               </DSection>
+              {Array.isArray(view.items) && view.items.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3 text-maroon-700">
+                    <span className="w-5 h-5 rounded-full bg-maroon-700 text-cream text-[11px] grid place-items-center font-bold"><Package size={12} /></span>
+                    <span className="font-semibold text-[13.5px]">Counted Items</span>
+                  </div>
+                  <div className="border border-gray-100 rounded-lg divide-y divide-gray-100">
+                    {view.items.map((it, i) => (
+                      <div key={it.id ?? i} className="flex items-start justify-between gap-3 px-3 py-2.5">
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-medium text-gray-800 truncate">{it.item_name}</div>
+                          <div className="text-[11px] text-gray-400">
+                            {it.item_type || '—'}
+                            {it.quantity != null && ` · ${num(it.quantity)}${it.unit ? ` ${it.unit}` : ''}`}
+                          </div>
+                        </div>
+                        <div className="text-[13px] font-semibold text-gray-800 tabular-nums shrink-0">{inr(it.value)}</div>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50/70">
+                      <span className="text-[12px] font-semibold text-gray-500">Total</span>
+                      <span className="text-[13px] font-extrabold text-maroon-800 tabular-nums">{inr(view.counted_amount)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
               <DSection n="2" icon={ShieldCheck} title="Verification">
                 <VField label="Status" value={<Pill tone={VER_TONE[view.verification_status]}>{view.verification_status}</Pill>} />
                 <VField label="Verified By" value={view.verified_by || '—'} />

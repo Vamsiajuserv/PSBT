@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Printer, Download, User, Landmark, IndianRupee, CreditCard, ClipboardList,
   Ticket, Calendar, CalendarDays, Tag, CheckCircle2, UserCog,
 } from 'lucide-react'
 import { PageTitle, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI } from '../../api/client.js'
 
@@ -21,8 +22,14 @@ export default function PoojaHistoryDetails() {
   const { id } = useParams()
   const nav = useNavigate()
   const [d, setD] = useState(null)
-  useEffect(() => { PoojaHistoryAPI.detail(id).then(setD).catch(() => setD(null)) }, [id])
-  if (!d) return <div className="text-gray-400 text-sm">Loading…</div>
+  const [loadErr, setLoadErr] = useState('')
+  const load = useCallback(() => {
+    setLoadErr('')
+    PoojaHistoryAPI.detail(id).then(setD).catch((ex) => { setD(null); setLoadErr(ex?.detail || "Couldn't load this pooja record — check your connection and retry.") })
+  }, [id])
+  useEffect(() => { load() }, [load])
+  if (loadErr) return <ErrorBlock message={loadErr} onRetry={load} />
+  if (!d) return <LoadingBlock />
 
   const dev = d.devotee || {}, plan = d.plan || {}, pr = d.poojari || {}
   const ticketNo = d.ticket_no || d.receipt_no

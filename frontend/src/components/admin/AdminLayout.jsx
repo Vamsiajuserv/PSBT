@@ -187,7 +187,7 @@ export default function AdminLayout() {
           <div className="flex items-center gap-4 lg:gap-5">
             <span className="hidden md:flex items-center gap-2 text-[13px] text-gray-600"><Calendar size={15} className="text-gray-400" /> {todayLabel()}</span>
             <span className="hidden md:flex items-center gap-2 text-[13px] text-gray-600"><Clock size={15} className="text-gray-400" /> {timeLabel()}</span>
-            <button className="relative text-gray-500 hover:text-maroon-700">
+            <button onClick={() => navigate('/admin/notifications')} title="Notifications" aria-label="Notifications" className="relative text-gray-500 hover:text-maroon-700">
               <Bell size={20} />
               <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 grid place-items-center">5</span>
             </button>

@@ -33,8 +33,18 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   if (res.status === 204) return null
   const data = await res.json().catch(() => null)
   if (!res.ok) {
-    // Auto sign-out on auth failure
-    if (res.status === 401) setToken(null)
+    // Auto sign-out on auth failure: an expired/invalid session must clear BOTH
+    // the token and the cached user, then bounce to the staff login — otherwise
+    // the admin shell keeps rendering tokenless and every call 401s into a
+    // permanent "Loading…". Guard the redirect so the login page (which 401s on
+    // bad credentials) doesn't loop.
+    if (res.status === 401) {
+      setToken(null)
+      localStorage.removeItem('psbt_user')
+      if (!window.location.pathname.startsWith('/staff-login')) {
+        window.location.replace('/staff-login')
+      }
+    }
     throw new ApiError(res.status, data?.detail || res.statusText)
   }
   return data
@@ -126,6 +136,7 @@ export const HundiAPI = {
   list: (params = {}) => api.get('/hundi' + qs(params)),
   stats: () => api.get('/hundi/stats'),
   create: (b) => api.post('/hundi', b),
+  verify: (id) => api.put(`/hundi/${id}/verify`),
 }
 export const AuctionAPI = {
   list: (params = {}) => api.get('/auctions' + qs(params)),

@@ -73,6 +73,21 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme),
 # (updated management-role model). Both are treated as full-access superusers.
 ADMIN_ROLES = frozenset({"Admin", "Administrator"})
 
+# Per-role WRITE permissions. Reading a module is governed by module membership
+# (user.modules); MODIFYING it additionally requires the module to be listed
+# here for the user's role. Administrator bypasses this entirely, and a role
+# absent from this map is read-only everywhere. This closes the prior hole where
+# any non-Accountant role could write every module it could read — e.g. a
+# Poojari editing pooja fees (Sevas write) or a Committee member closing the day
+# (Reports write). Master editing lives behind Sevas/Bookings/Hundi/Auction/
+# Donations write; day-close behind Reports write; billing behind Counter write.
+WRITE_MATRIX = {
+    "Counter Staff": {"Devotees", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"},
+    "Poojari": {"Bookings"},                 # may mark bookings complete only
+    "Accountant": set(),                     # read-only everywhere
+    "Committee": {"Hundi", "Auction"},       # hundi verification / auction decisions; NOT Reports (day close)
+}
+
 
 class RequireRole:
     """Allow only the given roles (Administrator always allowed)."""
@@ -87,7 +102,9 @@ class RequireRole:
 
 
 class RequireModule:
-    """Require access to a module. Administrator bypasses. Accountant is read-only."""
+    """Require access to a module. Reading needs the module in user.modules;
+    writing additionally needs the module in that role's WRITE_MATRIX entry.
+    Administrator bypasses both checks."""
     def __init__(self, module: str, write: bool = False):
         self.module = module
         self.write = write
@@ -99,9 +116,9 @@ class RequireModule:
         if self.module not in allowed:
             raise HTTPException(status.HTTP_403_FORBIDDEN,
                                 f"No access to module '{self.module}'")
-        if self.write and user.role == "Accountant":
+        if self.write and self.module not in WRITE_MATRIX.get(user.role, set()):
             raise HTTPException(status.HTTP_403_FORBIDDEN,
-                                "Accountant role is read-only")
+                                f"Role '{user.role}' has read-only access to '{self.module}'")
         return user
 
 

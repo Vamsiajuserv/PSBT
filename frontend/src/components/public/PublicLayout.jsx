@@ -31,9 +31,6 @@ const NAV = [
     children: [
       { to: '/sevas', label: 'All Poojas & Sevas' },
       { to: '/annadanam', label: 'Annadanam' },
-      { to: '/hundi', label: 'Hundi' },
-      { to: '/auction', label: 'Auction' },
-      { to: '/timings', label: 'Darshan Timings' },
     ],
   },
   { to: '/donations', label: 'Donations' },
@@ -92,12 +89,16 @@ export default function PublicLayout() {
         <div className="max-w-7xl mx-auto px-4 h-9 flex items-center justify-between">
           <span className="font-telugu">🕉 || {MANTRA.hi} ||</span>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:inline text-gold-200/80">{t('Follow Us :')}</span>
-            {[Facebook, Instagram, Youtube].map((Ic, i) => (
-              <a key={i} href="#" aria-label="social" className="w-6 h-6 rounded-full bg-white/10 hover:bg-gold-500 hover:text-maroon-900 grid place-items-center transition-colors">
-                <Ic size={12} />
-              </a>
-            ))}
+            {[[Facebook, 'facebook'], [Instagram, 'instagram'], [Youtube, 'youtube']].some(([, k]) => TEMPLE.social?.[k]) &&
+              <span className="hidden sm:inline text-gold-200/80">{t('Follow Us :')}</span>}
+            {[[Facebook, 'facebook'], [Instagram, 'instagram'], [Youtube, 'youtube']]
+              .filter(([, k]) => TEMPLE.social?.[k])
+              .map(([Ic, k]) => (
+                <a key={k} href={TEMPLE.social[k]} target="_blank" rel="noopener noreferrer" aria-label={k}
+                   className="w-6 h-6 rounded-full bg-white/10 hover:bg-gold-500 hover:text-maroon-900 grid place-items-center transition-colors">
+                  <Ic size={12} />
+                </a>
+              ))}
             <LangToggle className="text-gold-200 ml-1" />
           </div>
         </div>
@@ -190,9 +191,12 @@ export default function PublicLayout() {
               {TEMPLE.tagline || t('A sacred place dedicated to Sri Shirdi Sai Baba, spreading love, faith and seva.')}
             </p>
             <div className="flex gap-2 mt-4">
-              {[Facebook, Instagram, Youtube].map((Ic, i) => (
-                <span key={i} className="w-8 h-8 rounded-full bg-white/10 hover:bg-gold-500 hover:text-maroon-900 grid place-items-center cursor-pointer transition-colors"><Ic size={15} /></span>
-              ))}
+              {[[Facebook, 'facebook'], [Instagram, 'instagram'], [Youtube, 'youtube']]
+                .filter(([, k]) => TEMPLE.social?.[k])
+                .map(([Ic, k]) => (
+                  <a key={k} href={TEMPLE.social[k]} target="_blank" rel="noopener noreferrer" aria-label={k}
+                     className="w-8 h-8 rounded-full bg-white/10 hover:bg-gold-500 hover:text-maroon-900 grid place-items-center transition-colors"><Ic size={15} /></a>
+                ))}
             </div>
           </div>
 
@@ -210,10 +214,18 @@ export default function PublicLayout() {
           <div>
             <div className="font-display text-xs uppercase tracking-widest text-gold-300 mb-3">{t('Temple Information')}</div>
             <ul className="space-y-2 text-xs">
-              <li className="flex gap-2"><span className="text-cream/50 w-24 shrink-0">{t('Established')}</span><span>: {TEMPLE.established}</span></li>
-              <li className="flex gap-2"><span className="text-cream/50 w-24 shrink-0">{t('Managed By')}</span><span>: {TEMPLE.managedBy}</span></li>
-              <li className="flex gap-2"><span className="text-cream/50 w-24 shrink-0">{t('Trust Reg. No')}</span><span>: {TEMPLE.regNo}</span></li>
-              <li className="flex gap-2"><span className="text-cream/50 w-24 shrink-0">{t('Pan No.')}</span><span>: {TEMPLE.pan}</span></li>
+              {[
+                [t('Established'), TEMPLE.established],
+                [t('Managed By'), TEMPLE.managedBy],
+                [t('Trust Reg. No'), TEMPLE.regNo],
+                [t('Pan No.'), TEMPLE.pan],
+              ].map(([label, value]) => (
+                <li key={label} className="flex gap-1.5">
+                  <span className="text-cream/50 w-24 shrink-0">{label}</span>
+                  <span className="shrink-0">:</span>
+                  <span className="min-w-0 break-words">{value}</span>
+                </li>
+              ))}
             </ul>
           </div>
 

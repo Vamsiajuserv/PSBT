@@ -39,7 +39,7 @@ const UI_TE = {
     'సాయిబాబా విశ్వాసం, భక్తి మరియు అనుగ్రహాల పవిత్ర స్థలం.',
   'Temple Location': 'ఆలయ స్థానం', 'Contact': 'సంప్రదింపు',
   'Our Services & Offerings': 'మా సేవలు & నైవేద్యాలు', 'View Details': 'వివరాలు చూడండి',
-  'About Our Temple': 'మా ఆలయం గురించి', 'Temple Information': 'ఆలయ సమాచారం',
+  'About Our Temple': 'మా ఆలయం గురించి',
   'A Place of Faith, Devotion and Compassion': 'విశ్వాసం, భక్తి మరియు కరుణ యొక్క స్థలం',
   "Sri Shirdi Sai Baba Temple, Dwarakapuri Colony, Punjagutta, Hyderabad is dedicated to spreading the teachings of Shirdi Sai Baba. The temple serves as a spiritual center where devotees from all walks of life come together to seek Baba's blessings.":
     'పంజాగుట్ట, ద్వారకాపురి కాలనీ, హైదరాబాద్‌లోని శ్రీ షిర్డీ సాయిబాబా ఆలయం షిర్డీ సాయిబాబా బోధనలను వ్యాప్తి చేయడానికి అంకితమైంది. అన్ని వర్గాల భక్తులు బాబా అనుగ్రహం కోసం కలిసివచ్చే ఆధ్యాత్మిక కేంద్రంగా ఆలయం సేవలందిస్తుంది.',
@@ -60,7 +60,7 @@ const UI_TE = {
     'ఆలయ వేలం మరియు పాల్గొనడం గురించి సమాచారం.',
   'General temple information and daily rituals.':
     'సాధారణ ఆలయ సమాచారం మరియు రోజువారీ ఆచారాలు.',
-  'View More Photos': 'మరిన్ని ఫోటోలు చూడండి', 'Gallery': 'గ్యాలరీ',
+  'View More Photos': 'మరిన్ని ఫోటోలు చూడండి',
 }
 
 const LangCtx = createContext(null)

@@ -30,12 +30,18 @@ def on_startup():
     run_migrations(engine)
     repair_permissions(engine)
     ensure_site_content(engine)
-    # Keep the demo dataset "live": roll transaction dates forward so today's /
-    # this-week KPIs, charts and reports always have data. No-op once current.
-    try:
-        refresh_mock_dates(quiet=True)
-    except Exception as exc:  # never let a data refresh block API startup
-        print(f"[startup] mock date refresh skipped: {exc}")
+    # DEMO ONLY: roll the mock dataset's transaction dates forward so the demo's
+    # "today"/"this-week" KPIs always have data. This bulk-rewrites Date/DateTime
+    # columns across every transactional table (incl. the audit log), so it MUST
+    # NOT run against real data. Gated to ENVIRONMENT=development; in production it
+    # is skipped entirely. Run it by hand for demos: `python -m app.mock_refresh`.
+    if settings.is_development:
+        try:
+            refresh_mock_dates(quiet=True)
+        except Exception as exc:  # never let a data refresh block API startup
+            print(f"[startup] mock date refresh skipped: {exc}")
+    else:
+        print(f"[startup] ENVIRONMENT={settings.ENVIRONMENT}: mock date refresh disabled (production-safe).")
 
 
 @app.get("/api/health")

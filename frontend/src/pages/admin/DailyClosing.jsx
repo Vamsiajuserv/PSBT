@@ -4,6 +4,7 @@ import {
   ChevronDown, Wallet, Scale, CreditCard, Info, CheckCircle2,
 } from 'lucide-react'
 import { inr, num, fmtStamp } from '../../components/admin/ui.jsx'
+import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { DailyClosingAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
@@ -58,13 +59,20 @@ export default function DailyClosing() {
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [loadErr, setLoadErr] = useState('')
 
   const load = useCallback(async () => {
-    const s = await DailyClosingAPI.summary(day)
-    setSum(s)
-    setActual(String(s.actual_cash ?? s.expected_cash ?? 0))
-    setNotes('')
-    setMsg('')
+    setLoadErr('')
+    try {
+      const s = await DailyClosingAPI.summary(day)
+      setSum(s)
+      setActual(String(s.actual_cash ?? s.expected_cash ?? 0))
+      setNotes('')
+      setMsg('')
+    } catch (ex) {
+      setSum(null)
+      setLoadErr(ex?.detail || "Couldn't load the daily closing — check your connection and retry.")
+    }
   }, [day])
   useEffect(() => { load() }, [load])
 
@@ -77,7 +85,8 @@ export default function DailyClosing() {
     } catch (ex) { setMsg(ex.detail || 'Failed to close the day.') } finally { setBusy(false) }
   }
 
-  if (!sum) return <div className="py-20 text-center text-gray-400">Loading…</div>
+  if (loadErr) return <ErrorBlock message={loadErr} onRetry={load} />
+  if (!sum) return <LoadingBlock />
 
   const modules = sum.modules || []
   const t = sum.total || { cash: 0, upi: 0, total: 0, count: 0 }

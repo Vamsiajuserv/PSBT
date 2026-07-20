@@ -24,6 +24,11 @@ export function AuthProvider({ children }) {
         } catch {
           if (alive) signOut()
         }
+      } else if (loadUser()) {
+        // A cached user with no token is a stale/expired session — treat as
+        // signed-out so the guard sends them to login instead of rendering the
+        // admin shell tokenless (which would 401 every request).
+        if (alive) signOut()
       }
       if (alive) setReady(true)
     }

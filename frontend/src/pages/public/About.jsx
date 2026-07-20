@@ -4,7 +4,7 @@ import {
   Landmark, MapPin, CalendarDays, Clock, Phone, Mail, ArrowRight,
   Sparkles, HandHeart, Flame, Users, HeartHandshake, Gem,
 } from 'lucide-react'
-import { SectionTitle, Flourish, PageBanner } from '../../components/common/UI.jsx'
+import { SectionTitle, Flourish, TempleBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 
 const PRINCIPLES = [
@@ -33,7 +33,7 @@ export default function About() {
 
   return (
     <div className="bg-cream">
-      <PageBanner title="About Our Temple" breadcrumb="Home  ›  About Temple" />
+      <TempleBanner title="About Our Temple" breadcrumb="Home  ›  About Temple" />
 
       <div className="max-w-7xl mx-auto px-4 py-12 grid lg:grid-cols-[300px_1fr_300px] gap-8">
         {/* Image */}

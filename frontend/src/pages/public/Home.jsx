@@ -11,10 +11,7 @@ import { useLang } from '../../i18n/LanguageContext.jsx'
 // ── Services & offerings (informational — no online booking) ─────────────────
 const SERVICES = [
   { icon: Flower2, title: 'Poojas & Services', desc: 'View the list of available poojas, rituals and seva details.', to: '/sevas', cta: 'View Details' },
-  { icon: HandHeart, title: 'Donations', desc: 'Learn about donation options and how you can contribute.', to: '/donations', cta: 'View Details' },
   { icon: UtensilsCrossed, title: 'Annadanam', desc: 'Information about Annadanam seva and sponsorship details.', to: '/annadanam', cta: 'View Details' },
-  { icon: Landmark, title: 'Hundi', desc: 'Learn about the temple hundi and its significance.', to: '/hundi', cta: 'View Details' },
-  { icon: Gavel, title: 'Auction', desc: 'Information about temple auctions and participation.', to: '/auction', cta: 'View Details' },
   { icon: Info, title: 'Temple Information', desc: 'General temple information and daily rituals.', to: '/about', cta: 'Learn More' },
 ]
 

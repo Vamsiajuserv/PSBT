@@ -234,9 +234,33 @@ class DonationOut(ORM):
 
 
 # ── Hundi / Auction / Annadanam ──────────────────────────────────────────────
+class HundiItemLine(BaseModel):
+    hundi_item_id: Optional[int] = None
+    item_name: str
+    item_type: Optional[str] = None
+    quantity: Optional[Decimal] = None
+    unit: Optional[str] = None
+    value: Decimal = Decimal(0)
+    remarks: Optional[str] = None
+
+
+class HundiItemLineOut(ORM):
+    id: int
+    hundi_item_id: Optional[int] = None
+    item_name: str
+    item_type: Optional[str] = None
+    quantity: Optional[Decimal] = None
+    unit: Optional[str] = None
+    value: Decimal = Decimal(0)
+    remarks: Optional[str] = None
+
+
 class HundiCreate(BaseModel):
     collected_on: Optional[date] = None                    # collection date
-    counted_amount: Decimal
+    # Total counted. Optional: when item lines are supplied it is derived from
+    # their sum on the server. Required only when no item breakdown is given.
+    counted_amount: Optional[Decimal] = None
+    items: list[HundiItemLine] = []                        # item-wise counting register
     counting_completed_on: Optional[datetime] = None
     denomination: str = "Mixed"
     officer: Optional[str] = None
@@ -269,6 +293,7 @@ class HundiOut(ORM):
     bank_name: Optional[str] = None
     bank_ref: Optional[str] = None
     deposited_on: Optional[date] = None
+    items: list[HundiItemLineOut] = []
     attachment: Optional[str] = None
     status: str
 

@@ -3,7 +3,7 @@ import json
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -25,36 +25,48 @@ def _opening_cash(db):
         return DEFAULT_OPENING
 
 
-def _head(db, name, model, amount_col, stamp, on, mode_attr=None, force=None):
-    rows = db.query(model).filter(stamp == on).all()
-    cash = upi = 0.0
+def _head(db, name, model, amount_col, stamp, on, mode_attr=None, force=None, extra_filter=None):
+    q = db.query(model).filter(stamp == on)
+    if extra_filter is not None:
+        q = q.filter(extra_filter)
+    rows = q.all()
+    cash = upi = Decimal("0")           # accumulate money in Decimal, never float
     cash_cnt = upi_cnt = 0
     for r in rows:
-        a = float(getattr(r, amount_col) or 0)
+        a = Decimal(str(getattr(r, amount_col) or 0))
         if force == "cash":
             is_cash = True
         elif force == "upi":
             is_cash = False
         elif mode_attr:
-            is_cash = getattr(r, mode_attr, None) == "Cash"
+            # Cash unless the payment mode explicitly names a digital method.
+            # A missing/blank mode counts as cash (expected in the drawer) rather
+            # than silently inflating the UPI column, which the old code did.
+            is_cash = (getattr(r, mode_attr, None) or "Cash").strip().lower() == "cash"
         else:
             is_cash = True
         if is_cash:
             cash += a; cash_cnt += 1
         else:
             upi += a; upi_cnt += 1
-    return {"name": name, "cash": cash, "upi": upi, "total": cash + upi,
+    return {"name": name, "cash": float(cash), "upi": float(upi), "total": float(cash + upi),
             "count": cash_cnt + upi_cnt, "cash_cnt": cash_cnt, "upi_cnt": upi_cnt}
 
 
 def _modules(db, on):
     heads = [
-        _head(db, "Pooja Bookings", Booking, "amount", func.date(Booking.created_at), on, "payment_method"),
+        # Only money actually collected counts: paid, non-cancelled bookings;
+        # completed auctions; paid waste sales. Pending/cancelled records used to
+        # inflate the day's total and never reconciled against the drawer.
+        _head(db, "Pooja Bookings", Booking, "amount", func.date(Booking.created_at), on, "payment_method",
+              extra_filter=and_(Booking.payment_status == "Paid", Booking.status != "Cancelled")),
         _head(db, "Donations", Donation, "amount", func.date(Donation.created_at), on, "mode"),
         _head(db, "Hundi Collections", HundiCollection, "counted_amount", func.date(HundiCollection.collected_on), on, force="cash"),
-        _head(db, "Auction Receipts", Auction, "current_amount", func.date(Auction.auction_date), on, force="upi"),
+        _head(db, "Auction Receipts", Auction, "current_amount", func.date(Auction.auction_date), on, force="upi",
+              extra_filter=(Auction.status == "Completed")),
         _head(db, "Annadanam Donations", Annadanam, "amount", func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)), on, "mode"),
-        _head(db, "Waste Material Sales", WasteSale, "amount", func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)), on, "mode"),
+        _head(db, "Waste Material Sales", WasteSale, "amount", func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)), on, "mode",
+              extra_filter=(WasteSale.status == "Paid")),
         {"name": "Accommodation Receipts", "cash": 0.0, "upi": 0.0, "total": 0.0, "count": 0, "cash_cnt": 0, "upi_cnt": 0},
         {"name": "Other Receipts", "cash": 0.0, "upi": 0.0, "total": 0.0, "count": 0, "cash_cnt": 0, "upi_cnt": 0},
     ]
@@ -63,24 +75,29 @@ def _modules(db, on):
 
 def _summary(db, on):
     modules = _modules(db, on)
-    tot = {"cash": 0.0, "upi": 0.0, "total": 0.0, "count": 0, "cash_cnt": 0, "upi_cnt": 0}
+    money = {"cash": Decimal("0"), "upi": Decimal("0"), "total": Decimal("0")}
+    counts = {"count": 0, "cash_cnt": 0, "upi_cnt": 0}
     for m in modules:
-        for k in tot:
-            tot[k] += m[k]
-    opening = _opening_cash(db)
-    refunds = 0.0
-    cash_refunds = 0.0
-    expected_cash = opening + tot["cash"] - cash_refunds
-    total_amt = tot["total"]
+        for k in money:
+            money[k] += Decimal(str(m[k]))
+        for k in counts:
+            counts[k] += m[k]
+    opening = Decimal(str(_opening_cash(db)))
+    # Refunds are not yet modelled (no refund records exist); kept at 0 until a
+    # refund feature is built, rather than being invented here. See gap register.
+    refunds = Decimal("0")
+    cash_refunds = Decimal("0")
+    expected_cash = opening + money["cash"] - cash_refunds
+    total_amt = money["total"]
     return {
         "modules": modules,
-        "total": {"cash": tot["cash"], "upi": tot["upi"], "total": total_amt, "count": tot["count"]},
-        "cash_pct": round(tot["cash"] / total_amt * 100, 2) if total_amt else 0,
-        "upi_pct": round(tot["upi"] / total_amt * 100, 2) if total_amt else 0,
-        "cash_txns": tot["cash_cnt"], "upi_txns": tot["upi_cnt"],
-        "opening_cash": opening, "refunds": refunds, "cash_refunds": cash_refunds,
-        "expected_cash": expected_cash,
-        "net_collections": total_amt - refunds,
+        "total": {"cash": float(money["cash"]), "upi": float(money["upi"]), "total": float(total_amt), "count": counts["count"]},
+        "cash_pct": round(float(money["cash"]) / float(total_amt) * 100, 2) if total_amt else 0,
+        "upi_pct": round(float(money["upi"]) / float(total_amt) * 100, 2) if total_amt else 0,
+        "cash_txns": counts["cash_cnt"], "upi_txns": counts["upi_cnt"],
+        "opening_cash": float(opening), "refunds": float(refunds), "cash_refunds": float(cash_refunds),
+        "expected_cash": float(expected_cash),
+        "net_collections": float(total_amt - refunds),
     }
 
 

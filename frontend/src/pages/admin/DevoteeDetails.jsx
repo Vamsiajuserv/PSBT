@@ -5,6 +5,7 @@ import {
   Flame, HeartHandshake, UtensilsCrossed, Gavel, Sparkles, FileText, User, X,
 } from 'lucide-react'
 import { DevoteesAPI } from '../../api/client.js'
+import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -46,11 +47,16 @@ export default function DevoteeDetails() {
   const [d, setD] = useState(null)
   const [tab, setTab] = useState('bookings')
   const [edit, setEdit] = useState(null)   // editable copy of the devotee while the modal is open
+  const [loadErr, setLoadErr] = useState('')
 
-  const reload = () => DevoteesAPI.detail(id).then(setD).catch(() => setD(null))
+  const reload = () => {
+    setLoadErr('')
+    return DevoteesAPI.detail(id).then(setD).catch((ex) => { setD(null); setLoadErr(ex?.detail || "Couldn't load this devotee — check your connection and retry.") })
+  }
   useEffect(() => { reload() }, [id])
 
-  if (!d) return <div className="text-gray-400 text-sm">Loading…</div>
+  if (loadErr) return <ErrorBlock message={loadErr} onRetry={reload} />
+  if (!d) return <LoadingBlock />
   const dev = d.devotee
 
   return (

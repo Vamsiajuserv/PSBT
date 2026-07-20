@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Setting, Seva, DonationCategory, Auction
+from ..models import Setting, Pooja, PoojaPlan, DonationCategory, Auction
 from ..site_content import DEFAULT_CONTENT, TEMPLE_EXTRAS
 from ..routers.settings import DEFAULTS as SETTINGS_DEFAULTS
 
@@ -21,6 +21,7 @@ PUBLIC_SETTING_KEYS = {
     "temple_name", "short_name", "established_year", "registration_number",
     "trust_name", "about", "address_line", "city", "state", "pincode",
     "phone", "email", "website", "timings_morning", "timings_evening",
+    "social_facebook", "social_instagram", "social_youtube",
 }
 
 
@@ -58,6 +59,9 @@ def _temple(db: Session, content: dict) -> dict:
         "about": cfg.get("about"),
         "timings": content.get("timings_line") or TEMPLE_EXTRAS["timings"],
         "timingsNote": content.get("timingsNote") or TEMPLE_EXTRAS["timingsNote"],
+        "social": {"facebook": cfg.get("social_facebook") or "",
+                   "instagram": cfg.get("social_instagram") or "",
+                   "youtube": cfg.get("social_youtube") or ""},
     }
 
 
@@ -67,12 +71,35 @@ def site(db: Session = Depends(get_db)):
     content = _content(db)
     temple = _temple(db, content)
 
-    sevas = [
-        {"id": s.id, "code": s.code, "name": s.name, "name_te": s.name_te,
-         "amount": float(s.amount or 0), "slot": s.slot, "category": s.category,
-         "description": s.description}
-        for s in db.query(Seva).filter(Seva.active.is_(True)).order_by(Seva.id).all()
-    ]
+    # Public seva catalogue is served from the Pooja master (the single source of
+    # truth), not the retired Seva table. It is fully PLAN-EXPANDED: one card/row
+    # per active plan, filed under that plan's category and priced at that plan's
+    # own fee (or "Committee decided" when the plan has no fixed fee). So e.g.
+    # Abhishekam shows ₹50 under Daily and ₹1,200 under Monthly, and Vinayaka
+    # Chavithi shows one row per day-plan (1-Day, 3-Day, … 11-Day). The plan label
+    # (e.g. "One-Time", "Life Long", "9-Day") is exposed as `plans`.
+    CAT_MAP = {"Daily": "Daily", "Monthly": "Monthly", "Long-Term": "Long-term",
+               "Occasion": "Ceremony", "Festival": "Festival", "Vehicle": "Vahana"}
+
+    def _cat_for(pooja, plan):
+        # Daily/Monthly plans define their own public category; everything else
+        # inherits the pooja's category (Long-Term / Occasion / Vehicle).
+        if plan.plan_name == "Daily":
+            return "Daily"
+        if plan.plan_name == "Monthly":
+            return "Monthly"
+        return CAT_MAP.get(pooja.category, pooja.category)
+
+    sevas = []
+    for p in db.query(Pooja).filter(Pooja.active.is_(True)).order_by(Pooja.id).all():
+        plans = db.query(PoojaPlan).filter(PoojaPlan.pooja_id == p.id, PoojaPlan.active.is_(True))\
+                  .order_by(PoojaPlan.id).all()
+        for pl in plans:
+            fee = None if (pl.committee_decided or pl.fee is None) else float(pl.fee)
+            sevas.append({
+                "id": f"{p.id}-{pl.id}", "code": p.code, "name": p.name, "name_te": p.name_te,
+                "amount": fee, "from": False, "committee": fee is None,
+                "plans": pl.plan_name, "category": _cat_for(p, pl), "description": p.description})
 
     # Live donation funds from the active donation categories; fall back to the
     # curated content list if none are configured yet.

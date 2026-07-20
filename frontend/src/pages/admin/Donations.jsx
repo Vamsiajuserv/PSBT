@@ -4,6 +4,7 @@ import {
   Sprout, CalendarDays, Package, HandHeart, User,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
+import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI } from '../../api/client.js'
@@ -34,6 +35,8 @@ export default function Donations() {
   const [cats, setCats] = useState([])
   const [drawer, setDrawer] = useState(null)
   const [printDoc, setPrintDoc] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
 
   // devotee type-ahead search inside the drawer
   const [dq, setDq] = useState('')
@@ -49,11 +52,16 @@ export default function Donations() {
   const [end, setEnd] = useState('')
 
   const load = useCallback(async () => {
-    const [d, s] = await Promise.all([
-      DonationsAPI.list({ q, type, category, mode, start, end, page, size: SIZE }),
-      DonationsAPI.stats().catch(() => null),
-    ])
-    setRows(d.items); setTotal(d.total); if (s) setStats(s)
+    setLoading(true); setLoadErr('')
+    try {
+      const [d, s] = await Promise.all([
+        DonationsAPI.list({ q, type, category, mode, start, end, page, size: SIZE }),
+        DonationsAPI.stats().catch(() => null),
+      ])
+      setRows(d.items); setTotal(d.total); if (s) setStats(s)
+    } catch (ex) {
+      setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
+    } finally { setLoading(false) }
   }, [q, type, category, mode, start, end, page])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
   useEffect(() => { setPage(1) }, [q, type, category, mode, start, end])
@@ -202,7 +210,7 @@ export default function Donations() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">No donations found.</td></tr>}
+              {rows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty="No donations found." />}
             </tbody>
           </table>
         </div>

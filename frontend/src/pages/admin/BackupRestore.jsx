@@ -71,7 +71,7 @@ export default function BackupRestore() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={Database} color="#8a1c1c" bg="bg-maroon-50" title="Total Backups" value={stats ? num(stats.total_backups) : '—'} sub="Snapshots taken" />
         <StatTile icon={RotateCcw} color="#2563eb" bg="bg-blue-50" title="Restores" value={stats ? num(stats.restores) : '—'} sub="Restore operations" />
-        <StatTile icon={Table2} color="#7c3aed" bg="bg-violet-50" title="Config Tables" value={stats ? num(stats.config_tables) : '—'} sub="Included in backup" />
+        <StatTile icon={Table2} color="#7c3aed" bg="bg-violet-50" title="Tables" value={stats ? num(stats.tables) : '—'} sub="Full backup (config + records)" />
         <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title="Last Backup" value={stats?.last_backup ? fmtStamp(stats.last_backup).split(', ')[0] : '—'} sub="Most recent" />
       </div>
 
@@ -120,7 +120,7 @@ export default function BackupRestore() {
               <div className="p-6 text-center">
                 <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 grid place-items-center"><CheckCircle2 size={30} /></div>
                 <h3 className="font-serif text-xl font-bold text-maroon-800 mt-3">Restore Complete</h3>
-                <p className="text-[13px] text-gray-500 mt-1">{restore.result.inserted} records inserted · {restore.result.updated} updated.</p>
+                <p className="text-[13px] text-gray-500 mt-1">{restore.result.written} rows restored across {restore.result.tables} tables.</p>
                 <button onClick={() => setRestore(null)} className="btn-maroon mt-5 mx-auto">Done</button>
               </div>
             ) : (

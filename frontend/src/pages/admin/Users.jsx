@@ -4,6 +4,7 @@ import {
   Users as UsersIcon, UserCheck, UserX, ShieldCheck,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
+import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { UsersAPI, RolesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
@@ -24,6 +25,8 @@ export default function Users() {
   const [showPw, setShowPw] = useState(false)
   const [menu, setMenu] = useState(null)
   const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
 
   const [q, setQ] = useState('')
   const [role, setRole] = useState('')
@@ -32,9 +35,14 @@ export default function Users() {
   const [perPage, setPerPage] = useState(10)
   useEffect(() => { setPage(1) }, [q, role, status])
 
-  const load = () => Promise.all([
-    UsersAPI.list(), UsersAPI.stats().catch(() => null), UsersAPI.meta().catch(() => null), RolesAPI.catalog().catch(() => null),
-  ]).then(([list, s, meta, cat]) => { setRows(list); if (s) setStats(s); if (meta) setRoles(meta.roles); if (cat) setCatalog(cat.modules) })
+  const load = () => {
+    setLoading(true); setLoadErr('')
+    return Promise.all([
+      UsersAPI.list(), UsersAPI.stats().catch(() => null), UsersAPI.meta().catch(() => null), RolesAPI.catalog().catch(() => null),
+    ]).then(([list, s, meta, cat]) => { setRows(list); if (s) setStats(s); if (meta) setRoles(meta.roles); if (cat) setCatalog(cat.modules) })
+      .catch((ex) => { setLoadErr(ex?.detail || LOAD_ERROR); setRows([]) })
+      .finally(() => setLoading(false))
+  }
   useEffect(() => { load() }, [])
 
   const roleModules = useMemo(() => {
@@ -134,7 +142,7 @@ export default function Users() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No users found.</td></tr>}
+              {filtered.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty="No users found." />}
             </tbody>
           </table>
         </div>

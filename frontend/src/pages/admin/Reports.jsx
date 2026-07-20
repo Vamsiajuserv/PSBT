@@ -4,8 +4,10 @@ import {
   Landmark, Gavel, UtensilsCrossed, Recycle, FileBarChart,
 } from 'lucide-react'
 import { PageTitle, num } from '../../components/admin/ui.jsx'
+import { LOAD_ERROR } from '../../components/common/states.jsx'
 import { ReportsAPI } from '../../api/client.js'
 import { exportReportToExcel } from '../../lib/excel.js'
+import { exportReportToPdf } from '../../lib/pdf.js'
 
 const firstOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
 const today = () => new Date().toISOString().slice(0, 10)
@@ -30,13 +32,15 @@ export default function Reports() {
   const [report, setReport] = useState('')
   const [rq, setRq] = useState('')
   const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [loadErr, setLoadErr] = useState('')
 
   useEffect(() => {
     ReportsAPI.catalog().then((r) => {
       setCats(r.categories)
       const c0 = r.categories[0]
       setCategory(c0.key); setReport(c0.reports[0])
-    }).catch(() => {})
+    }).catch((ex) => setLoadErr(ex?.detail || "Couldn't load reports — check your connection and retry."))
   }, [])
 
   const allReports = useMemo(() => cats.flatMap((c) => c.reports.map((rp) => ({ category: c.key, name: rp }))), [cats])
@@ -45,8 +49,13 @@ export default function Reports() {
 
   async function generate(rep = report) {
     if (!rep) return
-    const out = await ReportsAPI.generate({ report: rep, start, end })
-    setResult(out)
+    setLoading(true); setLoadErr('')
+    try {
+      const out = await ReportsAPI.generate({ report: rep, start, end })
+      setResult(out)
+    } catch (ex) {
+      setLoadErr(ex?.detail || LOAD_ERROR); setResult(null)
+    } finally { setLoading(false) }
   }
   useEffect(() => { if (report) generate() }, [report]) // eslint-disable-line
 
@@ -137,7 +146,7 @@ export default function Reports() {
               {result?.subtitle && <p className="text-[13px] text-gray-500 mt-0.5">{result.subtitle}</p>}
             </div>
             <div className="flex gap-2 no-print">
-              <button onClick={() => window.print()} className="btn-outline !py-2 text-red-600 border-red-200"><FileText size={15} /> Export PDF</button>
+              <button onClick={() => exportReportToPdf(result)} disabled={!result?.rows?.length} className="btn-outline !py-2 text-red-600 border-red-200 disabled:opacity-60"><FileText size={15} /> Export PDF</button>
               <button onClick={exportExcel} disabled={exporting} className="btn-outline !py-2 text-emerald-700 border-emerald-200 disabled:opacity-60"><FileSpreadsheet size={15} /> {exporting ? 'Exporting…' : 'Export Excel'}</button>
             </div>
           </div>
@@ -147,18 +156,25 @@ export default function Reports() {
                 {(result?.columns || []).map((c) => <th key={c.key} className={`px-5 py-3 font-semibold whitespace-nowrap ${c.type !== 'text' ? 'text-right' : ''}`}>{c.label}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {(result?.rows || []).map((row, i) => (
+                {loading && <tr><td colSpan={(result?.columns.length) || 1} className="px-5 py-12 text-center text-gray-400 text-sm">Loading…</td></tr>}
+                {!loading && loadErr && (
+                  <tr><td colSpan={(result?.columns.length) || 1} className="px-5 py-12 text-center">
+                    <div className="text-sm text-red-600 mb-3">{loadErr}</div>
+                    <button onClick={() => generate()} className="btn-outline !py-1.5 mx-auto"><Search size={14} /> Retry</button>
+                  </td></tr>
+                )}
+                {!loading && !loadErr && (result?.rows || []).map((row, i) => (
                   <tr key={i} className="hover:bg-gray-50/60">
                     {result.columns.map((c) => <td key={c.key} className={`px-5 py-3 ${c.type !== 'text' ? 'text-right tabular-nums text-gray-700' : 'text-gray-700'} ${c.key === result.columns[0].key ? 'font-medium text-gray-800' : ''}`}>{cell(c, row)}</td>)}
                   </tr>
                 ))}
-                {result?.total && (
+                {!loading && !loadErr && result?.total && (
                   <tr className="bg-amber-50/60 font-bold text-gray-800">
                     {result.columns.map((c) => <td key={c.key} className={`px-5 py-3 ${c.type !== 'text' ? 'text-right tabular-nums' : ''}`}>{cell(c, result.total, true)}</td>)}
                   </tr>
                 )}
-                {result && result.rows.length === 0 && <tr><td colSpan={result.columns.length} className="px-5 py-12 text-center text-gray-400">No records for the selected period.</td></tr>}
-                {!result && <tr><td className="px-5 py-12 text-center text-gray-400">Choose a report and click Generate Report.</td></tr>}
+                {!loading && !loadErr && result && result.rows.length === 0 && <tr><td colSpan={result.columns.length} className="px-5 py-12 text-center text-gray-400">No records for the selected period.</td></tr>}
+                {!loading && !loadErr && !result && <tr><td className="px-5 py-12 text-center text-gray-400">Choose a report and click Generate Report.</td></tr>}
               </tbody>
             </table>
           </div>

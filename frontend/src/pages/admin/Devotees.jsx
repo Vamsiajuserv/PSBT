@@ -6,6 +6,7 @@ import {
   Flame, UtensilsCrossed, Gavel,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
@@ -30,15 +31,22 @@ export default function Devotees() {
   const [city, setCity] = useState('')
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
 
   const load = useCallback(async () => {
-    const [s, list] = await Promise.all([
-      DevoteesAPI.stats().catch(() => null),
-      DevoteesAPI.list({ q, city, status, page, size: PAGE_SIZE }),
-    ])
-    if (s) setStats(s)
-    setRows(Array.isArray(list?.items) ? list.items : [])
-    setTotal(list?.total ?? 0)
+    setLoading(true); setLoadErr('')
+    try {
+      const [s, list] = await Promise.all([
+        DevoteesAPI.stats().catch(() => null),
+        DevoteesAPI.list({ q, city, status, page, size: PAGE_SIZE }),
+      ])
+      if (s) setStats(s)
+      setRows(Array.isArray(list?.items) ? list.items : [])
+      setTotal(list?.total ?? 0)
+    } catch (ex) {
+      setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
+    } finally { setLoading(false) }
   }, [q, city, status, page])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
 
@@ -112,7 +120,7 @@ export default function Devotees() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No devotees found.</td></tr>}
+              {rows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty="No devotees found." />}
             </tbody>
           </table>
         </div>

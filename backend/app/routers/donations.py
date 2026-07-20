@@ -2,6 +2,8 @@
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import or_, func
+
+from ..helpers import next_code_seq
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -79,7 +81,7 @@ def list_donations(q: str = "", type: str = "", category: str = "", mode: str = 
 @router.post("", response_model=DonationOut, status_code=201)
 def create_donation(body: DonationCreate, request: Request,
                     db: Session = Depends(get_db), user=Depends(write)):
-    seq = DON_BASE + (db.query(func.count(Donation.id)).scalar() or 0)
+    seq = next_code_seq(db, "donation", DON_BASE + (db.query(func.max(Donation.id)).scalar() or 0))
     data = body.model_dump()
     d = Donation(donation_code=f"DON-{str(seq).zfill(7)}", receipt_no=f"RCPT-{seq}",
                  created_by=user.username, **data)

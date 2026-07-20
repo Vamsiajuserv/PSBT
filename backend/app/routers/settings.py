@@ -34,9 +34,13 @@ DEFAULTS = {
     "state": "Telangana",
     "pincode": "500082",
     # Contact Details
-    "phone": "+91 40 2334 5566",
+    "phone": "+91 040 2335 3589",
     "email": "info@saibabatemple.org",
     "website": "www.saibabatemple.org",
+    # Social links (blank = icon hidden on the public site until configured)
+    "social_facebook": "",
+    "social_instagram": "",
+    "social_youtube": "",
     # Bank Details
     "bank_name": "State Bank of India (Main Branch)",
     "account_number": "00000000000",

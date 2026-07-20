@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import WasteVendor, WasteSale
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import gen_code
+from ..helpers import gen_code, next_code_seq
 
 router = APIRouter(prefix="/api/waste", tags=["waste"])
 # Waste sales is Admin/authorised only — gated behind the "Counter" write capability.
@@ -140,7 +140,7 @@ def create_sale(body: dict, request: Request, db: Session = Depends(get_db), use
     rate = Decimal(str(body["rate"]))
     amount = (weight * rate) if body.get("amount") in (None, "") else Decimal(str(body["amount"]))
     year = date.today().year
-    seq = (db.query(func.count(WasteSale.id)).scalar() or 0) + 1
+    seq = next_code_seq(db, "waste_sale", db.query(func.max(WasteSale.id)).scalar() or 0)
     paid = body.get("paid_at")
     paid_dt = datetime.fromisoformat(paid) if paid else None
     mode = body.get("mode", "Cash")

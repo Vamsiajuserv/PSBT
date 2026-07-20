@@ -237,6 +237,29 @@ class HundiCollection(Base):
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
+    # Item-wise counting register: one row per counted item type (currency notes,
+    # coins, foreign currency, jewellery, valuables…). counted_amount is derived
+    # from the sum of these lines' values when they are supplied.
+    items = relationship("HundiCollectionItem", back_populates="collection",
+                         cascade="all, delete-orphan", order_by="HundiCollectionItem.id")
+
+
+class HundiCollectionItem(Base):
+    """One counted line within a hundi collection (see HundiCollection.items)."""
+    __tablename__ = "hundi_collection_items"
+
+    id = Column(Integer, primary_key=True)
+    collection_id = Column(Integer, ForeignKey("hundi_collections.id", ondelete="CASCADE"), nullable=False)
+    hundi_item_id = Column(Integer, ForeignKey("hundi_items.id"), nullable=True)  # link to the item master
+    item_name = Column(String(160), nullable=False)          # snapshot of the item name at counting time
+    item_type = Column(String(40), nullable=True)            # Cash | Coins | Foreign Currency | Jewellery | …
+    quantity = Column(Numeric(14, 3), nullable=True)         # count / grams (non-cash items)
+    unit = Column(String(20), nullable=True)                 # Amount | Count | Grams
+    value = Column(Numeric(14, 2), nullable=False, default=0)  # rupee value counted for this line
+    remarks = Column(Text, nullable=True)
+
+    collection = relationship("HundiCollection", back_populates="items")
+
 
 # ── Auctions ─────────────────────────────────────────────────────────────────
 class Auction(Base):

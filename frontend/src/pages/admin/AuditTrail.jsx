@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { ScrollText, Activity, LogIn, Users, Search, RotateCcw } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
+import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { AuditAPI } from '../../api/client.js'
 
 const ACTION_TONE = { LOGIN: 'blue', CREATE: 'green', UPDATE: 'amber', DELETE: 'red', DENIED: 'red', LOGOUT: 'gray' }
@@ -17,14 +18,21 @@ export default function AuditTrail() {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
   const size = 20
 
   const load = useCallback(async () => {
-    const [d, s] = await Promise.all([
-      AuditAPI.search({ q, action, entity, start, end, page, size }),
-      AuditAPI.stats().catch(() => null),
-    ])
-    setRows(d.items); setTotal(d.total); if (d.entities) setEntities(d.entities); if (s) setStats(s)
+    setLoading(true); setLoadErr('')
+    try {
+      const [d, s] = await Promise.all([
+        AuditAPI.search({ q, action, entity, start, end, page, size }),
+        AuditAPI.stats().catch(() => null),
+      ])
+      setRows(d.items); setTotal(d.total); if (d.entities) setEntities(d.entities); if (s) setStats(s)
+    } catch (ex) {
+      setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
+    } finally { setLoading(false) }
   }, [q, action, entity, start, end, page])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
   useEffect(() => { setPage(1) }, [q, action, entity, start, end])
@@ -79,7 +87,7 @@ export default function AuditTrail() {
                   <td className="px-4 py-3 font-mono text-[12px] text-gray-400">{r.ip || '—'}</td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No audit events found.</td></tr>}
+              {rows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty="No audit events found." />}
             </tbody>
           </table>
         </div>
