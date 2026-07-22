@@ -5,15 +5,14 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Pooja, PoojaPlan
+from ..models import Pooja, PoojaPlan, Booking, Schedule
 from ..security import RequireModule, require_admin, log_action, client_ip
 from ..helpers import gen_code
 
 router = APIRouter(prefix="/api/poojas", tags=["poojas"])
-read = RequireModule("Sevas")
-write = RequireModule("Sevas", write=True)
+read = RequireModule("Sevas")   # master edits are Administrator-only (require_admin)
 
-CATEGORIES = ["Daily", "Monthly", "Long-Term", "Occasion", "Vehicle"]
+CATEGORIES = ["Daily", "Monthly", "Long-Term", "Occasion", "Festival", "Vehicle"]
 
 
 def _plan_dict(p: PoojaPlan) -> dict:
@@ -91,7 +90,7 @@ def get_pooja(pid: int, db: Session = Depends(get_db)):
 
 # ── Admin: configure poojas & plans ──────────────────────────────────────────
 @router.post("")
-def create_pooja(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+def create_pooja(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     seq = (db.query(func.count(Pooja.id)).scalar() or 0) + 1
     code = body.get("code") or gen_code("PJ", seq, 3)
     p = Pooja(code=code, name=body["name"], name_te=body.get("name_te"),
@@ -105,7 +104,7 @@ def create_pooja(body: dict, request: Request, db: Session = Depends(get_db), us
 
 
 @router.put("/{pid}")
-def update_pooja(pid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+def update_pooja(pid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     """Update a pooja's details, status and (optionally) replace its plans."""
     p = db.get(Pooja, pid)
     if not p:
@@ -115,18 +114,51 @@ def update_pooja(pid: int, body: dict, request: Request, db: Session = Depends(g
             setattr(p, f, body[f])
     if "active" in body:
         p.active = bool(body["active"])
-    if "plans" in body:  # full replace of the plan set
-        p.plans.clear()
-        db.flush()
-        for pl in body["plans"]:
-            p.plans.append(_add_plan(pl))
+    if "plans" in body:
+        # Sync the plan set IN PLACE. A clear-and-recreate would delete plan rows
+        # that bookings/schedules still reference (FK violation → 500 and the
+        # whole edit, status included, silently failed — DEF-007).
+        incoming = body["plans"] or []
+        by_name = {pl.plan_name: pl for pl in list(p.plans)}
+        seen = set()
+        for item in incoming:
+            name = (item.get("plan_name") or "").strip()
+            if not name:
+                continue
+            seen.add(name)
+            pl = by_name.get(name)
+            if pl is None:
+                p.plans.append(_add_plan(item))
+                continue
+            if "frequency" in item:
+                pl.frequency = item["frequency"]
+            if "committee_decided" in item:
+                pl.committee_decided = bool(item["committee_decided"])
+            if "fee" in item:
+                pl.fee = Decimal(str(item["fee"])) if item["fee"] not in (None, "") else None
+            for f in ("validity_type", "validity_unit"):
+                if f in item:
+                    setattr(pl, f, item[f])
+            if "validity_value" in item:
+                pl.validity_value = item["validity_value"] if item["validity_value"] not in ("", None) else None
+            if "active" in item:
+                pl.active = bool(item["active"])
+        for name, pl in by_name.items():
+            if name in seen:
+                continue
+            referenced = (db.query(Booking.id).filter(Booking.plan_id == pl.id).first() is not None
+                          or db.query(Schedule.id).filter(Schedule.plan_id == pl.id).first() is not None)
+            if referenced:
+                pl.active = False   # keep booking history intact; hide from the catalogue
+            else:
+                p.plans.remove(pl)  # delete-orphan removes the row
     db.commit(); db.refresh(p)
     log_action(db, username=user.username, action="UPDATE", entity="Pooja", detail=p.name, ip=client_ip(request))
     return _pooja_dict(p, all_plans=True)
 
 
 @router.put("/plans/{plan_id}")
-def update_plan(plan_id: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+def update_plan(plan_id: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     """Update a plan's rate/validity (Configurable rates)."""
     pl = db.get(PoojaPlan, plan_id)
     if not pl:
@@ -150,5 +182,12 @@ def delete_pooja(pid: int, request: Request, db: Session = Depends(get_db), user
     p = db.get(Pooja, pid)
     if not p:
         raise HTTPException(404, "Pooja not found")
+    # Bookings are financial history — a pooja they reference must never be
+    # hard-deleted (the FK made this a silent 500 before — DEF-006).
+    refs = db.query(func.count(Booking.id)).filter(Booking.pooja_id == pid).scalar() or 0
+    if refs:
+        raise HTTPException(409, f"Cannot delete — {refs} booking(s) reference this pooja. Mark it Inactive instead.")
+    # Roster entries are pure planning — remove them with the pooja.
+    db.query(Schedule).filter(Schedule.pooja_id == pid).delete(synchronize_session=False)
     log_action(db, username=user.username, action="DELETE", entity="Pooja", detail=p.name, ip=client_ip(request))
     db.delete(p); db.commit()

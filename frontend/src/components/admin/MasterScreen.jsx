@@ -3,6 +3,8 @@ import { Plus, Pencil, Trash2, X, Save, RotateCcw, Search } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num } from './ui.jsx'
 import { TableStates, LOAD_ERROR } from '../common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { Select, DateField, Checkbox, NumberField } from '../common/Field.jsx'
+import { confirmDialog, toast } from '../common/Dialog.jsx'
 
 // Generic list + drawer master screen.
 // config: { title, subtitle, api, statCards, columns, fields, searchPlaceholder, addLabel, entity }
@@ -35,7 +37,7 @@ export default function MasterScreen({ config }) {
 
   const empty = useMemo(() => {
     const o = {}
-    fields.forEach((f) => { o[f.k] = f.type === 'active' ? true : f.type === 'multiselect' ? [] : f.type === 'number' ? '' : (f.default ?? '') })
+    fields.forEach((f) => { o[f.k] = f.type === 'active' ? true : f.type === 'multiselect' ? [] : f.type === 'custom' ? (f.default ?? {}) : f.type === 'number' ? '' : (f.default ?? '') })
     return o
   }, [fields])
 
@@ -50,7 +52,7 @@ export default function MasterScreen({ config }) {
       setDrawer(null); load()
     } catch (ex) { setErr(ex.detail || ex.message || 'Failed to save.') }
   }
-  async function remove(row) { if (confirm(`Delete this ${entity}?`)) { try { await api.remove(row.id); load() } catch (ex) { alert(ex.detail || 'Failed') } } }
+  async function remove(row) { if (await confirmDialog({ title: `Delete this ${entity}?`, message: 'This cannot be undone.', tone: 'danger', confirmLabel: 'Delete' })) { try { await api.remove(row.id); toast(`${entity} deleted.`); load() } catch (ex) { toast(ex.detail || 'Failed', 'error') } } }
 
   const statusOf = (row) => (row.active !== undefined ? (row.active ? 'Active' : 'Inactive') : row.status)
 
@@ -60,7 +62,11 @@ export default function MasterScreen({ config }) {
         actions={canWrite && <button onClick={() => { setErr(''); setDrawer({ mode: 'create', data: { ...empty } }) }} className="btn-maroon !py-2.5"><Plus size={16} /> {addLabel}</button>} />
 
       {statCards.length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        /* Column count follows the number of tiles so the row always fills the
+           width evenly (a fixed 4-col grid left a gap after 3 tiles). */
+        <div className={`grid grid-cols-2 gap-4 mb-6 ${
+          { 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4' }[statCards.length] || 'lg:grid-cols-4'
+        }`}>
           {statCards.map((c) => (
             <StatTile key={c.key} icon={c.icon} color={c.color} bg={c.bg} title={c.title}
               value={stats ? num(stats[c.key]) : '—'} sub={c.sub} />
@@ -72,14 +78,14 @@ export default function MasterScreen({ config }) {
         <div className="px-5 py-5 flex flex-col lg:flex-row lg:items-end gap-4">
           <div className="flex-1 max-w-sm relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={searchPlaceholder} className="input !pl-9" /></div>
-          <div><label className="block text-[12px] text-gray-500 mb-1.5">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">All</option><option>Active</option><option>Inactive</option></select></div>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Status</label>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">All</option><option>Active</option><option>Inactive</option></Select></div>
           <div className="lg:ml-auto flex gap-2"><button onClick={() => { setQ(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button></div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {columns.map((c) => <th key={c.key} className="px-4 py-3 font-semibold whitespace-nowrap">{c.label}</th>)}
               <th className="px-4 py-3 font-semibold">Status</th>
               <th className="px-4 py-3 font-semibold">Actions</th>
@@ -88,7 +94,7 @@ export default function MasterScreen({ config }) {
               {items.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50/60">
                   {columns.map((c) => (
-                    <td key={c.key} className={`px-4 py-3.5 ${c.mono ? 'font-mono text-[12px] text-gray-500' : c.strong ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
+                    <td key={c.key} className={`px-4 py-3.5 ${c.mono ? 'font-mono text-[0.75rem] text-gray-500' : c.strong ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
                       {c.render ? c.render(row) : (row[c.key] ?? '—')}
                     </td>
                   ))}
@@ -105,7 +111,7 @@ export default function MasterScreen({ config }) {
             </tbody>
           </table>
         </div>
-        <div className="px-5 py-3.5 border-t border-gray-100 text-[13px] text-gray-500">Showing 1 to {items.length} of {items.length} {entity}s</div>
+        <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">Showing 1 to {items.length} of {items.length} {entity}s</div>
       </div>
 
       {drawer && (
@@ -121,35 +127,37 @@ export default function MasterScreen({ config }) {
                 <div key={f.k} className={f.full ? '' : ''}>
                   <label className="label">{f.label}{f.required && ' *'}</label>
                   {f.type === 'select' ? (
-                    <select required={f.required} className="input" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })}>
+                    <Select required={f.required} className="input" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })}>
                       <option value="">Select…</option>{f.options.map((o) => <option key={o}>{o}</option>)}
-                    </select>
+                    </Select>
                   ) : f.type === 'active' ? (
-                    <select className="input" value={drawer.data.active ? 'Active' : 'Inactive'} onChange={(e) => setD({ active: e.target.value === 'Active' })}><option>Active</option><option>Inactive</option></select>
+                    <Select className="input" value={drawer.data.active ? 'Active' : 'Inactive'} onChange={(e) => setD({ active: e.target.value === 'Active' })}><option>Active</option><option>Inactive</option></Select>
                   ) : f.type === 'textarea' ? (
-                    <textarea className="input min-h-[72px]" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
+                    <textarea className="input min-h-[4.5rem]" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
                   ) : f.type === 'date' ? (
-                    <input type="date" required={f.required} className="input" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
+                    <DateField required={f.required} className="input" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
                   ) : f.type === 'number' ? (
-                    <input type="number" step="0.01" min="0" required={f.required} className="input" value={drawer.data[f.k]} onChange={(e) => setD({ [f.k]: e.target.value })} />
+                    <NumberField step="0.01" min="0" required={f.required} prefix={f.prefix} value={drawer.data[f.k]} onChange={(e) => setD({ [f.k]: e.target.value })} />
+                  ) : f.type === 'custom' ? (
+                    f.render ? f.render(drawer.data, setD) : null
                   ) : f.type === 'multiselect' ? (
                     <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
                       {(f.options || []).map((o) => {
                         const on = (drawer.data[f.k] || []).includes(o.value)
                         return (
-                          <label key={o.value} className="flex items-center gap-2 text-[13px] text-gray-700 px-1 py-0.5">
-                            <input type="checkbox" className="accent-maroon-700" checked={on} onChange={() => setD({ [f.k]: on ? drawer.data[f.k].filter((x) => x !== o.value) : [...(drawer.data[f.k] || []), o.value] })} /> {o.label}
+                          <label key={o.value} className="flex items-center gap-2 text-[0.8125rem] text-gray-700 px-1 py-0.5">
+                            <Checkbox checked={on} onChange={() => setD({ [f.k]: on ? drawer.data[f.k].filter((x) => x !== o.value) : [...(drawer.data[f.k] || []), o.value] })} /> {o.label}
                           </label>
                         )
                       })}
-                      {(f.options || []).length === 0 && <div className="text-[12px] text-gray-400 px-1">No options.</div>}
+                      {(f.options || []).length === 0 && <div className="text-[0.75rem] text-gray-400 px-1">No options.</div>}
                     </div>
                   ) : (
                     <input required={f.required} className="input" placeholder={f.placeholder} value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
                   )}
                 </div>
               ))}
-              {err && <div className="text-[13px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{err}</div>}
+              {err && <div className="text-[0.8125rem] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{err}</div>}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center">Cancel</button>

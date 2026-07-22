@@ -9,6 +9,7 @@ import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '.
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { Select, DateField } from '../../components/common/Field.jsx'
 
 const EMPTY = { name: '', mobile: '', email: '', city: '', gothram: '', nakshatram: '', address: '', preferred_language: 'English', dob: '', status: 'Active', notes: '' }
 const PAGE_SIZE = 20
@@ -30,6 +31,8 @@ export default function Devotees() {
   const [q, setQ] = useState('')
   const [city, setCity] = useState('')
   const [status, setStatus] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveErr, setSaveErr] = useState('')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
@@ -58,16 +61,24 @@ export default function Devotees() {
 
   async function save(e) {
     e.preventDefault()
-    if (modal.mode === 'create') await DevoteesAPI.create(modal.data)
-    else await DevoteesAPI.update(modal.data.id, modal.data)
-    setModal(null); load()
+    if (saving) return
+    setSaving(true); setSaveErr('')
+    try {
+      if (modal.mode === 'create') await DevoteesAPI.create(modal.data)
+      else await DevoteesAPI.update(modal.data.id, modal.data)
+      setModal(null); load()
+    } catch (err) {
+      setSaveErr(err?.detail || 'Could not save the devotee. A duplicate mobile number is the usual cause.')
+    } finally {
+      setSaving(false)
+    }
   }
   function openDetail(id) { setTab('Overview'); DevoteesAPI.detail(id).then(setDetail) }
 
   return (
     <div>
       <PageTitle title="Devotee Management" subtitle="Maintain devotee master and view their activity history across temple services."
-        actions={canWrite && <button onClick={() => setModal({ mode: 'create', data: { ...EMPTY } })} className="btn-maroon !py-2.5"><Plus size={16} /> Add New Devotee</button>} />
+        actions={canWrite && <button onClick={() => { setSaveErr(''); setModal({ mode: 'create', data: { ...EMPTY } }) }} className="btn-maroon !py-2.5"><Plus size={16} /> Add New Devotee</button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={Users} color="#ea580c" bg="bg-orange-50" title="Total Devotees"
@@ -83,17 +94,17 @@ export default function Devotees() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Search by Devotee Name / Mobile Number</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Search by Devotee Name / Mobile Number</label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or mobile number…" className="input !pl-9" /></div>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">City / Location</label>
-            <select value={city} onChange={(e) => setCity(e.target.value)} className="input"><option value="">All Cities</option>{allCities.map((c) => <option key={c}>{c}</option>)}</select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">City / Location</label>
+            <Select value={city} onChange={(e) => setCity(e.target.value)} className="input"><option value="">All Cities</option>{allCities.map((c) => <option key={c}>{c}</option>)}</Select>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All Status</option><option>Active</option><option>Inactive</option></select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Status</label>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All Status</option><option>Active</option><option>Inactive</option></Select>
           </div>
           <div className="md:col-span-3 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setCity(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button>
@@ -103,17 +114,17 @@ export default function Devotees() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {['Devotee ID', 'Devotee Name', 'Mobile Number', 'City / Location', 'Registered On', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3.5 font-mono text-[12px] text-gray-500">{d.code}</td>
+                  <td className="px-4 py-3.5 font-mono text-[0.75rem] text-gray-500">{d.code}</td>
                   <td className="px-4 py-3.5 font-semibold text-gray-800">{d.name}</td>
                   <td className="px-4 py-3.5 text-gray-600">{d.mobile}</td>
                   <td className="px-4 py-3.5 text-gray-600">{d.city || '—'}</td>
-                  <td className="px-4 py-3.5 text-gray-500 text-[13px]">{fmtDate(d.registered_on)}</td>
+                  <td className="px-4 py-3.5 text-gray-500 text-[0.8125rem]">{fmtDate(d.registered_on)}</td>
                   <td className="px-4 py-3.5"><Pill tone={d.status === 'Active' ? 'green' : 'gray'}>{d.status}</Pill></td>
                   <td className="px-4 py-3.5">
                     <button onClick={() => openDetail(d.id)} title="View details" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
@@ -146,21 +157,22 @@ export default function Devotees() {
                 </div>
               ))}
               <div><label className="label">Date of Birth</label>
-                <input type="date" className="input" value={modal.data.dob || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dob: e.target.value } })} />
+                <DateField className="input" value={modal.data.dob || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dob: e.target.value } })} />
               </div>
               <div><label className="label">Status</label>
-                <select className="input" value={modal.data.status || 'Active'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, status: e.target.value } })}><option>Active</option><option>Inactive</option></select>
+                <Select className="input" value={modal.data.status || 'Active'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, status: e.target.value } })}><option>Active</option><option>Inactive</option></Select>
               </div>
               <div className="sm:col-span-2"><label className="label">Address</label><input className="input" value={modal.data.address || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, address: e.target.value } })} /></div>
               <div><label className="label">Preferred Language</label>
-                <select className="input" value={modal.data.preferred_language || 'English'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, preferred_language: e.target.value } })}><option>English</option><option>Telugu</option></select>
+                <Select className="input" value={modal.data.preferred_language || 'English'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, preferred_language: e.target.value } })}><option>English</option><option>Telugu</option></Select>
               </div>
               <div className="sm:col-span-2"><label className="label">Notes</label>
                 <textarea rows={3} className="input" value={modal.data.notes || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, notes: e.target.value } })} /></div>
             </div>
+            {saveErr && <div className="mt-3 text-[0.75rem] text-red-600">{saveErr}</div>}
             <div className="flex justify-end gap-2 mt-5">
-              <button type="button" onClick={() => setModal(null)} className="btn-outline">Cancel</button>
-              <button className="btn-maroon">{modal.mode === 'create' ? 'Create Devotee' : 'Save Changes'}</button>
+              <button type="button" onClick={() => { setSaveErr(''); setModal(null) }} className="btn-outline">Cancel</button>
+              <button disabled={saving} className="btn-maroon disabled:opacity-60">{saving ? 'Saving…' : (modal.mode === 'create' ? 'Create Devotee' : 'Save Changes')}</button>
             </div>
           </form>
         </div>
@@ -197,7 +209,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
       <div className="relative w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
         <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
           <div><h3 className="font-serif text-xl font-bold text-maroon-800">Devotee Details</h3>
-            <p className="text-[13px] text-gray-500 mt-0.5">View devotee profile and activity history.</p></div>
+            <p className="text-[0.8125rem] text-gray-500 mt-0.5">View devotee profile and activity history.</p></div>
           <button onClick={onClose} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
         </div>
 
@@ -208,7 +220,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap"><span className="font-bold text-lg text-gray-800">{dev.name}</span>
                 <Pill tone={dev.status === 'Active' ? 'green' : 'gray'}>{dev.status}</Pill></div>
-              <div className="mt-1.5 space-y-1 text-[13px] text-gray-600">
+              <div className="mt-1.5 space-y-1 text-[0.8125rem] text-gray-600">
                 <div className="flex items-center gap-2"><Phone size={13} className="text-maroon-500" /> {dev.mobile}</div>
                 {dev.email && <div className="flex items-center gap-2"><Mail size={13} className="text-maroon-500" /> {dev.email}</div>}
               </div>
@@ -228,30 +240,30 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
           {/* Tabs */}
           <div className="flex items-center gap-5 mt-5 border-b border-gray-100 overflow-x-auto">
             {TABS.map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`pb-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 -mb-px ${tab === t ? 'border-maroon-600 text-maroon-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>{t}</button>
+              <button key={t} onClick={() => setTab(t)} className={`pb-2.5 text-[0.8125rem] font-semibold whitespace-nowrap border-b-2 -mb-px ${tab === t ? 'border-maroon-600 text-maroon-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>{t}</button>
             ))}
           </div>
 
           {tab === 'Overview' && (
             <div className="mt-5">
-              <div className="text-[13px] font-bold text-gray-700 mb-3">Activity Summary</div>
+              <div className="text-[0.8125rem] font-bold text-gray-700 mb-3">Activity Summary</div>
               <div className="grid grid-cols-4 gap-3">
                 {SUMMARY.map((s) => {
                   const Icon = s.icon
                   return (
                     <div key={s.label} className="border border-gray-100 rounded-xl p-3 text-center">
                       <div className={`w-9 h-9 rounded-full grid place-items-center mx-auto ${s.tone}`}><Icon size={16} /></div>
-                      <div className="text-[9.5px] uppercase tracking-wide text-gray-400 font-semibold mt-2 leading-tight">{s.label}</div>
-                      <div className="text-[15px] font-extrabold text-gray-800 mt-1 leading-none">{s.value}</div>
-                      {s.sub && <div className="text-[9px] text-gray-400 mt-0.5">{s.sub}</div>}
+                      <div className="text-[0.59375rem] uppercase tracking-wide text-gray-400 font-semibold mt-2 leading-tight">{s.label}</div>
+                      <div className="text-[0.9375rem] font-extrabold text-gray-800 mt-1 leading-none">{s.value}</div>
+                      {s.sub && <div className="text-[0.5625rem] text-gray-400 mt-0.5">{s.sub}</div>}
                     </div>
                   )
                 })}
               </div>
 
               <div className="flex items-center justify-between mt-6 mb-2">
-                <div className="text-[13px] font-bold text-gray-700">Recent Activities</div>
-                <Link to={`/admin/devotees/${dev.id}`} className="text-[12px] font-semibold text-maroon-600 hover:underline">View full profile →</Link>
+                <div className="text-[0.8125rem] font-bold text-gray-700">Recent Activities</div>
+                <Link to={`/admin/devotees/${dev.id}`} className="text-[0.75rem] font-semibold text-maroon-600 hover:underline">View full profile →</Link>
               </div>
               <div className="divide-y divide-gray-100">
                 {recent.map((r, i) => {
@@ -259,8 +271,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
                   return (
                     <div key={i} className="flex items-center gap-3 py-2.5">
                       <div className={`w-8 h-8 rounded-full grid place-items-center shrink-0 ${r.tone}`}><Icon size={15} /></div>
-                      <div className="min-w-0 flex-1"><div className="text-[13px] font-semibold text-gray-800 leading-tight">{r.title}</div><div className="text-[11.5px] text-gray-400 truncate">{r.sub}</div></div>
-                      <div className="text-right shrink-0"><div className="text-[12px] text-gray-500 whitespace-nowrap">{fmtDate(r.date)}</div><div className="text-[12.5px] font-bold text-gray-700">{inr(r.amount)}</div></div>
+                      <div className="min-w-0 flex-1"><div className="text-[0.8125rem] font-semibold text-gray-800 leading-tight">{r.title}</div><div className="text-[0.71875rem] text-gray-400 truncate">{r.sub}</div></div>
+                      <div className="text-right shrink-0"><div className="text-[0.75rem] text-gray-500 whitespace-nowrap">{fmtDate(r.date)}</div><div className="text-[0.78125rem] font-bold text-gray-700">{inr(r.amount)}</div></div>
                       <ChevronRight size={15} className="text-gray-300 shrink-0" />
                     </div>
                   )
@@ -274,10 +286,10 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
             <DrawerTable cols={['Booking ID', 'Pooja', 'Plan', 'Date', 'Amount', 'Status']} empty="No pooja bookings.">
               {d.bookings.map((b) => (
                 <tr key={b.booking_code} className="hover:bg-gray-50/60">
-                  <td className="px-3 py-2.5 font-mono text-[11.5px] text-gray-500">{b.booking_code}</td>
+                  <td className="px-3 py-2.5 font-mono text-[0.71875rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{b.pooja}</td>
                   <td className="px-3 py-2.5"><Pill tone={PLAN_TONE[b.plan] || 'gray'}>{b.plan || '—'}</Pill></td>
-                  <td className="px-3 py-2.5 text-gray-500 text-[12px]">{fmtDate(b.scheduled_date)}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-[0.75rem]">{fmtDate(b.scheduled_date)}</td>
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{inr(b.amount)}</td>
                   <td className="px-3 py-2.5"><Pill tone={STATUS_TONE[b.status] || 'gray'}>{b.status}</Pill></td>
                 </tr>
@@ -289,11 +301,11 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
             <DrawerTable cols={['Receipt', 'Category', 'Type', 'Amount', 'Date']} empty="No donations.">
               {d.donations.map((x) => (
                 <tr key={x.receipt_no} className="hover:bg-gray-50/60">
-                  <td className="px-3 py-2.5 font-mono text-[11.5px] text-maroon-600">{x.receipt_no}</td>
+                  <td className="px-3 py-2.5 font-mono text-[0.71875rem] text-maroon-600">{x.receipt_no}</td>
                   <td className="px-3 py-2.5 text-gray-700">{x.fund}</td>
                   <td className="px-3 py-2.5 text-gray-500">{x.type}</td>
                   <td className="px-3 py-2.5 font-semibold text-emerald-700">{inr(x.amount)}</td>
-                  <td className="px-3 py-2.5 text-gray-500 text-[12px]">{fmtDate(x.date)}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-[0.75rem]">{fmtDate(x.date)}</td>
                 </tr>
               ))}
             </DrawerTable>
@@ -307,7 +319,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{r.type}</td>
                   <td className="px-3 py-2.5 text-gray-600">{r.detail}</td>
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{inr(r.amount)}</td>
-                  <td className="px-3 py-2.5 text-gray-500 text-[12px]">{fmtDate(r.date)}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-[0.75rem]">{fmtDate(r.date)}</td>
                 </tr>
               ))}
             </DrawerTable>
@@ -326,8 +338,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
 function Meta({ label, value, wide }) {
   return (
     <div className={wide ? 'col-span-2' : ''}>
-      <div className="text-[11px] text-gray-400 mb-0.5">{label}</div>
-      <div className="text-[13px] text-gray-800 font-medium">{value ?? '—'}</div>
+      <div className="text-[0.6875rem] text-gray-400 mb-0.5">{label}</div>
+      <div className="text-[0.8125rem] text-gray-800 font-medium">{value ?? '—'}</div>
     </div>
   )
 }
@@ -336,7 +348,7 @@ function DrawerTable({ cols, children, empty }) {
   return (
     <div className="mt-5 border border-gray-100 rounded-xl overflow-hidden">
       <table className="w-full text-sm">
-        <thead><tr className="bg-gray-50/70 text-left text-[10.5px] uppercase tracking-wide text-gray-500">{cols.map((c) => <th key={c} className="px-3 py-2.5 font-semibold whitespace-nowrap">{c}</th>)}</tr></thead>
+        <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-500">{cols.map((c) => <th key={c} className="px-3 py-2.5 font-semibold whitespace-nowrap">{c}</th>)}</tr></thead>
         <tbody className="divide-y divide-gray-100">{body.length ? body : <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-gray-400">{empty}</td></tr>}</tbody>
       </table>
     </div>

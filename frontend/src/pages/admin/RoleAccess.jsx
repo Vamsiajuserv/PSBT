@@ -9,6 +9,7 @@ import { PageTitle, StatTile, Pill, num } from '../../components/admin/ui.jsx'
 import { LOAD_ERROR } from '../../components/common/states.jsx'
 import { RolesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { Select } from '../../components/common/Field.jsx'
 
 const MOD_ICON = {
   Devotees: UsersIcon, Sevas: Flame, Bookings: Flame, Donations: HeartHandshake,
@@ -70,7 +71,7 @@ export default function RoleAccess() {
 
   return (
     <div>
-      <div className="mb-1 text-[12px] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600">Settings</Link> › <span className="text-gray-500">Role &amp; Access Management</span></div>
+      <div className="mb-1 text-[0.75rem] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600">Settings</Link> › <span className="text-gray-500">Role &amp; Access Management</span></div>
       <PageTitle title="Role & Access Management" subtitle="Manage roles and configure module-level permissions." />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -85,11 +86,11 @@ export default function RoleAccess() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 h-max">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-serif text-lg font-bold text-maroon-800">Roles List</h3>
-            {isAdmin && <button onClick={() => { setCreating({ name: '', description: '' }); setCreateErr('') }} className="btn-maroon !py-1.5 !px-3 text-[12px]"><Plus size={13} /> Add New Role</button>}
+            {isAdmin && <button onClick={() => { setCreating({ name: '', description: '' }); setCreateErr('') }} className="btn-maroon !py-1.5 !px-3 text-[0.75rem]"><Plus size={13} /> Add New Role</button>}
           </div>
           <div className="flex gap-2 mb-3">
-            <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search roles by name…" className="input !pl-9 text-[13px]" /></div>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-28 text-[13px]"><option value="">All Status</option><option>Active</option><option>Inactive</option></select>
+            <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search roles by name…" className="input !pl-9 text-[0.8125rem]" /></div>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-28 text-[0.8125rem]"><option value="">All Status</option><option>Active</option><option>Inactive</option></Select>
           </div>
           <div className="space-y-2">
             {loading && <div className="py-8 text-center text-gray-400 text-sm">Loading…</div>}
@@ -105,14 +106,14 @@ export default function RoleAccess() {
               return (
                 <button key={r.id} onClick={() => pick(r.id)} className={`w-full flex items-center gap-3 text-left px-3 py-3 rounded-xl border transition-colors ${on ? 'border-maroon-300 bg-amber-50/60 ring-1 ring-maroon-100' : 'border-gray-100 hover:border-maroon-200'}`}>
                   <div className={`w-9 h-9 rounded-full grid place-items-center shrink-0 ${r.code === 'ADMINISTRATOR' ? 'bg-amber-100 text-amber-700' : 'bg-violet-50 text-violet-600'}`}><Icon size={17} /></div>
-                  <div className="flex-1 min-w-0"><div className="font-semibold text-gray-800 text-[13.5px]">{r.name}</div><div className="text-[11.5px] text-gray-400 truncate">{r.description}</div></div>
+                  <div className="flex-1 min-w-0"><div className="font-semibold text-gray-800 text-[0.84375rem]">{r.name}</div><div className="text-[0.71875rem] text-gray-400 truncate">{r.description}</div></div>
                   <Pill tone={r.active ? 'green' : 'red'}>{r.active ? 'Active' : 'Inactive'}</Pill>
                   <ChevronRight size={15} className="text-gray-300 shrink-0" />
                 </button>
               )
             })}
           </div>
-          <div className="text-[12px] text-gray-400 mt-3">Showing 1 to {filtered.length} of {roles.length} roles</div>
+          <div className="text-[0.75rem] text-gray-400 mt-3">Showing 1 to {filtered.length} of {roles.length} roles</div>
         </div>
 
         {/* Role Details */}
@@ -123,24 +124,24 @@ export default function RoleAccess() {
               <div className="bg-amber-50/60 border border-amber-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-700 grid place-items-center shrink-0">{sel.code === 'ADMINISTRATOR' ? <Crown size={20} /> : <UsersIcon size={20} />}</div>
                 <div className="flex-1"><div className="flex items-center gap-2"><span className="font-bold text-gray-800">{sel.name}</span><Pill tone={sel.active ? 'green' : 'red'}>{sel.active ? 'Active' : 'Inactive'}</Pill></div>
-                  <div className="text-[12px] text-gray-500">{sel.description}</div></div>
+                  <div className="text-[0.75rem] text-gray-500">{sel.description}</div></div>
               </div>
-              <dl className="mt-4 space-y-3 text-[13px]">
+              <dl className="mt-4 space-y-3 text-[0.8125rem]">
                 <Row label="Role Code" value={<span className="font-mono text-gray-700">{sel.code}</span>} />
                 <div className="grid grid-cols-2 gap-3"><Row label="Created On" value={sel.created_at} /><Row label="Created By" value={sel.created_by} /></div>
                 <div className="grid grid-cols-2 gap-3"><Row label="Last Updated On" value={sel.updated_at} /><Row label="Last Updated By" value={sel.updated_by} /></div>
               </dl>
-              <div className="mt-4"><div className="text-[11px] text-gray-400 mb-1">Role Description</div><div className="text-[13px] text-gray-600 leading-relaxed">{sel.description}</div></div>
+              <div className="mt-4"><div className="text-[0.6875rem] text-gray-400 mb-1">Role Description</div><div className="text-[0.8125rem] text-gray-600 leading-relaxed">{sel.description}</div></div>
 
               <div className="mt-5 pt-4 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-2"><span className="font-bold text-gray-700 text-[13.5px]">Assigned Users ({sel.users?.length || 0})</span><Link to="/admin/users" className="text-[12px] font-semibold text-maroon-600 underline">View All</Link></div>
+                <div className="flex items-center justify-between mb-2"><span className="font-bold text-gray-700 text-[0.84375rem]">Assigned Users ({sel.users?.length || 0})</span><Link to="/admin/users" className="text-[0.75rem] font-semibold text-maroon-600 underline">View All</Link></div>
                 <table className="w-full text-sm">
-                  <thead><tr className="text-left text-[10.5px] uppercase tracking-wide text-gray-400"><th className="py-1.5 pr-2">#</th><th className="py-1.5 pr-2">User Name</th><th className="py-1.5 pr-2">Email / Mobile</th><th className="py-1.5">Status</th></tr></thead>
+                  <thead><tr className="text-left text-[0.65625rem] uppercase tracking-wide text-gray-400"><th className="py-1.5 pr-2">#</th><th className="py-1.5 pr-2">User Name</th><th className="py-1.5 pr-2">Email / Mobile</th><th className="py-1.5">Status</th></tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {(sel.users || []).slice(0, 6).map((u, i) => (
-                      <tr key={u.id}><td className="py-2 pr-2 text-gray-400">{i + 1}</td><td className="py-2 pr-2 font-medium text-gray-800">{u.name}</td><td className="py-2 pr-2 text-gray-500 text-[12px]">{u.email}</td><td className="py-2"><span className={`text-[12px] font-semibold ${u.status === 'Active' ? 'text-emerald-600' : 'text-red-500'}`}>{u.status}</span></td></tr>
+                      <tr key={u.id}><td className="py-2 pr-2 text-gray-400">{i + 1}</td><td className="py-2 pr-2 font-medium text-gray-800">{u.name}</td><td className="py-2 pr-2 text-gray-500 text-[0.75rem]">{u.email}</td><td className="py-2"><span className={`text-[0.75rem] font-semibold ${u.status === 'Active' ? 'text-emerald-600' : 'text-red-500'}`}>{u.status}</span></td></tr>
                     ))}
-                    {(!sel.users || sel.users.length === 0) && <tr><td colSpan={4} className="py-4 text-center text-gray-400 text-[13px]">No users assigned.</td></tr>}
+                    {(!sel.users || sel.users.length === 0) && <tr><td colSpan={4} className="py-4 text-center text-gray-400 text-[0.8125rem]">No users assigned.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -151,32 +152,32 @@ export default function RoleAccess() {
         {/* Module Access */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 h-max flex flex-col">
           <div className="flex items-start justify-between">
-            <div><h3 className="font-serif text-lg font-bold text-maroon-800">Module Access</h3><p className="text-[12.5px] text-gray-500 mt-0.5">Configure module level access for this role.</p></div>
-            <div className="flex items-center gap-3 text-[12px]"><span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={14} /> Allowed</span><span className="flex items-center gap-1 text-red-500"><XCircle size={14} /> Denied</span></div>
+            <div><h3 className="font-serif text-lg font-bold text-maroon-800">Module Access</h3><p className="text-[0.78125rem] text-gray-500 mt-0.5">Configure module level access for this role.</p></div>
+            <div className="flex items-center gap-3 text-[0.75rem]"><span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={14} /> Allowed</span><span className="flex items-center gap-1 text-red-500"><XCircle size={14} /> Denied</span></div>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-[10.5px] uppercase tracking-wide text-gray-400 border-b border-gray-100"><th className="py-2 pr-2">Modules</th><th className="py-2 px-2 text-center">Access</th><th className="py-2 pl-2">Description</th></tr></thead>
+              <thead><tr className="text-left text-[0.65625rem] uppercase tracking-wide text-gray-400 border-b border-gray-100"><th className="py-2 pr-2">Modules</th><th className="py-2 px-2 text-center">Access</th><th className="py-2 pl-2">Description</th></tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {catalog.map((m) => {
                   const Icon = MOD_ICON[m.key] || LayoutDashboard; const allowed = mods.includes(m.key)
                   return (
                     <tr key={m.key}>
-                      <td className="py-2.5 pr-2"><span className="flex items-center gap-2 text-[13px] font-medium text-gray-700"><Icon size={16} className="text-gray-400" /> {m.label}</span></td>
+                      <td className="py-2.5 pr-2"><span className="flex items-center gap-2 text-[0.8125rem] font-medium text-gray-700"><Icon size={16} className="text-gray-400" /> {m.label}</span></td>
                       <td className="py-2.5 px-2 text-center">
                         <button type="button" disabled={!isAdmin} onClick={() => toggle(m.key)} className={`relative w-10 h-5.5 rounded-full transition-colors inline-flex items-center ${allowed ? 'bg-emerald-500' : 'bg-gray-300'} ${!isAdmin ? 'opacity-60' : ''}`} style={{ height: 22 }}>
-                          <span className={`absolute top-0.5 w-[18px] h-[18px] rounded-full bg-white shadow transition-all ${allowed ? 'left-[20px]' : 'left-0.5'}`} />
+                          <span className={`absolute top-0.5 w-[1.125rem] h-[1.125rem] rounded-full bg-white shadow transition-all ${allowed ? 'left-[1.25rem]' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="py-2.5 pl-2 text-[12px] text-gray-500">{m.description}</td>
+                      <td className="py-2.5 pl-2 text-[0.75rem] text-gray-500">{m.description}</td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
-          <div className="mt-4 flex items-start gap-2 text-[12px] text-gray-600 bg-amber-50/60 border border-amber-100 rounded-lg px-3 py-2.5"><Info size={14} className="text-amber-600 shrink-0 mt-0.5" /> Changes in module access will be applied for users the next time they login.</div>
-          {saved && <div className="mt-3 text-[13px] text-emerald-700 flex items-center gap-2"><CheckCircle2 size={15} /> Module access saved.</div>}
+          <div className="mt-4 flex items-start gap-2 text-[0.75rem] text-gray-600 bg-amber-50/60 border border-amber-100 rounded-lg px-3 py-2.5"><Info size={14} className="text-amber-600 shrink-0 mt-0.5" /> Changes in module access will be applied for users the next time they login.</div>
+          {saved && <div className="mt-3 text-[0.8125rem] text-emerald-700 flex items-center gap-2"><CheckCircle2 size={15} /> Module access saved.</div>}
           {isAdmin && (
             <div className="flex gap-3 justify-end mt-5 pt-4 border-t border-gray-100">
               <button onClick={() => setMods(sel?.modules || [])} className="btn-outline"><X size={15} /> Cancel</button>
@@ -202,8 +203,8 @@ export default function RoleAccess() {
                 <label className="label">Description</label>
                 <input className="input" value={creating.description} onChange={(e) => setCreating({ ...creating, description: e.target.value })} placeholder="Short description of the role" />
               </div>
-              <p className="text-[12px] text-gray-500 flex items-start gap-2"><Info size={14} className="text-amber-600 shrink-0 mt-0.5" /> The role is created with no module access. Select it and toggle modules, then Save Changes.</p>
-              {createErr && <p className="text-[13px] text-red-600">{createErr}</p>}
+              <p className="text-[0.75rem] text-gray-500 flex items-start gap-2"><Info size={14} className="text-amber-600 shrink-0 mt-0.5" /> The role is created with no module access. Select it and toggle modules, then Save Changes.</p>
+              {createErr && <p className="text-[0.8125rem] text-red-600">{createErr}</p>}
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button type="button" onClick={() => setCreating(null)} className="btn-outline">Cancel</button>
@@ -217,5 +218,5 @@ export default function RoleAccess() {
 }
 
 function Row({ label, value }) {
-  return <div><dt className="text-[11px] text-gray-400">{label}</dt><dd className="text-[13px] text-gray-800 font-medium mt-0.5">{value || '—'}</dd></div>
+  return <div><dt className="text-[0.6875rem] text-gray-400">{label}</dt><dd className="text-[0.8125rem] text-gray-800 font-medium mt-0.5">{value || '—'}</dd></div>
 }

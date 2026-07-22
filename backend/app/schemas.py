@@ -36,6 +36,7 @@ class UserOut(ORM):
     mobile: Optional[str] = None
     role: str
     modules: str
+    poojari_id: Optional[int] = None
     is_active: bool
     twofa_enabled: bool
     last_login: Optional[datetime] = None
@@ -170,6 +171,10 @@ class BookingCreate(BaseModel):
     scheduled_date: Optional[date] = None
     valid_until: Optional[date] = None
     time_slot: Optional[str] = None
+    gothram: Optional[str] = None
+    nakshatram: Optional[str] = None
+    beneficiary_name: Optional[str] = None
+    vehicle_no: Optional[str] = None
     status: str = "Pending"
     payment_status: str = "Pending"
     source: str = "Counter"
@@ -186,6 +191,14 @@ class BookingOut(ORM):
     amount: Decimal
     scheduled_date: Optional[date] = None
     valid_until: Optional[date] = None
+    performances_allowed: Optional[int] = None
+    performances_done: Optional[int] = None
+    last_performed_on: Optional[date] = None
+    festival_id: Optional[int] = None
+    gothram: Optional[str] = None
+    nakshatram: Optional[str] = None
+    beneficiary_name: Optional[str] = None
+    vehicle_no: Optional[str] = None
     time_slot: Optional[str] = None
     status: str
     payment_status: str

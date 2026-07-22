@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam,
-                      WasteSale, Devotee, AuditLog)
+                      WasteSale, Devotee, AuditLog, Festival)
 from ..schemas import AuditOut
 from ..security import get_current_user, RequireModule
 
@@ -52,8 +52,20 @@ def dashboard(start: str = "", end: str = "", day: str = "",
     span = (e - s).days + 1
     prev_start, prev_end = s - timedelta(days=span), s - timedelta(days=1)
 
+    def _live(model):
+        # Exclude soft-voided / non-collected records so KPIs reconcile with Daily Closing.
+        if model is Donation:
+            return (Donation.voided.isnot(True),)
+        if model is Auction:
+            return (Auction.status == "Completed",)
+        if model is WasteSale:
+            return (WasteSale.status == "Paid",)
+        if model is Booking:
+            return (Booking.payment_status == "Paid", Booking.status != "Cancelled")
+        return ()
+
     def _rng(model):
-        return (func.date(model.created_at) >= s, func.date(model.created_at) <= e)
+        return (func.date(model.created_at) >= s, func.date(model.created_at) <= e, *_live(model))
 
     def csum(col, model):
         return float(db.query(func.coalesce(func.sum(col), 0)).filter(*_rng(model)).scalar() or 0)
@@ -139,14 +151,28 @@ def dashboard(start: str = "", end: str = "", day: str = "",
                   for f, a in cat_rows],
     }
 
-    # ── Important alerts (relative to real today) ──
-    next_fri = real_today + timedelta(days=(4 - real_today.weekday()) % 7)
-    alerts = [
-        {"type": "hundi", "text": f"Hundi counting is scheduled on {next_fri.strftime('%d %b %Y (Friday)')}"},
-        {"type": "auction", "text": f"Weekly auction will be held on {next_fri.strftime('%d %b %Y (Friday)')}"},
-    ]
-    if db.query(Donation).filter(Donation.g80.is_(True)).first():
-        alerts.append({"type": "donation", "text": "Medical Donation receipt marked for tax exemption support."})
+    # ── Important alerts — derived from live data, not hardcoded claims ──
+    alerts = []
+    pend_ver = db.query(func.count(HundiCollection.id)).filter(
+        HundiCollection.verification_status == "Pending Verification").scalar() or 0
+    if pend_ver:
+        alerts.append({"type": "hundi", "text": f"{pend_ver} hundi collection(s) awaiting committee verification"})
+    pend_dep = db.query(func.count(HundiCollection.id)).filter(
+        HundiCollection.verification_status == "Verified",
+        HundiCollection.deposit_status != "Deposited").scalar() or 0
+    if pend_dep:
+        alerts.append({"type": "hundi", "text": f"{pend_dep} verified collection(s) pending bank deposit"})
+    open_auc = db.query(func.count(Auction.id)).filter(
+        Auction.status.in_(["Scheduled", "In Progress"])).scalar() or 0
+    if open_auc:
+        alerts.append({"type": "auction", "text": f"{open_auc} auction(s) open — record the result when concluded"})
+    next_fest = (db.query(Festival).filter(Festival.status == "Active",
+                                           Festival.start_date.isnot(None),
+                                           Festival.start_date >= real_today)
+                 .order_by(Festival.start_date).first())
+    if next_fest:
+        alerts.append({"type": "donation",
+                       "text": f"{next_fest.name} begins {next_fest.start_date.strftime('%d %b %Y')} — confirm committee prices in the Festival Master"})
 
     return {
         "range": {"start": s.isoformat(), "end": e.isoformat(), "label": range_label, "single": single},
@@ -167,9 +193,20 @@ def reports_summary(start: date | None = None, end: date | None = None,
     end = end or date.today()
     start = start or end.replace(day=1)
 
+    def _live2(model):
+        if model is Donation:
+            return (Donation.voided.isnot(True),)
+        if model is Auction:
+            return (Auction.status == "Completed",)
+        if model is WasteSale:
+            return (WasteSale.status == "Paid",)
+        if model is Booking:
+            return (Booking.payment_status == "Paid", Booking.status != "Cancelled")
+        return ()
+
     def sum_between(model, col):
         return float(db.query(func.coalesce(func.sum(col), 0)).filter(
-            func.date(model.created_at).between(start, end)).scalar() or 0)
+            func.date(model.created_at).between(start, end), *_live2(model)).scalar() or 0)
 
     return {
         "range": {"start": str(start), "end": str(end)},
@@ -178,7 +215,7 @@ def reports_summary(start: date | None = None, end: date | None = None,
         "hundi_collection": sum_between(HundiCollection, HundiCollection.counted_amount),
         "annadanam_amount": sum_between(Annadanam, Annadanam.amount),
         "donation_80g_count": db.query(func.count(Donation.id)).filter(
-            Donation.g80.is_(True), func.date(Donation.created_at).between(start, end)).scalar() or 0,
+            Donation.g80.is_(True), Donation.voided.isnot(True), func.date(Donation.created_at).between(start, end)).scalar() or 0,
         "bookings_count": db.query(func.count(Booking.id)).filter(
             func.date(Booking.created_at).between(start, end)).scalar() or 0,
     }

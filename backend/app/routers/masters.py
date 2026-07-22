@@ -1,4 +1,5 @@
 """Configurable masters — Auction Item, Hundi Item, Committee Member, Festival."""
+import json
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -25,8 +26,7 @@ def _next_code(db, model, prefix, width=4):
 
 # ── Auction Item Master ──────────────────────────────────────────────────────
 auction_items_router = APIRouter(prefix="/api/auction-items", tags=["auction-items"])
-ai_read = RequireModule("Auction")
-ai_write = RequireModule("Auction", write=True)
+ai_read = RequireModule("Auction")   # item-master edits are Administrator-only (require_admin)
 
 
 def _ai(x: AuctionItem):
@@ -52,7 +52,7 @@ def ai_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
 
 
 @auction_items_router.post("")
-def ai_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(ai_write)):
+def ai_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     x = AuctionItem(code=_next_code(db, AuctionItem, "AITM-"), name=body["name"], category=body.get("category"),
                     base_price=Decimal(str(body.get("base_price") or 0)), unit=body.get("unit"),
                     description=body.get("description"), active=body.get("active", True))
@@ -62,7 +62,7 @@ def ai_create(body: dict, request: Request, db: Session = Depends(get_db), user=
 
 
 @auction_items_router.put("/{iid}")
-def ai_update(iid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(ai_write)):
+def ai_update(iid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     x = db.get(AuctionItem, iid)
     if not x:
         raise HTTPException(404, "Item not found")
@@ -87,8 +87,7 @@ def ai_delete(iid: int, request: Request, db: Session = Depends(get_db), user=De
 
 # ── Hundi Item Master ────────────────────────────────────────────────────────
 hundi_items_router = APIRouter(prefix="/api/hundi-items", tags=["hundi-items"])
-hi_read = RequireModule("Hundi")
-hi_write = RequireModule("Hundi", write=True)
+hi_read = RequireModule("Hundi")   # item-master edits are Administrator-only (require_admin)
 
 
 def _hi(x: HundiItem):
@@ -114,7 +113,7 @@ def hi_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
 
 
 @hundi_items_router.post("")
-def hi_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(hi_write)):
+def hi_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     x = HundiItem(code=_next_code(db, HundiItem, "HITM-"), name=body["name"], item_type=body.get("item_type"),
                   unit=body.get("unit"), description=body.get("description"), active=body.get("active", True))
     db.add(x); db.commit(); db.refresh(x)
@@ -123,7 +122,7 @@ def hi_create(body: dict, request: Request, db: Session = Depends(get_db), user=
 
 
 @hundi_items_router.put("/{iid}")
-def hi_update(iid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(hi_write)):
+def hi_update(iid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     x = db.get(HundiItem, iid)
     if not x:
         raise HTTPException(404, "Item not found")
@@ -146,8 +145,7 @@ def hi_delete(iid: int, request: Request, db: Session = Depends(get_db), user=De
 
 # ── Committee Member Master ──────────────────────────────────────────────────
 committee_router = APIRouter(prefix="/api/committee", tags=["committee"])
-cm_read = RequireModule("Hundi")
-cm_write = RequireModule("Hundi", write=True)
+cm_read = RequireModule("Hundi")   # committee-master edits are Administrator-only (require_admin)
 
 
 def _cm(x: CommitteeMember):
@@ -174,7 +172,7 @@ def cm_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
 
 
 @committee_router.post("")
-def cm_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(cm_write)):
+def cm_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     x = CommitteeMember(code=_next_code(db, CommitteeMember, "CM-"), name=body["name"],
                         designation=body.get("designation"), phone=body.get("phone"),
                         email=body.get("email"), active=body.get("active", True))
@@ -184,7 +182,7 @@ def cm_create(body: dict, request: Request, db: Session = Depends(get_db), user=
 
 
 @committee_router.put("/{iid}")
-def cm_update(iid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(cm_write)):
+def cm_update(iid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     x = db.get(CommitteeMember, iid)
     if not x:
         raise HTTPException(404, "Member not found")
@@ -207,8 +205,7 @@ def cm_delete(iid: int, request: Request, db: Session = Depends(get_db), user=De
 
 # ── Festival Master ──────────────────────────────────────────────────────────
 festivals_router = APIRouter(prefix="/api/festivals", tags=["festivals"])
-fe_read = RequireModule("Bookings")
-fe_write = RequireModule("Bookings", write=True)
+fe_read = RequireModule("Bookings")   # festival-master edits are Administrator-only (require_admin)
 
 
 def _pooja_names(db, ids_csv):
@@ -225,7 +222,8 @@ def _fe(db, x: Festival):
             "end_date": str(x.end_date) if x.end_date else None,
             "pooja_ids": [int(i) for i in (x.pooja_ids or "").split(",") if i.strip().isdigit()],
             "poojas": _pooja_names(db, x.pooja_ids),
-            "status": x.status, "description": x.description}
+            "status": x.status, "description": x.description,
+            "plan_fees": (json.loads(x.plan_fees) if x.plan_fees else {})}
 
 
 @festivals_router.get("/stats")
@@ -248,18 +246,19 @@ def fe_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
 
 
 @festivals_router.post("")
-def fe_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(fe_write)):
+def fe_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     ids = ",".join(str(int(i)) for i in body.get("pooja_ids", []))
     x = Festival(code=_next_code(db, Festival, "FEST-"), name=body["name"],
                  start_date=body.get("start_date") or None, end_date=body.get("end_date") or None,
-                 pooja_ids=ids, status=body.get("status", "Active"), description=body.get("description"))
+                 pooja_ids=ids, status=body.get("status", "Active"), description=body.get("description"),
+                 plan_fees=(json.dumps(body["plan_fees"]) if body.get("plan_fees") else None))
     db.add(x); db.commit(); db.refresh(x)
     log_action(db, username=user.username, action="CREATE", entity="Festival", detail=x.name, ip=client_ip(request))
     return _fe(db, x)
 
 
 @festivals_router.put("/{iid}")
-def fe_update(iid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(fe_write)):
+def fe_update(iid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     x = db.get(Festival, iid)
     if not x:
         raise HTTPException(404, "Festival not found")
@@ -272,6 +271,8 @@ def fe_update(iid: int, body: dict, request: Request, db: Session = Depends(get_
         x.end_date = body["end_date"] or None
     if "pooja_ids" in body:
         x.pooja_ids = ",".join(str(int(i)) for i in body["pooja_ids"])
+    if "plan_fees" in body:
+        x.plan_fees = json.dumps(body["plan_fees"]) if body["plan_fees"] else None
     db.commit(); db.refresh(x)
     log_action(db, username=user.username, action="UPDATE", entity="Festival", detail=x.name, ip=client_ip(request))
     return _fe(db, x)

@@ -3,6 +3,8 @@ import { Plus, Pencil, MoreVertical, X, Save, RotateCcw, Search, Info, HandHeart
 import { PageTitle, Pill, num } from '../../components/admin/ui.jsx'
 import { DonationCategoriesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { Select } from '../../components/common/Field.jsx'
+import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 
 const TYPE_TONE = { Cash: 'green', Material: 'blue', Sponsorship: 'violet' }
 const CASH_UNITS = ['Amount']
@@ -14,10 +16,10 @@ function StatTile({ icon: Icon, color, bg, title, value, sub }) {
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
       <div className="flex items-center gap-3">
         <div className={`w-11 h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={20} /></div>
-        <div><div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">{title}</div>
+        <div><div className="text-[0.6875rem] uppercase tracking-wide text-gray-400 font-semibold">{title}</div>
           <div className="text-2xl font-extrabold text-gray-800 leading-none mt-0.5">{value}</div></div>
       </div>
-      <div className="text-[12px] text-gray-400 mt-3">{sub}</div>
+      <div className="text-[0.75rem] text-gray-400 mt-3">{sub}</div>
     </div>
   )
 }
@@ -53,7 +55,7 @@ export default function DonationMaster() {
     else await DonationCategoriesAPI.update(d.id, d)
     setDrawer(null); load()
   }
-  async function remove(c) { if (confirm(`Delete category "${c.name}"?`)) { await DonationCategoriesAPI.remove(c.id); load() } }
+  async function remove(c) { if (await confirmDialog({ title: `Delete category "${c.name}"?`, message: 'This cannot be undone.', tone: 'danger', confirmLabel: 'Delete' })) { await DonationCategoriesAPI.remove(c.id); toast('Category deleted.'); load() } }
 
   const dtype = drawer?.data.type
 
@@ -72,19 +74,19 @@ export default function DonationMaster() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 flex flex-col lg:flex-row lg:items-end gap-4">
           <div className="flex-1 max-w-xs relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by Category Name…" className="input !pl-9" /></div>
-          <div><label className="block text-[12px] text-gray-500 mb-1.5">Type</label><select value={type} onChange={(e) => setType(e.target.value)} className="input !w-40"><option value="">All</option><option>Cash</option><option>Material</option><option>Sponsorship</option></select></div>
-          <div><label className="block text-[12px] text-gray-500 mb-1.5">Status</label><select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">All</option><option>Active</option><option>Inactive</option></select></div>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Type</label><Select value={type} onChange={(e) => setType(e.target.value)} className="input !w-40"><option value="">All</option><option>Cash</option><option>Material</option><option>Sponsorship</option></Select></div>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Status</label><Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">All</option><option>Active</option><option>Inactive</option></Select></div>
           <div className="flex gap-2 lg:ml-auto"><button onClick={() => { setQ(''); setType(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button><button className="btn-maroon !py-2.5"><Search size={14} /> Search</button></div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {['Category ID', 'Category Name', 'Type', 'Unit / Measurement', 'Quantity Required', 'Status', 'Actions'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{c}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50/60">
-                  <td className="px-5 py-3.5 font-mono text-[12px] text-gray-500">{c.code}</td>
+                  <td className="px-5 py-3.5 font-mono text-[0.75rem] text-gray-500">{c.code}</td>
                   <td className="px-5 py-3.5 font-semibold text-gray-800">{c.name}</td>
                   <td className="px-5 py-3.5"><Pill tone={TYPE_TONE[c.type]}>{c.type}</Pill></td>
                   <td className="px-5 py-3.5 text-gray-600">{c.unit || '-'}</td>
@@ -103,8 +105,8 @@ export default function DonationMaster() {
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <span className="text-[13px] text-gray-500">Showing 1 to {filtered.length} of {filtered.length} categories</span>
-          <div className="flex items-center gap-1.5"><button disabled className="px-3 h-8 rounded-lg border border-gray-200 text-[13px] text-gray-400 opacity-40">Previous</button><span className="w-8 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[13px] font-semibold">1</span><button disabled className="px-3 h-8 rounded-lg border border-gray-200 text-[13px] text-gray-400 opacity-40">Next</button></div>
+          <span className="text-[0.8125rem] text-gray-500">Showing 1 to {filtered.length} of {filtered.length} categories</span>
+          <div className="flex items-center gap-1.5"><button disabled className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-400 opacity-40">Previous</button><span className="w-8 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.8125rem] font-semibold">1</span><button disabled className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-400 opacity-40">Next</button></div>
         </div>
       </div>
 
@@ -114,7 +116,7 @@ export default function DonationMaster() {
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
               <div><h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.mode === 'create' ? 'Add New Category' : 'Edit Category'}</h3>
-                <p className="text-[13px] text-gray-500 mt-0.5">Create a new donation category.</p></div>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5">Create a new donation category.</p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-5 flex-1">
@@ -123,26 +125,26 @@ export default function DonationMaster() {
                   <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="ctype" className="accent-maroon-700" checked={dtype === t} onChange={() => setType2(t)} /> {t === 'Cash' ? 'Cash Donation' : t === 'Material' ? 'Material Donation' : 'Sponsorship'}</label>
                 ))}</div></div>
               <div><label className="label">Category Name *</label><input required className="input" placeholder="Enter category name" value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: e.target.value } })} /></div>
-              <div><label className="label">Description (Optional)</label><textarea className="input min-h-[72px]" maxLength={250} placeholder="Enter description…" value={drawer.data.description || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
-              <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[12px] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> Fields below will change based on the category type selected.</div>
+              <div><label className="label">Description (Optional)</label><textarea className="input min-h-[4.5rem]" maxLength={250} placeholder="Enter description…" value={drawer.data.description || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
+              <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> Fields below will change based on the category type selected.</div>
               {dtype !== 'Material' && (
                 <div className="bg-amber-50/70 border border-amber-200 rounded-lg px-3 py-3">
                   <div className="text-amber-700 font-semibold text-sm">{dtype} Selected</div>
-                  <div className="text-[12px] text-gray-600 mt-1">Cash and Sponsorship categories do not require unit and quantity. They are recorded by amount only.</div>
+                  <div className="text-[0.75rem] text-gray-600 mt-1">Cash and Sponsorship categories do not require unit and quantity. They are recorded by amount only.</div>
                 </div>
               )}
               <div><label className="label">Unit / Measurement</label>
                 {dtype === 'Material'
-                  ? <select className="input" value={drawer.data.unit || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, unit: e.target.value } })}><option value="">Select…</option>{MATERIAL_UNITS.map((u) => <option key={u}>{u}</option>)}</select>
+                  ? <Select className="input" value={drawer.data.unit || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, unit: e.target.value } })}><option value="">Select…</option>{MATERIAL_UNITS.map((u) => <option key={u}>{u}</option>)}</Select>
                   : <input disabled className="input bg-gray-50" value={dtype === 'Cash' ? 'Not applicable for Cash Donation' : 'Not applicable for Sponsorship'} />}
               </div>
               <div><label className="label">Quantity Required</label>
                 <div className="flex gap-5 mt-1">{['Yes', 'No'].map((y) => (
                   <label key={y} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="qreq" disabled={dtype !== 'Material'} className="accent-maroon-700" checked={drawer.data.quantity_required === (y === 'Yes')} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, quantity_required: y === 'Yes' } })} /> {y}</label>
                 ))}</div>
-                {dtype !== 'Material' && <div className="text-[11px] text-gray-400 mt-1">Quantity is not required for {dtype.toLowerCase()} donation categories.</div>}
+                {dtype !== 'Material' && <div className="text-[0.6875rem] text-gray-400 mt-1">Quantity is not required for {dtype.toLowerCase()} donation categories.</div>}
               </div>
-              <div><label className="label">Status *</label><select className="input" value={drawer.data.active ? 'Active' : 'Inactive'} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, active: e.target.value === 'Active' } })}><option>Active</option><option>Inactive</option></select></div>
+              <div><label className="label">Status *</label><Select className="input" value={drawer.data.active ? 'Active' : 'Inactive'} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, active: e.target.value === 'Active' } })}><option>Active</option><option>Inactive</option></Select></div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center">Cancel</button>

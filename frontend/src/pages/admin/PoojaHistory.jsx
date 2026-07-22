@@ -8,16 +8,17 @@ import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '.
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { PoojaHistoryAPI, PoojasAPI } from '../../api/client.js'
+import { Select, DateField } from '../../components/common/Field.jsx'
 
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'Life Long': 'orange', 'One-Time': 'violet',
   'Full Month': 'violet', '30-Day': 'violet', 'Yearly Once': 'orange', 'Yearly Thrice': 'orange' }
 const COMPLETION_TONE = { Completed: 'green', Cancelled: 'red', Ongoing: 'amber' }
-const COMPLETION_LABEL = { Completed: 'Completed', Cancelled: 'Canceled', Ongoing: 'Ongoing' }
+const COMPLETION_LABEL = { Completed: 'Completed', Cancelled: 'Cancelled', Ongoing: 'Ongoing' }
 const COMPLETION_ICON = { Completed: CheckCircle2, Cancelled: XCircle, Ongoing: Clock }
 const STATUS_CLS = { green: 'bg-emerald-50 text-emerald-700', red: 'bg-red-50 text-red-700', amber: 'bg-amber-50 text-amber-700' }
 function StatusPill({ completion }) {
   const I = COMPLETION_ICON[completion]
-  return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${STATUS_CLS[COMPLETION_TONE[completion]]}`}><I size={11} /> {COMPLETION_LABEL[completion]}</span>
+  return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_CLS[COMPLETION_TONE[completion]]}`}><I size={11} /> {COMPLETION_LABEL[completion]}</span>
 }
 const monthLabel = () => new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
 const startOf = (slot) => (slot ? slot.split('-')[0].trim() : '')
@@ -74,29 +75,29 @@ export default function PoojaHistory() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Search by Devotee / Booking ID / Ticket No.</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Search by Devotee / Booking ID / Ticket No.</label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="input !pl-9" /></div>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Date Range</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Date Range</label>
             <div className="flex items-center gap-1.5">
-              <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[12.5px]" />
+              <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
               <span className="text-gray-400">–</span>
-              <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[12.5px]" />
+              <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
             </div>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Pooja</label>
-            <select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">All Poojas</option>{poojas.map((p) => <option key={p.id}>{p.name}</option>)}</select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Pooja</label>
+            <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">All Poojas</option>{poojas.map((p) => <option key={p.id}>{p.name}</option>)}</Select>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Plan</label>
-            <select value={plan} onChange={(e) => setPlan(e.target.value)} className="input"><option value="">All Plans</option>{planNames.map((p) => <option key={p}>{p}</option>)}</select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Plan</label>
+            <Select value={plan} onChange={(e) => setPlan(e.target.value)} className="input"><option value="">All Plans</option>{planNames.map((p) => <option key={p}>{p}</option>)}</Select>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Completion Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All Status</option><option>Completed</option><option>Ongoing</option><option value="Cancelled">Canceled</option></select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Completion Status</label>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All Status</option><option>Completed</option><option>Ongoing</option><option value="Cancelled">Cancelled</option></Select>
           </div>
           <div className="xl:col-span-4 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setPooja(''); setPlan(''); setStatus(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Clear</button>
@@ -106,19 +107,19 @@ export default function PoojaHistory() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {['Booking ID', 'Devotee Name', 'Pooja Name', 'Plan', 'Poojari Name', 'Performed On', 'Ticket No.', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-mono text-[12px] text-gray-500">{b.booking_code}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{b.devotee_name}</td>
                   <td className="px-4 py-3 text-gray-700">{b.pooja_name}</td>
                   <td className="px-4 py-3">{b.plan_name ? <Pill tone={PLAN_TONE[b.plan_name] || 'gray'}>{b.plan_name}</Pill> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 text-gray-600">{b.poojari_name || '—'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[13px]">{fmtDate(b.scheduled_date)}</div><div className="text-[11px] text-gray-400">{startOf(b.time_slot)}</div></td>
-                  <td className="px-4 py-3 font-mono text-[12px] text-gray-500">{b.ticket_no || '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(b.scheduled_date)}</div><div className="text-[0.6875rem] text-gray-400">{startOf(b.time_slot)}</div></td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
                   <td className="px-4 py-3"><StatusPill completion={b.completion} /></td>
                   <td className="px-4 py-3">
                     <button onClick={() => open(b.id)} title="View details" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
@@ -141,7 +142,7 @@ export default function PoojaHistory() {
           <div className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
               <div><h3 className="font-serif text-xl font-bold text-maroon-800">Pooja Details</h3>
-                <p className="text-[13px] text-gray-500 mt-0.5">View pooja booking and execution details.</p></div>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5">View pooja booking and execution details.</p></div>
               <button onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-6 flex-1">
@@ -181,8 +182,8 @@ export default function PoojaHistory() {
 
               <DSection icon={StickyNote} n="5" title="Additional Information">
                 <div className="col-span-2">
-                  <div className="text-[11px] text-gray-400 mb-1">Notes</div>
-                  <div className="text-[13px] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5 min-h-[44px]">
+                  <div className="text-[0.6875rem] text-gray-400 mb-1">Notes</div>
+                  <div className="text-[0.8125rem] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5 min-h-[2.75rem]">
                     {drawer.completion === 'Completed' ? 'Pooja completed successfully.' : drawer.completion === 'Cancelled' ? 'Booking was cancelled.' : 'Pooja is scheduled / ongoing.'}
                   </div>
                 </div>
@@ -224,7 +225,7 @@ export default function PoojaHistory() {
 function DSection({ icon: Icon, n, title, children }) {
   return (
     <div>
-      <div className="flex items-center gap-2 mb-3 text-maroon-700"><Icon size={15} /><span className="font-semibold text-[13.5px]">{n}. {title}</span></div>
+      <div className="flex items-center gap-2 mb-3 text-maroon-700"><Icon size={15} /><span className="font-semibold text-[0.84375rem]">{n}. {title}</span></div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3.5">{children}</div>
     </div>
   )
@@ -232,8 +233,8 @@ function DSection({ icon: Icon, n, title, children }) {
 function Field({ label, value, wide }) {
   return (
     <div className={wide ? 'col-span-2' : ''}>
-      <div className="text-[11px] text-gray-400 mb-0.5">{label}</div>
-      <div className="text-[13px] text-gray-800 font-medium">{value ?? '—'}</div>
+      <div className="text-[0.6875rem] text-gray-400 mb-0.5">{label}</div>
+      <div className="text-[0.8125rem] text-gray-800 font-medium">{value ?? '—'}</div>
     </div>
   )
 }

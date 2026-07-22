@@ -41,6 +41,7 @@ export default {
         sans: ['Inter', '"Noto Sans Telugu"', 'system-ui', 'sans-serif'],
         serif: ['"Playfair Display"', '"Noto Serif Telugu"', 'Georgia', 'serif'],
         display: ['Cinzel', '"Playfair Display"', 'serif'],
+        poppins: ['Poppins', 'Inter', 'system-ui', 'sans-serif'],
         script: ['"Great Vibes"', 'cursive'],
         telugu: ['"Noto Sans Telugu"', 'sans-serif'],
         'telugu-serif': ['"Noto Serif Telugu"', 'serif'],

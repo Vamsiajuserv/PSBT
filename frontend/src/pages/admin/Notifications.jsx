@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { NotificationsAPI } from '../../api/client.js'
+import { Select } from '../../components/common/Field.jsx'
+import { promptDialog } from '../../components/common/Dialog.jsx'
 
 const CH_ICON = { SMS: Smartphone, Email: Mail, WhatsApp: MessageSquare }
 const STATUS_TONE = { SENT: 'green', FAILED: 'red', SKIPPED: 'amber', DISABLED: 'gray', QUEUED: 'blue' }
@@ -42,8 +44,13 @@ export default function Notifications() {
     finally { setBusy('') }
   }
   async function sendTest(ch) {
-    const to = window.prompt(`Send a test ${ch} to (${ch === 'Email' ? 'email address' : 'mobile number'}):`, '')
-    if (!to) return
+    const res = await promptDialog({
+      title: `Send a test ${ch}`,
+      confirmLabel: 'Send Test',
+      fields: [{ k: 'to', label: ch === 'Email' ? 'Email address' : 'Mobile number', required: true }],
+    })
+    if (!res) return
+    const to = res.to.trim()
     setBusy(ch); setMsg(null)
     try {
       const r = await NotificationsAPI.test({ channel: ch, to })
@@ -57,7 +64,7 @@ export default function Notifications() {
 
   return (
     <div>
-      <div className="mb-1 text-[12px] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600">Settings</Link> › <span className="text-gray-500">Notifications</span></div>
+      <div className="mb-1 text-[0.75rem] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600">Settings</Link> › <span className="text-gray-500">Notifications</span></div>
       <PageTitle title="Notifications" subtitle="Configure SMS, Email and WhatsApp channels and review delivery history." />
 
       {/* Stats */}
@@ -69,10 +76,10 @@ export default function Notifications() {
       </div>
 
       {!anyConfigured && (
-        <div className="mb-5 flex items-start gap-2.5 bg-amber-50/70 border border-amber-100 rounded-xl px-5 py-3.5 text-[13px] text-gray-600">
+        <div className="mb-5 flex items-start gap-2.5 bg-amber-50/70 border border-amber-100 rounded-xl px-5 py-3.5 text-[0.8125rem] text-gray-600">
           <Info size={17} className="text-amber-500 shrink-0 mt-0.5" />
           <span>No delivery provider is configured yet, so notifications are <b>recorded but not sent</b> (status “Skipped”). Set the provider credentials
-            (<code className="text-[12px]">SMTP_*</code>, <code className="text-[12px]">SMS_API_*</code>, <code className="text-[12px]">WHATSAPP_API_*</code>) in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.</span>
+            (<code className="text-[0.75rem]">SMTP_*</code>, <code className="text-[0.75rem]">SMS_API_*</code>, <code className="text-[0.75rem]">WHATSAPP_API_*</code>) in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.</span>
         </div>
       )}
 
@@ -86,14 +93,14 @@ export default function Notifications() {
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-full bg-maroon-50 grid place-items-center text-maroon-700"><Icon size={20} /></div>
                   <div>
-                    <div className="font-serif text-[16px] font-bold text-maroon-800">{c.channel}</div>
-                    <div className="text-[11.5px] text-gray-400">Provider: {c.provider === 'none' ? '—' : c.provider}</div>
+                    <div className="font-serif text-[1rem] font-bold text-maroon-800">{c.channel}</div>
+                    <div className="text-[0.71875rem] text-gray-400">Provider: {c.provider === 'none' ? '—' : c.provider}</div>
                   </div>
                 </div>
                 {/* enable toggle */}
                 <button onClick={() => toggle(c.channel, !c.enabled)} disabled={busy === c.channel}
                   className={`relative w-11 h-6 rounded-full transition-colors ${c.enabled ? 'bg-emerald-500' : 'bg-gray-300'} disabled:opacity-50`}>
-                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${c.enabled ? 'left-[22px]' : 'left-0.5'}`} />
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${c.enabled ? 'left-[1.375rem]' : 'left-0.5'}`} />
                 </button>
               </div>
               <div className="mt-4 flex items-center justify-between">
@@ -101,18 +108,18 @@ export default function Notifications() {
                   ? <Pill tone="green">Provider configured</Pill>
                   : <Pill tone="amber">Not configured</Pill>}
                 <button onClick={() => sendTest(c.channel)} disabled={busy === c.channel}
-                  className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-maroon-700 border border-maroon-200 rounded-lg px-3 py-1.5 hover:bg-maroon-50 disabled:opacity-50">
+                  className="inline-flex items-center gap-1.5 text-[0.78125rem] font-semibold text-maroon-700 border border-maroon-200 rounded-lg px-3 py-1.5 hover:bg-maroon-50 disabled:opacity-50">
                   <Send size={13} /> Send Test
                 </button>
               </div>
-              {c.enabled ? null : <div className="mt-3 text-[11.5px] text-gray-400">Channel disabled — events will be logged as “Disabled”.</div>}
+              {c.enabled ? null : <div className="mt-3 text-[0.71875rem] text-gray-400">Channel disabled — events will be logged as “Disabled”.</div>}
             </div>
           )
         })}
       </div>
 
       {msg && (
-        <div className={`mb-5 rounded-lg px-4 py-3 text-[13px] border ${msg.status === 'SENT' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : msg.status === 'FAILED' || msg.status === 'ERROR' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+        <div className={`mb-5 rounded-lg px-4 py-3 text-[0.8125rem] border ${msg.status === 'SENT' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : msg.status === 'FAILED' || msg.status === 'ERROR' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
           Test {msg.ch}: <b>{msg.status}</b>{msg.error ? ` — ${msg.error}` : ''}
         </div>
       )}
@@ -122,17 +129,17 @@ export default function Notifications() {
         <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100">
           <h3 className="font-serif text-lg font-bold text-maroon-800">Delivery Log</h3>
           <div className="flex gap-2">
-            <select value={channel} onChange={(e) => setChannel(e.target.value)} className="input !w-auto !py-2 text-[13px]">
+            <Select value={channel} onChange={(e) => setChannel(e.target.value)} className="input !w-auto !py-2 text-[0.8125rem]">
               <option value="">All Channels</option>{['SMS', 'Email', 'WhatsApp'].map((c) => <option key={c}>{c}</option>)}
-            </select>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-auto !py-2 text-[13px]">
+            </Select>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-auto !py-2 text-[0.8125rem]">
               <option value="">All Status</option>{['SENT', 'FAILED', 'SKIPPED', 'DISABLED'].map((c) => <option key={c}>{c}</option>)}
-            </select>
+            </Select>
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[13.5px]">
-            <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+          <table className="w-full text-[0.84375rem]">
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {['Time', 'Event', 'Channel', 'Recipient', 'Provider', 'Status', 'Detail'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{c}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
@@ -143,10 +150,10 @@ export default function Notifications() {
                     <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{fmtStamp(r.ts)}</td>
                     <td className="px-5 py-3 text-gray-700">{r.event_label}</td>
                     <td className="px-5 py-3 text-gray-700">{r.channel}</td>
-                    <td className="px-5 py-3 text-gray-600 font-mono text-[12px]">{r.recipient || '—'}</td>
+                    <td className="px-5 py-3 text-gray-600 font-mono text-[0.75rem]">{r.recipient || '—'}</td>
                     <td className="px-5 py-3 text-gray-500">{r.provider === 'none' ? '—' : r.provider}</td>
                     <td className="px-5 py-3"><Pill tone={STATUS_TONE[r.status] || 'gray'}><SI size={12} className="inline -mt-0.5 mr-1" />{r.status}</Pill></td>
-                    <td className="px-5 py-3 text-gray-400 text-[12px] max-w-[280px] truncate" title={r.error || r.subject || ''}>{r.error || r.subject || '—'}</td>
+                    <td className="px-5 py-3 text-gray-400 text-[0.75rem] max-w-[17.5rem] truncate" title={r.error || r.subject || ''}>{r.error || r.subject || '—'}</td>
                   </tr>
                 )
               })}

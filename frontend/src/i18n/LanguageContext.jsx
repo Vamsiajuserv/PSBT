@@ -20,6 +20,9 @@ const UI_TE = {
   'Temple Information': 'ఆలయ సమాచారం', 'Temple Timings': 'ఆలయ సమయాలు',
   'Established': 'స్థాపించబడింది', 'Managed By': 'నిర్వహణ', 'Trust Reg. No': 'ట్రస్ట్ నమోదు నం.',
   'Pan No.': 'పాన్ నం.', 'Everyday': 'ప్రతిరోజు',
+  'All Rights Reserved.': 'సర్వ హక్కులు కలివి.',
+  'Website designed and developed for Sri Shirdi Sai Baba Temple.':
+    'శ్రీ షిర్డీ సాయిబాబా ఆలయం కోసం రూపొందించి అభివృద్ధి చేయబడిన వెబ్‌సైట్.',
   'A sacred place dedicated to Sri Shirdi Sai Baba, spreading love, faith and seva.':
     'ప్రేమ, విశ్వాసం మరియు సేవను వ్యాప్తి చేస్తూ శ్రీ షిర్డీ సాయిబాబాకు అంకితమైన పవిత్ర స్థలం.',
   // Common actions / labels

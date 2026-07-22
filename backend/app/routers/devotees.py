@@ -1,7 +1,7 @@
 """Devotee master-record management."""
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
-from sqlalchemy import or_, func
+from sqlalchemy import case, or_, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -39,16 +39,21 @@ def list_devotees(q: str = "", status: str = "", city: str = "",
                   page: int = 1, size: int = 20,
                   db: Session = Depends(get_db), user=Depends(read)):
     query = db.query(Devotee)
+    order = [Devotee.id.desc()]
     if q:
         like = f"%{q}%"
         query = query.filter(or_(Devotee.name.ilike(like), Devotee.mobile.ilike(like),
                                  Devotee.code.ilike(like)))
+        # Relevance: name starting with the query first, then name contains,
+        # then mobile/code matches — newest first within each band (DEF-004).
+        rank = case((Devotee.name.ilike(f"{q}%"), 0), (Devotee.name.ilike(like), 1), else_=2)
+        order = [rank, Devotee.id.desc()]
     if status:
         query = query.filter(Devotee.status == status)
     if city:
         query = query.filter(Devotee.city == city)
     total = query.count()
-    rows = query.order_by(Devotee.id.desc()).offset((page - 1) * size).limit(size).all()
+    rows = query.order_by(*order).offset((page - 1) * size).limit(size).all()
     return {"total": total, "page": page, "size": size,
             "items": [DevoteeOut.model_validate(r).model_dump() for r in rows]}
 
@@ -67,9 +72,9 @@ def devotee_summary(did: int, db: Session = Depends(get_db), user=Depends(read))
     if not d:
         raise HTTPException(404, "Devotee not found")
     total_bookings = db.query(func.count(Booking.id)).filter(Booking.devotee_id == did).scalar() or 0
-    total_donations = db.query(func.count(Donation.id)).filter(Donation.devotee_id == did).scalar() or 0
+    total_donations = db.query(func.count(Donation.id)).filter(Donation.devotee_id == did, Donation.voided.isnot(True)).scalar() or 0
     spent = (db.query(func.coalesce(func.sum(Booking.amount), 0)).filter(Booking.devotee_id == did).scalar() or 0)
-    spent += (db.query(func.coalesce(func.sum(Donation.amount), 0)).filter(Donation.devotee_id == did).scalar() or 0)
+    spent += (db.query(func.coalesce(func.sum(Donation.amount), 0)).filter(Donation.devotee_id == did, Donation.voided.isnot(True)).scalar() or 0)
     return {"total_bookings": total_bookings, "total_donations": total_donations,
             "total_spent": float(spent)}
 
@@ -81,7 +86,7 @@ def devotee_history(did: int, db: Session = Depends(get_db), user=Depends(read))
     if not d:
         raise HTTPException(404, "Devotee not found")
     bookings = db.query(Booking).filter(Booking.devotee_id == did).order_by(Booking.id.desc()).all()
-    donations = db.query(Donation).filter(Donation.devotee_id == did).order_by(Donation.id.desc()).all()
+    donations = db.query(Donation).filter(Donation.devotee_id == did, Donation.voided.isnot(True)).order_by(Donation.id.desc()).all()
     return {
         "devotee": {"id": d.id, "code": d.code, "name": d.name, "mobile": d.mobile},
         "bookings": [{"booking_code": b.booking_code, "pooja": b.seva_name, "plan": b.plan_name,
@@ -100,7 +105,7 @@ def devotee_detail(did: int, db: Session = Depends(get_db), user=Depends(read)):
         raise HTTPException(404, "Devotee not found")
 
     bookings = db.query(Booking).filter(Booking.devotee_id == did).order_by(Booking.id.desc()).all()
-    donations = db.query(Donation).filter(Donation.devotee_id == did).order_by(Donation.id.desc()).all()
+    donations = db.query(Donation).filter(Donation.devotee_id == did, Donation.voided.isnot(True)).order_by(Donation.id.desc()).all()
     # annadanam / auction: linked by devotee_id or (legacy) donor/winner name match
     annadanam = db.query(Annadanam).filter(
         or_(Annadanam.devotee_id == did, Annadanam.donor == d.name)).order_by(Annadanam.id.desc()).all()
@@ -126,6 +131,8 @@ def devotee_detail(did: int, db: Session = Depends(get_db), user=Depends(read)):
             "registered_on": str(d.registered_on) if d.registered_on else None,
             "last_visit": str(d.last_visit) if d.last_visit else None,
             "total_transactions": total_txns,
+            "family": [{"id": fm.id, "name": fm.name, "relation": fm.relation,
+                        "mobile": fm.mobile, "age_dob": fm.age_dob} for fm in d.family],
         },
         "stats": stats,
         "bookings": [{"booking_code": b.booking_code, "pooja": b.seva_name, "plan": b.plan_name,
@@ -171,6 +178,39 @@ def update_devotee(did: int, body: DevoteeUpdate, request: Request,
     log_action(db, username=user.username, action="UPDATE", entity="Devotee",
                detail=f"{d.code} {d.name}", ip=client_ip(request))
     return d
+
+
+@router.post("/{did}/family", status_code=201)
+def add_family_member(did: int, body: dict, request: Request,
+                      db: Session = Depends(get_db), user=Depends(write)):
+    """Add a family member to a devotee (previously seed-only, so ceremonies could
+    not name a real beneficiary for families registered after go-live)."""
+    d = db.get(Devotee, did)
+    if not d:
+        raise HTTPException(404, "Devotee not found")
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(422, "Family member name is required")
+    fm = FamilyMember(devotee_id=did, name=name,
+                      relation=(body.get("relation") or "").strip() or None,
+                      mobile=(body.get("mobile") or "").strip() or None,
+                      age_dob=(body.get("age_dob") or "").strip() or None)
+    db.add(fm); db.commit(); db.refresh(fm)
+    log_action(db, username=user.username, action="UPDATE", entity="Devotee",
+               detail=f"Added family member {name} to {d.name}", ip=client_ip(request))
+    return {"id": fm.id, "name": fm.name, "relation": fm.relation,
+            "mobile": fm.mobile, "age_dob": fm.age_dob}
+
+
+@router.delete("/{did}/family/{fid}", status_code=204)
+def remove_family_member(did: int, fid: int, request: Request,
+                         db: Session = Depends(get_db), user=Depends(write)):
+    fm = db.get(FamilyMember, fid)
+    if not fm or fm.devotee_id != did:
+        raise HTTPException(404, "Family member not found")
+    log_action(db, username=user.username, action="UPDATE", entity="Devotee",
+               detail=f"Removed family member {fm.name}", ip=client_ip(request))
+    db.delete(fm); db.commit()
 
 
 @router.delete("/{did}", status_code=204)

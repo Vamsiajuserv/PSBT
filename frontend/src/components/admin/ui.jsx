@@ -4,7 +4,12 @@ import { Search } from 'lucide-react'
 // Shared admin design-system primitives — matches the Dashboard / Bookings /
 // Devotee-Details reference screens so every module looks like one system.
 
-export const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
+// Whole rupees render without decimals (₹ 1,001); fractional amounts always
+// show 2-digit paise (₹ 2,37,884.30 — never a dangling "₹ 2,37,884.3").
+export const inr = (n) => {
+  const v = Number(n || 0)
+  return '₹ ' + v.toLocaleString('en-IN', Number.isInteger(v) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 export const num = (n) => Number(n || 0).toLocaleString('en-IN')
 export const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
 export const fmtStamp = (s) => (s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
@@ -17,14 +22,14 @@ const PILL_TONES = {
 }
 
 export function Pill({ tone = 'gray', children }) {
-  return <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${PILL_TONES[tone] || PILL_TONES.gray}`}>{children}</span>
+  return <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${PILL_TONES[tone] || PILL_TONES.gray}`}>{children}</span>
 }
 
 export function PageTitle({ title, subtitle, actions }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
       <div>
-        <h1 className="font-serif text-[26px] font-bold text-maroon-800">{title}</h1>
+        <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800">{title}</h1>
         {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
       </div>
       {actions && <div className="flex gap-2 shrink-0">{actions}</div>}
@@ -46,12 +51,12 @@ export function KpiCard({ icon: Icon, iconBg = 'bg-blue-50', iconColor = '#2563e
       <div className="flex items-start gap-3">
         <div className={`w-11 h-11 rounded-full grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}><Icon size={20} /></div>
         <div className="min-w-0 flex-1">
-          <div className="text-[12.5px] text-gray-500 leading-snug">{title}</div>
-          {sub && <div className="text-[11px] text-gray-400 leading-none">{sub}</div>}
+          <div className="text-[0.78125rem] text-gray-500 leading-snug">{title}</div>
+          {sub && <div className="text-[0.6875rem] text-gray-400 leading-none">{sub}</div>}
           <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 mt-1.5 leading-tight tabular-nums break-words">{value}</div>
         </div>
       </div>
-      {footLabel && <div className="mt-3 pt-3 border-t border-gray-100 text-[12px] text-gray-400 truncate">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>}
+      {footLabel && <div className="mt-3 pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400 truncate">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>}
     </div>
   )
 }
@@ -67,11 +72,11 @@ export function StatTile({ icon: Icon, color = '#8a1c1c', bg = 'bg-maroon-50', t
       <div className="flex items-center gap-3">
         <div className={`w-11 h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={20} /></div>
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold truncate">{title}</div>
+          <div className="text-[0.6875rem] uppercase tracking-wide text-gray-400 font-semibold truncate">{title}</div>
           <div className="text-lg sm:text-xl font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums break-words">{value}</div>
         </div>
       </div>
-      {sub && <div className="text-[12px] text-gray-400 mt-3 truncate">{sub}</div>}
+      {sub && <div className="text-[0.75rem] text-gray-400 mt-3 truncate">{sub}</div>}
     </div>
   )
 }
@@ -108,7 +113,7 @@ export function DataTable({ columns, children, footer }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+            <tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {columns.map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
             </tr>
           </thead>
@@ -128,13 +133,13 @@ export function Pager({ page, size, total, onPage, unit = 'records' }) {
   const pageCount = Math.max(1, Math.ceil((total || 0) / size))
   const from = total === 0 ? 0 : (page - 1) * size + 1
   const to = Math.min(page * size, total || 0)
-  const btn = 'px-3 h-8 rounded-lg border border-gray-200 text-[13px] text-gray-600 disabled:opacity-40 hover:border-maroon-300'
+  const btn = 'px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-600 disabled:opacity-40 hover:border-maroon-300'
   return (
     <>
-      <span className="text-[13px] text-gray-500">Showing {from} to {to} of {num(total)} {unit}</span>
+      <span className="text-[0.8125rem] text-gray-500">Showing {from} to {to} of {num(total)} {unit}</span>
       <div className="flex items-center gap-1.5">
         <button disabled={page <= 1} onClick={() => onPage(page - 1)} className={btn}>Previous</button>
-        <span className="px-3 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[13px] font-semibold">{page} / {pageCount}</span>
+        <span className="px-3 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.8125rem] font-semibold">{page} / {pageCount}</span>
         <button disabled={page >= pageCount} onClick={() => onPage(page + 1)} className={btn}>Next</button>
       </div>
     </>

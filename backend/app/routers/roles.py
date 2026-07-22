@@ -97,6 +97,11 @@ def update_role(rid: int, body: dict, request: Request, db: Session = Depends(ge
         raise HTTPException(404, "Role not found")
     if "modules" in body:
         r.modules = ",".join([m for m in body["modules"] if m in ALL_KEYS])
+        # Access is enforced from user.modules — propagate the role's new module set
+        # to every user holding this role, or the matrix edit would change nothing.
+        from ..models import User
+        for u in db.query(User).filter(User.role == r.name).all():
+            u.modules = r.modules
     if "description" in body:
         r.description = body["description"]
     if "active" in body:

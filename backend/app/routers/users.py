@@ -33,6 +33,23 @@ def list_users(db: Session = Depends(get_db), user=Depends(require_admin)):
     return db.query(User).order_by(User.id).all()
 
 
+@router.get("/{uid}/totp")
+def totp_setup(uid: int, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    """2FA enrollment info — the secret / otpauth URI the user must add to their
+    authenticator app. Without surfacing this, enabling 2FA silently locks the
+    user out (a secret existed server-side that nobody had ever seen)."""
+    u = db.get(User, uid)
+    if not u:
+        raise HTTPException(404, "User not found")
+    if not u.twofa_enabled:
+        raise HTTPException(409, "2FA is not enabled for this user")
+    if not u.totp_secret:
+        u.totp_secret = pyotp.random_base32()
+        db.commit()
+    uri = pyotp.totp.TOTP(u.totp_secret).provisioning_uri(name=u.username, issuer_name="PSBT Temple")
+    return {"secret": u.totp_secret, "otpauth_uri": uri}
+
+
 @router.post("", response_model=UserOut, status_code=201)
 def create_user(body: UserCreate, request: Request,
                 db: Session = Depends(get_db), admin=Depends(require_admin)):

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, WasteSale,
-                      DailyClosing, Setting)
+                      DailyClosing, Setting, Refund)
 from ..security import RequireModule, log_action, client_ip
 
 router = APIRouter(prefix="/api/daily-closing", tags=["daily-closing"])
@@ -58,9 +58,14 @@ def _modules(db, on):
         # Only money actually collected counts: paid, non-cancelled bookings;
         # completed auctions; paid waste sales. Pending/cancelled records used to
         # inflate the day's total and never reconciled against the drawer.
+        # Count money actually collected (paid), regardless of a later cancellation —
+        # a cancellation is reversed by its Refund row, not by retroactively dropping
+        # the collection (which would corrupt an already-closed prior day and, on a
+        # same-day cancel, double-count the reversal).
         _head(db, "Pooja Bookings", Booking, "amount", func.date(Booking.created_at), on, "payment_method",
-              extra_filter=and_(Booking.payment_status == "Paid", Booking.status != "Cancelled")),
-        _head(db, "Donations", Donation, "amount", func.date(Donation.created_at), on, "mode"),
+              extra_filter=(Booking.payment_status == "Paid")),
+        _head(db, "Donations", Donation, "amount", func.date(Donation.created_at), on, "mode",
+              extra_filter=(Donation.voided.isnot(True))),
         _head(db, "Hundi Collections", HundiCollection, "counted_amount", func.date(HundiCollection.collected_on), on, force="cash"),
         _head(db, "Auction Receipts", Auction, "current_amount", func.date(Auction.auction_date), on, force="upi",
               extra_filter=(Auction.status == "Completed")),
@@ -83,10 +88,13 @@ def _summary(db, on):
         for k in counts:
             counts[k] += m[k]
     opening = Decimal(str(_opening_cash(db)))
-    # Refunds are not yet modelled (no refund records exist); kept at 0 until a
-    # refund feature is built, rather than being invented here. See gap register.
-    refunds = Decimal("0")
-    cash_refunds = Decimal("0")
+    # Refunds (money paid back out) for the day. Cash refunds leave the drawer, so
+    # they reduce the expected cash; total refunds reduce net collections.
+    refunds = Decimal(str(db.query(func.coalesce(func.sum(Refund.amount), 0))
+                          .filter(Refund.refund_date == on).scalar() or 0))
+    cash_refunds = Decimal(str(db.query(func.coalesce(func.sum(Refund.amount), 0))
+                              .filter(Refund.refund_date == on,
+                                      func.lower(func.coalesce(Refund.mode, "cash")) == "cash").scalar() or 0))
     expected_cash = opening + money["cash"] - cash_refunds
     total_amt = money["total"]
     return {
@@ -139,6 +147,8 @@ def list_closings(db: Session = Depends(get_db), user=Depends(read)):
 def close_day(body: dict, request: Request, db: Session = Depends(get_db),
               user=Depends(RequireModule("Reports", write=True))):
     on = date.fromisoformat(body["date"]) if body.get("date") else date.today()
+    if on > date.today():
+        raise HTTPException(422, "A future day cannot be closed.")
     if db.query(DailyClosing).filter(DailyClosing.closing_date == on).first():
         raise HTTPException(409, "This day is already closed.")
     s = _summary(db, on)

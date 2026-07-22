@@ -21,9 +21,9 @@ DEFAULTS = {
     # Basic Information
     "temple_name": "Sri Shirdi Sai Baba Temple",
     "short_name": "SSST",
-    "established_year": "2005",
+    "established_year": "1987",
     "registration_number": "TEMP/SSST/2005/01",
-    "trust_name": "Sri Shirdi Sai Seva Trust",
+    "trust_name": "Sri Shirdi Sai Premsamaj",
     "gst_number": "36AAAAA0000A1Z5",
     "about": "Sri Shirdi Sai Baba Temple is dedicated to the worship of Shirdi Sai Baba and provides various services to devotees.",
     "temple_logo": "temple_logo.png",
@@ -45,7 +45,7 @@ DEFAULTS = {
     "bank_name": "State Bank of India (Main Branch)",
     "account_number": "00000000000",
     "ifsc": "SBIN0000456",
-    "account_name": "Sri Shirdi Sai Seva Trust",
+    "account_name": "Sri Shirdi Sai Premsamaj",
     # Temple Timings
     "timings_morning": "6:00 AM - 12:00 PM",
     "timings_evening": "4:00 PM - 8:30 PM",

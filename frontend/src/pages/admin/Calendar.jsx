@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Flourish } from '../../components/common/UI.jsx'
 import { BookingsAPI } from '../../api/client.js'
 import { fmtDate } from '../../components/admin/ui.jsx'
+import { Select } from '../../components/common/Field.jsx'
 
 // ── Month-only calendar view ────────────────────────────────────────────────
 // The Day/Week toggle was removed: a Month-only calendar is preferred over a
@@ -122,19 +123,19 @@ export default function Calendar() {
           <button onClick={goToday} className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gold-50 text-maroon-700 hover:bg-gold-100">Today</button>
           <div className="flex items-center gap-2 text-sm">
             <button onClick={() => goMonth(-1)} title="Previous month" className="text-gray-400 hover:text-maroon-700"><ChevronLeft size={18} /></button>
-            <span className="font-bold text-maroon-700 min-w-[130px] text-center">{MONTHS[month]} {year}</span>
+            <span className="font-bold text-maroon-700 min-w-[8.125rem] text-center">{MONTHS[month]} {year}</span>
             <button onClick={() => goMonth(1)} title="Next month" className="text-gray-400 hover:text-maroon-700"><ChevronRight size={18} /></button>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <select value={service} onChange={(e) => setService(e.target.value)} className="input !w-auto !py-1.5 text-xs">
+          <Select value={service} onChange={(e) => setService(e.target.value)} className="input !w-auto !py-1.5 text-xs">
             <option value="">All Services</option>
             {serviceOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-auto !py-1.5 text-xs">
+          </Select>
+          <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-auto !py-1.5 text-xs">
             <option value="">All Status</option>
             <option>Confirmed</option><option>Pending</option><option>Completed</option><option>Cancelled</option>
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -152,12 +153,12 @@ export default function Calendar() {
 
       {/* Grid */}
       <div className="card overflow-hidden">
-        <div className="grid grid-cols-7 bg-maroon-deep text-cream/90 text-[11px] font-bold uppercase tracking-wide">
+        <div className="grid grid-cols-7 bg-maroon-deep text-cream/90 text-[0.6875rem] font-bold uppercase tracking-wide">
           {DOW.map((d) => <div key={d} className="px-3 py-2.5 text-center">{d}</div>)}
         </div>
         <div className="grid grid-cols-7">
           {cells.map((day, i) => {
-            if (!day) return <div key={i} className="min-h-[110px] border-b border-r border-gold-100 p-1.5 bg-gray-50/50" />
+            if (!day) return <div key={i} className="min-h-[6.875rem] border-b border-r border-gold-100 p-1.5 bg-gray-50/50" />
             const events = byDay[day] || []
             const cellDate = new Date(year, month, day)
             const isToday = isSameDay(cellDate, today)
@@ -167,10 +168,10 @@ export default function Calendar() {
                 key={i}
                 type="button"
                 onClick={() => setSelectedDay(isSelected ? null : day)}
-                className={`min-h-[110px] border-b border-r border-gold-100 p-1.5 text-left transition ${isSelected ? 'bg-gold-50/60 ring-1 ring-inset ring-maroon-200' : 'hover:bg-gold-50/30'}`}
+                className={`min-h-[6.875rem] border-b border-r border-gold-100 p-1.5 text-left transition ${isSelected ? 'bg-gold-50/60 ring-1 ring-inset ring-maroon-200' : 'hover:bg-gold-50/30'}`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <div className={`text-[11px] font-bold w-6 h-6 grid place-items-center rounded-full ${isToday ? 'bg-maroon-700 text-cream' : 'text-gray-500'}`}>{day}</div>
+                  <div className={`text-[0.6875rem] font-bold w-6 h-6 grid place-items-center rounded-full ${isToday ? 'bg-maroon-700 text-cream' : 'text-gray-500'}`}>{day}</div>
                   {events.length > 0 && (
                     <div className="flex items-center gap-0.5 pr-0.5">
                       {events.slice(0, 3).map((e, k) => (
@@ -181,11 +182,11 @@ export default function Calendar() {
                 </div>
                 <div className="space-y-1">
                   {events.slice(0, 2).map((e, j) => (
-                    <div key={j} className={`text-[10px] leading-tight rounded border px-1.5 py-1 truncate ${EVENT_STYLE[e.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                    <div key={j} className={`text-[0.625rem] leading-tight rounded border px-1.5 py-1 truncate ${EVENT_STYLE[e.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
                       {e.time && <span className="font-semibold">{e.time}</span>} {e.title}
                     </div>
                   ))}
-                  {events.length > 2 && <div className="text-[10px] text-gray-400 px-1">+{events.length - 2} more</div>}
+                  {events.length > 2 && <div className="text-[0.625rem] text-gray-400 px-1">+{events.length - 2} more</div>}
                 </div>
               </button>
             )
@@ -215,11 +216,11 @@ export default function Calendar() {
                 <li key={i} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${EVENT_STYLE[e.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{e.title}{e.plan ? ` · ${e.plan}` : ''}</div>
-                    <div className="text-[12px] opacity-80 truncate">
+                    <div className="text-[0.75rem] opacity-80 truncate">
                       {e.devotee || '—'}{e.time ? ` · ${e.time}` : ''}
                     </div>
                   </div>
-                  <span className="text-[11px] font-semibold whitespace-nowrap">{e.status}</span>
+                  <span className="text-[0.6875rem] font-semibold whitespace-nowrap">{e.status}</span>
                 </li>
               ))}
             </ul>

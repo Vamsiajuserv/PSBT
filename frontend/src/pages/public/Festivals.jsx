@@ -1,15 +1,15 @@
 import React from 'react'
-import { Badge, TempleBanner } from '../../components/common/UI.jsx'
+import { Badge, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 
 export default function Festivals() {
   const site = useSite()
   return (
     <div className="bg-cream">
-      <TempleBanner title="Festivals & Events" breadcrumb="Home  ›  Festivals" />
+      <MinimalBanner title="Festivals & Events" breadcrumb="Home  ›  Festivals" />
 
       <div className="max-w-7xl mx-auto px-4 py-14">
-        <p className="text-center text-gray-500 max-w-xl mx-auto -mt-2 mb-10">
+        <p className="text-center text-black max-w-xl mx-auto -mt-2 mb-10">
           Major celebrations observed at the temple through the year, in keeping with Shirdi traditions.
         </p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -24,8 +24,8 @@ export default function Festivals() {
                   <h3 className="font-serif text-lg font-bold text-maroon-700">{f.name}</h3>
                   <Badge tone="amber">{f.month}</Badge>
                 </div>
-                <p className="text-xs text-gray-400 font-telugu">{f.nameTe}</p>
-                <p className="text-sm text-gray-600 mt-2 leading-relaxed">{f.desc}</p>
+                <p className="text-xs text-black font-telugu">{f.nameTe}</p>
+                <p className="text-sm text-black mt-2 leading-relaxed">{f.desc}</p>
               </div>
             </div>
           ))}

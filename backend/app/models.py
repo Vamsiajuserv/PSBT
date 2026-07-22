@@ -26,6 +26,9 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(String(40), nullable=False)              # role name (matches Role.name)
     modules = Column(Text, nullable=False, default="")     # CSV of allowed module keys
+    # For Poojari logins: the master Poojari record this user acts as, so their
+    # queue can be filtered to their own assigned poojas. Null for other roles.
+    poojari_id = Column(Integer, ForeignKey("poojaris.id"), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     twofa_enabled = Column(Boolean, default=False, nullable=False)
     totp_secret = Column(String(64), nullable=True)
@@ -156,8 +159,23 @@ class Booking(Base):
     seva_id = Column(Integer, ForeignKey("sevas.id"), nullable=True)
     seva_name = Column(String(120), nullable=False)
     amount = Column(Numeric(12, 2), nullable=False)
-    scheduled_date = Column(Date, nullable=True)
-    valid_until = Column(Date, nullable=True)
+    scheduled_date = Column(Date, nullable=True)     # first day the pooja is due
+    valid_until = Column(Date, nullable=True)        # last valid day; NULL = never expires (Life Long)
+    # Multi-performance entitlement (Yearly Thrice = 3, Monthly = ~30/day, N-Day = N,
+    # Life Long = unlimited/NULL, One-Time/Daily = 1). A performance is consumed at
+    # most once per calendar day; the booking Completes only when the quota is used.
+    performances_allowed = Column(Integer, nullable=True)   # NULL = unlimited
+    performances_done = Column(Integer, default=0, nullable=False)
+    last_performed_on = Column(Date, nullable=True)
+    # Festival link (festival-category poojas) — enables exact festival-wise
+    # collection reporting and festival-wide date shifts.
+    festival_id = Column(Integer, ForeignKey("festivals.id"), nullable=True)
+    # Sankalpam details printed on the ticket (copied from the devotee at booking;
+    # beneficiary = the person the pooja is for, e.g. the child in a Namakaranam).
+    gothram = Column(String(80), nullable=True)
+    nakshatram = Column(String(40), nullable=True)
+    beneficiary_name = Column(String(120), nullable=True)
+    vehicle_no = Column(String(20), nullable=True)   # vehicle poojas
     time_slot = Column(String(40), nullable=True)
     status = Column(String(20), default="Confirmed", nullable=False)   # Confirmed | Pending | Cancelled | Completed
     payment_status = Column(String(20), default="Paid", nullable=False)  # Paid | Pending | Failed
@@ -173,6 +191,7 @@ class Booking(Base):
 # ── Donations ────────────────────────────────────────────────────────────────
 class Donation(Base):
     __tablename__ = "donations"
+    # (voided/void_reason declared with the rest of the columns below)
 
     id = Column(Integer, primary_key=True)
     donation_code = Column(String(30), unique=True, nullable=True, index=True)  # DON-0001258
@@ -190,6 +209,8 @@ class Donation(Base):
     g80 = Column(Boolean, default=False, nullable=False)
     notes = Column(Text, nullable=True)
     donated_on = Column(Date, server_default=func.current_date())
+    voided = Column(Boolean, default=False, nullable=False)   # soft-void instead of hard delete
+    void_reason = Column(Text, nullable=True)
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -439,6 +460,9 @@ class Festival(Base):
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     pooja_ids = Column(Text, nullable=True)                  # CSV of Pooja Master ids
+    # Committee-decided fees for this occurrence, set once by the committee:
+    # JSON {"<plan_id>": amount}. Bookings pull the price from here (authoritative).
+    plan_fees = Column(Text, nullable=True)
     status = Column(String(20), default="Active", nullable=False)  # Active | Inactive
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
@@ -464,6 +488,23 @@ class DailyClosing(Base):
     notes = Column(Text, nullable=True)
     closed_by = Column(String(60), nullable=True)
     closed_at = Column(DateTime, server_default=func.now())
+
+
+# ── Refunds (money paid back out) ────────────────────────────────────────────
+class Refund(Base):
+    __tablename__ = "refunds"
+
+    id = Column(Integer, primary_key=True)
+    refund_code = Column(String(30), unique=True, nullable=False, index=True)
+    entity_type = Column(String(20), nullable=False)    # Booking | Donation | Waste | Auction | Other
+    entity_id = Column(Integer, nullable=True)
+    entity_code = Column(String(40), nullable=True)     # booking_code / receipt_no of the original
+    amount = Column(Numeric(12, 2), nullable=False)
+    mode = Column(String(20), nullable=True)            # Cash | UPI | Online
+    reason = Column(Text, nullable=True)
+    refund_date = Column(Date, nullable=True)
+    created_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
 
 
 # ── Backup / restore records ─────────────────────────────────────────────────

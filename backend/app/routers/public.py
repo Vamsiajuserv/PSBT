@@ -5,12 +5,14 @@ seva catalogue, live donation funds and active auctions — from the database, s
 the public pages contain no hardcoded data.
 """
 import json
+from datetime import date
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Setting, Pooja, PoojaPlan, DonationCategory, Auction
+from ..models import Setting, Pooja, PoojaPlan, DonationCategory, Auction, Annadanam
 from ..site_content import DEFAULT_CONTENT, TEMPLE_EXTRAS
 from ..routers.settings import DEFAULTS as SETTINGS_DEFAULTS
 
@@ -103,9 +105,22 @@ def site(db: Session = Depends(get_db)):
 
     # Live donation funds from the active donation categories; fall back to the
     # curated content list if none are configured yet.
-    cats = db.query(DonationCategory).filter(DonationCategory.active.is_(True)).order_by(DonationCategory.id).all()
-    funds = [{"id": c.code, "name": c.name, "desc": c.description or f"{c.type} donation."} for c in cats] \
+    cats = db.query(DonationCategory).filter(DonationCategory.active.is_(True)).order_by(DonationCategory.code).all()
+    funds = [{"id": c.code, "name": c.name, "desc": c.description or f"{c.type} donation.",
+              "type": c.type, "unit": c.unit} for c in cats] \
         or content.get("donation_funds", [])
+
+    # Donation impact — live, non-voided counters for the public donations page.
+    from ..models import Donation
+    year_start = date.today().replace(month=1, day=1)
+    dq = db.query(Donation).filter(Donation.voided.is_(False))
+    year_amount = dq.filter(Donation.donated_on >= year_start,
+                            Donation.donation_type.in_(("Cash", "Sponsorship")))\
+        .with_entities(func.coalesce(func.sum(Donation.amount), 0)).scalar() or 0
+    year_count = dq.filter(Donation.donated_on >= year_start).count()
+    donor_count = dq.with_entities(func.count(func.distinct(Donation.donor_name))).scalar() or 0
+    donations_impact = {"year_amount": float(year_amount), "year_count": int(year_count),
+                        "donor_count": int(donor_count), "year": year_start.year}
 
     # Active / upcoming auctions (public view — no bidder identities).
     aucs = db.query(Auction).filter(Auction.status != "Completed").order_by(Auction.auction_date).all()
@@ -117,8 +132,20 @@ def site(db: Session = Depends(get_db)):
         for a in aucs
     ] or content.get("auctions", [])
 
+    # Annadanam impact — live counters from the annadanam ledger plus the
+    # published per-plate rate, so the public page shows real numbers.
+    rate_row = db.query(Setting).filter(Setting.skey == "annadanam_rate").first()
+    ann_rate = float(rate_row.svalue) if rate_row and rate_row.svalue else float(SETTINGS_DEFAULTS.get("annadanam_rate") or 50)
+    plates, records = db.query(func.coalesce(func.sum(Annadanam.plates), 0), func.count(Annadanam.id)).first()
+    month_start = date.today().replace(day=1)
+    m_plates = db.query(func.coalesce(func.sum(Annadanam.plates), 0))\
+        .filter(Annadanam.created_at >= month_start).scalar() or 0
+    annadanam = {"rate": ann_rate, "total_plates": int(plates or 0),
+                 "total_sponsorships": int(records or 0), "month_plates": int(m_plates)}
+
     return {
         "temple": temple,
+        "annadanam": annadanam,
         "mantra": content.get("mantra"),
         "images": content.get("images"),
         "stats": content.get("stats"),
@@ -134,5 +161,6 @@ def site(db: Session = Depends(get_db)):
         "seva_emoji": content.get("seva_emoji"),
         "sevas": sevas,
         "funds": funds,
+        "donations_impact": donations_impact,
         "auctions": auctions,
     }

@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import { DevoteesAPI } from '../../api/client.js'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
+import { Select } from '../../components/common/Field.jsx'
+import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -29,7 +31,7 @@ const TABS = [
   { key: 'notes', label: 'Notes & Remarks', icon: FileText },
 ]
 
-function Th({ children }) { return <th className="px-4 py-3 text-left text-[11px] uppercase tracking-wide text-gray-500 font-semibold whitespace-nowrap">{children}</th> }
+function Th({ children }) { return <th className="px-4 py-3 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500 font-semibold whitespace-nowrap">{children}</th> }
 function Table({ cols, children }) {
   return (
     <div className="overflow-x-auto">
@@ -64,8 +66,8 @@ export default function DevoteeDetails() {
       {/* Breadcrumb + header */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <div className="text-[12px] text-gray-400 mb-1"><Link to="/admin" className="hover:text-maroon-600">Home</Link> › <Link to="/admin/devotees" className="hover:text-maroon-600">Devotees</Link> › <span className="text-gray-500">Devotee Details</span></div>
-          <h1 className="font-serif text-[26px] font-bold text-maroon-800">Devotee Details</h1>
+          <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin" className="hover:text-maroon-600">Home</Link> › <Link to="/admin/devotees" className="hover:text-maroon-600">Devotees</Link> › <span className="text-gray-500">Devotee Details</span></div>
+          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800">Devotee Details</h1>
           <p className="text-sm text-gray-500 mt-0.5">View devotee profile and linked temple activities.</p>
         </div>
         <div className="flex gap-2">
@@ -76,7 +78,7 @@ export default function DevoteeDetails() {
 
       {/* Profile card */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-5 relative">
-        <button onClick={() => setEdit({ ...dev })} className="absolute top-4 right-4 flex items-center gap-1.5 text-[13px] font-semibold text-maroon-700 border border-maroon-200 rounded-lg px-3 py-1.5 hover:bg-maroon-50"><Pencil size={14} /> Edit Devotee</button>
+        <button onClick={() => setEdit({ ...dev })} className="absolute top-4 right-4 flex items-center gap-1.5 text-[0.8125rem] font-semibold text-maroon-700 border border-maroon-200 rounded-lg px-3 py-1.5 hover:bg-maroon-50"><Pencil size={14} /> Edit Devotee</button>
         <div className="grid lg:grid-cols-[1.4fr_1fr_1.2fr] gap-6">
           {/* identity */}
           <div className="flex items-start gap-4">
@@ -84,9 +86,9 @@ export default function DevoteeDetails() {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-xl text-gray-800">{dev.name}</span>
-                <span className="text-[11px] font-mono font-semibold text-blue-700 bg-blue-50 rounded px-2 py-0.5">{dev.code}</span>
+                <span className="text-[0.6875rem] font-mono font-semibold text-blue-700 bg-blue-50 rounded px-2 py-0.5">{dev.code}</span>
               </div>
-              <div className="mt-2 space-y-1 text-[13px] text-gray-600">
+              <div className="mt-2 space-y-1 text-[0.8125rem] text-gray-600">
                 <div className="flex items-center gap-2"><Phone size={13} className="text-maroon-500" /> {dev.mobile}</div>
                 {dev.email && <div className="flex items-center gap-2"><Mail size={13} className="text-maroon-500" /> {dev.email}</div>}
                 <div className="flex items-center gap-2"><MapPin size={13} className="text-maroon-500" /> {dev.city || '—'}</div>
@@ -107,6 +109,43 @@ export default function DevoteeDetails() {
         </div>
       </div>
 
+      {/* Family members — used as the "in the name of" beneficiary for ceremonies */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-serif text-[1rem] font-bold text-maroon-800">Family Members</h3>
+          <button onClick={async () => {
+            const res = await promptDialog({
+              title: 'Add family member',
+              confirmLabel: 'Add Member',
+              fields: [
+                { k: 'name', label: 'Name', required: true },
+                { k: 'relation', label: 'Relation', placeholder: 'e.g. Son, Daughter, Wife' },
+              ],
+            })
+            if (!res) return
+            try { await DevoteesAPI.addFamily(dev.id, { name: res.name.trim(), relation: res.relation.trim() }); toast('Family member added.'); reload() }
+            catch (ex) { toast(ex?.detail || 'Could not add the family member.', 'error') }
+          }} className="btn-outline !py-1.5 text-[0.75rem]"><Plus size={13} /> Add Member</button>
+        </div>
+        {(dev.family || []).length === 0 ? (
+          <p className="text-[0.8125rem] text-gray-400">No family members recorded.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {dev.family.map((f) => (
+              <span key={f.id} className="inline-flex items-center gap-2 border border-gray-200 rounded-full pl-3 pr-1.5 py-1 text-[0.8125rem] text-gray-700">
+                <span className="font-semibold">{f.name}</span>
+                {f.relation && <span className="text-gray-400 text-[0.6875rem]">{f.relation}</span>}
+                <button onClick={async () => {
+                  if (!(await confirmDialog({ title: `Remove ${f.name}?`, tone: 'danger', confirmLabel: 'Remove' }))) return
+                  try { await DevoteesAPI.removeFamily(dev.id, f.id); reload() }
+                  catch (ex) { toast(ex?.detail || 'Could not remove.', 'error') }
+                }} className="w-5 h-5 grid place-items-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50">×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {STAT_CARDS.map((c) => {
@@ -118,11 +157,11 @@ export default function DevoteeDetails() {
               <div className="flex items-start gap-3">
                 <div className={`w-12 h-12 rounded-full grid place-items-center shrink-0 ${c.bg}`} style={{ color: c.c }}><Icon size={22} /></div>
                 <div>
-                  <div className="text-[13px] text-gray-500">{c.label}</div>
+                  <div className="text-[0.8125rem] text-gray-500">{c.label}</div>
                   <div className="text-2xl font-extrabold text-gray-800 leading-none mt-1">{c.main(s)}</div>
                 </div>
               </div>
-              <div className="mt-3 pt-3 border-t border-gray-100 text-[12px] text-gray-400">{c.key === 'annadanam' ? 'Total Persons Sponsored' : c.key === 'bookings' ? 'Total Bookings' : c.key === 'donations' ? 'Total Donations' : 'Total Purchases'} <span className="font-semibold text-gray-700">{c.foot(s)}</span></div>
+              <div className="mt-3 pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400">{c.key === 'annadanam' ? 'Total Persons Sponsored' : c.key === 'bookings' ? 'Total Bookings' : c.key === 'donations' ? 'Total Donations' : 'Total Purchases'} <span className="font-semibold text-gray-700">{c.foot(s)}</span></div>
             </div>
           )
         })}
@@ -136,7 +175,7 @@ export default function DevoteeDetails() {
             const count = tb.key === 'notes' ? null : d[tb.key]?.length
             return (
               <button key={tb.key} onClick={() => setTab(tb.key)}
-                className={`flex items-center gap-2 px-4 py-3.5 text-[13.5px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${on ? 'border-maroon-600 text-maroon-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                className={`flex items-center gap-2 px-4 py-3.5 text-[0.84375rem] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${on ? 'border-maroon-600 text-maroon-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                 <Icon size={15} /> {tb.label}{count != null && <span className="text-gray-400 font-normal">({count})</span>}
               </button>
             )
@@ -146,21 +185,21 @@ export default function DevoteeDetails() {
         <div className="p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-maroon-800">{TABS.find((x) => x.key === tab).label}</h3>
-            {tab === 'bookings' && <Link to="/admin/bookings" className="text-[12px] font-semibold text-maroon-600 border border-maroon-200 rounded-lg px-3 py-1.5">View All Pooja Bookings</Link>}
+            {tab === 'bookings' && <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600 border border-maroon-200 rounded-lg px-3 py-1.5">View All Pooja Bookings</Link>}
           </div>
 
           {tab === 'bookings' && (
             <Table cols={['Booking ID', 'Pooja Name', 'Plan', 'Date & Time', 'Amount (₹)', 'Status', 'Receipt / Ticket No.', 'Booked On']}>
               {d.bookings.map((b) => (
                 <tr key={b.booking_code} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-mono text-[12px] text-gray-500">{b.booking_code}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{b.pooja}</td>
                   <td className="px-4 py-3"><Badge tone={PLAN_TONE[b.plan]}>{b.plan || '—'}</Badge></td>
-                  <td className="px-4 py-3 text-gray-600 text-[13px] whitespace-nowrap">{fmtDate(b.scheduled_date)}{b.time_slot ? `, ${b.time_slot}` : ''}</td>
+                  <td className="px-4 py-3 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDate(b.scheduled_date)}{b.time_slot ? `, ${b.time_slot}` : ''}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{num(b.amount)}</td>
                   <td className="px-4 py-3"><Badge tone={STATUS_TONE[b.status]}>{b.status}</Badge></td>
-                  <td className="px-4 py-3 font-mono text-[12px] text-gray-500">{b.ticket_no || '—'}</td>
-                  <td className="px-4 py-3 text-gray-500 text-[13px] whitespace-nowrap">{fmtStamp(b.booked_on)}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
+                  <td className="px-4 py-3 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.booked_on)}</td>
                 </tr>
               ))}
               {d.bookings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">No pooja bookings.</td></tr>}
@@ -171,13 +210,13 @@ export default function DevoteeDetails() {
             <Table cols={['Receipt No.', 'Fund', 'Type', 'Amount (₹)', 'Mode', '80G', 'Date']}>
               {d.donations.map((x) => (
                 <tr key={x.receipt_no} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-mono text-[12px] text-maroon-600">{x.receipt_no}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-maroon-600">{x.receipt_no}</td>
                   <td className="px-4 py-3 text-gray-700">{x.fund}</td>
                   <td className="px-4 py-3"><Badge tone="bg-blue-50 text-blue-700">{x.type}</Badge></td>
                   <td className="px-4 py-3 font-semibold text-emerald-700">{num(x.amount)}</td>
                   <td className="px-4 py-3 text-gray-600">{x.mode}</td>
                   <td className="px-4 py-3">{x.g80 ? <Badge tone="bg-emerald-50 text-emerald-700">Eligible</Badge> : '—'}</td>
-                  <td className="px-4 py-3 text-gray-500 text-[13px]">{fmtDate(x.date)}</td>
+                  <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtDate(x.date)}</td>
                 </tr>
               ))}
               {d.donations.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">No donations.</td></tr>}
@@ -188,11 +227,11 @@ export default function DevoteeDetails() {
             <Table cols={['ID', 'Beneficiaries (Plates)', 'Amount (₹)', 'Occasion', 'Date']}>
               {d.annadanam.map((a) => (
                 <tr key={a.code} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-mono text-[12px] text-gray-500">{a.code}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{a.code}</td>
                   <td className="px-4 py-3 text-gray-700">{a.plates}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{num(a.amount)}</td>
                   <td className="px-4 py-3 text-gray-600">{a.occasion || '—'}</td>
-                  <td className="px-4 py-3 text-gray-500 text-[13px]">{fmtDate(a.date)}</td>
+                  <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtDate(a.date)}</td>
                 </tr>
               ))}
               {d.annadanam.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">No annadanam sponsorships.</td></tr>}
@@ -203,11 +242,11 @@ export default function DevoteeDetails() {
             <Table cols={['ID', 'Item', 'Winning Amount (₹)', 'Status', 'Date']}>
               {d.auction.map((a) => (
                 <tr key={a.code} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-mono text-[12px] text-gray-500">{a.code}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{a.code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{a.item}</td>
                   <td className="px-4 py-3 font-semibold text-violet-700">{num(a.amount)}</td>
                   <td className="px-4 py-3"><Badge tone={STATUS_TONE[a.status]}>{a.status}</Badge></td>
-                  <td className="px-4 py-3 text-gray-500 text-[13px]">{fmtDate(a.date)}</td>
+                  <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtDate(a.date)}</td>
                 </tr>
               ))}
               {d.auction.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">No auction purchases.</td></tr>}
@@ -218,7 +257,7 @@ export default function DevoteeDetails() {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-2 text-[13px] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5">
+      <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5">
         <span className="text-blue-500">ⓘ</span> All transactions are linked to this devotee profile. Click on each tab to view detailed history.
       </div>
 
@@ -260,13 +299,13 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
           ))}
           <div className="sm:col-span-2"><label className="label">Address</label><input className="input" value={data.address || ''} onChange={(e) => onChange({ ...data, address: e.target.value })} /></div>
           <div><label className="label">Preferred Language</label>
-            <select className="input" value={data.preferred_language || 'English'} onChange={(e) => onChange({ ...data, preferred_language: e.target.value })}><option>English</option><option>Telugu</option></select>
+            <Select className="input" value={data.preferred_language || 'English'} onChange={(e) => onChange({ ...data, preferred_language: e.target.value })}><option>English</option><option>Telugu</option></Select>
           </div>
           <div><label className="label">Status</label>
-            <select className="input" value={data.status || 'Active'} onChange={(e) => onChange({ ...data, status: e.target.value })}><option>Active</option><option>Inactive</option></select>
+            <Select className="input" value={data.status || 'Active'} onChange={(e) => onChange({ ...data, status: e.target.value })}><option>Active</option><option>Inactive</option></Select>
           </div>
         </div>
-        {err && <p className="text-[13px] text-red-600 mt-3">{err}</p>}
+        {err && <p className="text-[0.8125rem] text-red-600 mt-3">{err}</p>}
         <div className="flex justify-end gap-2 mt-5">
           <button type="button" onClick={onClose} className="btn-outline">Cancel</button>
           <button disabled={busy} className="btn-maroon disabled:opacity-60">{busy ? 'Saving…' : 'Save Changes'}</button>
@@ -281,9 +320,9 @@ function Meta({ icon: Icon, label, value, badge, multiline }) {
     <div className="flex items-start gap-2.5">
       <Icon size={15} className="text-gray-400 mt-0.5 shrink-0" />
       <div className="min-w-0">
-        <div className="text-[11px] text-gray-400">{label}</div>
-        <div className={`text-[13px] text-gray-700 font-medium ${multiline ? '' : 'whitespace-nowrap'}`}>{value}
-          {badge && <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700">{badge}</span>}
+        <div className="text-[0.6875rem] text-gray-400">{label}</div>
+        <div className={`text-[0.8125rem] text-gray-700 font-medium ${multiline ? '' : 'whitespace-nowrap'}`}>{value}
+          {badge && <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-blue-50 text-blue-700">{badge}</span>}
         </div>
       </div>
     </div>
@@ -291,5 +330,5 @@ function Meta({ icon: Icon, label, value, badge, multiline }) {
 }
 
 function Badge({ tone, children }) {
-  return <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${tone || 'bg-gray-100 text-gray-500'}`}>{children}</span>
+  return <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${tone || 'bg-gray-100 text-gray-500'}`}>{children}</span>
 }

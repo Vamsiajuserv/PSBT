@@ -25,7 +25,7 @@ export default function AuctionItemMaster() {
     fields: [
       { k: 'name', label: 'Item Name', required: true },
       { k: 'category', label: 'Category', type: 'select', options: ['Jewellery', 'Vessels', 'Idols', 'Cloth', 'Other'] },
-      { k: 'base_price', label: 'Base Price (₹)', type: 'number' },
+      { k: 'base_price', label: 'Base Price (₹)', type: 'number', prefix: '₹' },
       { k: 'unit', label: 'Unit', type: 'select', options: ['Piece', 'Set', 'Kg', 'Gram'] },
       { k: 'description', label: 'Description', type: 'textarea' },
       { k: 'active', label: 'Status', type: 'active' },

@@ -1,11 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  Plus, X, Eye, MoreVertical, Search, RotateCcw, Calendar, Clock, Info, Trash2,
-  Gavel, CalendarClock, Users, CheckCircle2, User, IndianRupee,
+  Plus, X, Eye, MoreVertical, Search, RotateCcw, Info, Trash2,
+  Gavel, CalendarClock, Users, CheckCircle2, User,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { AuctionAPI, AuctionItemsAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { TableStates } from '../../components/common/states.jsx'
+import ExportButtons from '../../components/common/ExportButtons.jsx'
+import { Select, DateField, TimeField, NumberField } from '../../components/common/Field.jsx'
+import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 
 const STATUS_TONE = { Scheduled: 'blue', 'In Progress': 'amber', Completed: 'green' }
 const to12h = (t) => {
@@ -23,6 +27,8 @@ export default function Auction() {
   const canWrite = user?.role !== 'Accountant'
   const SIZE = 15
   const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [stats, setStats] = useState(null)
@@ -56,28 +62,67 @@ export default function Auction() {
   }, [dq, picked, drawer])
 
   const load = useCallback(async () => {
-    const [d, s] = await Promise.all([
-      AuctionAPI.list({ q, status, start, end, page, size: SIZE }),
-      AuctionAPI.stats().catch(() => null),
-    ])
-    setRows(d.items); setTotal(d.total); if (s) setStats(s)
+    setLoading(true); setLoadErr('')
+    try {
+      const [d, s] = await Promise.all([
+        AuctionAPI.list({ q, status, start, end, page, size: SIZE }),
+        AuctionAPI.stats().catch(() => null),
+      ])
+      setRows(d.items); setTotal(d.total); if (s) setStats(s)
+    } catch (ex) {
+      setLoadErr(ex?.detail || "Couldn't load auctions — check your connection and retry.")
+      setRows([])
+    } finally {
+      setLoading(false)
+    }
   }, [q, status, start, end, page])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
   useEffect(() => { setPage(1) }, [q, status, start, end])
 
   async function save(e) {
     e.preventDefault()
-    await AuctionAPI.create({
-      devotee_id: drawer.devotee?.id || null,
-      item: drawer.item, description: drawer.description || null,
-      base_amount: Number(drawer.base_amount) || 0,
-      winner: drawer.winner || null,
-      auction_date: drawer.auction_date || null, start_time: to12h(drawer.start_time) || null,
-      notes: drawer.notes || null, status: 'Scheduled',
-    })
-    setDrawer(null); setDq(''); load()
+    try {
+      await AuctionAPI.create({
+        devotee_id: drawer.devotee?.id || null,
+        item: drawer.item, description: drawer.description || null,
+        base_amount: Number(drawer.base_amount) || 0,
+        winner: drawer.winner || null,
+        auction_date: drawer.auction_date || null, start_time: to12h(drawer.start_time) || null,
+        notes: drawer.notes || null, status: 'Scheduled',
+      })
+      setDrawer(null); setDq(''); load()
+    } catch (ex) {
+      toast(ex?.detail || 'Could not save the auction — check the base amount and details.', 'error')
+    }
   }
-  async function remove(a) { setMenu(null); if (confirm(`Delete auction "${a.item}"?`)) { await AuctionAPI.remove(a.id); load() } }
+
+  // Committee decision: record the highest bid + winner, optionally close the auction.
+  async function recordResult(a) {
+    const res = await promptDialog({
+      title: `Record result — ${a.item}`,
+      confirmLabel: 'Record Result',
+      fields: [
+        { k: 'amount', label: 'Highest bid (₹)', type: 'number', required: true,
+          defaultValue: String(a.current_amount || a.base_amount || ''),
+          note: `Base amount ₹${Number(a.base_amount).toLocaleString('en-IN')} — the bid cannot be below it.` },
+        { k: 'winner', label: 'Winning bidder name', defaultValue: a.winner || '' },
+        { k: 'close', label: 'Mark as Completed (winner finalised)', type: 'checkbox' },
+      ],
+    })
+    if (!res) return
+    try {
+      await AuctionAPI.update(a.id, {
+        current_amount: Number(res.amount) || 0,
+        winner: res.winner.trim() || null,
+        status: res.close ? 'Completed' : 'In Progress',
+      })
+      toast(res.close ? 'Auction completed.' : 'Bid recorded.')
+      load()
+    } catch (ex) {
+      toast(ex?.detail || 'Could not record the auction result.', 'error')
+    }
+  }
+  async function remove(a) { setMenu(null); if (await confirmDialog({ title: `Delete auction "${a.item}"?`, message: 'It will be marked Void and excluded from totals.', tone: 'danger', confirmLabel: 'Delete' })) { await AuctionAPI.remove(a.id); toast('Auction voided.'); load() } }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
 
   // item dropdown → sets item name + prefills base amount from master base_price
@@ -88,10 +133,15 @@ export default function Auction() {
     else setM({ itemChoice: '', item: '' })
   }
 
+  const EXPORT_COLS = [{ key: 'code', label: 'Auction ID' }, { key: 'item', label: 'Item' }, { key: 'auction_date', label: 'Date' },
+    { key: 'base_amount', label: 'Base (₹)', type: 'money' }, { key: 'current_amount', label: 'Highest Bid (₹)', type: 'money' },
+    { key: 'bids', label: 'Bids' }, { key: 'winner', label: 'Winner' }, { key: 'status', label: 'Status' }]
+  const exportRows = rows
+  const exportTotal = { code: 'Total', current_amount: rows.reduce((s, a) => s + Number(a.current_amount || 0), 0) }
   return (
     <div>
       <PageTitle title="Auction Management" subtitle="Record temple auctions and their winning devotees."
-        actions={canWrite && <button onClick={() => { setDrawer(emptyForm()); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} /> Create New Auction</button>} />
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title="Auction Register" columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(emptyForm()); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} /> Create New Auction</button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700">View only</span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={Gavel} color="#d97706" bg="bg-amber-50" title="Total Auctions" value={stats ? num(stats.total) : '—'} sub="All Time" />
@@ -103,21 +153,21 @@ export default function Auction() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Search by Auction ID / Item Name</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Search by Auction ID / Item Name</label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search auction ID or item name…" className="input !pl-9" /></div>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Date Range</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Date Range</label>
             <div className="flex items-center gap-1.5">
-              <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[12.5px]" />
+              <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
               <span className="text-gray-400">–</span>
-              <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[12.5px]" />
+              <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
             </div>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All</option><option>Scheduled</option><option>In Progress</option><option>Completed</option></select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Status</label>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All</option><option>Scheduled</option><option>In Progress</option><option>Completed</option></Select>
           </div>
           <div className="md:col-span-3 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setStatus(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button>
@@ -127,15 +177,15 @@ export default function Auction() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {['Auction ID', 'Item Name', 'Auction Date', 'No. of Bidders', 'Highest Bid (₹)', 'Highest Bidder', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-mono text-[12px] text-gray-500">{a.code}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{a.code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{a.item}</td>
-                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[13px]">{fmtDate(a.auction_date)}</div><div className="text-[11px] text-gray-400">{a.start_time || ''}</div></td>
+                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.auction_date)}</div><div className="text-[0.6875rem] text-gray-400">{a.start_time || ''}</div></td>
                   <td className="px-4 py-3 text-gray-700">{a.bids}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{Number(a.current_amount) > 0 ? inr(a.current_amount) : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 text-gray-600">{a.winner || <span className="text-gray-300">—</span>}</td>
@@ -143,6 +193,9 @@ export default function Auction() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 relative">
                       <button onClick={() => setView(a)} title="View details" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      {canWrite && a.status !== 'Completed' && a.status !== 'Void' && (
+                        <button onClick={() => recordResult(a)} title="Record bid / winner / close" className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-violet-200 text-violet-700 text-[0.78125rem] font-semibold hover:bg-violet-50">Record Result</button>
+                      )}
                       <button onClick={() => setMenu(menu === a.id ? null : a.id)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><MoreVertical size={15} /></button>
                       {menu === a.id && (
                         <div className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-lg shadow-lg py-1 w-36 text-sm">
@@ -154,7 +207,7 @@ export default function Auction() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">No auctions found.</td></tr>}
+              {rows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty="No auctions found." />}
             </tbody>
           </table>
         </div>
@@ -163,7 +216,7 @@ export default function Auction() {
         </div>
       </div>
 
-      <div className="mt-4 flex items-start gap-2 text-[13px] text-gray-600 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-3">
+      <div className="mt-4 flex items-start gap-2 text-[0.8125rem] text-gray-600 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-3">
         <Info size={16} className="text-blue-500 shrink-0 mt-0.5" /> Record each auction with its item, base amount and the winning devotee. Live bid tracking and auction payment receipts are planned; for now, collect payment at the counter.
       </div>
 
@@ -174,23 +227,23 @@ export default function Auction() {
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
               <div><h3 className="font-serif text-xl font-bold text-maroon-800">Create New Auction</h3>
-                <p className="text-[13px] text-gray-500 mt-0.5">Create a new auction for items, materials or rights.</p></div>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5">Create a new auction for items, materials or rights.</p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-5 flex-1">
-              <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[14px]">1. Auction Details</div>
+              <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.875rem]">1. Auction Details</div>
               <div><label className="label">Auction Item *</label>
-                <select required={drawer.itemChoice !== '__other__'} className="input" value={drawer.itemChoice} onChange={(e) => onItemSelect(e.target.value)}>
+                <Select required={drawer.itemChoice !== '__other__'} className="input" value={drawer.itemChoice} onChange={(e) => onItemSelect(e.target.value)}>
                   <option value="">Select an item…</option>
                   {items.map((it) => <option key={it.id} value={it.id}>{it.name}{it.category ? ` · ${it.category}` : ''}</option>)}
                   <option value="__other__">Other (enter manually)</option>
-                </select>
+                </Select>
                 {drawer.itemChoice === '__other__' && (
                   <input required className="input mt-2" placeholder="Enter auction item name" value={drawer.item} onChange={(e) => setM({ item: e.target.value })} />
                 )}
               </div>
               <div><label className="label">Base Amount (₹) *</label>
-                <div className="relative"><input required type="number" min="0" step="1" className="input pr-9" placeholder="0" value={drawer.base_amount} onChange={(e) => setM({ base_amount: e.target.value })} /><IndianRupee size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" /></div>
+                <NumberField required min="0" step="1" prefix="₹" placeholder="0" value={drawer.base_amount} onChange={(e) => setM({ base_amount: e.target.value })} />
               </div>
               <div><label className="label">Devotee (Optional)</label>
                 {!drawer.devotee ? (
@@ -201,8 +254,8 @@ export default function Auction() {
                       <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1">
                         {results.map((d) => (
                           <button type="button" key={d.id} onClick={() => { setM({ devotee: d, winner: d.name }); setResults([]); setDq('') }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[12px] font-bold">{d.name[0]}</span>
-                            <span><span className="font-semibold text-gray-800 text-[13px]">{d.name}</span><span className="block text-[11px] text-gray-400">{d.code} · {d.mobile}</span></span>
+                            <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
+                            <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{d.name}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
                           </button>
                         ))}
                       </div>
@@ -213,7 +266,7 @@ export default function Auction() {
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{drawer.devotee.name}</span><Pill tone="green">Registered</Pill></div>
-                      <div className="text-[12px] text-gray-500">Mobile: {drawer.devotee.mobile}</div>
+                      <div className="text-[0.75rem] text-gray-500">Mobile: {drawer.devotee.mobile}</div>
                     </div>
                     <button type="button" onClick={() => { setM({ devotee: null }); setDq('') }} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
                   </div>
@@ -221,20 +274,20 @@ export default function Auction() {
               </div>
               <div><label className="label">Winner / Highest Bidder (Optional)</label><input className="input" placeholder="Enter winner name" value={drawer.winner} onChange={(e) => setM({ winner: e.target.value })} /></div>
               <div><label className="label">Description (Optional)</label>
-                <textarea className="input min-h-[90px]" maxLength={250} placeholder="Enter description…" value={drawer.description} onChange={(e) => setM({ description: e.target.value })} />
-                <div className="text-right text-[11px] text-gray-400 mt-0.5">{drawer.description.length} / 250</div></div>
+                <textarea className="input min-h-[5.625rem]" maxLength={250} placeholder="Enter description…" value={drawer.description} onChange={(e) => setM({ description: e.target.value })} />
+                <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{drawer.description.length} / 250</div></div>
               <div><label className="label">Auction Date *</label>
-                <div className="relative"><input required type="date" className="input pr-9" value={drawer.auction_date} onChange={(e) => setM({ auction_date: e.target.value })} /><Calendar size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" /></div></div>
+                <DateField required value={drawer.auction_date} onChange={(e) => setM({ auction_date: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="label">Start Time *</label>
-                  <div className="relative"><input required type="time" className="input pr-9" value={drawer.start_time} onChange={(e) => setM({ start_time: e.target.value })} /><Clock size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" /></div></div>
+                  <TimeField required value={drawer.start_time} onChange={(e) => setM({ start_time: e.target.value })} /></div>
                 <div><label className="label">Notes (Optional)</label>
-                  <textarea className="input min-h-[44px]" maxLength={250} placeholder="Enter notes…" value={drawer.notes} onChange={(e) => setM({ notes: e.target.value })} />
-                  <div className="text-right text-[11px] text-gray-400 mt-0.5">{drawer.notes.length} / 250</div></div>
+                  <textarea className="input min-h-[2.75rem]" maxLength={250} placeholder="Enter notes…" value={drawer.notes} onChange={(e) => setM({ notes: e.target.value })} />
+                  <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{drawer.notes.length} / 250</div></div>
               </div>
               <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-4 py-3.5">
-                <div className="flex items-center gap-2 text-[13px] font-semibold text-amber-700 mb-2"><Info size={15} /> Note</div>
-                <p className="text-[12.5px] text-gray-600">This records the auction and its winning devotee. Live bid-by-bid tracking and on-system payment receipts are not yet available — settle the winning payment at the counter and record it there.</p>
+                <div className="flex items-center gap-2 text-[0.8125rem] font-semibold text-amber-700 mb-2"><Info size={15} /> Note</div>
+                <p className="text-[0.78125rem] text-gray-600">This records the auction and its winning devotee. Live bid-by-bid tracking and on-system payment receipts are not yet available — settle the winning payment at the counter and record it there.</p>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
@@ -252,7 +305,7 @@ export default function Auction() {
           <div className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
               <div><h3 className="font-serif text-xl font-bold text-maroon-800">Auction Details</h3>
-                <p className="text-[13px] text-gray-500 mt-0.5 font-mono">{view.code}</p></div>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5 font-mono">{view.code}</p></div>
               <button onClick={() => setView(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-4 flex-1">
@@ -281,8 +334,8 @@ export default function Auction() {
 function VField({ label, value, wide }) {
   return (
     <div className={wide ? 'col-span-2' : ''}>
-      <div className="text-[11px] text-gray-400 mb-0.5">{label}</div>
-      <div className="text-[13px] text-gray-800 font-medium break-words">{value ?? '—'}</div>
+      <div className="text-[0.6875rem] text-gray-400 mb-0.5">{label}</div>
+      <div className="text-[0.8125rem] text-gray-800 font-medium break-words">{value ?? '—'}</div>
     </div>
   )
 }

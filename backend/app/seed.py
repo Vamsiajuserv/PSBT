@@ -128,9 +128,9 @@ DEMO_HISTORY = [
     ("Karthika Masam Pooja", "Full Month", "Completed", 1),
     ("Abhishekam", "Monthly", "Completed", 2),
     ("Ashtotharam / Archana", "Daily", "Cancelled", 2),
-    ("Sai Vratam (Pournami)", "Monthly", "Ongoing", 3),
+    ("Sai Vratam (Pournami)", "Monthly", "Confirmed", 3),
     ("Sahasranama Archana", "Daily", "Completed", 4),
-    ("Nithya Pooja", "Life Long", "Ongoing", 5),
+    ("Nithya Pooja", "Life Long", "Confirmed", 5),
     ("Rudrabhishekam", "One-Time", "Completed", 6),
     ("Abhishekam", "Daily", "Completed", 7),
 ]
@@ -267,7 +267,12 @@ USERS = [
          role="Counter Staff", modules=["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"],
          password="Counter@123"),
     dict(name="G. Meena", username="accounts", email="accounts@psbt.org", employee_id="EMP003",
-         role="Accountant", modules=["Reports", "Audit"], password="Accounts@123"),
+         role="Accountant", modules=["Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"],
+         password="Accounts@123"),
+    dict(name="Sri Ramachandra Sastry", username="poojari1", email="poojari1@psbt.org", employee_id="EMP004",
+         role="Poojari", modules=["Sevas", "Bookings"], password="Poojari@123"),
+    dict(name="P. Rao (Committee)", username="committee1", email="committee1@psbt.org", employee_id="EMP005",
+         role="Committee", modules=["Hundi", "Auction", "Reports"], password="Committee@123"),
 ]
 
 DEVOTEES = [
@@ -302,7 +307,7 @@ def _validity(plan_name: str, dur):
 
 def run():
     Base.metadata.create_all(bind=engine)
-    from .migrate import run_migrations
+    from .migrate import run_migrations, POOJA_DESCRIPTIONS
     run_migrations(engine)
     db = SessionLocal()
     try:
@@ -318,7 +323,8 @@ def run():
         if db.query(Pooja).count() == 0:
             for i, (name, te, cat, plans) in enumerate(POOJAS, start=1):
                 pj = Pooja(code=f"PJA-{str(i).zfill(3)}", name=name, name_te=te, category=cat,
-                           description=f"{name} — booked at the counter; ticket issued on payment.")
+                           description=POOJA_DESCRIPTIONS.get(
+                               name, f"{name} — booked at the counter; ticket issued on payment."))
                 for pn, freq, fee, dur in plans:
                     vt, vv, vu = _validity(pn, dur)
                     pj.plans.append(PoojaPlan(
@@ -339,15 +345,22 @@ def run():
             db.commit()
             print(f"  backfilled validity on {len(stale)} plans")
 
-        # Users
+        # Users — insert if missing; on re-seed fully RESTORE these canonical demo
+        # logins (module set, password and active flag) so the demo credentials on
+        # the login page always work, even if a login's password/state drifted.
         for u in USERS:
-            if not db.query(User).filter(User.username == u["username"]).first():
+            existing = db.query(User).filter(User.username == u["username"]).first()
+            mods = ",".join(u["modules"])
+            if not existing:
                 db.add(User(name=u["name"], username=u["username"], email=u["email"],
-                            employee_id=u["employee_id"], role=u["role"],
-                            modules=",".join(u["modules"]),
-                            password_hash=hash_password(u["password"])))
+                            employee_id=u["employee_id"], role=u["role"], modules=mods,
+                            password_hash=hash_password(u["password"]), is_active=True))
+            else:
+                existing.modules = mods
+                existing.password_hash = hash_password(u["password"])
+                existing.is_active = True
         db.commit()
-        print(f"  ensured {len(USERS)} staff users")
+        print(f"  ensured {len(USERS)} staff users (demo logins restored)")
 
         # Devotees
         if db.query(Devotee).count() == 0:
@@ -365,7 +378,9 @@ def run():
             print(f"  seeded {len(DEVOTEES)} devotees")
 
         # A few bookings / donations / hundi / auction / annadanam for the dashboard
+        seeded_sample_bookings = False
         if db.query(Booking).count() == 0:
+            seeded_sample_bookings = True
             devs = db.query(Devotee).all()
             sevas = {s.code: s for s in db.query(Seva).all()}
             samples = [("SV01", "08:00 AM"), ("SV02", "10:00 AM"), ("SV16", "12:00 PM"),
@@ -402,6 +417,21 @@ def run():
                 db.add(Poojari(code=f"PR{str(i).zfill(2)}", name=name, phone=phone, specialization=spec))
             db.commit()
             print("  seeded 3 poojaris")
+
+        # Link the Poojari login to a master record so its queue can filter to
+        # "mine" (idempotent). On a fresh demo DB, also assign the sample poojas to
+        # this poojari so the "mine" view has data; never touches real bookings.
+        first_poojari = db.query(Poojari).order_by(Poojari.id).first()
+        if first_poojari:
+            pu = db.query(User).filter(User.username == "poojari1").first()
+            if pu and not pu.poojari_id:
+                pu.poojari_id = first_poojari.id
+            if seeded_sample_bookings:
+                for b in db.query(Booking).filter(
+                        Booking.scheduled_date == date.today(),
+                        Booking.poojari_id.is_(None)).all():
+                    b.poojari_id, b.poojari_name = first_poojari.id, first_poojari.name
+            db.commit()
 
         # Waste vendors + sample sale
         if db.query(WasteVendor).count() == 0:

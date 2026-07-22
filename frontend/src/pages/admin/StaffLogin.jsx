@@ -17,6 +17,8 @@ const DEMO_ACCOUNTS = [
   { username: 'admin', password: 'Admin@123', role: 'Administrator', desc: 'Full access · all modules', tone: 'bg-maroon-50 text-maroon-700 border-maroon-200' },
   { username: 'counter1', password: 'Counter@123', role: 'Counter Staff', desc: 'Billing only · no cancel/delete', tone: 'bg-blue-50 text-blue-700 border-blue-200' },
   { username: 'accounts', password: 'Accounts@123', role: 'Accountant', desc: 'Read-only · reports & bills', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  { username: 'poojari1', password: 'Poojari@123', role: 'Poojari', desc: 'Pooja queue · verify tickets', tone: 'bg-amber-50 text-amber-700 border-amber-200' },
+  { username: 'committee1', password: 'Committee@123', role: 'Committee', desc: 'Hundi verify · auction · reports', tone: 'bg-violet-50 text-violet-700 border-violet-200' },
 ]
 
 export default function StaffLogin() {
@@ -86,7 +88,7 @@ export default function StaffLogin() {
       <div className="flex-1 grid lg:grid-cols-2">
         {/* Visual / brand panel */}
         <div className="relative hidden lg:flex flex-col justify-center items-center text-center px-12 bg-maroon-900 overflow-hidden">
-          <img src={images?.about || ''} alt="Temple" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+          {images?.about && <img src={images.about} alt="Temple" className="absolute inset-0 w-full h-full object-cover opacity-30" />}
           <div className="absolute inset-0 bg-gradient-to-t from-maroon-900 via-maroon-900/70 to-maroon-900/40" />
           <div className="relative text-cream">
             <div className="w-20 h-20 mx-auto rounded-full border-2 border-gold-400 bg-maroon-800 grid place-items-center text-4xl">🛕</div>
@@ -129,24 +131,23 @@ export default function StaffLogin() {
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <label className="flex items-center gap-2 text-gray-500"><input type="checkbox" className="accent-maroon-700" /> Remember me</label>
+                  <div className="flex items-center justify-end text-xs">
                     <button type="button" onClick={() => setForgot((v) => !v)} className="font-semibold text-maroon-600 hover:underline">Forgot Password?</button>
                   </div>
                   {forgot && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-[11.5px] text-gray-600">
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-[0.71875rem] text-gray-600">
                       Password resets are handled by an Administrator. Please contact your temple administrator to reset your staff account password.
                     </div>
                   )}
                   <button disabled={busy} className="btn-maroon w-full !py-3 disabled:opacity-60"><LogIn size={16} /> {busy ? 'Signing in…' : 'Login'}</button>
-                  <div className="bg-gold-50 border border-gold-200 rounded-lg px-3 py-2.5 flex items-start gap-2 text-[11px] text-gray-500">
+                  <div className="bg-gold-50 border border-gold-200 rounded-lg px-3 py-2.5 flex items-start gap-2 text-[0.6875rem] text-gray-500">
                     <ShieldCheck size={16} className="text-gold-500 shrink-0 mt-0.5" />
                     Two-Factor Authentication will be requested after successful login (if enabled for your account).
                   </div>
 
                   {/* Demo accounts — click to auto-fill & sign in */}
                   <div className="pt-1">
-                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-gray-400 mb-2">
+                    <div className="flex items-center gap-2 text-[0.625rem] uppercase tracking-widest text-gray-400 mb-2">
                       <span className="h-px flex-1 bg-gold-200" /> Demo Logins — click to enter <span className="h-px flex-1 bg-gold-200" />
                     </div>
                     <div className="space-y-2">
@@ -155,11 +156,11 @@ export default function StaffLogin() {
                           className={`w-full flex items-center justify-between border rounded-lg px-3 py-2 text-left transition hover:brightness-95 disabled:opacity-60 ${a.tone}`}>
                           <span>
                             <span className="block text-sm font-bold leading-tight">{a.role}</span>
-                            <span className="block text-[11px] opacity-80">{a.desc}</span>
+                            <span className="block text-[0.6875rem] opacity-80">{a.desc}</span>
                           </span>
                           <span className="text-right shrink-0 pl-2">
-                            <span className="block text-[11px] font-mono font-semibold">{a.username}</span>
-                            <span className="block text-[10px] font-mono opacity-70">{a.password}</span>
+                            <span className="block text-[0.6875rem] font-mono font-semibold">{a.username}</span>
+                            <span className="block text-[0.625rem] font-mono opacity-70">{a.password}</span>
                           </span>
                         </button>
                       ))}
@@ -177,7 +178,7 @@ export default function StaffLogin() {
               )}
             </div>
 
-            <p className="text-center text-[11px] text-gray-400 mt-4"><Link to="/" className="hover:text-maroon-600">← Back to public site</Link></p>
+            <p className="text-center text-[0.6875rem] text-gray-400 mt-4"><Link to="/" className="hover:text-maroon-600">← Back to public site</Link></p>
           </div>
         </div>
       </div>
@@ -190,13 +191,14 @@ export default function StaffLogin() {
             return (
               <div key={t.title} className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full border border-gold-400/50 text-gold-300 grid place-items-center shrink-0"><Icon size={18} /></div>
-                <div><div className="text-sm font-bold text-gold-200">{t.title}</div><div className="text-[11px] text-cream/60 leading-snug">{t.desc}</div></div>
+                <div><div className="text-sm font-bold text-gold-200">{t.title}</div><div className="text-[0.6875rem] text-cream/60 leading-snug">{t.desc}</div></div>
               </div>
             )
           })}
         </div>
-        <div className="border-t border-white/10 text-center text-[11px] text-cream/50 py-3">
-          This is a secure login for authorized temple staff only. All login attempts are logged and monitored. · {temple?.phone || ''} · {temple?.email || ''}
+        <div className="border-t border-white/10 text-center text-[0.6875rem] text-cream/50 py-3">
+          This is a secure login for authorized temple staff only. All login attempts are logged and monitored.
+          {temple?.phone ? ` · ${temple.phone}` : ''}{temple?.email ? ` · ${temple.email}` : ''}
         </div>
       </div>
     </div>

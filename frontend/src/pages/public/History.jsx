@@ -1,5 +1,5 @@
 import React from 'react'
-import { TempleBanner, Mandala, GoldRule, Particles, GOLD, GOLD_DEEP } from '../../components/common/UI.jsx'
+import { MinimalBanner, Mandala, GoldRule, Particles, GOLD, GOLD_DEEP } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 
 /* Soft floral watermark for the section corners (purely ornamental). */
@@ -50,7 +50,7 @@ export default function History() {
 
   return (
     <div className="bg-cream">
-      <TempleBanner title="Temple History" breadcrumb="Home  ›  About Temple  ›  History" />
+      <MinimalBanner title="Temple History" breadcrumb="Home  ›  About Temple  ›  History" />
 
       <section className="history-hero relative overflow-hidden">
         {/* ── Decorative wallpaper layers (all non-interactive) ── */}
@@ -59,7 +59,7 @@ export default function History() {
 
         {/* Mandala motif — right side, 8% opacity */}
         <Mandala strokeWidth={0.35}
-                 className="absolute -right-24 top-1/2 -translate-y-1/2 w-[520px] h-[520px]
+                 className="absolute -right-24 top-1/2 -translate-y-1/2 w-[32.5rem] h-[32.5rem]
                             opacity-[0.08] pointer-events-none hidden md:block"
                  style={{ color: GOLD_DEEP }} />
 
@@ -76,10 +76,8 @@ export default function History() {
         <div className="history-mist absolute inset-x-0 bottom-0 h-40 pointer-events-none" />
 
         {/* ── Content ── */}
-        <div className="relative max-w-[1440px] mx-auto px-5 sm:px-8 py-14 lg:py-20 animate-fade-in">
-          <GoldDivider />
-
-          <div className="grid lg:grid-cols-[35%_1fr] gap-10 lg:gap-16 items-start mt-12">
+        <div className="relative max-w-[90rem] mx-auto px-5 sm:px-8 pt-6 pb-14 lg:pt-8 lg:pb-20 animate-fade-in">
+          <div className="grid lg:grid-cols-[35%_1fr] gap-10 lg:gap-16 items-start">
             {/* Left — temple image, glowing and fading into the background */}
             <figure className="relative lg:sticky lg:top-8">
               <div className="history-glow absolute -inset-6 pointer-events-none" />
@@ -87,7 +85,7 @@ export default function History() {
                 <img
                   src={templeImg}
                   alt="Sri Shirdi Sai Baba Temple"
-                  className="temple-mask relative w-full h-56 sm:h-80 lg:h-[460px] object-cover"
+                  className="temple-mask relative w-full h-56 sm:h-80 lg:h-[28.75rem] object-cover"
                   loading="lazy"
                 />
               )}
@@ -102,7 +100,7 @@ export default function History() {
             <div className="relative pl-10 sm:pl-16">
               {/* Thin vertical golden line */}
               <span
-                className="absolute left-[6px] top-3 bottom-3 w-[2px] rounded-full pointer-events-none"
+                className="absolute left-[0.375rem] top-3 bottom-3 w-[2px] rounded-full pointer-events-none"
                 style={{ background: 'linear-gradient(to bottom, transparent, #C89B3C 12%, #E8C76A 50%, #C89B3C 88%, transparent)' }}
               />
 
@@ -123,13 +121,13 @@ export default function History() {
                     />
 
                     <article className="glass-card p-6 sm:p-7">
-                      <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#B8860B]">
+                      <div className="text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-[#B8860B]">
                         {h.year}
                       </div>
                       <h3 className="font-serif text-xl font-bold text-[#6A1E1E] mt-1.5">
                         {h.title}
                       </h3>
-                      <p className="text-sm text-[#555555] mt-2 leading-[1.75]">
+                      <p className="text-sm text-black mt-2 leading-[1.75]">
                         {h.desc}
                       </p>
                     </article>

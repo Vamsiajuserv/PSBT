@@ -1,16 +1,19 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  IndianRupee, Layers, ListChecks, ClipboardCheck, Lock, CalendarDays, Filter,
-  ChevronDown, Wallet, Scale, CreditCard, Info, CheckCircle2,
+  IndianRupee, Layers, ListChecks, ClipboardCheck, Lock, Filter,
+  Wallet, Scale, CreditCard, Info, CheckCircle2,
 } from 'lucide-react'
 import { inr, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
-import { DailyClosingAPI } from '../../api/client.js'
+import { DailyClosingAPI, RefundsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { DateField, NumberField } from '../../components/common/Field.jsx'
+import { confirmDialog } from '../../components/common/Dialog.jsx'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const dash = (n) => (n ? inr(n) : '-')
-const dashN = (n) => (n ? String(n).padStart(2, '0') : '-')
+// Plain count or a dash — matches the un-padded count in the TOTAL row.
+const dashN = (n) => (n ? String(n) : '-')
 
 function KpiCard({ icon: Icon, title, value, sub, valueClass, subClass }) {
   return (
@@ -19,9 +22,9 @@ function KpiCard({ icon: Icon, title, value, sub, valueClass, subClass }) {
         <Icon size={22} className="text-maroon-700" />
       </div>
       <div className="min-w-0">
-        <div className="text-[11.5px] text-gray-500 leading-tight">{title}</div>
-        <div className={`text-[22px] font-bold leading-tight mt-0.5 ${valueClass || 'text-gray-800'}`}>{value}</div>
-        <div className={`text-[11px] mt-0.5 ${subClass || 'text-gray-400'}`}>{sub}</div>
+        <div className="text-[0.71875rem] text-gray-500 leading-tight">{title}</div>
+        <div className={`text-[1.375rem] font-bold leading-tight mt-0.5 ${valueClass || 'text-gray-800'}`}>{value}</div>
+        <div className={`text-[0.6875rem] mt-0.5 ${subClass || 'text-gray-400'}`}>{sub}</div>
       </div>
     </div>
   )
@@ -45,7 +48,7 @@ function CardHead({ icon: Icon, title }) {
   return (
     <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100">
       <Icon size={18} className="text-maroon-600" />
-      <h3 className="font-serif text-[17px] font-bold text-maroon-800">{title}</h3>
+      <h3 className="font-serif text-[1.0625rem] font-bold text-maroon-800">{title}</h3>
     </div>
   )
 }
@@ -60,6 +63,7 @@ export default function DailyClosing() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [loadErr, setLoadErr] = useState('')
+  const [refunds, setRefunds] = useState([])
 
   const load = useCallback(async () => {
     setLoadErr('')
@@ -69,6 +73,7 @@ export default function DailyClosing() {
       setActual(String(s.actual_cash ?? s.expected_cash ?? 0))
       setNotes('')
       setMsg('')
+      RefundsAPI.list({ start: day, end: day }).then((r) => setRefunds(r.items || [])).catch(() => setRefunds([]))
     } catch (ex) {
       setSum(null)
       setLoadErr(ex?.detail || "Couldn't load the daily closing — check your connection and retry.")
@@ -77,7 +82,7 @@ export default function DailyClosing() {
   useEffect(() => { load() }, [load])
 
   async function closeDay() {
-    if (!confirm(`Close ${sum?.date}? Once finalised, no further transactions can be recorded for this date.`)) return
+    if (!(await confirmDialog({ title: `Close ${sum?.date}?`, message: 'Once finalised, no further transactions can be recorded for this date.', tone: 'danger', confirmLabel: 'Close the Day' }))) return
     setBusy(true); setMsg('')
     try {
       await DailyClosingAPI.close({ date: day, actual_cash: Number(actual) || 0, notes })
@@ -100,17 +105,13 @@ export default function DailyClosing() {
       {/* ── Header ── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="font-serif text-[28px] font-bold text-maroon-800 leading-tight">Daily Closing</h1>
-          <div className="text-[13px] text-gray-400 mt-0.5">Dashboard <span className="mx-1">›</span> Daily Closing</div>
+          <h1 className="font-serif text-[1.75rem] font-bold text-maroon-800 leading-tight">Daily Closing</h1>
+          <div className="text-[0.8125rem] text-gray-400 mt-0.5">Dashboard <span className="mx-1">›</span> Daily Closing</div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <CalendarDays size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-maroon-500 pointer-events-none" />
-            <input type="date" value={day} onChange={(e) => setDay(e.target.value)}
-              className="input !pl-9 !pr-8 !w-52 !py-2.5 text-[13px] font-medium" />
-            <ChevronDown size={15} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-          <button onClick={() => load()} className="inline-flex items-center gap-2 border border-gray-200 bg-white rounded-lg px-4 py-2.5 text-[13px] font-medium text-gray-600 hover:bg-gray-50">
+          <DateField value={day} onChange={(e) => setDay(e.target.value)}
+            className="!w-52 !py-2.5 text-[0.8125rem] font-medium" />
+          <button onClick={() => load()} className="inline-flex items-center gap-2 border border-gray-200 bg-white rounded-lg px-4 py-2.5 text-[0.8125rem] font-medium text-gray-600 hover:bg-gray-50">
             <Filter size={15} /> Filter
           </button>
         </div>
@@ -134,9 +135,9 @@ export default function DailyClosing() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <CardHead icon={IndianRupee} title="Collections by Module" />
             <div className="overflow-x-auto">
-              <table className="w-full text-[13.5px]">
+              <table className="w-full text-[0.84375rem]">
                 <thead>
-                  <tr className="bg-gray-50/70 text-gray-500 text-[11.5px] uppercase tracking-wide">
+                  <tr className="bg-gray-50/70 text-gray-500 text-[0.71875rem] uppercase tracking-wide">
                     <th className="px-4 py-3 text-left font-semibold w-10">#</th>
                     <th className="px-2 py-3 text-left font-semibold">Module</th>
                     <th className="px-4 py-3 text-right font-semibold">Cash (₹)</th>
@@ -156,7 +157,7 @@ export default function DailyClosing() {
                       <td className="px-4 py-3 text-right tabular-nums text-gray-600">{dashN(m.count)}</td>
                     </tr>
                   ))}
-                  <tr className="bg-amber-50/70 font-bold text-maroon-800 text-[14px]">
+                  <tr className="bg-amber-50/70 font-bold text-maroon-800 text-[0.875rem]">
                     <td className="px-4 py-3.5" colSpan={2}>TOTAL</td>
                     <td className="px-4 py-3.5 text-right tabular-nums">{inr(t.cash)}</td>
                     <td className="px-4 py-3.5 text-right tabular-nums">{inr(t.upi)}</td>
@@ -174,8 +175,8 @@ export default function DailyClosing() {
               <CardHead icon={CreditCard} title="Payment Mode Summary" />
               <div className="p-5 flex items-center gap-5">
                 <div className="shrink-0"><Donut cashPct={sum.cash_pct} upiPct={sum.upi_pct} /></div>
-                <div className="flex-1 min-w-0 text-[13px]">
-                  <div className="flex text-[11px] uppercase tracking-wide text-gray-400 font-semibold pb-2 border-b border-gray-100">
+                <div className="flex-1 min-w-0 text-[0.8125rem]">
+                  <div className="flex text-[0.6875rem] uppercase tracking-wide text-gray-400 font-semibold pb-2 border-b border-gray-100">
                     <span className="flex-1">Payment Mode</span><span className="w-20 text-right">Amount (₹)</span><span className="w-12 text-right">%</span>
                   </div>
                   <div className="flex items-center py-2.5 border-b border-gray-50">
@@ -200,7 +201,7 @@ export default function DailyClosing() {
             {/* Cash Reconciliation */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <CardHead icon={Scale} title="Cash Reconciliation" />
-              <div className="p-5 text-[13.5px] space-y-3">
+              <div className="p-5 text-[0.84375rem] space-y-3">
                 <Row label="Opening Cash (₹)" value={inr(sum.opening_cash)} />
                 <Row label="(+) Cash Collections (₹)" value={inr(t.cash)} />
                 <Row label="(-) Cash Refunds (₹)" value={inr(sum.cash_refunds)} />
@@ -220,10 +221,10 @@ export default function DailyClosing() {
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <CardHead icon={ClipboardCheck} title="Closing Summary" />
-            <div className="p-5 text-[13.5px] space-y-3">
-              <Row label="Total Collections (₹)" value={inr(t.total)} valueClass="text-maroon-800 font-bold text-[15px]" />
+            <div className="p-5 text-[0.84375rem] space-y-3">
+              <Row label="Total Collections (₹)" value={inr(t.total)} valueClass="text-maroon-800 font-bold text-[0.9375rem]" />
               <Row label="(-) Refunds (₹)" value={inr(sum.refunds)} />
-              <Row label="Net Collections (₹)" value={inr(sum.net_collections)} valueClass="text-emerald-600 font-bold text-[15px]" />
+              <Row label="Net Collections (₹)" value={inr(sum.net_collections)} valueClass="text-emerald-600 font-bold text-[0.9375rem]" />
               <div className="border-t border-gray-100 pt-3 space-y-3">
                 <Row label="Total Transactions" value={num(t.count)} />
                 <Row label="Cash Transactions" value={num(sum.cash_txns)} />
@@ -233,9 +234,10 @@ export default function DailyClosing() {
                 <Row label="Cash in Hand (Expected) (₹)" value={inr(sum.expected_cash)} />
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Cash in Hand (Actual) (₹)</span>
-                  <input type="number" value={actual} disabled={closed}
+                  <NumberField prefix="₹" value={actual} disabled={closed || !canClose}
+                    title={!canClose ? 'Only the closing role enters the counted cash' : undefined}
                     onChange={(e) => setActual(e.target.value)}
-                    className="w-32 text-right tabular-nums border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-maroon-200 focus:border-maroon-400 disabled:bg-gray-50 disabled:text-gray-500" />
+                    className="!w-36 !py-1.5" inputClass="text-right tabular-nums" />
                 </div>
                 <Row label="Difference (₹)" value={inr(closingDiff)}
                   valueClass={`font-bold ${closingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`} />
@@ -243,21 +245,51 @@ export default function DailyClosing() {
             </div>
           </div>
 
+          {/* Refunds register for the day — money paid back out (feeds expected cash) */}
+          {refunds.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+              <div className="font-serif text-[0.9375rem] font-bold text-maroon-800 mb-3">Refunds ({refunds.length})</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[0.8125rem]">
+                  <thead><tr className="text-left text-[0.6875rem] uppercase tracking-wide text-gray-500 bg-gray-50/70">
+                    {['Refund No.', 'Against', 'Reason', 'Mode', 'By', 'Amount (₹)'].map((c) => <th key={c} className="px-3 py-2 font-semibold whitespace-nowrap">{c}</th>)}
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {refunds.map((r) => (
+                      <tr key={r.id}>
+                        <td className="px-3 py-2 font-mono text-[0.75rem] text-gray-500">{r.refund_code}</td>
+                        <td className="px-3 py-2 text-gray-700">{r.entity_type} {r.entity_code || `#${r.entity_id || ''}`}</td>
+                        <td className="px-3 py-2 text-gray-500">{r.reason || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600">{r.mode || 'Cash'}</td>
+                        <td className="px-3 py-2 text-gray-500">{r.created_by || '—'}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-rose-700">{inr(r.amount)}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-50/60 font-bold">
+                      <td className="px-3 py-2" colSpan={5}>Total refunds</td>
+                      <td className="px-3 py-2 text-right text-rose-700">{inr(refunds.reduce((s, r) => s + Number(r.amount || 0), 0))}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {closed ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="inline-flex items-center gap-2 text-[13px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
+              <div className="inline-flex items-center gap-2 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
                 <CheckCircle2 size={16} /> Closed by {sum.closed_by} · {fmtStamp(sum.closed_at)}
               </div>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-baseline justify-between mb-2">
-                <label className="font-serif text-[15px] font-bold text-maroon-800">Closing Notes <span className="text-gray-400 font-sans font-normal text-[12px]">(Optional)</span></label>
+                <label className="font-serif text-[0.9375rem] font-bold text-maroon-800">Closing Notes <span className="text-gray-400 font-sans font-normal text-[0.75rem]">(Optional)</span></label>
               </div>
               <textarea rows={3} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)}
                 placeholder="Enter any closing notes / observations…"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-[13px] focus:ring-2 focus:ring-maroon-200 focus:border-maroon-400 resize-none" />
-              <div className="text-right text-[11px] text-gray-400 mt-1">{notes.length} / 500</div>
+                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-[0.8125rem] focus:ring-2 focus:ring-maroon-200 focus:border-maroon-400 resize-none" />
+              <div className="text-right text-[0.6875rem] text-gray-400 mt-1">{notes.length} / 500</div>
 
               {canClose && (
                 <button onClick={closeDay} disabled={busy}
@@ -266,18 +298,18 @@ export default function DailyClosing() {
                 </button>
               )}
 
-              <div className="mt-3 flex items-start gap-2.5 bg-amber-50/70 border border-amber-100 rounded-lg px-4 py-3 text-[12px] text-gray-600">
+              <div className="mt-3 flex items-start gap-2.5 bg-amber-50/70 border border-amber-100 rounded-lg px-4 py-3 text-[0.75rem] text-gray-600">
                 <Info size={16} className="text-amber-500 shrink-0 mt-0.5" />
                 Once the day is closed, no further transactions can be recorded for the selected date.
               </div>
-              {msg && <div className="mt-3 text-[13px] text-emerald-700">{msg}</div>}
+              {msg && <div className="mt-3 text-[0.8125rem] text-emerald-700">{msg}</div>}
             </div>
           )}
         </div>
       </div>
 
       {/* ── Footer banner ── */}
-      <div className="mt-6 flex items-center gap-2.5 bg-emerald-50/60 border border-emerald-100 rounded-xl px-5 py-3.5 text-[13px] text-gray-600">
+      <div className="mt-6 flex items-center gap-2.5 bg-emerald-50/60 border border-emerald-100 rounded-xl px-5 py-3.5 text-[0.8125rem] text-gray-600">
         <CheckCircle2 size={17} className="text-emerald-500 shrink-0" />
         All amounts are in INR (₹). Figures are auto-calculated based on recorded transactions for the selected date.
       </div>

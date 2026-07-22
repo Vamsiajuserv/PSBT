@@ -9,8 +9,7 @@ from ..security import RequireModule, require_admin, log_action, client_ip
 from ..helpers import gen_code
 
 router = APIRouter(prefix="/api/donation-categories", tags=["donation-master"])
-read = RequireModule("Donations")
-write = RequireModule("Donations", write=True)
+read = RequireModule("Donations")   # category master edits are Administrator-only (require_admin)
 
 
 def _dict(c: DonationCategory) -> dict:
@@ -43,7 +42,7 @@ def list_categories(q: str = "", type: str = "", status: str = "",
 
 
 @router.post("")
-def create_category(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+def create_category(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     seq = (db.query(func.count(DonationCategory.id)).scalar() or 0) + 1
     c = DonationCategory(code=body.get("code") or gen_code("CAT-", seq, 4), name=body["name"],
                          type=body.get("type", "Cash"), unit=body.get("unit"),
@@ -55,7 +54,7 @@ def create_category(body: dict, request: Request, db: Session = Depends(get_db),
 
 
 @router.put("/{cid}")
-def update_category(cid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+def update_category(cid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     c = db.get(DonationCategory, cid)
     if not c:
         raise HTTPException(404, "Category not found")

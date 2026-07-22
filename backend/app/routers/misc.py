@@ -10,7 +10,7 @@ from ..models import HundiCollection, HundiCollectionItem, Auction, Annadanam
 from ..schemas import (HundiCreate, HundiOut, AuctionCreate, AuctionOut,
                        AnnadanamCreate, AnnadanamOut)
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
-from ..helpers import gen_code, next_code_seq
+from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open
 
 # ── Hundi ────────────────────────────────────────────────────────────────────
 hundi_router = APIRouter(prefix="/api/hundi", tags=["hundi"])
@@ -78,6 +78,12 @@ def create_hundi(body: HundiCreate, request: Request,
     year = date.today().year
     seq = next_code_seq(db, "hundi", db.query(func.max(HundiCollection.id)).scalar() or 0)
     data = body.model_dump()
+    # State is server-controlled: a collection is ALWAYS born pending verification and
+    # pending deposit. Strip any client-sent status/attestation fields so a collection
+    # can never be created already Verified/Deposited with a forged verifier.
+    for k in ("verification_status", "deposit_status", "verified_by", "verified_on",
+              "deposited_on", "bank_ref", "bank_name", "status"):
+        data.pop(k, None)
     members = data.pop("committee_members", []) or []
     joined = ", ".join(m for m in members if m)
     item_lines = data.pop("items", []) or []
@@ -87,9 +93,12 @@ def create_hundi(body: HundiCreate, request: Request,
         data["counted_amount"] = sum((Decimal(str(li.get("value") or 0)) for li in item_lines), Decimal("0"))
     if data.get("counted_amount") is None:
         raise HTTPException(422, "Provide the counted amount or an item-wise breakdown.")
+    assert_positive(data.get("counted_amount"), "Counted amount")
+    assert_txn_date_open(db, data.get("collected_on"), label="collection date")
     h = HundiCollection(code=f"HUN-{year}-{str(seq).zfill(5)}", created_by=user.username,
                         committee_members=joined, committee_member=joined,
-                        status=data.get("deposit_status") == "Deposited" and "Deposited" or "Verified",
+                        verification_status="Pending Verification",
+                        deposit_status="Pending Deposit", status="Pending Verification",
                         **data)
     for li in item_lines:
         h.items.append(HundiCollectionItem(
@@ -112,6 +121,10 @@ def verify_hundi(hid: int, request: Request, db: Session = Depends(get_db),
         raise HTTPException(404, "Hundi collection not found")
     if h.verification_status == "Verified":
         raise HTTPException(409, "This collection is already verified.")
+    if not (h.committee_members or "").strip():
+        raise HTTPException(422, "Record the committee members present at the count before verifying.")
+    if h.created_by and user.username == h.created_by:
+        raise HTTPException(403, "The person who recorded the collection cannot verify it — a different committee member must attest.")
     h.verification_status = "Verified"
     h.verified_by = user.name or user.username
     h.verified_on = datetime.utcnow()
@@ -119,6 +132,53 @@ def verify_hundi(hid: int, request: Request, db: Session = Depends(get_db),
     db.commit(); db.refresh(h)
     log_action(db, username=user.username, action="UPDATE", entity="Hundi",
                detail=f"Verified {h.code} ₹{h.counted_amount}", ip=client_ip(request))
+    return h
+
+
+@hundi_router.put("/{hid}/reject", response_model=HundiOut)
+def reject_hundi(hid: int, body: dict, request: Request, db: Session = Depends(get_db),
+                 user=Depends(RequireRole("Committee"))):
+    """Committee flags a counted collection as having a discrepancy instead of
+    attesting it — previously verification was attest-or-nothing."""
+    h = db.get(HundiCollection, hid)
+    if not h:
+        raise HTTPException(404, "Hundi collection not found")
+    if h.verification_status == "Verified":
+        raise HTTPException(409, "An already-verified collection cannot be rejected.")
+    reason = (body.get("reason") or "").strip()
+    if not reason:
+        raise HTTPException(422, "A reason is required to flag a discrepancy.")
+    h.verification_status = "Rejected"
+    h.status = "Rejected"
+    h.notes = f"{(h.notes + ' | ') if h.notes else ''}Rejected by {user.name or user.username}: {reason}"
+    db.commit(); db.refresh(h)
+    log_action(db, username=user.username, action="UPDATE", entity="Hundi",
+               detail=f"Rejected {h.code}: {reason[:80]}", ip=client_ip(request))
+    return h
+
+
+@hundi_router.put("/{hid}/deposit", response_model=HundiOut)
+def deposit_hundi(hid: int, body: dict, request: Request, db: Session = Depends(get_db),
+                  user=Depends(h_write)):
+    """Record the bank deposit of a collection. Only a VERIFIED collection may be
+    deposited — enforcing the Pending → Verified → Deposited order the audit requires."""
+    h = db.get(HundiCollection, hid)
+    if not h:
+        raise HTTPException(404, "Hundi collection not found")
+    if h.verification_status != "Verified":
+        raise HTTPException(409, "The collection must be verified by the committee before it can be deposited.")
+    if h.deposit_status == "Deposited":
+        raise HTTPException(409, "This collection is already deposited.")
+    dep_on = body.get("deposited_on")
+    h.deposited_on = date.fromisoformat(dep_on) if dep_on else date.today()
+    assert_txn_date_open(db, h.deposited_on, label="deposit date")
+    h.bank_ref = (body.get("bank_ref") or None)
+    h.bank_name = (body.get("bank_name") or None)
+    h.deposit_status = "Deposited"
+    h.status = "Deposited"
+    db.commit(); db.refresh(h)
+    log_action(db, username=user.username, action="UPDATE", entity="Hundi",
+               detail=f"Deposited {h.code} ₹{h.counted_amount}", ip=client_ip(request))
     return h
 
 
@@ -133,7 +193,7 @@ def auction_stats(db: Session = Depends(get_db), user=Depends(a_read)):
     def c(status):
         return db.query(func.count(Auction.id)).filter(Auction.status == status).scalar() or 0
     return {
-        "total": db.query(func.count(Auction.id)).scalar() or 0,
+        "total": db.query(func.count(Auction.id)).filter(Auction.status != "Void").scalar() or 0,
         "scheduled": c("Scheduled"), "in_progress": c("In Progress"), "completed": c("Completed"),
     }
 
@@ -165,12 +225,53 @@ def create_auction(body: AuctionCreate, request: Request,
     year = date.today().year
     seq = next_code_seq(db, "auction", db.query(func.max(Auction.id)).scalar() or 0)
     data = body.model_dump()
+    assert_positive(data.get("base_amount"), "Base amount")
     if data.get("current_amount") is None:
         data["current_amount"] = data.get("base_amount") or 0
+    # A bid can never be below the base (reserve) price.
+    if Decimal(str(data["current_amount"])) < Decimal(str(data["base_amount"])):
+        raise HTTPException(422, "The highest/winning bid cannot be below the base amount.")
+    # A completed auction must name its winning bidder.
+    if (data.get("status") or "").strip() == "Completed" and not (data.get("winner") or "").strip():
+        raise HTTPException(422, "A completed auction must record the winning bidder.")
+    assert_txn_date_open(db, data.get("auction_date"), allow_future=True, label="auction date")
     au = Auction(code=f"AUC-{year}-{str(seq).zfill(4)}", created_by=user.username, **data)
     db.add(au); db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="CREATE", entity="Auction",
                detail=au.item, ip=client_ip(request))
+    return au
+
+
+@auction_router.put("/{aid}", response_model=AuctionOut)
+def update_auction(aid: int, body: dict, request: Request,
+                   db: Session = Depends(get_db), user=Depends(a_write)):
+    """Record the auction lifecycle — bids, highest amount, winner, closing.
+    Previously auctions could only be created, so committee decisions (highest
+    bid, winner, completion) had nowhere to be recorded."""
+    au = db.get(Auction, aid)
+    if not au:
+        raise HTTPException(404, "Auction not found")
+    if au.status == "Void":
+        raise HTTPException(409, "A voided auction cannot be edited")
+    for k in ("item", "description", "start_time", "notes", "winner", "status",
+              "bids", "devotee_id"):
+        if k in body:
+            setattr(au, k, body[k])
+    if "auction_date" in body:
+        au.auction_date = date.fromisoformat(str(body["auction_date"])) if body["auction_date"] else None
+    if "base_amount" in body:
+        assert_positive(body["base_amount"], "Base amount")
+        au.base_amount = Decimal(str(body["base_amount"]))
+    if "current_amount" in body and body["current_amount"] not in (None, ""):
+        au.current_amount = Decimal(str(body["current_amount"]))
+    if au.current_amount is not None and au.base_amount is not None and \
+            Decimal(str(au.current_amount)) < Decimal(str(au.base_amount)):
+        raise HTTPException(422, "The highest/winning bid cannot be below the base amount.")
+    if (au.status or "") == "Completed" and not (au.winner or "").strip():
+        raise HTTPException(422, "A completed auction must record the winning bidder.")
+    db.commit(); db.refresh(au)
+    log_action(db, username=user.username, action="UPDATE", entity="Auction",
+               detail=f"{au.code} {au.status} ₹{au.current_amount}", ip=client_ip(request))
     return au
 
 
@@ -180,9 +281,10 @@ def delete_auction(aid: int, request: Request,
     au = db.get(Auction, aid)
     if not au:
         raise HTTPException(404, "Auction not found")
-    log_action(db, username=user.username, action="DELETE", entity="Auction",
-               detail=au.item, ip=client_ip(request))
-    db.delete(au); db.commit()
+    au.status = "Void"   # soft-void: keep the record, drop it from collections
+    log_action(db, username=user.username, action="UPDATE", entity="Auction",
+               detail=f"Voided {au.item}", ip=client_ip(request))
+    db.commit()
 
 
 # ── Annadanam ────────────────────────────────────────────────────────────────
@@ -246,6 +348,7 @@ def create_annadanam(body: AnnadanamCreate, request: Request,
     if rate <= 0:
         raise HTTPException(422, "Per-plate rate must be greater than zero.")
     data["amount"] = plates * rate
+    assert_txn_date_open(db, data.get("paid_at"), label="payment date")
     a = Annadanam(code=f"ANND-{year}-{str(seq).zfill(4)}", created_by=user.username, **data)
     db.add(a)
     if a.devotee_id:

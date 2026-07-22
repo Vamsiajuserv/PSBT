@@ -10,10 +10,17 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import PaymentOrder
-from ..security import get_current_user, log_action
+from ..security import RequireModule, log_action
 from .. import payments as pay
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
+
+# Payments are a counter/billing operation: creating an order and confirming it
+# require Counter write (counter staff + admin); reading a payment record needs
+# the Counter module (money-handling roles only), which also closes the IDOR that
+# let any authenticated user fetch any order by ref.
+pay_write = RequireModule("Counter", write=True)
+pay_read = RequireModule("Counter")
 
 
 class CreateOrderIn(BaseModel):
@@ -45,7 +52,7 @@ def which_provider():
 
 
 @router.post("/order")
-def create_order(body: CreateOrderIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def create_order(body: CreateOrderIn, db: Session = Depends(get_db), user=Depends(pay_write)):
     po, checkout = pay.create_order(
         db, purpose=body.purpose.strip().upper(), reference_id=body.reference_id,
         method=body.method, created_by=user.username,
@@ -55,7 +62,7 @@ def create_order(body: CreateOrderIn, db: Session = Depends(get_db), user=Depend
 
 
 @router.post("/verify")
-def verify(body: VerifyIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def verify(body: VerifyIn, db: Session = Depends(get_db), user=Depends(pay_write)):
     po = db.query(PaymentOrder).filter(PaymentOrder.order_ref == body.payment_order_id).first()
     if not po:
         raise HTTPException(404, "Payment order not found")
@@ -84,7 +91,7 @@ def verify(body: VerifyIn, db: Session = Depends(get_db), user=Depends(get_curre
 
 
 @router.get("/{order_ref}")
-def status(order_ref: str, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def status(order_ref: str, db: Session = Depends(get_db), user=Depends(pay_read)):
     po = db.query(PaymentOrder).filter(PaymentOrder.order_ref == order_ref).first()
     if not po:
         raise HTTPException(404, "Payment order not found")

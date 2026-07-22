@@ -75,12 +75,12 @@ export default function BackupRestore() {
         <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title="Last Backup" value={stats?.last_backup ? fmtStamp(stats.last_backup).split(', ')[0] : '—'} sub="Most recent" />
       </div>
 
-      {msg && <div className="mb-4 text-[13px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2.5">{msg}</div>}
+      {msg && <div className="mb-4 text-[0.8125rem] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2.5">{msg}</div>}
 
       {/* Restore panel */}
       <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-5 mb-5">
         <div className="flex items-center gap-2 text-maroon-700 mb-2"><Upload size={18} /><h3 className="font-serif text-lg font-bold">Restore from File</h3></div>
-        <p className="text-[13px] text-gray-500 mb-3">Upload a backup file. It will be validated and summarised before any changes are applied. Restore performs a controlled insert/update — it never deletes existing data.</p>
+        <p className="text-[0.8125rem] text-gray-500 mb-3">Upload a backup file. It will be validated and summarised before any changes are applied. Restore performs a controlled insert/update — it never deletes existing data.</p>
         <label className="btn-outline cursor-pointer inline-flex"><Upload size={15} /> Upload Backup File<input type="file" accept="application/json,.json" className="hidden" onChange={onFile} /></label>
       </div>
 
@@ -89,18 +89,18 @@ export default function BackupRestore() {
         <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-serif text-lg font-bold text-maroon-800">Backup History</h3></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {['File Name', 'Type', 'Records', 'Size', 'Created By', 'Date', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {items.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-mono text-[12px] text-gray-600">{b.filename}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-600">{b.filename}</td>
                   <td className="px-4 py-3"><Pill tone={b.kind === 'Backup' ? 'blue' : 'violet'}>{b.kind}</Pill></td>
                   <td className="px-4 py-3 text-gray-700">{num(b.total_records)}</td>
                   <td className="px-4 py-3 text-gray-600">{b.size_kb ? `${b.size_kb} KB` : '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{b.created_by}</td>
-                  <td className="px-4 py-3 text-gray-500 text-[13px] whitespace-nowrap">{fmtStamp(b.created_at)}</td>
+                  <td className="px-4 py-3 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.created_at)}</td>
                   <td className="px-4 py-3">
                     {b.kind === 'Backup' ? <button onClick={() => download(b)} title="Download" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Download size={15} /></button> : <span className="text-gray-300">—</span>}
                   </td>
@@ -120,7 +120,7 @@ export default function BackupRestore() {
               <div className="p-6 text-center">
                 <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 grid place-items-center"><CheckCircle2 size={30} /></div>
                 <h3 className="font-serif text-xl font-bold text-maroon-800 mt-3">Restore Complete</h3>
-                <p className="text-[13px] text-gray-500 mt-1">{restore.result.written} rows restored across {restore.result.tables} tables.</p>
+                <p className="text-[0.8125rem] text-gray-500 mt-1">{restore.result.written} rows restored across {restore.result.tables} tables.</p>
                 <button onClick={() => setRestore(null)} className="btn-maroon mt-5 mx-auto">Done</button>
               </div>
             ) : (
@@ -130,17 +130,17 @@ export default function BackupRestore() {
                   <button onClick={() => setRestore(null)} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
                 </div>
                 <div className="px-6 py-5">
-                  <div className="text-[13px] text-gray-600 mb-3">File: <span className="font-mono">{restore.filename}</span> · schema {restore.validation.schema_version || '—'} · <span className="font-semibold">{num(restore.validation.total_records)}</span> records</div>
+                  <div className="text-[0.8125rem] text-gray-600 mb-3">File: <span className="font-mono">{restore.filename}</span> · schema {restore.validation.schema_version || '—'} · <span className="font-semibold">{num(restore.validation.total_records)}</span> records</div>
                   <div className="border border-gray-100 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
                     {Object.entries(restore.validation.table_counts).map(([t, c]) => (
-                      <div key={t} className="flex items-center justify-between px-3 py-2 text-[13px]"><span className="text-gray-700">{t}</span><span className="font-semibold text-gray-800">{num(c)}</span></div>
+                      <div key={t} className="flex items-center justify-between px-3 py-2 text-[0.8125rem]"><span className="text-gray-700">{t}</span><span className="font-semibold text-gray-800">{num(c)}</span></div>
                     ))}
                   </div>
                   {restore.validation.warnings?.length > 0 && (
-                    <div className="mt-3 bg-amber-50/70 border border-amber-100 rounded-lg px-3 py-2.5 text-[12.5px] text-amber-700 flex items-start gap-2"><AlertTriangle size={15} className="shrink-0 mt-0.5" /><div>{restore.validation.warnings.join(' ')}</div></div>
+                    <div className="mt-3 bg-amber-50/70 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.78125rem] text-amber-700 flex items-start gap-2"><AlertTriangle size={15} className="shrink-0 mt-0.5" /><div>{restore.validation.warnings.join(' ')}</div></div>
                   )}
-                  {restore.validation.unknown_tables?.length > 0 && <div className="mt-2 text-[12px] text-gray-400">Ignored unknown tables: {restore.validation.unknown_tables.join(', ')}</div>}
-                  <div className="bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2.5 text-[12.5px] text-gray-600 mt-3">Restore inserts new records and updates existing ones by their code/key. It will not delete any data.</div>
+                  {restore.validation.unknown_tables?.length > 0 && <div className="mt-2 text-[0.75rem] text-gray-400">Ignored unknown tables: {restore.validation.unknown_tables.join(', ')}</div>}
+                  <div className="bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.78125rem] text-gray-600 mt-3">Restore inserts new records and updates existing ones by their code/key. It will not delete any data.</div>
                 </div>
                 <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
                   <button onClick={() => setRestore(null)} className="btn-outline">Cancel</button>

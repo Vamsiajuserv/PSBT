@@ -29,11 +29,11 @@ export default function Auction() {
 
             <div className="grid grid-cols-2 gap-3 mt-4">
               <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-[10px] uppercase text-gray-400 font-bold">Base Price</div>
+                <div className="text-[0.625rem] uppercase text-gray-400 font-bold">Base Price</div>
                 <div className="font-bold text-gray-700">₹{a.base.toLocaleString('en-IN')}</div>
               </div>
               <div className="bg-violet-50 rounded-lg p-3">
-                <div className="text-[10px] uppercase text-violet-400 font-bold">Current Bid</div>
+                <div className="text-[0.625rem] uppercase text-violet-400 font-bold">Current Bid</div>
                 <div className="font-bold text-violet-700">₹{a.current.toLocaleString('en-IN')}</div>
               </div>
             </div>

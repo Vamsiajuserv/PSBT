@@ -1,15 +1,15 @@
 import React from 'react'
-import { TempleBanner } from '../../components/common/UI.jsx'
+import { MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 
 export default function Gallery() {
   const site = useSite()
   return (
     <div className="bg-cream">
-      <TempleBanner title="Gallery" breadcrumb="Home  ›  Gallery" />
+      <MinimalBanner title="Gallery" breadcrumb="Home  ›  Gallery" />
 
       <div className="max-w-7xl mx-auto px-4 py-14">
-        <p className="text-center text-gray-500 max-w-xl mx-auto -mt-2 mb-10">
+        <p className="text-center text-black max-w-xl mx-auto -mt-2 mb-10">
           Glimpses of sevas, festivals and temple life at Sri Shirdi Sai Baba Temple.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

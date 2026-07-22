@@ -9,7 +9,7 @@ import { useSiteContext, useTemple } from '../../lib/SiteContext.jsx'
 function LangToggle({ className = '' }) {
   const { lang, setLang } = useLang()
   return (
-    <div className={`inline-flex items-center rounded-full border border-gold-400/60 overflow-hidden text-[11px] font-bold ${className}`}>
+    <div className={`inline-flex items-center rounded-full border border-gold-400/60 overflow-hidden text-[0.6875rem] font-bold ${className}`}>
       <button onClick={() => setLang('en')} className={`px-2 py-1 ${lang === 'en' ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}>EN</button>
       <button onClick={() => setLang('te')} className={`px-2 py-1 font-telugu ${lang === 'te' ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}>తెలుగు</button>
     </div>
@@ -55,10 +55,10 @@ function Logo({ light = false }) {
         🛕
       </div>
       <div className="leading-tight">
-        <div className={`font-display font-bold text-[15px] sm:text-lg tracking-wide uppercase ${light ? 'text-gold-200' : 'text-maroon-700'}`}>
+        <div className={`font-display font-bold text-[0.9375rem] sm:text-lg tracking-wide uppercase ${light ? 'text-gold-200' : 'text-maroon-700'}`}>
           {temple?.name || 'Sri Shirdi Sai Baba Temple'}
         </div>
-        <div className={`text-[10px] sm:text-[11px] ${light ? 'text-cream/70' : 'text-gray-500'}`}>
+        <div className={`text-[0.625rem] sm:text-[0.6875rem] ${light ? 'text-cream/70' : 'text-black'}`}>
           {temple?.address || ''}
         </div>
       </div>
@@ -85,7 +85,7 @@ export default function PublicLayout() {
   return (
     <div className={`min-h-screen flex flex-col ${lang === 'te' ? 'font-telugu' : ''}`}>
       {/* ── Top utility bar ── */}
-      <div className="bg-maroon-900 text-gold-200 text-[11px]">
+      <div className="bg-maroon-900 text-gold-200 text-[0.6875rem]">
         <div className="max-w-7xl mx-auto px-4 h-9 flex items-center justify-between">
           <span className="font-telugu">🕉 || {MANTRA.hi} ||</span>
           <div className="flex items-center gap-3">
@@ -106,14 +106,14 @@ export default function PublicLayout() {
 
       {/* ── Header ── */}
       <header className="sticky top-0 z-40 bg-ivory/95 backdrop-blur border-b-2 border-gold-300 shadow-soft">
-        <div className="max-w-7xl mx-auto px-4 h-[72px] flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 h-[4.5rem] flex items-center justify-between gap-4">
           <Logo />
 
           <nav className="hidden lg:flex items-center gap-0.5">
             {NAV.map((n) =>
               n.children ? (
                 <div key={n.label} className="relative group">
-                  <button className="px-3 py-2 rounded-lg text-[13px] font-semibold text-gray-700 hover:text-maroon-700 flex items-center gap-1">
+                  <button className="px-3 py-2 rounded-lg text-[0.8125rem] font-semibold text-gray-700 hover:text-maroon-700 flex items-center gap-1">
                     {t(n.label)} <ChevronDown size={14} className="text-gold-500" />
                   </button>
                   <div className="absolute left-0 top-full pt-1 hidden group-hover:block">
@@ -123,7 +123,7 @@ export default function PublicLayout() {
                           key={c.to + c.label}
                           to={c.to}
                           className={({ isActive }) =>
-                            `block px-3 py-2 rounded-lg text-[13px] font-medium ${isActive ? 'bg-maroon-50 text-maroon-700' : 'text-gray-600 hover:bg-gold-50 hover:text-maroon-700'}`
+                            `block px-3 py-2 rounded-lg text-[0.8125rem] font-medium ${isActive ? 'bg-maroon-50 text-maroon-700' : 'text-gray-600 hover:bg-gold-50 hover:text-maroon-700'}`
                           }
                         >
                           {t(c.label)}
@@ -138,7 +138,7 @@ export default function PublicLayout() {
                   to={n.to}
                   end={n.end}
                   className={({ isActive }) =>
-                    `px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors border-b-2 ${isActive ? 'text-maroon-700 border-gold-400' : 'text-gray-700 border-transparent hover:text-maroon-700'}`
+                    `px-3 py-2 rounded-lg text-[0.8125rem] font-semibold transition-colors border-b-2 ${isActive ? 'text-maroon-700 border-gold-400' : 'text-gray-700 border-transparent hover:text-maroon-700'}`
                   }
                 >
                   {t(n.label)}
@@ -249,16 +249,16 @@ export default function PublicLayout() {
                 <div className="text-cream/60">{t('Everyday')}</div>
               </div>
             </div>
-            <div className="mt-4 bg-gold-500/15 border border-gold-500/25 rounded-lg px-3 py-2.5 text-[11px] text-gold-100/90 leading-relaxed">
+            <div className="mt-4 bg-gold-500/15 border border-gold-500/25 rounded-lg px-3 py-2.5 text-[0.6875rem] text-gold-100/90 leading-relaxed">
               {TEMPLE.timingsNote}
             </div>
           </div>
         </div>
 
         <div className="border-t border-white/10">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-cream/50">
-            <span>© {new Date().getFullYear()} {TEMPLE.name}. All Rights Reserved.</span>
-            <span>Website designed and developed for Sri Shirdi Sai Baba Temple.</span>
+          <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[0.6875rem] text-cream/50">
+            <span>© {new Date().getFullYear()} {t(TEMPLE.name)}. {t('All Rights Reserved.')}</span>
+            <span>{t('Website designed and developed for Sri Shirdi Sai Baba Temple.')}</span>
           </div>
         </div>
       </footer>

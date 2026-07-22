@@ -40,7 +40,7 @@ export default function PoojaHistoryDetails() {
 
   return (
     <div>
-      <div className="text-[12px] text-gray-400 mb-1"><Link to="/admin/pooja-history" className="hover:text-maroon-600">Pooja Management</Link> › <Link to="/admin/pooja-history" className="hover:text-maroon-600">Pooja History</Link> › <span className="text-gray-500">Pooja History Details</span></div>
+      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/pooja-history" className="hover:text-maroon-600">Pooja Management</Link> › <Link to="/admin/pooja-history" className="hover:text-maroon-600">Pooja History</Link> › <span className="text-gray-500">Pooja History Details</span></div>
       <PageTitle title="Pooja History Details" actions={<button onClick={() => nav('/admin/pooja-history')} className="btn-outline !py-2.5"><ArrowLeft size={15} /> Back to Pooja History List</button>} />
 
       {/* Summary strip */}
@@ -51,7 +51,7 @@ export default function PoojaHistoryDetails() {
         <Meta icon={CalendarDays} label="Pooja Date" value={fmtDate(d.scheduled_date)} />
         <div className="ml-auto flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2">
           <CheckCircle2 size={26} className="text-emerald-600" />
-          <div><div className="text-[11px] text-gray-500">Final Status</div><div className="text-[15px] font-extrabold text-emerald-700 leading-none">{completed ? 'COMPLETED' : (d.completion || '').toUpperCase()}</div><div className="text-[10px] text-gray-400 mt-0.5">Pooja Completed Successfully</div></div>
+          <div><div className="text-[0.6875rem] text-gray-500">Final Status</div><div className="text-[0.9375rem] font-extrabold text-emerald-700 leading-none">{completed ? 'COMPLETED' : (d.completion || '').toUpperCase()}</div><div className="text-[0.625rem] text-gray-400 mt-0.5">Pooja Completed Successfully</div></div>
         </div>
       </div>
 
@@ -79,7 +79,7 @@ export default function PoojaHistoryDetails() {
           {pr.name && (
             <Section n="4" icon={UserCog} title="Poojari Details">
               <Row label="Poojari Name" value={pr.name} />
-              <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[12.5px] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Pooja was performed by the assigned Poojari.</div>
+              <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Pooja was performed by the assigned Poojari.</div>
             </Section>
           )}
         </div>
@@ -103,14 +103,14 @@ export default function PoojaHistoryDetails() {
 
           <Section n="5" icon={IndianRupee} title="Amount Details">
             <Row label="Rate (₹)" value={money2(plan.rate_amount)} />
-            <div className="flex text-[13.5px] pt-1"><span className="text-maroon-700 font-bold w-44 shrink-0">Total Amount Paid (₹)</span><span className="text-gray-400 mr-3">:</span><span className="text-maroon-700 font-extrabold">{money2(d.amount)}</span></div>
+            <div className="flex text-[0.84375rem] pt-1"><span className="text-maroon-700 font-bold w-44 shrink-0">Total Amount Paid (₹)</span><span className="text-gray-400 mr-3">:</span><span className="text-maroon-700 font-extrabold">{money2(d.amount)}</span></div>
           </Section>
           <Section n="6" icon={CreditCard} title="Payment Details">
             <Row label="Payment Mode" value={mode} />
             {isUpi && <Row label="UTR / Transaction ID" value={<span className="text-emerald-700 font-mono">{d.payment_ref}</span>} />}
             <Row label="Payment Date & Time" value={fmtStamp(d.created_at)} />
             <Row label="Payment Status" value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} /> Payment Successful</span>} />
-            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[12.5px] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Payment received successfully on {fmtStamp(d.created_at)}.</div>
+            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Payment received successfully on {fmtStamp(d.created_at)}.</div>
           </Section>
         </div>
       </div>
@@ -125,11 +125,11 @@ export default function PoojaHistoryDetails() {
 }
 
 function Meta({ icon: Icon, label, value }) {
-  return <div className="flex items-center gap-2.5"><Icon size={18} className="text-maroon-500 shrink-0" /><div><div className="text-[11px] text-gray-400">{label}</div><div className="text-[13px] text-gray-800 font-semibold">{value}</div></div></div>
+  return <div className="flex items-center gap-2.5"><Icon size={18} className="text-maroon-500 shrink-0" /><div><div className="text-[0.6875rem] text-gray-400">{label}</div><div className="text-[0.8125rem] text-gray-800 font-semibold">{value}</div></div></div>
 }
 function Section({ n, icon: Icon, title, children }) {
   return <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5"><div className="flex items-center gap-2 text-maroon-700 mb-4"><Icon size={18} /><h3 className="font-serif text-lg font-bold">{n}. {title}</h3></div><div className="space-y-3">{children}</div></div>
 }
 function Row({ label, value }) {
-  return <div className="flex text-[13.5px]"><span className="text-gray-500 w-44 shrink-0">{label}</span><span className="text-gray-400 mr-3">:</span><span className="text-gray-800 font-medium">{value ?? '—'}</span></div>
+  return <div className="flex text-[0.84375rem]"><span className="text-gray-500 w-44 shrink-0">{label}</span><span className="text-gray-400 mr-3">:</span><span className="text-gray-800 font-medium">{value ?? '—'}</span></div>
 }

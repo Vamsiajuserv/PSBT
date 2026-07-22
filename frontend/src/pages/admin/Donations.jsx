@@ -5,10 +5,12 @@ import {
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
+import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { Select, DateField, Checkbox, NumberField } from '../../components/common/Field.jsx'
 
 const TYPE_LABEL = { Cash: 'Cash Donation', Material: 'Material Donation', Sponsorship: 'Sponsorship' }
 const MODES = ['Cash', 'UPI/QR Code']
@@ -37,6 +39,7 @@ export default function Donations() {
   const [printDoc, setPrintDoc] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
+  const [saving, setSaving] = useState(false)
 
   // devotee type-ahead search inside the drawer
   const [dq, setDq] = useState('')
@@ -109,13 +112,14 @@ export default function Donations() {
 
   async function save(e, print) {
     e.preventDefault()
+    if (saving) return
     const m = drawer
     // 80G receipts require a PAN — block submit when eligible but PAN is missing.
     if (m.g80 && !(m.pan || '').trim()) {
       setPanErr('PAN is required for tax-exemption (80G) receipts.')
       return
     }
-    setPanErr('')
+    setPanErr(''); setSaving(true)
     const payload = {
       donation_type: m.donation_type,
       devotee_id: m.devotee_id ? Number(m.devotee_id) : null,
@@ -128,19 +132,31 @@ export default function Donations() {
       pan: (m.pan || '').trim() || null,
       g80: m.g80, notes: m.notes || null,
     }
-    const created = await DonationsAPI.create(payload)
-    setDrawer(null); setDq(''); setDevResults([]); setPanErr(''); load()
-    if (print) setPrintDoc(created)
+    try {
+      const created = await DonationsAPI.create(payload)
+      setDrawer(null); setDq(''); setDevResults([]); setPanErr(''); load()
+      if (print) setPrintDoc(created)
+    } catch (err) {
+      setPanErr(err?.detail || 'Could not save the donation. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const amountCell = (d) => d.donation_type === 'Material'
     ? (d.quantity ? `${num(d.quantity)} ${d.unit || ''}`.trim() : '—')
     : inr(d.amount)
 
+  const EXPORT_COLS = [{ key: 'receipt_no', label: 'Receipt No.' }, { key: 'donated_on', label: 'Date' },
+    { key: 'donor_name', label: 'Donor' }, { key: 'donation_type', label: 'Type' },
+    { key: 'fund', label: 'Category' }, { key: 'amount', label: 'Amount (₹)', type: 'money' },
+    { key: 'mode', label: 'Mode' }, { key: 'txn_ref', label: 'UTR' }, { key: 'g80x', label: '80G' }]
+  const exportRows = rows.map((d) => ({ ...d, g80x: d.g80 ? 'Yes' : 'No' }))
+  const exportTotal = { receipt_no: 'Total', amount: rows.reduce((s, d) => s + Number(d.amount || 0), 0) }
   return (
     <div>
       <PageTitle title="Donation Management" subtitle="Record, manage and view all donations."
-        actions={canWrite && <button onClick={() => { setDrawer(newDonation()); setDq(''); setDevResults([]); setPanErr('') }} className="btn-maroon !py-2.5"><Plus size={16} /> Record Donation</button>} />
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title="Donation Register" columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(newDonation()); setDq(''); setDevResults([]); setPanErr('') }} className="btn-maroon !py-2.5"><Plus size={16} /> Record Donation</button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700">View only</span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={Sprout} color="#059669" bg="bg-emerald-50" title="Today's Donations"
@@ -156,29 +172,29 @@ export default function Donations() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Search by Devotee Name / Mobile</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Search by Devotee Name / Mobile</label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or mobile number…" className="input !pl-9" /></div>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Date Range</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Date Range</label>
             <div className="flex items-center gap-1.5">
-              <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[12.5px]" />
+              <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
               <span className="text-gray-400">–</span>
-              <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[12.5px]" />
+              <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
             </div>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Donation Type</label>
-            <select value={type} onChange={(e) => setType(e.target.value)} className="input"><option value="">All</option><option value="Cash">Cash Donation</option><option value="Material">Material Donation</option><option value="Sponsorship">Sponsorship</option></select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Donation Type</label>
+            <Select value={type} onChange={(e) => setType(e.target.value)} className="input"><option value="">All</option><option value="Cash">Cash Donation</option><option value="Material">Material Donation</option><option value="Sponsorship">Sponsorship</option></Select>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Category</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="input"><option value="">All</option>{cats.map((c) => <option key={c.id}>{c.name}</option>)}</select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Category</label>
+            <Select value={category} onChange={(e) => setCategory(e.target.value)} className="input"><option value="">All</option>{cats.map((c) => <option key={c.id}>{c.name}</option>)}</Select>
           </div>
           <div>
-            <label className="block text-[12px] text-gray-500 mb-1.5">Payment Mode</label>
-            <select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">All</option>{MODES.map((m) => <option key={m}>{m}</option>)}</select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Payment Mode</label>
+            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">All</option>{MODES.map((m) => <option key={m}>{m}</option>)}</Select>
           </div>
           <div className="xl:col-span-4 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setType(''); setCategory(''); setMode(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button>
@@ -188,20 +204,20 @@ export default function Donations() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {['Donation ID', 'Devotee', 'Donation Type', 'Category', 'Amount / Material', 'Payment Mode', 'Donated On', 'Receipt No.', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-mono text-[12px] text-maroon-600">{d.donation_code || d.receipt_no}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-maroon-600">{d.donation_code || d.receipt_no}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{d.donor_name}</td>
                   <td className="px-4 py-3 text-gray-600">{TYPE_LABEL[d.donation_type] || d.donation_type}</td>
-                  <td className="px-4 py-3 text-gray-600">{d.fund}</td>
+                  <td className="px-4 py-3 text-gray-600">{d.fund}{d.g80 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-bold bg-emerald-50 text-emerald-700 align-middle">80G</span>}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{amountCell(d)}</td>
                   <td className="px-4 py-3 text-gray-600">{d.mode && d.mode !== '-' ? d.mode : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[13px]">{fmtDate(d.donated_on)}</div><div className="text-[11px] text-gray-400">{fmtTime(d.created_at)}</div></td>
-                  <td className="px-4 py-3 font-mono text-[12px] text-gray-500">{d.receipt_no}</td>
+                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(d.donated_on)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(d.created_at)}</div></td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{d.receipt_no}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 text-gray-400">
                       <button onClick={() => setPrintDoc(d)} title="Print receipt" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
@@ -226,13 +242,13 @@ export default function Donations() {
           <form onSubmit={(e) => save(e, true)} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
               <div><h3 className="font-serif text-xl font-bold text-maroon-800">Record Donation</h3>
-                <p className="text-[13px] text-gray-500 mt-0.5">Enter donation details and issue receipt.</p></div>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5">Enter donation details and issue receipt.</p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-5 flex-1">
               <div className="grid grid-cols-3 gap-2">
                 {['Cash', 'Material', 'Sponsorship'].map((t) => (
-                  <button type="button" key={t} onClick={() => setDType(t)} className={`border rounded-lg py-2 text-[12.5px] font-semibold ${drawer.donation_type === t ? 'border-maroon-500 bg-maroon-700 text-cream' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>{TYPE_LABEL[t]}</button>
+                  <button type="button" key={t} onClick={() => setDType(t)} className={`border rounded-lg py-2 text-[0.78125rem] font-semibold ${drawer.donation_type === t ? 'border-maroon-500 bg-maroon-700 text-cream' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>{TYPE_LABEL[t]}</button>
                 ))}
               </div>
 
@@ -243,7 +259,7 @@ export default function Donations() {
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{drawer.donor_name}</span><Pill tone="green">Registered</Pill></div>
-                      {drawer.mobile && <div className="text-[12px] text-gray-500">Mobile: {drawer.mobile}</div>}
+                      {drawer.mobile && <div className="text-[0.75rem] text-gray-500">Mobile: {drawer.mobile}</div>}
                     </div>
                     <button type="button" onClick={clearDevotee} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
                   </div>
@@ -255,8 +271,8 @@ export default function Donations() {
                       <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1">
                         {devResults.map((d) => (
                           <button type="button" key={d.id} onClick={() => pickDevotee(d)} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[12px] font-bold">{d.name?.[0]}</span>
-                            <span><span className="font-semibold text-gray-800 text-[13px]">{d.name}</span><span className="block text-[11px] text-gray-400">{d.code} · {d.mobile}</span></span>
+                            <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name?.[0]}</span>
+                            <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{d.name}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
                           </button>
                         ))}
                       </div>
@@ -273,15 +289,15 @@ export default function Donations() {
               </div>
 
               <div><label className="label">Donation Category *</label>
-                <select required value={drawer.fund} onChange={(e) => setFund(e.target.value)} className="input"><option value="">Select category…</option>{drawerCats.map((c) => <option key={c.id}>{c.name}</option>)}</select></div>
+                <Select required value={drawer.fund} onChange={(e) => setFund(e.target.value)} className="input"><option value="">Select category…</option>{drawerCats.map((c) => <option key={c.id}>{c.name}</option>)}</Select></div>
 
               {drawer.donation_type === 'Material' ? (
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="label">Quantity *</label><input required type="number" step="0.01" min="0" className="input" value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
+                  <div><label className="label">Quantity *</label><NumberField required step="0.01" min="0" value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
                   <div><label className="label">Unit</label><input className="input bg-gray-50" value={drawer.unit || ''} readOnly /></div>
                 </div>
               ) : (
-                <div><label className="label">Amount (₹) *</label><input required type="number" min="1" className="input" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>
+                <div><label className="label">Amount (₹) *</label><NumberField required min="1" prefix="₹" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>
               )}
 
               {drawer.donation_type !== 'Material' && (
@@ -293,28 +309,28 @@ export default function Donations() {
                   </div>
                   {drawer.mode === 'UPI/QR Code'
                     ? <div><label className="label">UTR / Transaction ID</label><input className="input" placeholder="Enter UTR / transaction reference" value={drawer.txn_ref} onChange={(e) => setDrawer({ ...drawer, txn_ref: e.target.value })} /></div>
-                    : <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[12px] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> UTR / Transaction ID is required only for UPI / QR Code payments.</div>}
+                    : <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> UTR / Transaction ID is required only for UPI / QR Code payments.</div>}
                 </>
               )}
 
               <div><label className="label">Donation Date *</label>
                 <div className="relative"><input className="input bg-gray-50 pr-9" value={todayStamp()} readOnly /><Calendar size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
 
-              <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[12px] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> Tax exemption is applicable only for Medical Donations.</div>
-              <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" className="accent-maroon-700" checked={drawer.g80} disabled={drawer.donation_type !== 'Cash'} onChange={(e) => { setDrawer({ ...drawer, g80: e.target.checked }); if (!e.target.checked) setPanErr('') }} /> Eligible for Tax Exemption (Medical Donation)</label>
+              <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> Tax exemption is applicable only for Medical Donations.</div>
+              <label className="flex items-center gap-2 text-sm text-gray-700"><Checkbox checked={drawer.g80} disabled={drawer.donation_type !== 'Cash'} onChange={(e) => { setDrawer({ ...drawer, g80: e.target.checked }); if (!e.target.checked) setPanErr('') }} /> Eligible for Tax Exemption (Medical Donation)</label>
 
-              <div><label className="label">PAN {drawer.g80 && <span className="text-red-500">*</span>}{drawer.g80 && <span className="text-[11px] text-gray-400 font-normal"> (required for 80G)</span>}</label>
+              <div><label className="label">PAN {drawer.g80 && <span className="text-red-500">*</span>}{drawer.g80 && <span className="text-[0.6875rem] text-gray-400 font-normal"> (required for 80G)</span>}</label>
                 <input className={`input uppercase ${panErr ? 'border-red-400' : ''}`} placeholder="ABCDE1234F"
                   value={drawer.pan} onChange={(e) => { setDrawer({ ...drawer, pan: e.target.value.toUpperCase() }); if (panErr) setPanErr('') }} />
-                {panErr && <div className="text-[11.5px] text-red-600 mt-1">{panErr}</div>}</div>
+                {panErr && <div className="text-[0.71875rem] text-red-600 mt-1">{panErr}</div>}</div>
 
               <div><label className="label">Notes (Optional)</label>
-                <textarea className="input min-h-[72px]" maxLength={250} placeholder="Enter any additional notes…" value={drawer.notes} onChange={(e) => setDrawer({ ...drawer, notes: e.target.value })} />
-                <div className="text-right text-[11px] text-gray-400 mt-0.5">{(drawer.notes || '').length} / 250</div></div>
+                <textarea className="input min-h-[4.5rem]" maxLength={250} placeholder="Enter any additional notes…" value={drawer.notes} onChange={(e) => setDrawer({ ...drawer, notes: e.target.value })} />
+                <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{(drawer.notes || '').length} / 250</div></div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-              <button type="button" onClick={(e) => save(e, false)} className="btn-outline flex-1 justify-center"><Printer size={15} /> Save</button>
-              <button className="btn-maroon flex-1 justify-center">Save &amp; Print Receipt <ChevronDown size={14} /></button>
+              <button type="button" disabled={saving} onClick={(e) => save(e, false)} className="btn-outline flex-1 justify-center disabled:opacity-50">Save</button>
+              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? 'Saving…' : <>Save &amp; Print Receipt <Printer size={14} /></>}</button>
             </div>
           </form>
         </div>

@@ -44,7 +44,7 @@ def _stamp(model):
 def _daily_summary(db, model, amount_attr, start, end, mode_attr=None, cash_val="Cash", count_persons=None):
     """Group records by date with amount + cash/UPI split."""
     stamp = _stamp(model)
-    rows = db.query(model).filter(stamp.between(start, end)).all()
+    rows = db.query(model).filter(stamp.between(start, end), *_live_cond(model)).all()
     buckets = OrderedDict()
     for r in sorted(rows, key=lambda x: (getattr(x, "paid_at", None) or x.created_at)):
         d = (getattr(r, "paid_at", None) or r.created_at).date()
@@ -75,9 +75,21 @@ def rep_daily(db, model, amount_attr, start, end, mode_attr, label, subtitle, pe
     return {"title": label, "subtitle": subtitle, "columns": cols, "rows": rows, "total": total}
 
 
+def _live_cond(model):
+    """Filter conditions that exclude soft-voided / non-collected records from reports."""
+    if model is Donation:
+        return (Donation.voided.isnot(True),)
+    if model is Auction:
+        return (Auction.status != "Void",)
+    if model is WasteSale:
+        return (WasteSale.status != "Void",)
+    return ()
+
+
 def _range(model, start, end, db):
     stamp = _stamp(model)
-    return db.query(model).filter(stamp.between(start, end)).order_by(model.id.desc()).all()
+    return (db.query(model).filter(stamp.between(start, end), *_live_cond(model))
+            .order_by(model.id.desc()).all())
 
 
 def generate(report, start, end, db):
@@ -229,7 +241,7 @@ def generate(report, start, end, db):
             m = b.payment_method or "Cash"
             add(b.created_at.date() if b.created_at else None, b.receipt_no or b.ticket_no or b.booking_code,
                 "Pooja Booking", b.devotee_name, m, b.payment_ref, float(b.amount or 0), m == "Cash")
-        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end)).all():
+        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
             dt = d.donated_on or (d.created_at.date() if d.created_at else None)
             add(dt, d.receipt_no, "Donation", d.donor_name, d.mode, d.txn_ref, float(d.amount or 0), d.mode == "Cash")
         for a in db.query(Annadanam).filter(
@@ -237,7 +249,7 @@ def generate(report, start, end, db):
             dt = (a.paid_at or a.created_at)
             add(dt.date() if dt else None, a.code, "Annadanam", a.donor, a.mode, a.txn_ref, float(a.amount or 0), a.mode == "Cash")
         for s in db.query(WasteSale).filter(
-                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end)).all():
+                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end), WasteSale.status != "Void").all():
             dt = (s.paid_at or s.created_at)
             add(dt.date() if dt else None, s.code, "Waste Sale", s.vendor_name, s.mode, s.txn_ref, float(s.amount or 0), s.mode == "Cash")
         for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end)).all():
@@ -264,9 +276,15 @@ def generate(report, start, end, db):
             pids = [int(x) for x in (f.pooja_ids or "").split(",") if x.strip().isdigit()]
             if not pids:
                 continue
-            bks = (db.query(Booking).filter(Booking.pooja_id.in_(pids),
-                   Booking.scheduled_date.isnot(None),
-                   Booking.scheduled_date.between(f.start_date, f.end_date),
+            # Exact attribution via the booking's festival link; legacy bookings
+            # (made before the link existed) fall back to the date-window inference.
+            from sqlalchemy import and_ as _and, or_ as _or
+            bks = (db.query(Booking).filter(
+                   _or(Booking.festival_id == f.id,
+                       _and(Booking.festival_id.is_(None),
+                            Booking.pooja_id.in_(pids),
+                            Booking.scheduled_date.isnot(None),
+                            Booking.scheduled_date.between(f.start_date, f.end_date))),
                    Booking.status != "Cancelled").all())
             pnames = [p.name for p in db.query(Pooja).filter(Pooja.id.in_(pids)).all()]
             period = (f.start_date.strftime("%d %b %Y") if f.start_date == f.end_date
@@ -289,7 +307,7 @@ def generate(report, start, end, db):
             rows.append({"_d": b.created_at, "receipt": b.receipt_no,
                          "date": b.created_at.strftime("%d %b %Y") if b.created_at else "-", "type": "Pooja",
                          "party": b.devotee_name, "amount": float(b.amount or 0), "mode": b.payment_method or "Cash"})
-        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end)).all():
+        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
             dt = d.donated_on or (d.created_at.date() if d.created_at else None)
             rows.append({"_d": d.created_at, "receipt": d.receipt_no, "date": dt.strftime("%d %b %Y") if dt else "-",
                          "type": "Donation", "party": d.donor_name, "amount": float(d.amount or 0), "mode": d.mode})
@@ -299,7 +317,7 @@ def generate(report, start, end, db):
             rows.append({"_d": dt, "receipt": a.code, "date": dt.strftime("%d %b %Y") if dt else "-",
                          "type": "Annadanam", "party": a.donor, "amount": float(a.amount or 0), "mode": a.mode})
         for s in db.query(WasteSale).filter(
-                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end)).all():
+                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end), WasteSale.status != "Void").all():
             dt = (s.paid_at or s.created_at)
             rows.append({"_d": dt, "receipt": s.code, "date": dt.strftime("%d %b %Y") if dt else "-",
                          "type": "Waste Sale", "party": s.vendor_name, "amount": float(s.amount or 0), "mode": s.mode})
@@ -332,11 +350,11 @@ def generate(report, start, end, db):
         for b in db.query(Booking).filter(func.date(Booking.created_at).between(start, end),
                                           Booking.status != "Cancelled").all():
             bump(b.created_at.date() if b.created_at else None, "pooja", float(b.amount or 0))
-        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end)).all():
+        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
             bump(d.donated_on or (d.created_at.date() if d.created_at else None), "donation", float(d.amount or 0))
         for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end)).all():
             bump(h.collected_on, "hundi", float(h.counted_amount or 0))
-        for a in db.query(Auction).all():
+        for a in db.query(Auction).filter(Auction.status != "Void").all():
             eff = a.auction_date or (a.created_at.date() if a.created_at else None)
             if eff and start <= eff <= end:
                 bump(eff, "auction", float(a.current_amount or 0))
@@ -345,7 +363,7 @@ def generate(report, start, end, db):
             dt = (a.paid_at or a.created_at)
             bump(dt.date() if dt else None, "annadanam", float(a.amount or 0))
         for s in db.query(WasteSale).filter(
-                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end)).all():
+                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end), WasteSale.status != "Void").all():
             dt = (s.paid_at or s.created_at)
             bump(dt.date() if dt else None, "waste", float(s.amount or 0))
         rows, tot = [], {"pooja": 0.0, "donation": 0.0, "hundi": 0.0, "auction": 0.0,

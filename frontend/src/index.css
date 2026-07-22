@@ -3,17 +3,17 @@
 @tailwind utilities;
 
 @layer base {
+  /* Fluid root type scale — the whole UI is sized in rem, so this one rule
+     makes text, spacing and max-widths scale gently with the viewport
+     (≈13.9px root at a 1340px laptop → 14.4px at 1440 → 16.8px at 1920),
+     the same technique large production sites use instead of zoom hacks.
+     Layout still adapts through responsive breakpoints as usual. */
   html {
     -webkit-font-smoothing: antialiased;
+    font-size: clamp(13.5px, 0.5vw + 7.2px, 17.5px);
   }
   body {
     @apply bg-cream text-gray-800 font-sans;
-  }
-  /* Compact the whole UI to fit typical laptop screens. `zoom` scales fixed-px
-     and rem sizing uniformly while leaving responsive breakpoints (evaluated on
-     the real viewport) unchanged, so layout still reflows correctly on resize. */
-  #root {
-    zoom: 0.9;
   }
 }
 
@@ -51,10 +51,20 @@
            focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent;
   }
   .label {
-    @apply block text-[11px] font-bold uppercase tracking-wide text-maroon-700/70 mb-1.5;
+    @apply block text-[0.6875rem] font-bold uppercase tracking-wide text-maroon-700/70 mb-1.5;
+  }
+  /* Hide the native number-input spinner arrows (used by NumberField). */
+  .no-spin::-webkit-outer-spin-button,
+  .no-spin::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .no-spin {
+    -moz-appearance: textfield;
+    appearance: textfield;
   }
   .badge {
-    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[0.6875rem] font-semibold;
   }
   /* Top utility-bar links */
   .util-link {
@@ -163,6 +173,34 @@
   .glass-card { transition: none; }
 }
 
+/* ── Minimal burgundy banner ─────────────────────────────────────────────────
+   Deliberately plain: a radial burgundy field plus a faint velvet grain. No
+   ornaments, lamps, particles or glows — the type is the only feature.      */
+.minimal-banner {
+  background: radial-gradient(ellipse 95% 125% at 50% 45%,
+    #5B120E 0%, #451009 46%, #340807 74%, #2B0505 100%);
+}
+
+/* Luxury velvet / leather grain, kept at 5–8% so it only reads as texture */
+.minimal-banner-texture {
+  opacity: 0.07;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(48deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(-48deg, rgba(0,0,0,0.06) 0 1px, transparent 1px 5px);
+  background-size: 160px 160px, auto, auto;
+}
+
+/* Antique-gold gradient lettering (drop-shadow, since the text is clipped) */
+.gold-gradient-text {
+  background-image: linear-gradient(180deg, #F7E7B3 0%, #D4AF37 52%, #A66C1C 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+}
+
 /* ── Premium temple banner (hanging brass diyas) ─────────────────────────── */
 
 /* Deep temple maroon gradient */
@@ -252,6 +290,9 @@
 }
 
 @media print {
+  /* Fixed root size in print so receipts keep their true physical size
+     regardless of the on-screen fluid type scale. */
+  html { font-size: 16px; }
   /* Print only the receipt — hide the rest of the app */
   body * { visibility: hidden !important; }
   #print-area, #print-area * { visibility: visible !important; }

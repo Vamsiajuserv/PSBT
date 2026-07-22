@@ -74,6 +74,8 @@ export const DevoteesAPI = {
   create: (b) => api.post('/devotees', b),
   update: (id, b) => api.put(`/devotees/${id}`, b),
   remove: (id) => api.del(`/devotees/${id}`),
+  addFamily: (id, b) => api.post(`/devotees/${id}/family`, b),
+  removeFamily: (id, fid) => api.del(`/devotees/${id}/family/${fid}`),
 }
 
 export const PoojasAPI = {
@@ -95,19 +97,14 @@ export const PaymentsAPI = {
   status: (ref) => api.get(`/payments/${ref}`),
 }
 
-export const SevasAPI = {
-  list: (params = {}) => api.get('/sevas' + qs(params)),
-  create: (b) => api.post('/sevas', b),
-  update: (id, b) => api.put(`/sevas/${id}`, b),
-  remove: (id) => api.del(`/sevas/${id}`),
-}
-
 export const BookingsAPI = {
   list: (params = {}) => api.get('/bookings' + qs(params)),
   stats: () => api.get('/bookings/stats'),
   create: (b) => api.post('/bookings', b),
+  lookup: (ticket) => api.get('/bookings/lookup' + qs({ ticket })),
   complete: (id) => api.post(`/bookings/${id}/complete`),
-  cancel: (id) => api.post(`/bookings/${id}/cancel`),
+  reschedule: (id, body) => api.post(`/bookings/${id}/reschedule`, body),
+  cancel: (id, body = {}) => api.post(`/bookings/${id}/cancel`, body),
   remove: (id) => api.del(`/bookings/${id}`),
 }
 
@@ -137,12 +134,20 @@ export const HundiAPI = {
   stats: () => api.get('/hundi/stats'),
   create: (b) => api.post('/hundi', b),
   verify: (id) => api.put(`/hundi/${id}/verify`),
+  reject: (id, b) => api.put(`/hundi/${id}/reject`, b),
+  deposit: (id, b) => api.put(`/hundi/${id}/deposit`, b),
 }
 export const AuctionAPI = {
   list: (params = {}) => api.get('/auctions' + qs(params)),
   stats: () => api.get('/auctions/stats'),
   create: (b) => api.post('/auctions', b),
+  update: (id, b) => api.put(`/auctions/${id}`, b),
   remove: (id) => api.del(`/auctions/${id}`),
+}
+
+export const RefundsAPI = {
+  list: (params = {}) => api.get('/refunds' + qs(params)),
+  create: (b) => api.post('/refunds', b),
 }
 export const AnnadanamAPI = {
   list: (params = {}) => api.get('/annadanam' + qs(params)),
@@ -156,6 +161,7 @@ export const UsersAPI = {
   stats: () => api.get('/users/stats'),
   create: (b) => api.post('/users', b),
   update: (id, b) => api.put(`/users/${id}`, b),
+  totp: (id) => api.get(`/users/${id}/totp`),
   remove: (id) => api.del(`/users/${id}`),
 }
 
@@ -176,6 +182,8 @@ export const PoojarisAPI = {
   update: (id, b) => api.put(`/poojaris/${id}`, b),
   remove: (id) => api.del(`/poojaris/${id}`),
   schedule: (day) => api.get('/poojaris/schedule' + qs({ day })),
+  queue: (params = {}) => api.get('/poojaris/queue' + qs(params)),
+  completeDue: (body = {}) => api.post('/poojaris/queue/complete-due', body),
   assign: (booking_id, poojari_id) => api.post('/poojaris/assign', { booking_id, poojari_id }),
 }
 

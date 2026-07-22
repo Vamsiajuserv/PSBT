@@ -13,11 +13,21 @@ COLUMN_MIGRATIONS = {
         ("payment_method", "VARCHAR(20)"), ("payment_ref", "VARCHAR(60)"),
         ("poojari_id", "INTEGER"), ("poojari_name", "VARCHAR(120)"),
         ("ticket_no", "VARCHAR(30)"),
+        ("performances_allowed", "INTEGER"),
+        ("performances_done", "INTEGER DEFAULT 0"),
+        ("last_performed_on", "DATE"),
+        ("festival_id", "INTEGER"),
+        ("gothram", "VARCHAR(80)"), ("nakshatram", "VARCHAR(40)"),
+        ("beneficiary_name", "VARCHAR(120)"), ("vehicle_no", "VARCHAR(20)"),
+    ],
+    "festivals": [
+        ("plan_fees", "TEXT"),
     ],
     "donations": [
         ("donation_type", "VARCHAR(20) DEFAULT 'Cash'"), ("unit", "VARCHAR(20)"),
         ("quantity", "NUMERIC(12,2)"),
         ("donation_code", "VARCHAR(30)"), ("txn_ref", "VARCHAR(60)"), ("notes", "TEXT"),
+        ("voided", "BOOLEAN DEFAULT FALSE"), ("void_reason", "TEXT"),
     ],
     "hundi_collections": [
         ("committee_member", "VARCHAR(160)"), ("notes", "TEXT"),
@@ -46,7 +56,7 @@ COLUMN_MIGRATIONS = {
         ("mobile", "VARCHAR(20)"), ("unit", "VARCHAR(20) DEFAULT 'Kilogram (kg)'"),
         ("mode", "VARCHAR(20) DEFAULT 'Cash'"), ("txn_ref", "VARCHAR(60)"), ("paid_at", "TIMESTAMP"),
     ],
-    "users": [("mobile", "VARCHAR(20)")],
+    "users": [("mobile", "VARCHAR(20)"), ("poojari_id", "INTEGER")],
     "poojaris": [("email", "VARCHAR(160)")],
     "daily_closings": [
         ("opening_cash", "NUMERIC(14,2) DEFAULT 0"), ("refunds", "NUMERIC(14,2) DEFAULT 0"),
@@ -54,6 +64,39 @@ COLUMN_MIGRATIONS = {
         ("difference", "NUMERIC(14,2) DEFAULT 0"),
     ],
 }
+
+
+# Devotional copy for the public seva catalogue, keyed by pooja name. Applied on
+# startup to rows still carrying the generic seeded placeholder, so anything an
+# admin has written by hand is never overwritten.
+POOJA_DESCRIPTIONS = {
+    "Ashtotharam / Archana": (
+        "Ashtotharam (Archana) is a sacred ritual in which the 108 divine names of "
+        "Sri Shirdi Sai Baba are chanted with devotion while offering flowers. It is "
+        "performed to seek Baba's blessings for health, prosperity, peace, and spiritual "
+        "well-being. Devotees participate with faith, praying for happiness, success, "
+        "and fulfillment in life."
+    ),
+    "Abhishekam": (
+        "Abhishekam is a sacred ritual in which the idol of Sri Shirdi Sai Baba is "
+        "ceremonially bathed with holy offerings such as milk, curd, honey, coconut water, "
+        "sandalwood paste, and sacred water while Vedic hymns and prayers are chanted. This "
+        "divine ceremony is performed to seek Baba's blessings for good health, prosperity, "
+        "peace, protection, and spiritual well-being. Devotees participate with devotion and "
+        "faith, praying for happiness, success, and the fulfillment of their wishes."
+    ),
+    "Sahasranama Archana": (
+        "Sahasranama Archana is a sacred ritual in which the 1,000 divine names of "
+        "Sri Shirdi Sai Baba are chanted with deep devotion while offering flowers. This "
+        "powerful worship is performed to seek Baba's blessings for good health, prosperity, "
+        "peace, family well-being, and spiritual growth. Devotees participate with unwavering "
+        "faith, praying for the fulfillment of their wishes, protection from difficulties, "
+        "and divine grace in every aspect of life."
+    ),
+}
+
+# Text every pooja description is seeded with; only these get replaced above.
+PLACEHOLDER_DESC = "booked at the counter"
 
 
 # Poojas that belong in the public "Festivals & Special" category rather than
@@ -77,6 +120,25 @@ def run_migrations(engine) -> None:
             'CREATE TABLE IF NOT EXISTS counters ('
             'name VARCHAR(40) PRIMARY KEY, value BIGINT NOT NULL)'
         ))
+        conn.execute(text(
+            'CREATE TABLE IF NOT EXISTS refunds ('
+            'id SERIAL PRIMARY KEY, refund_code VARCHAR(30) UNIQUE NOT NULL, '
+            'entity_type VARCHAR(20) NOT NULL, entity_id INTEGER, entity_code VARCHAR(40), '
+            'amount NUMERIC(12,2) NOT NULL, mode VARCHAR(20), reason TEXT, refund_date DATE, '
+            'created_by VARCHAR(60), created_at TIMESTAMP DEFAULT now())'
+        ))
+        # Backfill validity/quota on any pre-refactor bookings. NULL performances_allowed
+        # is the "unlimited / Life Long" sentinel, so legacy rows must be given a finite
+        # quota + expiry or they become immortal tickets in the queue/verify/complete flow.
+        conn.execute(text(
+            "UPDATE bookings SET performances_allowed = 1 "
+            "WHERE performances_allowed IS NULL "
+            "AND (plan_name IS NULL OR plan_name NOT ILIKE '%life%')"
+        ))
+        conn.execute(text(
+            "UPDATE bookings SET valid_until = scheduled_date "
+            "WHERE valid_until IS NULL AND performances_allowed = 1 AND scheduled_date IS NOT NULL"
+        ))
         # Festival poojas were originally filed under "Occasion", which mixed them
         # in with the one-time life-event ceremonies (Namakaranam, Annaprasana…)
         # and left the public "Festivals & Special" category empty. Move them to
@@ -87,6 +149,14 @@ def run_migrations(engine) -> None:
             .bindparams(bindparam("names", expanding=True)),
             {"names": list(_FESTIVAL_POOJAS)},
         )
+        # Fill in the devotional descriptions, but only where the row still has the
+        # seeded placeholder — never clobber copy written through the admin screen.
+        for _name, _desc in POOJA_DESCRIPTIONS.items():
+            conn.execute(
+                text("UPDATE poojas SET description = :d WHERE name = :n "
+                     "AND (description IS NULL OR description LIKE :ph)"),
+                {"d": _desc, "n": _name, "ph": f"%{PLACEHOLDER_DESC}%"},
+            )
 
 
 # ── Data repair: canonicalize module permission keys ─────────────────────────

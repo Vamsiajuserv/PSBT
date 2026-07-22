@@ -9,6 +9,7 @@ import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI, BookingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
@@ -39,9 +40,9 @@ export default function BookingDetails() {
   useEffect(() => { load() }, [load])
   const canOperate = ['Admin', 'Administrator', 'Counter Staff', 'Poojari'].includes(user?.role)
   async function complete() {
-    if (!confirm(`Mark ${d.booking_code} as completed? It will move to Pooja History.`)) return
-    try { await BookingsAPI.complete(id); PoojaHistoryAPI.detail(id).then(setD) }
-    catch (ex) { alert(ex.detail || 'Could not complete this booking.') }
+    if (!(await confirmDialog({ title: `Mark ${d.booking_code} as completed?`, message: 'It will move to Pooja History.' }))) return
+    try { await BookingsAPI.complete(id); toast('Performance recorded.'); PoojaHistoryAPI.detail(id).then(setD) }
+    catch (ex) { toast(ex.detail || 'Could not complete this booking.', 'error') }
   }
   if (loadErr) return <ErrorBlock message={loadErr} onRetry={load} />
   if (!d) return <LoadingBlock />
@@ -56,7 +57,7 @@ export default function BookingDetails() {
 
   return (
     <div>
-      <div className="text-[12px] text-gray-400 mb-1"><Link to="/admin/bookings" className="hover:text-maroon-600">Pooja Management</Link> › <Link to="/admin/bookings" className="hover:text-maroon-600">Bookings</Link> › <span className="text-gray-500">Booking Details</span></div>
+      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/bookings" className="hover:text-maroon-600">Pooja Management</Link> › <Link to="/admin/bookings" className="hover:text-maroon-600">Bookings</Link> › <span className="text-gray-500">Booking Details</span></div>
       <PageTitle title="Booking Details" actions={<>
         {canOperate && d.status === 'Confirmed' && <button onClick={complete} className="btn-maroon !py-2.5"><CheckCircle2 size={15} /> Mark as Completed</button>}
         <button onClick={() => nav('/admin/bookings')} className="btn-outline !py-2.5"><ArrowLeft size={15} /> Back to Bookings List</button>
@@ -69,7 +70,7 @@ export default function BookingDetails() {
         <Meta icon={Calendar} label="Booking Date" value={fmtStamp(d.created_at)} />
         <Meta icon={UserCheck} label="Booked By" value={bb.name} sub={`(${bb.sub})`} />
         <Meta icon={Building2} label="Booking Source" value={d.source === 'Counter' ? 'Counter Booking' : 'Online Booking'} />
-        <div className="ml-auto"><span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5"><CheckCircle2 size={15} /> {(d.status || 'Confirmed').toUpperCase()}</span></div>
+        <div className="ml-auto"><span className="inline-flex items-center gap-1.5 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5"><CheckCircle2 size={15} /> {(d.status || 'Confirmed').toUpperCase()}</span></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -92,7 +93,7 @@ export default function BookingDetails() {
 
           <Section n="3" icon={IndianRupee} title="Amount Details">
             <Row label="Rate (₹)" value={money2(plan.rate_amount)} />
-            <div className="flex text-[13.5px] pt-1"><span className="text-maroon-700 font-bold w-44 shrink-0">Total Amount Paid (₹)</span><span className="text-gray-400 mr-3">:</span><span className="text-maroon-700 font-extrabold">{money2(d.amount)}</span></div>
+            <div className="flex text-[0.84375rem] pt-1"><span className="text-maroon-700 font-bold w-44 shrink-0">Total Amount Paid (₹)</span><span className="text-gray-400 mr-3">:</span><span className="text-maroon-700 font-extrabold">{money2(d.amount)}</span></div>
           </Section>
 
           <Section n="4" icon={CreditCard} title="Payment Details">
@@ -100,7 +101,7 @@ export default function BookingDetails() {
             {isUpi && <Row label="UTR / Transaction ID" value={<span className="text-emerald-700 font-mono">{d.payment_ref}</span>} />}
             <Row label="Payment Date & Time" value={fmtStamp(d.created_at)} />
             <Row label="Payment Status" value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} /> Payment Successful</span>} />
-            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[12.5px] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Payment has been received successfully.</div>
+            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Payment has been received successfully.</div>
           </Section>
         </div>
 
@@ -118,9 +119,9 @@ export default function BookingDetails() {
             <TF icon={IndianRupee} label="Rate Type" value={plan.rate_type} />
             <TF icon={IndianRupee} label="Amount Paid (₹)" value={money2(d.amount)} />
             <TF icon={CreditCard} label="Payment Mode" value={mode} />
-            <TF icon={Ticket} label="UTR / Transaction ID" value={isUpi ? <span className="text-emerald-700 font-mono text-[12px]">{d.payment_ref}</span> : '—'} />
+            <TF icon={Ticket} label="UTR / Transaction ID" value={isUpi ? <span className="text-emerald-700 font-mono text-[0.75rem]">{d.payment_ref}</span> : '—'} />
             <TF icon={Calendar} label="Payment Date & Time" value={fmtStamp(d.created_at)} />
-            <TF icon={CheckCircle2} label="Payment Status" value={<span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700"><CheckCircle2 size={12} /> Payment Successful</span>} />
+            <TF icon={CheckCircle2} label="Payment Status" value={<span className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-emerald-700"><CheckCircle2 size={12} /> Payment Successful</span>} />
           </TicketShell>
         </div>
       </div>
@@ -130,7 +131,7 @@ export default function BookingDetails() {
         <button onClick={() => window.print()} className="btn-outline"><Download size={15} /> Download PDF</button>
         <button onClick={() => nav('/admin/bookings')} className="btn-maroon"><ArrowLeft size={15} /> Back to Bookings List</button>
       </div>
-      <div className="mt-4 flex items-center gap-2 text-[13px] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5"><ShieldCheck size={15} className="text-blue-500" /> All bookings are subject to temple rules and availability.</div>
+      <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5"><ShieldCheck size={15} className="text-blue-500" /> All bookings are subject to temple rules and availability.</div>
     </div>
   )
 }
@@ -139,7 +140,7 @@ function Meta({ icon: Icon, label, value, sub }) {
   return (
     <div className="flex items-center gap-2.5">
       <Icon size={18} className="text-maroon-500 shrink-0" />
-      <div><div className="text-[11px] text-gray-400">{label}</div><div className="text-[13px] text-gray-800 font-semibold">{value}{sub && <span className="text-gray-400 font-normal"> {sub}</span>}</div></div>
+      <div><div className="text-[0.6875rem] text-gray-400">{label}</div><div className="text-[0.8125rem] text-gray-800 font-semibold">{value}{sub && <span className="text-gray-400 font-normal"> {sub}</span>}</div></div>
     </div>
   )
 }
@@ -152,5 +153,5 @@ function Section({ n, icon: Icon, title, children }) {
   )
 }
 function Row({ label, value }) {
-  return <div className="flex text-[13.5px]"><span className="text-gray-500 w-44 shrink-0">{label}</span><span className="text-gray-400 mr-3">:</span><span className="text-gray-800 font-medium">{value ?? '—'}</span></div>
+  return <div className="flex text-[0.84375rem]"><span className="text-gray-500 w-44 shrink-0">{label}</span><span className="text-gray-400 mr-3">:</span><span className="text-gray-800 font-medium">{value ?? '—'}</span></div>
 }

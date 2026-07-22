@@ -1,6 +1,6 @@
 import React from 'react'
 import { MapPin, Phone, Mail, Clock } from 'lucide-react'
-import { Flourish, TempleBanner } from '../../components/common/UI.jsx'
+import { Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 
 export default function Contact() {
@@ -16,7 +16,7 @@ export default function Contact() {
 
   return (
     <div className="bg-cream">
-      <TempleBanner title="Contact Us" breadcrumb="Home  ›  Contact Us" />
+      <MinimalBanner title="Contact Us" breadcrumb="Home  ›  Contact Us" />
 
       <div className="max-w-6xl mx-auto px-4 py-12 grid md:grid-cols-2 gap-6">
         {/* Details */}
@@ -27,8 +27,8 @@ export default function Contact() {
               <div key={it.label} className="card p-4 flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><Icon size={18} /></div>
                 <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wide text-gold-600 mb-0.5">{it.label}</div>
-                  <div className="text-sm text-gray-700">{it.value}</div>
+                  <div className="text-[0.6875rem] font-bold uppercase tracking-wide text-gold-600 mb-0.5">{it.label}</div>
+                  <div className="text-sm text-black">{it.value}</div>
                 </div>
               </div>
             )
@@ -59,25 +59,25 @@ export default function Contact() {
             <div className="font-script text-2xl text-gold-500 leading-none">Get in Touch</div>
             <h3 className="font-serif text-xl font-bold text-maroon-700">We'd Love to Hear From You</h3>
             <Flourish className="justify-start my-2" width="w-10" />
-            <p className="text-sm text-gray-600 leading-relaxed">
+            <p className="text-sm text-black leading-relaxed">
               For enquiries about poojas, sevas, donations, or temple events, please reach out to us directly.
               Our office is happy to assist you during temple hours.
             </p>
             <div className="mt-5 space-y-3">
               {TEMPLE.phone && (
-                <a href={`tel:${String(TEMPLE.phone).replace(/\s+/g, '')}`} className="flex items-center gap-3 text-sm text-gray-700 hover:text-maroon-700">
+                <a href={`tel:${String(TEMPLE.phone).replace(/\s+/g, '')}`} className="flex items-center gap-3 text-sm text-black hover:text-maroon-700">
                   <span className="w-9 h-9 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><Phone size={16} /></span>
                   {TEMPLE.phone}
                 </a>
               )}
               {TEMPLE.email && (
-                <a href={`mailto:${TEMPLE.email}`} className="flex items-center gap-3 text-sm text-gray-700 hover:text-maroon-700">
+                <a href={`mailto:${TEMPLE.email}`} className="flex items-center gap-3 text-sm text-black hover:text-maroon-700">
                   <span className="w-9 h-9 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><Mail size={16} /></span>
                   {TEMPLE.email}
                 </a>
               )}
               {TEMPLE.address && (
-                <div className="flex items-start gap-3 text-sm text-gray-700">
+                <div className="flex items-start gap-3 text-sm text-black">
                   <span className="w-9 h-9 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><MapPin size={16} /></span>
                   {TEMPLE.address}
                 </div>

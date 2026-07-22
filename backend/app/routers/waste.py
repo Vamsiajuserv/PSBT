@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import WasteVendor, WasteSale
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import gen_code, next_code_seq
+from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open
 
 router = APIRouter(prefix="/api/waste", tags=["waste"])
 # Waste sales is Admin/authorised only — gated behind the "Counter" write capability.
@@ -20,8 +20,8 @@ write = RequireModule("Counter", write=True)
 def stats(db: Session = Depends(get_db), user=Depends(read)):
     today = date.today()
     stamp = func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at))
-    total_amount = float(db.query(func.coalesce(func.sum(WasteSale.amount), 0)).scalar() or 0)
-    today_amount = float(db.query(func.coalesce(func.sum(WasteSale.amount), 0)).filter(stamp == today).scalar() or 0)
+    total_amount = float(db.query(func.coalesce(func.sum(WasteSale.amount), 0)).filter(WasteSale.status != "Void").scalar() or 0)
+    today_amount = float(db.query(func.coalesce(func.sum(WasteSale.amount), 0)).filter(WasteSale.status != "Void", stamp == today).scalar() or 0)
     today_txns = db.query(func.count(WasteSale.id)).filter(stamp == today).scalar() or 0
     total_records = db.query(func.count(WasteSale.id)).scalar() or 0
     return {
@@ -74,7 +74,7 @@ def list_vendors_master(q: str = "", status: str = "", db: Session = Depends(get
 
 
 @router.post("/vendors")
-def create_vendor(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+def create_vendor(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     seq = (db.query(func.count(WasteVendor.id)).scalar() or 0) + 1
     while db.query(WasteVendor).filter(WasteVendor.code == gen_code("WV", seq, 2)).first():
         seq += 1
@@ -86,7 +86,7 @@ def create_vendor(body: dict, request: Request, db: Session = Depends(get_db), u
 
 
 @router.put("/vendors/{vid}")
-def update_vendor(vid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+def update_vendor(vid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     v = db.get(WasteVendor, vid)
     if not v:
         raise HTTPException(404, "Vendor not found")
@@ -138,11 +138,15 @@ def create_sale(body: dict, request: Request, db: Session = Depends(get_db), use
     from datetime import datetime
     weight = Decimal(str(body["weight_kg"]))
     rate = Decimal(str(body["rate"]))
-    amount = (weight * rate) if body.get("amount") in (None, "") else Decimal(str(body["amount"]))
+    assert_positive(weight, "Weight")
+    assert_positive(rate, "Rate")
+    # Amount is always weight × rate — never trusted from the client.
+    amount = weight * rate
     year = date.today().year
     seq = next_code_seq(db, "waste_sale", db.query(func.max(WasteSale.id)).scalar() or 0)
     paid = body.get("paid_at")
     paid_dt = datetime.fromisoformat(paid) if paid else None
+    assert_txn_date_open(db, paid_dt, label="payment date")
     mode = body.get("mode", "Cash")
     vendor_id = body.get("vendor_id")
     s = WasteSale(code=f"WMS-{year}-{str(seq).zfill(4)}",
@@ -165,5 +169,6 @@ def delete_sale(sid: int, request: Request, db: Session = Depends(get_db), user=
     s = db.get(WasteSale, sid)
     if not s:
         raise HTTPException(404, "Sale not found")
-    log_action(db, username=user.username, action="DELETE", entity="WasteSale", detail=s.code, ip=client_ip(request))
-    db.delete(s); db.commit()
+    s.status = "Void"   # soft-void: keep the record, drop it from collections
+    log_action(db, username=user.username, action="UPDATE", entity="WasteSale", detail=f"Voided {s.code}", ip=client_ip(request))
+    db.commit()

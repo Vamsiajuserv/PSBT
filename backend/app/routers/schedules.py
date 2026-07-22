@@ -10,8 +10,7 @@ from ..security import RequireModule, require_admin, log_action, client_ip
 from ..helpers import gen_code
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
-read = RequireModule("Bookings")
-write = RequireModule("Bookings", write=True)
+read = RequireModule("Bookings")   # schedule master edits are Administrator-only (require_admin)
 
 
 def exec_freq(plan_name: str | None) -> str:
@@ -69,7 +68,7 @@ def list_schedules(q: str = "", pooja: str = "", poojari: str = "", status: str 
 
 
 @router.post("")
-def create_schedule(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+def create_schedule(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     seq = (db.query(func.count(Schedule.id)).scalar() or 0) + 1
     pooja = db.get(Pooja, body["pooja_id"]) if body.get("pooja_id") else None
     plan = db.get(PoojaPlan, body["plan_id"]) if body.get("plan_id") else None
@@ -92,7 +91,7 @@ def create_schedule(body: dict, request: Request, db: Session = Depends(get_db),
 
 
 @router.put("/{sid}")
-def update_schedule(sid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+def update_schedule(sid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     s = db.get(Schedule, sid)
     if not s:
         raise HTTPException(404, "Schedule not found")

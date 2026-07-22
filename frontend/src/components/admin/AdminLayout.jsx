@@ -4,11 +4,17 @@ import {
   LayoutDashboard, Users as UsersIcon, Flame, HandHeart, Landmark, Gavel,
   UtensilsCrossed, Recycle, FileBarChart, ShieldCheck, Settings as SettingsIcon,
   Menu, LogOut, Bell, Calendar, Clock, ChevronDown, ChevronRight, KeyRound, Wallet,
+  Receipt, ClipboardList, ScanLine, CalendarPlus,
 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { canAccessKey, keyOf } from '../../auth/access.js'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/admin/counter', label: 'Counter Billing', icon: Receipt },
+  { to: '/admin/bookings/new', label: 'Advance Booking', icon: CalendarPlus },
+  { to: '/admin/my-poojas', label: 'My Poojas', icon: ClipboardList },
+  { to: '/admin/verify-ticket', label: 'Verify Ticket', icon: ScanLine },
   { to: '/admin/devotees', label: 'Devotee Management', icon: UsersIcon },
   {
     label: 'Pooja Management', icon: Flame,
@@ -18,6 +24,7 @@ const NAV = [
       { to: '/admin/poojari-schedule', label: 'Poojari Schedule' },
       { to: '/admin/poojari-master', label: 'Poojari Master' },
       { to: '/admin/pooja-history', label: 'Pooja History' },
+      { to: '/admin/calendar', label: 'Calendar' },
     ],
   },
   {
@@ -86,12 +93,24 @@ function GopuraMark() {
 
 function SidebarNav({ onNavigate }) {
   const location = useLocation()
-  const activeGroup = NAV.find((n) => n.children?.some((c) => location.pathname.startsWith(c.to)))
+  const { user } = useAuth()
+
+  // Keep only what this user may reach: leaves gate on their key; a group is
+  // pruned to its visible children and dropped entirely if none remain.
+  const nav = NAV.map((n) => {
+    if (n.children) {
+      const kids = n.children.filter((c) => canAccessKey(user, keyOf(c.to)))
+      return kids.length ? { ...n, children: kids } : null
+    }
+    return canAccessKey(user, keyOf(n.to)) ? n : null
+  }).filter(Boolean)
+
+  const activeGroup = nav.find((n) => n.children?.some((c) => location.pathname.startsWith(c.to)))
   const [open, setOpen] = useState(activeGroup ? { [activeGroup.label]: true } : {})
 
   return (
     <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-      {NAV.map((n) => {
+      {nav.map((n) => {
         const Icon = n.icon
         if (n.children) {
           const groupActive = n.children.some((c) => location.pathname.startsWith(c.to))
@@ -100,7 +119,7 @@ function SidebarNav({ onNavigate }) {
             <div key={n.label}>
               <button
                 onClick={() => setOpen((o) => ({ ...o, [n.label]: !isOpen }))}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13.5px] font-medium transition-colors ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[0.84375rem] font-medium transition-colors ${
                   groupActive ? 'bg-ivory text-maroon-800 font-semibold' : 'text-cream/85 hover:bg-white/10'
                 }`}
               >
@@ -112,8 +131,8 @@ function SidebarNav({ onNavigate }) {
                   {n.children.map((c) => (
                     <NavLink key={c.to} to={c.to} onClick={onNavigate}
                       className={({ isActive }) =>
-                        `flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg text-[13px] transition-colors ${
-                          isActive ? 'bg-maroon-900/70 text-gold-200 font-semibold border-l-2 border-gold-400 -ml-[13px] pl-[24px]' : 'text-cream/70 hover:text-cream hover:bg-white/5'
+                        `flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg text-[0.8125rem] transition-colors ${
+                          isActive ? 'bg-maroon-900/70 text-gold-200 font-semibold border-l-2 border-gold-400 -ml-[0.8125rem] pl-[1.5rem]' : 'text-cream/70 hover:text-cream hover:bg-white/5'
                         }`
                       }
                     >
@@ -128,7 +147,7 @@ function SidebarNav({ onNavigate }) {
         return (
           <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13.5px] font-medium transition-colors ${
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-[0.84375rem] font-medium transition-colors ${
                 isActive ? 'bg-ivory text-maroon-800 font-semibold' : 'text-cream/85 hover:bg-white/10'
               }`
             }
@@ -143,7 +162,8 @@ function SidebarNav({ onNavigate }) {
 }
 
 export default function AdminLayout() {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false)          // mobile overlay
+  const [collapsed, setCollapsed] = useState(false) // desktop slide-away
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const name = user?.name || 'Administrator'
@@ -156,11 +176,11 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen bg-cream flex">
       {/* ── Sidebar ── */}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream flex flex-col transition-transform ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream flex flex-col transition-all duration-300 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${collapsed ? 'lg:-ml-64' : 'lg:ml-0'}`}>
         <div className="px-5 pt-5 pb-4 text-center border-b border-white/10">
           <GopuraMark />
-          <div className="font-serif font-bold text-gold-200 text-[15px] leading-tight mt-1">Sri Shirdi Sai Baba Temple</div>
-          <div className="text-[10.5px] text-cream/55 leading-tight mt-1">Dwarkapuri Colony, Punjagutta,<br />Hyderabad, Telangana</div>
+          <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight mt-1">Sri Shirdi Sai Baba Temple</div>
+          <div className="text-[0.65625rem] text-cream/55 leading-tight mt-1">Dwarkapuri Colony, Punjagutta,<br />Hyderabad, Telangana</div>
         </div>
 
         <SidebarNav onNavigate={() => setOpen(false)} />
@@ -168,9 +188,9 @@ export default function AdminLayout() {
         <div className="px-3 pb-3">
           <div className="rounded-xl bg-[#3a0909] border-2 border-gold-500/50 py-4 text-center shadow-inner ring-1 ring-inset ring-gold-400/15">
             <div className="text-gold-300 text-2xl leading-none font-telugu">ॐ</div>
-            <div className="font-display text-[15px] tracking-[0.25em] text-gold-300 mt-1.5">Om Sai Ram</div>
+            <div className="font-display text-[0.9375rem] tracking-[0.25em] text-gold-300 mt-1.5">Om Sai Ram</div>
           </div>
-          <div className="text-[10px] text-cream/40 text-center mt-3 leading-tight">© 2026 Sri Shirdi Sai Baba Temple.<br />All rights reserved.</div>
+          <div className="text-[0.625rem] text-cream/40 text-center mt-3 leading-tight">© 2026 Sri Shirdi Sai Baba Temple.<br />All rights reserved.</div>
         </div>
       </aside>
 
@@ -180,29 +200,29 @@ export default function AdminLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <button className="text-gray-500 hover:text-maroon-700" onClick={() => setOpen(!open)}><Menu size={22} /></button>
+            <button className="text-gray-500 hover:text-maroon-700" title="Toggle sidebar" aria-label="Toggle sidebar"
+              onClick={() => { setOpen((o) => !o); setCollapsed((c) => !c) }}><Menu size={22} /></button>
             <span className="font-serif font-bold text-maroon-800 text-lg hidden sm:block">Sri Shirdi Sai Baba Temple</span>
           </div>
 
           <div className="flex items-center gap-4 lg:gap-5">
-            <span className="hidden md:flex items-center gap-2 text-[13px] text-gray-600"><Calendar size={15} className="text-gray-400" /> {todayLabel()}</span>
-            <span className="hidden md:flex items-center gap-2 text-[13px] text-gray-600"><Clock size={15} className="text-gray-400" /> {timeLabel()}</span>
+            <span className="hidden md:flex items-center gap-2 text-[0.8125rem] text-gray-600"><Calendar size={15} className="text-gray-400" /> {todayLabel()}</span>
+            <span className="hidden md:flex items-center gap-2 text-[0.8125rem] text-gray-600"><Clock size={15} className="text-gray-400" /> {timeLabel()}</span>
             <button onClick={() => navigate('/admin/notifications')} title="Notifications" aria-label="Notifications" className="relative text-gray-500 hover:text-maroon-700">
               <Bell size={20} />
-              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 grid place-items-center">5</span>
             </button>
             <div className="flex items-center gap-2.5 pl-4 border-l border-gray-200">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 text-white grid place-items-center text-sm font-bold">{initials}</div>
               <div className="hidden sm:block leading-tight">
-                <div className="text-[13px] font-bold text-gray-800">{name}</div>
-                <div className="text-[11px] text-gray-400">{roleLabel}</div>
+                <div className="text-[0.8125rem] font-bold text-gray-800">{name}</div>
+                <div className="text-[0.6875rem] text-gray-400">{roleLabel}</div>
               </div>
               <button onClick={signOut} title="Sign out" className="text-gray-400 hover:text-maroon-700 ml-1"><LogOut size={16} /></button>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-6 max-w-[1600px] w-full mx-auto">
+        <main className="flex-1 p-4 lg:p-6 max-w-[100rem] w-full mx-auto">
           <Outlet context={{ role }} />
         </main>
       </div>

@@ -7,7 +7,7 @@ from .database import Base, engine
 from .routers import (auth, devotees, sevas, bookings, donations, misc, users,
                       dashboard, poojas, payments, poojaris, waste, translate, schedules,
                       donation_master, pooja_history, reports, settings as settings_router, roles, masters,
-                      daily_closing, backup, notifications, public)
+                      daily_closing, backup, notifications, public, refunds)
 from .migrate import run_migrations, repair_permissions
 from .mock_refresh import run as refresh_mock_dates
 from .site_content import ensure_site_content
@@ -75,6 +75,7 @@ app.include_router(masters.hundi_items_router)
 app.include_router(masters.committee_router)
 app.include_router(masters.festivals_router)
 app.include_router(daily_closing.router)
+app.include_router(refunds.router)
 app.include_router(backup.router)
 app.include_router(notifications.router)
 app.include_router(public.router)

@@ -8,6 +8,7 @@ import { LOAD_ERROR } from '../../components/common/states.jsx'
 import { ReportsAPI } from '../../api/client.js'
 import { exportReportToExcel } from '../../lib/excel.js'
 import { exportReportToPdf } from '../../lib/pdf.js'
+import { Select, DateField } from '../../components/common/Field.jsx'
 
 const firstOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
 const today = () => new Date().toISOString().slice(0, 10)
@@ -81,7 +82,7 @@ export default function Reports() {
       <PageTitle title="Reports" subtitle="Generate, view and export reports for all temple activities." />
 
       {/* Report Categories */}
-      <div className="text-[15px] font-bold text-maroon-800 mb-3">Report Categories</div>
+      <div className="text-[0.9375rem] font-bold text-maroon-800 mb-3">Report Categories</div>
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 mb-5">
         {cats.map((c) => {
           const cfg = CAT_ICON[c.key] || CAT_ICON.pooja; const Icon = cfg.icon; const on = category === c.key
@@ -89,7 +90,7 @@ export default function Reports() {
             <button key={c.key} onClick={() => pickReport(c.reports[0], c.key)}
               className={`bg-white rounded-xl border p-4 text-center transition-colors ${on ? 'border-maroon-400 ring-1 ring-maroon-200' : 'border-gray-100 hover:border-maroon-200'}`}>
               <div className={`w-12 h-12 rounded-full grid place-items-center mx-auto ${cfg.bg}`} style={{ color: cfg.color }}><Icon size={22} /></div>
-              <div className="text-[12.5px] font-semibold text-gray-700 mt-2 leading-tight">{c.label}</div>
+              <div className="text-[0.78125rem] font-semibold text-gray-700 mt-2 leading-tight">{c.label}</div>
             </button>
           )
         })}
@@ -98,24 +99,24 @@ export default function Reports() {
       {/* Filter bar */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-5 mb-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
         <div>
-          <label className="block text-[12px] text-gray-500 mb-1.5">Date Range</label>
+          <label className="block text-[0.75rem] text-gray-500 mb-1.5">Date Range</label>
           <div className="flex items-center gap-1.5">
-            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[12.5px]" />
+            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
             <span className="text-gray-400">–</span>
-            <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[12.5px]" />
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
           </div>
         </div>
         <div>
-          <label className="block text-[12px] text-gray-500 mb-1.5">Report Category</label>
-          <select value={category} onChange={(e) => { const k = e.target.value; setCategory(k); const rp = cats.find((c) => c.key === k)?.reports[0]; if (rp) setReport(rp) }} className="input">
+          <label className="block text-[0.75rem] text-gray-500 mb-1.5">Report Category</label>
+          <Select value={category} onChange={(e) => { const k = e.target.value; setCategory(k); const rp = cats.find((c) => c.key === k)?.reports[0]; if (rp) setReport(rp) }} className="input">
             {cats.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-          </select>
+          </Select>
         </div>
         <div>
-          <label className="block text-[12px] text-gray-500 mb-1.5">Report Name</label>
-          <select value={report} onChange={(e) => setReport(e.target.value)} className="input">
+          <label className="block text-[0.75rem] text-gray-500 mb-1.5">Report Name</label>
+          <Select value={report} onChange={(e) => setReport(e.target.value)} className="input">
             {reportsInCat.map((r) => <option key={r}>{r}</option>)}
-          </select>
+          </Select>
         </div>
         <div className="flex gap-2 justify-end">
           <button onClick={reset} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button>
@@ -132,7 +133,7 @@ export default function Reports() {
           <div className="space-y-0.5">
             {filteredList.map((r) => (
               <button key={r.name} onClick={() => pickReport(r.name, r.category)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors ${report === r.name ? 'bg-maroon-50 text-maroon-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}>
+                className={`w-full text-left px-3 py-2 rounded-lg text-[0.8125rem] transition-colors ${report === r.name ? 'bg-maroon-50 text-maroon-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}>
                 {r.name}
               </button>
             ))}
@@ -143,7 +144,7 @@ export default function Reports() {
           <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100">
             <div>
               <h3 className="font-serif text-lg font-bold text-maroon-800">{result?.title || 'Select a report'}</h3>
-              {result?.subtitle && <p className="text-[13px] text-gray-500 mt-0.5">{result.subtitle}</p>}
+              {result?.subtitle && <p className="text-[0.8125rem] text-gray-500 mt-0.5">{result.subtitle}</p>}
             </div>
             <div className="flex gap-2 no-print">
               <button onClick={() => exportReportToPdf(result)} disabled={!result?.rows?.length} className="btn-outline !py-2 text-red-600 border-red-200 disabled:opacity-60"><FileText size={15} /> Export PDF</button>
@@ -152,7 +153,7 @@ export default function Reports() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50/70 text-left text-[11px] uppercase tracking-wide text-gray-500">
+              <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
                 {(result?.columns || []).map((c) => <th key={c.key} className={`px-5 py-3 font-semibold whitespace-nowrap ${c.type !== 'text' ? 'text-right' : ''}`}>{c.label}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
@@ -178,7 +179,7 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
-          {result && <div className="px-5 py-3.5 border-t border-gray-100 text-[13px] text-gray-500">Showing 1 to {result.rows.length} of {result.rows.length} records</div>}
+          {result && <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">Showing 1 to {result.rows.length} of {result.rows.length} records</div>}
         </div>
       </div>
     </div>

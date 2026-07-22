@@ -1,5 +1,30 @@
 import React from 'react'
 
+// ── Count-up number that animates once when it scrolls into view ─────────────
+export function CountUp({ value, duration = 1400 }) {
+  const [n, setN] = React.useState(0)
+  const ref = React.useRef(null)
+  React.useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let raf
+    const obs = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return
+      obs.disconnect()
+      const t0 = performance.now()
+      const tick = (t) => {
+        const p = Math.min(1, (t - t0) / duration)
+        setN(Math.round(value * (1 - Math.pow(1 - p, 3))))   // ease-out cubic
+        if (p < 1) raf = requestAnimationFrame(tick)
+      }
+      raf = requestAnimationFrame(tick)
+    }, { threshold: 0.4 })
+    obs.observe(el)
+    return () => { obs.disconnect(); cancelAnimationFrame(raf) }
+  }, [value, duration])
+  return <span ref={ref}>{n.toLocaleString('en-IN')}</span>
+}
+
 // ── Gold flourish divider ────────────────────────────────────────────────────
 export function Flourish({ className = '', width = 'w-24' }) {
   return (
@@ -61,6 +86,42 @@ export function Particles({ items, core = '#F6E3A8', glow = 'rgba(212,175,55,0.8
   ))
 }
 
+/* ── Minimal burgundy banner ──────────────────────────────────────────────────
+   The restrained counterpart to TempleBanner: a deep radial burgundy field with
+   a faint velvet grain, gold-gradient title and a coloured breadcrumb. No
+   ornaments, lamps, particles or glows by design.                           */
+export function MinimalBanner({ title, breadcrumb }) {
+  // "Home › Gallery" → last crumb gold, the rest white.
+  const crumbs = breadcrumb ? breadcrumb.split('›').map((s) => s.trim()).filter(Boolean) : []
+
+  return (
+    <section className="minimal-banner relative overflow-hidden flex items-center
+                        py-2.5 min-h-[3.625rem] sm:min-h-[4rem] animate-fade-in">
+      <div className="minimal-banner-texture absolute inset-0 pointer-events-none" />
+
+      {/* Left-aligned to the same gutter the page content uses. */}
+      <div className="relative w-full max-w-7xl mx-auto px-4">
+        <h1 className="text-white font-serif font-normal leading-[1.15] tracking-[0.02em]"
+            style={{ fontSize: 'clamp(15px, 1.9vw, 20px)' }}>
+          {title}
+        </h1>
+
+        {crumbs.length > 0 && (
+          <nav className="font-poppins" aria-label="Breadcrumb"
+               style={{ marginTop: 3, fontSize: 'clamp(9px, 0.85vw, 11px)' }}>
+            {crumbs.map((c, i) => (
+              <span key={c}>
+                {i > 0 && <span className="text-[#F5F5F5] mx-2">&gt;</span>}
+                <span className={i === crumbs.length - 1 ? 'text-[#D4AF37]' : 'text-[#F5F5F5]'}>{c}</span>
+              </span>
+            ))}
+          </nav>
+        )}
+      </div>
+    </section>
+  )
+}
+
 /* ── Premium temple banner ────────────────────────────────────────────────────
    Luxury South-Indian temple hero: deep maroon gradient, temple silhouette,
    antique-gold ornaments and hanging brass diyas. Purely a visual treatment —
@@ -100,7 +161,7 @@ function Diya({ chain = 40, delay = '0s', className = '', style }) {
               style={{ background: 'radial-gradient(circle, rgba(255,196,80,0.5), transparent 70%)', filter: 'blur(7px)' }} />
         {/* flame */}
         <svg width="11" height="16" viewBox="0 0 12 18"
-             className="flame absolute left-1/2 -translate-x-1/2 -top-[13px]"
+             className="flame absolute left-1/2 -translate-x-1/2 -top-[0.8125rem]"
              style={{ animationDelay: delay }}>
           <path d="M6 0 C 9 5, 11 7, 11 11 A 5 5 0 0 1 1 11 C 1 7, 3 5, 6 0 Z" fill="url(#flameGrad)" />
         </svg>
@@ -195,7 +256,7 @@ const LAMPS = [
 
 export function TempleBanner({ title, breadcrumb }) {
   return (
-    <section className="temple-banner relative overflow-hidden min-h-[112px] sm:min-h-[124px] animate-fade-in">
+    <section className="temple-banner relative overflow-hidden min-h-[7rem] sm:min-h-[7.75rem] animate-fade-in">
       <BannerDefs />
 
       {/* Thin antique-gold border on the top edge */}
@@ -235,7 +296,7 @@ export function TempleBanner({ title, breadcrumb }) {
       ))}
 
       {/* Content — text unchanged */}
-      <div className="relative min-h-[112px] sm:min-h-[124px] flex flex-col items-center justify-center text-center px-4 py-5">
+      <div className="relative min-h-[7rem] sm:min-h-[7.75rem] flex flex-col items-center justify-center text-center px-4 py-5">
         {/* soft blurred glow behind the title */}
         <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-16 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse, rgba(255,205,110,0.22), transparent 70%)', filter: 'blur(18px)' }} />
@@ -252,7 +313,7 @@ export function TempleBanner({ title, breadcrumb }) {
         <LotusDivider />
 
         {breadcrumb && (
-          <div className="relative mt-1.5 text-[11px] sm:text-xs animate-slide-up"
+          <div className="relative mt-1.5 text-[0.6875rem] sm:text-xs animate-slide-up"
                style={{ color: 'rgba(255,255,255,0.88)', animationDelay: '120ms' }}>
             {breadcrumb}
           </div>
@@ -269,7 +330,7 @@ export function SectionTitle({ title, subtitle, eyebrow, center = true }) {
       {eyebrow && <div className="font-script text-2xl text-gold-500 leading-none mb-1">{eyebrow}</div>}
       <h2 className="font-serif text-3xl md:text-4xl font-bold text-maroon-700">{title}</h2>
       <Flourish className={`mt-3 ${center ? '' : 'justify-start'}`} width="w-16" />
-      {subtitle && <p className="text-gray-500 text-sm mt-3 max-w-xl mx-auto">{subtitle}</p>}
+      {subtitle && <p className="text-black text-sm mt-3 max-w-xl mx-auto">{subtitle}</p>}
     </div>
   )
 }
@@ -288,7 +349,7 @@ export function FeatureStrip({ items }) {
               </div>
               <div>
                 <div className="text-sm font-bold text-maroon-700">{it.title}</div>
-                <div className="text-[11px] text-gray-500">{it.desc}</div>
+                <div className="text-[0.6875rem] text-gray-500">{it.desc}</div>
               </div>
             </div>
           )
@@ -354,7 +415,7 @@ export function StatCard({ label, value, delta, tone = 'saffron' }) {
       <div className="text-2xl font-extrabold text-gray-900">{value}</div>
       <div className="flex items-center justify-between mt-1">
         <span className="text-xs text-gray-500">{label}</span>
-        {delta && <span className="text-[11px] font-bold text-emerald-600">{delta}</span>}
+        {delta && <span className="text-[0.6875rem] font-bold text-emerald-600">{delta}</span>}
       </div>
     </div>
   )
@@ -367,7 +428,7 @@ export function Table({ columns, children }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 text-left text-[11px] uppercase tracking-wide text-gray-500">
+            <tr className="bg-gray-50 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {columns.map((c) => (
                 <th key={c} className="px-4 py-3 font-bold whitespace-nowrap">{c}</th>
               ))}
