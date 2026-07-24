@@ -5,6 +5,7 @@ import { Flourish } from '../../components/common/UI.jsx'
 import { useTemple, useSite } from '../../lib/SiteContext.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { AuthAPI, ApiError } from '../../api/client.js'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const TRUST = [
   { icon: ShieldCheck, title: 'Data Encryption', desc: '256-bit SSL encryption for secure data' },
@@ -95,8 +96,8 @@ export default function StaffLogin() {
             <h1 className="font-serif text-3xl font-bold text-gold-200 mt-5 tracking-wide">{temple?.name || 'Sri Shirdi Sai Baba Temple'}</h1>
             <p className="text-cream/70 text-sm mt-2">{temple?.place || temple?.address || 'Dwarakapuri Colony, Punjagutta, Hyderabad'}</p>
             <Flourish className="mt-4" width="w-14" />
-            <h2 className="font-serif text-xl font-bold text-gold-300 mt-4">Temple Staff Portal</h2>
-            <p className="text-cream/70 text-sm mt-2 max-w-xs mx-auto">Secure access for authorized temple staff to manage temple operations</p>
+            <h2 className="font-serif text-xl font-bold text-gold-300 mt-4"><T>Temple Staff Portal</T></h2>
+            <p className="text-cream/70 text-sm mt-2 max-w-xs mx-auto"><T>Secure access for authorized temple staff to manage temple operations</T></p>
           </div>
         </div>
 
@@ -105,26 +106,26 @@ export default function StaffLogin() {
           <div className="w-full max-w-md">
             <div className="card p-8">
               <div className="w-16 h-16 mx-auto rounded-full bg-gold-100 border border-gold-300 grid place-items-center text-maroon-700"><Lock size={26} /></div>
-              <h1 className="font-serif text-2xl font-bold text-maroon-700 text-center mt-4">Welcome Back!</h1>
-              <p className="text-sm text-gray-500 text-center mt-1">Please login to continue</p>
+              <h1 className="font-serif text-2xl font-bold text-maroon-700 text-center mt-4"><T>Welcome Back!</T></h1>
+              <p className="text-sm text-gray-500 text-center mt-1"><T>Please login to continue</T></p>
 
               {error && <div className="mt-5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>}
 
               {!challenge ? (
                 <form onSubmit={submit} className="mt-6 space-y-4">
                   <div>
-                    <label className="label">Username / Employee ID</label>
+                    <label className="label"><T>Username / Employee ID</T></label>
                     <div className="relative">
                       <UserRound size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input required autoFocus className="input !pl-9" placeholder="Enter your username or employee ID"
+                      <input required autoFocus className="input !pl-9" placeholder={tr("Enter your username or employee ID")}
                         value={username} onChange={(e) => setUsername(e.target.value)} />
                     </div>
                   </div>
                   <div>
-                    <label className="label">Password</label>
+                    <label className="label"><T>Password</T></label>
                     <div className="relative">
                       <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input required type={showPw ? 'text' : 'password'} className="input !pl-9 !pr-9" placeholder="Enter your password"
+                      <input required type={showPw ? 'text' : 'password'} className="input !pl-9 !pr-9" placeholder={tr("Enter your password")}
                         value={password} onChange={(e) => setPassword(e.target.value)} />
                       <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                         {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -132,12 +133,10 @@ export default function StaffLogin() {
                     </div>
                   </div>
                   <div className="flex items-center justify-end text-xs">
-                    <button type="button" onClick={() => setForgot((v) => !v)} className="font-semibold text-maroon-600 hover:underline">Forgot Password?</button>
+                    <button type="button" onClick={() => setForgot((v) => !v)} className="font-semibold text-maroon-600 hover:underline"><T>Forgot Password?</T></button>
                   </div>
                   {forgot && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-[0.71875rem] text-gray-600">
-                      Password resets are handled by an Administrator. Please contact your temple administrator to reset your staff account password.
-                    </div>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-[0.71875rem] text-gray-600"><T>Password resets are handled by an Administrator. Please contact your temple administrator to reset your staff account password.</T>{' '}</div>
                   )}
                   <button disabled={busy} className="btn-maroon w-full !py-3 disabled:opacity-60"><LogIn size={16} /> {busy ? 'Signing in…' : 'Login'}</button>
                   <div className="bg-gold-50 border border-gold-200 rounded-lg px-3 py-2.5 flex items-start gap-2 text-[0.6875rem] text-gray-500">
@@ -148,7 +147,7 @@ export default function StaffLogin() {
                   {/* Demo accounts — click to auto-fill & sign in */}
                   <div className="pt-1">
                     <div className="flex items-center gap-2 text-[0.625rem] uppercase tracking-widest text-gray-400 mb-2">
-                      <span className="h-px flex-1 bg-gold-200" /> Demo Logins — click to enter <span className="h-px flex-1 bg-gold-200" />
+                      <span className="h-px flex-1 bg-gold-200" />{' '}<T>Demo Logins — click to enter</T>{' '}<span className="h-px flex-1 bg-gold-200" />
                     </div>
                     <div className="space-y-2">
                       {DEMO_ACCOUNTS.map((a) => (
@@ -169,16 +168,16 @@ export default function StaffLogin() {
                 </form>
               ) : (
                 <form onSubmit={verify} className="mt-6 space-y-4">
-                  <p className="text-sm text-gray-600 text-center">Enter the 6-digit code from your authenticator app.</p>
+                  <p className="text-sm text-gray-600 text-center"><T>Enter the 6-digit code from your authenticator app.</T></p>
                   <input required autoFocus inputMode="numeric" maxLength={6} className="input text-center tracking-[0.5em] text-lg"
                     placeholder="••••••" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} />
                   <button disabled={busy} className="btn-maroon w-full !py-3 disabled:opacity-60"><KeyRound size={16} /> {busy ? 'Verifying…' : 'Verify & Continue'}</button>
-                  <button type="button" onClick={() => { setChallenge(null); setOtp('') }} className="btn-ghost w-full text-xs">← Back to login</button>
+                  <button type="button" onClick={() => { setChallenge(null); setOtp('') }} className="btn-ghost w-full text-xs"><T>← Back to login</T></button>
                 </form>
               )}
             </div>
 
-            <p className="text-center text-[0.6875rem] text-gray-400 mt-4"><Link to="/" className="hover:text-maroon-600">← Back to public site</Link></p>
+            <p className="text-center text-[0.6875rem] text-gray-400 mt-4"><Link to="/" className="hover:text-maroon-600"><T>← Back to public site</T></Link></p>
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import MasterScreen from '../../components/admin/MasterScreen.jsx'
 import { Pill, fmtDate } from '../../components/admin/ui.jsx'
 import { FestivalsAPI, PoojasAPI } from '../../api/client.js'
 import { NumberField } from '../../components/common/Field.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 export default function FestivalMaster() {
   const [poojaOptions, setPoojaOptions] = useState([])
@@ -41,13 +42,13 @@ export default function FestivalMaster() {
         render: (data, setD) => {
           const selected = poojaAll.filter((p) => (data.pooja_ids || []).includes(p.id))
           const rows = selected.flatMap((p) => (p.plans || []).filter((pl) => pl.committee_decided).map((pl) => ({ p, pl })))
-          if (!rows.length) return <div className="text-[0.75rem] text-gray-400">Select the festival's poojas above — their committee-decided plans appear here for pricing.</div>
+          if (!rows.length) return <div className="text-[0.75rem] text-gray-400"><T>Select the festival's poojas above — their committee-decided plans appear here for pricing.</T></div>
           return (
             <div className="space-y-2">
               {rows.map(({ p, pl }) => (
                 <div key={pl.id} className="flex items-center gap-2">
                   <span className="flex-1 text-[0.8125rem] text-gray-700">{p.name} · {pl.plan_name}</span>
-                  <NumberField min="0" step="1" prefix="₹" className="!py-1.5 w-32" placeholder="Amount"
+                  <NumberField min="0" step="1" prefix="₹" className="!py-1.5 w-32" placeholder={tr("Amount")}
                     value={(data.plan_fees || {})[String(pl.id)] ?? ''}
                     onChange={(e) => {
                       const nf = { ...(data.plan_fees || {}) }
@@ -57,7 +58,7 @@ export default function FestivalMaster() {
                     }} />
                 </div>
               ))}
-              <div className="text-[0.6875rem] text-gray-400">Bookings automatically use these committee prices — no manual entry at the counter.</div>
+              <div className="text-[0.6875rem] text-gray-400"><T>Bookings automatically use these committee prices — no manual entry at the counter.</T></div>
             </div>
           )
         },

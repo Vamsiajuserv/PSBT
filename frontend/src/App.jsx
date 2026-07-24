@@ -90,11 +90,12 @@ function ScrollToTop() {
 export default function App() {
   return (
     <SiteProvider>
+    <LanguageProvider>
     <DialogHost />
     <ScrollToTop />
     <Routes>
       {/* Public informational website */}
-      <Route element={<LanguageProvider><PublicLayout /></LanguageProvider>}>
+      <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/history" element={<History />} />
@@ -152,6 +153,7 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </LanguageProvider>
     </SiteProvider>
   )
 }

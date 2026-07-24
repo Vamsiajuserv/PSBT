@@ -7,12 +7,14 @@ the public pages contain no hardcoded data.
 import json
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Setting, Pooja, PoojaPlan, DonationCategory, Auction, Annadanam
+from ..models import (Setting, Pooja, PoojaPlan, DonationCategory, Auction, Annadanam,
+                      Festival, ContactMessage)
 from ..site_content import DEFAULT_CONTENT, TEMPLE_EXTRAS
 from ..routers.settings import DEFAULTS as SETTINGS_DEFAULTS
 
@@ -152,6 +154,7 @@ def site(db: Session = Depends(get_db)):
         "timings": content.get("timings"),
         "about": content.get("about"),
         "history": content.get("history"),
+        "baba_story": content.get("baba_story"),
         "gallery": content.get("gallery"),
         "festivals": content.get("festivals"),
         "seva_categories": content.get("seva_categories"),
@@ -162,5 +165,49 @@ def site(db: Session = Depends(get_db)):
         "sevas": sevas,
         "funds": funds,
         "donations_impact": donations_impact,
+        # Live festival dates from the Festival Master — the public Festivals page
+        # matches these to its content cards by name and shows real dates/countdown.
+        "festival_dates": [
+            {"name": f.name, "start": str(f.start_date) if f.start_date else None,
+             "end": str(f.end_date) if f.end_date else None, "status": f.status}
+            for f in db.query(Festival).filter(Festival.status == "Active").order_by(Festival.start_date).all()
+        ],
+        "donations_impact": donations_impact,
         "auctions": auctions,
     }
+
+
+# ── Contact-us inquiries ─────────────────────────────────────────────────────
+class ContactIn(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    mobile: str | None = Field(default=None, max_length=20)
+    email: str | None = Field(default=None, max_length=160)
+    subject: str | None = Field(default="General", max_length=60)
+    message: str = Field(min_length=5, max_length=2000)
+    website: str | None = None   # honeypot — real users never fill this
+
+
+@router.post("/contact", status_code=201)
+def contact(body: ContactIn, db: Session = Depends(get_db)):
+    """Store a devotee inquiry from the website and route it to the temple
+    office mailbox via the notification pipeline (logged even when no email
+    provider is configured, so no message is ever lost silently)."""
+    if body.website:                      # honeypot tripped → pretend success
+        return {"ok": True}
+    if not (body.mobile or body.email):
+        raise HTTPException(422, "Please provide a mobile number or an email so we can reach you.")
+    msg = ContactMessage(name=body.name.strip(), mobile=(body.mobile or "").strip() or None,
+                         email=(body.email or "").strip() or None,
+                         subject=(body.subject or "General").strip(), message=body.message.strip())
+    db.add(msg)
+    db.commit()
+
+    # Route to the office mailbox through the existing notification pipeline.
+    from ..notifications import notify
+    office_email = (db.query(Setting).filter(Setting.skey == "email").first() or None)
+    office_email = office_email.svalue if office_email else SETTINGS_DEFAULTS.get("email")
+    notify(db, "contact_inquiry",
+           {"name": msg.name, "mobile": msg.mobile or "—", "email": msg.email or "—",
+            "subject": msg.subject, "message": msg.message},
+           email=office_email, entity="ContactMessage", entity_id=msg.id, channels=["Email"])
+    return {"ok": True, "id": msg.id}

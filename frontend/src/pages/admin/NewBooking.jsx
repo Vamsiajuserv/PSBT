@@ -9,6 +9,7 @@ import { DevoteesAPI, PoojasAPI, BookingsAPI, PaymentsAPI, PoojarisAPI, Festival
 import { inr, fmtDate } from '../../components/admin/ui.jsx'
 import { TicketRef } from '../../components/admin/BookingTicket.jsx'
 import { Select, DateField, NumberField } from '../../components/common/Field.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const STEPS = [
   { t: 'Booking Details', s: 'Enter booking information' },
@@ -242,13 +243,13 @@ export default function NewBooking() {
 
   return (
     <div>
-      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/bookings" className="hover:text-maroon-600">Pooja Management</Link> › <Link to="/admin/bookings" className="hover:text-maroon-600">Bookings</Link> › <span className="text-gray-500">Advance Pooja Booking</span></div>
+      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/bookings" className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to="/admin/bookings" className="hover:text-maroon-600"><T>Bookings</T></Link> › <span className="text-gray-500"><T>Advance Pooja Booking</T></span></div>
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800">Advance Pooja Booking</h1>
-          <p className="text-[0.78125rem] text-gray-500 mt-0.5">Schedule a pooja for a chosen date, time slot and poojari. For walk-up billing use Counter Billing.</p>
+          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800"><T>Advance Pooja Booking</T></h1>
+          <p className="text-[0.78125rem] text-gray-500 mt-0.5"><T>Schedule a pooja for a chosen date, time slot and poojari. For walk-up billing use Counter Billing.</T></p>
         </div>
-        <button onClick={() => nav('/admin/bookings')} className="btn-outline !py-2.5"><ArrowLeft size={15} /> Back to Bookings</button>
+        <button onClick={() => nav('/admin/bookings')} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Bookings</T></button>
       </div>
 
       <Stepper step={step} />
@@ -262,7 +263,7 @@ export default function NewBooking() {
             <div className="flex items-center gap-2 text-maroon-700 mb-4"><User size={18} /><h3 className="font-serif text-lg font-bold">1. Devotee Search &amp; Selection</h3></div>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1.2fr_auto] gap-5 items-start">
               <div>
-                <label className="label">Search By</label>
+                <label className="label"><T>Search By</T></label>
                 <div className="flex gap-5 mb-3 mt-1">
                   {['Mobile Number', 'Devotee Name'].map((o) => (
                     <label key={o} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="sby" className="accent-maroon-700" checked={searchBy === o} onChange={() => setSearchBy(o)} /> {o}</label>
@@ -270,12 +271,12 @@ export default function NewBooking() {
                 </div>
                 <div className="flex gap-2">
                   <input className="input flex-1" placeholder={`Enter ${searchBy.toLowerCase()}`} value={devQ} onChange={(e) => setDevQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} />
-                  <button type="button" onClick={search} className="btn-maroon !px-4"><Search size={15} /> Search</button>
+                  <button type="button" onClick={search} className="btn-maroon !px-4"><Search size={15} />{' '}<T>Search</T></button>
                 </div>
               </div>
-              <div className="hidden lg:flex flex-col items-center justify-center text-[0.75rem] text-gray-400 self-stretch"><div className="flex-1 w-px bg-gray-100" /><span className="py-1">OR</span><div className="flex-1 w-px bg-gray-100" /></div>
+              <div className="hidden lg:flex flex-col items-center justify-center text-[0.75rem] text-gray-400 self-stretch"><div className="flex-1 w-px bg-gray-100" /><span className="py-1"><T>OR</T></span><div className="flex-1 w-px bg-gray-100" /></div>
               <div>
-                <label className="label">Select Devotee</label>
+                <label className="label"><T>Select Devotee</T></label>
                 {devotee ? (
                   <>
                     <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-3.5 py-3 bg-gray-50/50">
@@ -285,16 +286,16 @@ export default function NewBooking() {
                     </div>
                     {/* Sankalpam details — printed on the ticket for the poojari */}
                     <div className="grid grid-cols-3 gap-2 mt-2">
-                      <div><label className="label !text-[0.6875rem]">Gothram</label>
-                        <input className="input !py-2 text-sm" value={gothram} onChange={(e) => setGothram(e.target.value)} placeholder="Gothram" /></div>
-                      <div><label className="label !text-[0.6875rem]">Nakshatram</label>
-                        <input className="input !py-2 text-sm" value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} placeholder="Nakshatram" /></div>
-                      <div><label className="label !text-[0.6875rem]">In the name of</label>
-                        <input className="input !py-2 text-sm" value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder="Optional — e.g. the child" /></div>
+                      <div><label className="label !text-[0.6875rem]"><T>Gothram</T></label>
+                        <input className="input !py-2 text-sm" value={gothram} onChange={(e) => setGothram(e.target.value)} placeholder={tr("Gothram")} /></div>
+                      <div><label className="label !text-[0.6875rem]"><T>Nakshatram</T></label>
+                        <input className="input !py-2 text-sm" value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} placeholder={tr("Nakshatram")} /></div>
+                      <div><label className="label !text-[0.6875rem]"><T>In the name of</T></label>
+                        <input className="input !py-2 text-sm" value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder={tr("Optional — e.g. the child")} /></div>
                     </div>
                   </>
                 ) : devResults === null ? (
-                  <div className="border border-dashed border-gray-200 rounded-xl px-3.5 py-4 text-[0.8125rem] text-gray-400 text-center">Search and select a devotee.</div>
+                  <div className="border border-dashed border-gray-200 rounded-xl px-3.5 py-4 text-[0.8125rem] text-gray-400 text-center"><T>Search and select a devotee.</T></div>
                 ) : (
                   <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 max-h-40 overflow-y-auto">
                     {devResults.map((d) => (
@@ -312,26 +313,26 @@ export default function NewBooking() {
                   </div>
                 )}
               </div>
-              <div className="self-end"><button type="button" onClick={openQuickAdd} className="btn-outline whitespace-nowrap"><UserPlus size={15} /> Register New Devotee</button></div>
+              <div className="self-end"><button type="button" onClick={openQuickAdd} className="btn-outline whitespace-nowrap"><UserPlus size={15} />{' '}<T>Register New Devotee</T></button></div>
             </div>
 
             {/* Inline quick-add — 2 fields, no navigation, no lost progress */}
             {quickAdd && (
               <div className="mt-4 border border-maroon-200 bg-maroon-50/30 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 text-maroon-700"><UserPlus size={16} /><h4 className="font-semibold text-[0.875rem]">Quick Add Devotee</h4></div>
+                  <div className="flex items-center gap-2 text-maroon-700"><UserPlus size={16} /><h4 className="font-semibold text-[0.875rem]"><T>Quick Add Devotee</T></h4></div>
                   <button type="button" onClick={() => setQuickAdd(null)} className="text-gray-400 hover:text-red-600"><X size={16} /></button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div><label className="label">Full Name *</label><input autoFocus className="input" placeholder="Devotee name" value={quickAdd.name} onChange={(e) => setQuickAdd((q) => ({ ...q, name: e.target.value }))} /></div>
-                  <div><label className="label">Mobile Number *</label><input className="input" placeholder="10-digit mobile" value={quickAdd.mobile} maxLength={10} onChange={(e) => setQuickAdd((q) => ({ ...q, mobile: e.target.value.replace(/\D/g, '') }))} /></div>
-                  <div><label className="label">Email (optional)</label><input className="input" placeholder="email@example.com" value={quickAdd.email} onChange={(e) => setQuickAdd((q) => ({ ...q, email: e.target.value }))} /></div>
+                  <div><label className="label"><T>Full Name *</T></label><input autoFocus className="input" placeholder={tr("Devotee name")} value={quickAdd.name} onChange={(e) => setQuickAdd((q) => ({ ...q, name: e.target.value }))} /></div>
+                  <div><label className="label"><T>Mobile Number *</T></label><input className="input" placeholder={tr("10-digit mobile")} value={quickAdd.mobile} maxLength={10} onChange={(e) => setQuickAdd((q) => ({ ...q, mobile: e.target.value.replace(/\D/g, '') }))} /></div>
+                  <div><label className="label">Email (optional)</label><input className="input" placeholder={tr("email@example.com")} value={quickAdd.email} onChange={(e) => setQuickAdd((q) => ({ ...q, email: e.target.value }))} /></div>
                 </div>
                 {qaErr && <div className="text-[0.75rem] text-red-600 mt-2">{qaErr}</div>}
                 <div className="flex items-center gap-2 mt-3">
                   <button type="button" onClick={saveQuickAdd} disabled={qaBusy} className="btn-maroon !py-2 disabled:opacity-60"><Check size={15} /> {qaBusy ? 'Saving…' : 'Add & Select'}</button>
-                  <button type="button" onClick={() => setQuickAdd(null)} className="btn-outline !py-2">Cancel</button>
-                  <span className="text-[0.71875rem] text-gray-400 ml-1">You can complete the full profile later from Devotee Management.</span>
+                  <button type="button" onClick={() => setQuickAdd(null)} className="btn-outline !py-2"><T>Cancel</T></button>
+                  <span className="text-[0.71875rem] text-gray-400 ml-1"><T>You can complete the full profile later from Devotee Management.</T></span>
                 </div>
               </div>
             )}
@@ -340,21 +341,21 @@ export default function NewBooking() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.6fr] gap-5">
             {/* 2. Pooja Selection */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><Flame size={18} /><h3 className="font-serif text-lg font-bold">2. Pooja Selection</h3></div>
-              <label className="label">Select Pooja *</label>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><Flame size={18} /><h3 className="font-serif text-lg font-bold"><T>2. Pooja Selection</T></h3></div>
+              <label className="label"><T>Select Pooja *</T></label>
               <Select value={poojaId} onChange={(e) => { setPoojaId(e.target.value); setPlan(null) }} className="input"><option value="">Select a pooja…</option>{poojas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select>
-              <div className="mt-4 bg-blue-50/60 border border-blue-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> Only plans configured for the selected pooja are shown below.</div>
+              <div className="mt-4 bg-blue-50/60 border border-blue-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Only plans configured for the selected pooja are shown below.</T></div>
             </div>
 
             {/* 3. Plan Selection */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><CalendarDays size={18} /><h3 className="font-serif text-lg font-bold">3. Plan Selection</h3></div>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><CalendarDays size={18} /><h3 className="font-serif text-lg font-bold"><T>3. Plan Selection</T></h3></div>
               {!pooja ? (
-                <div className="border border-dashed border-gray-200 rounded-xl px-4 py-10 text-center text-gray-400 text-[0.8125rem]">Select a pooja to view available plans.</div>
+                <div className="border border-dashed border-gray-200 rounded-xl px-4 py-10 text-center text-gray-400 text-[0.8125rem]"><T>Select a pooja to view available plans.</T></div>
               ) : (
                 <div className="border border-gray-100 rounded-xl overflow-hidden overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-500"><th className="px-4 py-2.5">Plan Name</th><th className="px-2 py-2.5">Plan Type</th><th className="px-2 py-2.5 text-right">Rate (₹)</th><th className="px-2 py-2.5">Validity</th><th className="px-2 py-2.5">Availability</th><th className="px-2 py-2.5">Select</th></tr></thead>
+                    <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-500"><th className="px-4 py-2.5"><T>Plan Name</T></th><th className="px-2 py-2.5"><T>Plan Type</T></th><th className="px-2 py-2.5 text-right">Rate (₹)</th><th className="px-2 py-2.5"><T>Validity</T></th><th className="px-2 py-2.5"><T>Availability</T></th><th className="px-2 py-2.5"><T>Select</T></th></tr></thead>
                     <tbody className="divide-y divide-gray-100">
                       {pooja.plans.map((pl) => {
                         const on = plan?.id === pl.id
@@ -362,10 +363,10 @@ export default function NewBooking() {
                           <tr key={pl.id} className={on ? 'bg-maroon-50/40' : 'hover:bg-gray-50/60'}>
                             <td className="px-4 py-3 font-semibold text-gray-800"><span className="inline-flex items-center gap-2"><span onClick={() => setPlan(pl)} className={`w-4 h-4 rounded-full border-2 grid place-items-center cursor-pointer ${on ? 'border-maroon-600' : 'border-gray-300'}`}>{on && <span className="w-2 h-2 rounded-full bg-maroon-600" />}</span>{pl.plan_name} {shortPooja(pooja.name)}</span></td>
                             <td className="px-2 py-3 text-gray-600">{pl.plan_name}</td>
-                            <td className="px-2 py-3 text-right font-semibold text-gray-800">{pl.committee_decided ? <span className="text-amber-600 text-[0.75rem]">Committee</span> : money2(pl.fee)}</td>
+                            <td className="px-2 py-3 text-right font-semibold text-gray-800">{pl.committee_decided ? <span className="text-amber-600 text-[0.75rem]"><T>Committee</T></span> : money2(pl.fee)}</td>
                             <td className="px-2 py-3 text-gray-600 text-[0.8125rem]">{validityShort(pl)}</td>
-                            <td className="px-2 py-3"><span className="text-[0.6875rem] font-semibold text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-0.5">Available</span></td>
-                            <td className="px-2 py-3">{on ? <span className="text-[0.75rem] font-semibold text-maroon-700 inline-flex items-center gap-1"><Check size={13} /> Selected</span> : <button type="button" onClick={() => setPlan(pl)} className="text-[0.75rem] font-semibold rounded-lg px-3 py-1 border border-maroon-200 text-maroon-700 hover:bg-maroon-50">Select</button>}</td>
+                            <td className="px-2 py-3"><span className="text-[0.6875rem] font-semibold text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-0.5"><T>Available</T></span></td>
+                            <td className="px-2 py-3">{on ? <span className="text-[0.75rem] font-semibold text-maroon-700 inline-flex items-center gap-1"><Check size={13} />{' '}<T>Selected</T></span> : <button type="button" onClick={() => setPlan(pl)} className="text-[0.75rem] font-semibold rounded-lg px-3 py-1 border border-maroon-200 text-maroon-700 hover:bg-maroon-50"><T>Select</T></button>}</td>
                           </tr>
                         )
                       })}
@@ -378,18 +379,18 @@ export default function NewBooking() {
 
           {/* 4. Booking Date */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 text-maroon-700 mb-4"><Calendar size={18} /><h3 className="font-serif text-lg font-bold">4. Booking Date</h3></div>
+            <div className="flex items-center gap-2 text-maroon-700 mb-4"><Calendar size={18} /><h3 className="font-serif text-lg font-bold"><T>4. Booking Date</T></h3></div>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr] gap-5 items-start">
               {plan ? (
                 <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center shrink-0"><CalendarDays size={18} /></div>
                   <div><div className="font-bold text-gray-800">{plan.plan_name} {shortPooja(pooja?.name)}</div><div className="text-[0.75rem] text-gray-500">{plan.plan_name} · {plan.committee_decided ? 'Committee' : inr(plan.fee)} · Validity: {validityShort(plan)}</div></div>
                 </div>
-              ) : <div className="border border-dashed border-gray-200 rounded-xl px-4 py-4 text-center text-gray-400 text-[0.8125rem]">Select a plan first.</div>}
+              ) : <div className="border border-dashed border-gray-200 rounded-xl px-4 py-4 text-center text-gray-400 text-[0.8125rem]"><T>Select a plan first.</T></div>}
               <div>
-                <label className="label">Booking Date *</label>
+                <label className="label"><T>Booking Date *</T></label>
                 <DateField value={schedDate}
-                  min={festWindow?.start_date} max={festWindow?.end_date}
+                  min={festWindow?.start_date && festWindow.start_date > new Date().toISOString().slice(0, 10) ? festWindow.start_date : new Date().toISOString().slice(0, 10)} max={festWindow?.end_date}
                   onChange={(e) => setSchedDate(e.target.value)} />
                 {festWindow && (
                   <div className="text-[0.75rem] text-amber-700 mt-1.5">
@@ -399,20 +400,20 @@ export default function NewBooking() {
                 {plan && <div className="text-[0.75rem] text-gray-400 mt-1.5">Booking will be valid for {validityShort(plan)} from the selected date.</div>}
               </div>
               <div>
-                <label className="label">Time Slot *</label>
+                <label className="label"><T>Time Slot *</T></label>
                 <Select value={slot} onChange={(e) => setSlot(e.target.value)}>{SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}</Select>
-                <div className="text-[0.75rem] text-gray-400 mt-1.5">Select the pooja timing slot for the booking.</div>
+                <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Select the pooja timing slot for the booking.</T></div>
               </div>
               <div>
                 <label className="label">Assign Poojari (Optional)</label>
                 <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)}><option value="">Not assigned</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}{p.specialization ? ` · ${p.specialization}` : ''}</option>)}</Select>
-                <div className="text-[0.75rem] text-gray-400 mt-1.5">Optionally assign a poojari to perform this booking.</div>
+                <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Optionally assign a poojari to perform this booking.</T></div>
               </div>
             </div>
           </div>
 
           <div className="flex justify-between">
-            <button onClick={() => nav('/admin/bookings')} className="btn-outline">Cancel</button>
+            <button onClick={() => nav('/admin/bookings')} className="btn-outline"><T>Cancel</T></button>
             <button onClick={() => setStep(1)} disabled={!canNext} className="btn-maroon disabled:opacity-40">Next: Review &amp; Payment <ArrowRight size={15} /></button>
           </div>
         </div>
@@ -423,18 +424,18 @@ export default function NewBooking() {
         <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-5">
           <div className="space-y-5">
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><ClipboardList size={18} /><h3 className="font-serif text-lg font-bold">1. Booking Summary</h3></div>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><ClipboardList size={18} /><h3 className="font-serif text-lg font-bold"><T>1. Booking Summary</T></h3></div>
               <div className="divide-y divide-gray-100">
                 {summaryRows(false).map((r) => { const Icon = r.icon; return (
                   <div key={r.k} className="flex items-center gap-3 py-2.5 text-[0.84375rem]"><Icon size={15} className="text-gray-400 shrink-0" /><span className="text-gray-500 w-32 shrink-0">{r.k}</span><span className="text-gray-400">:</span><span className="text-gray-800 font-medium">{r.v}</span></div>
                 ) })}
               </div>
-              <div className="mt-3 bg-blue-50/60 border border-blue-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> Please verify all details before proceeding to payment.</div>
+              <div className="mt-3 bg-blue-50/60 border border-blue-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Please verify all details before proceeding to payment.</T></div>
             </div>
 
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><CreditCard size={18} /><h3 className="font-serif text-lg font-bold">2. Payment Details</h3></div>
-              <label className="label">Select Payment Mode *</label>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><CreditCard size={18} /><h3 className="font-serif text-lg font-bold"><T>2. Payment Details</T></h3></div>
+              <label className="label"><T>Select Payment Mode *</T></label>
               <div className="grid grid-cols-2 gap-3 mt-1 mb-3">
                 {['Cash', 'UPI/QR Code'].map((m) => { const on = method === m; return (
                   <button type="button" key={m} onClick={() => setMethod(m)} className={`flex items-center gap-2.5 border rounded-lg px-4 py-3 ${on ? 'border-maroon-400 bg-maroon-50/40 ring-1 ring-maroon-200' : 'border-gray-200 hover:border-maroon-300'}`}>
@@ -446,7 +447,7 @@ export default function NewBooking() {
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                 <div>
-                  <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-3.5 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2 mb-3"><Info size={14} className="text-amber-600 shrink-0 mt-0.5" /> If payment mode is UPI / QR Code, please enter the UTR / Transaction ID.</div>
+                  <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-3.5 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2 mb-3"><Info size={14} className="text-amber-600 shrink-0 mt-0.5" />{' '}<T>If payment mode is UPI / QR Code, please enter the UTR / Transaction ID.</T></div>
                   <label className="label">Payment Date &amp; Time</label>
                   <div className="flex gap-2">
                     <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={fmtDate(new Date().toISOString())} readOnly /><Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
@@ -455,8 +456,8 @@ export default function NewBooking() {
                 </div>
                 <div>
                   <label className="label">UTR / Transaction ID (For UPI)</label>
-                  <input className="input" placeholder="Enter UTR / Transaction ID" value={utr} onChange={(e) => setUtr(e.target.value)} disabled={method !== 'UPI/QR Code'} />
-                  <div className="text-[0.6875rem] text-gray-400 mt-1">Enter UPI transaction reference number / UTR</div>
+                  <input className="input" placeholder={tr("Enter UTR / Transaction ID")} value={utr} onChange={(e) => setUtr(e.target.value)} disabled={method !== 'UPI/QR Code'} />
+                  <div className="text-[0.6875rem] text-gray-400 mt-1"><T>Enter UPI transaction reference number / UTR</T></div>
                 </div>
               </div>
             </div>
@@ -464,20 +465,20 @@ export default function NewBooking() {
 
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><IndianRupee size={18} /><h3 className="font-serif text-lg font-bold">Booking Amount Summary</h3></div>
-              <div className="flex justify-between py-2 text-[0.84375rem]"><span className="text-gray-500">Rate Type</span><span className="font-medium text-gray-800">{rateType}</span></div>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><IndianRupee size={18} /><h3 className="font-serif text-lg font-bold"><T>Booking Amount Summary</T></h3></div>
+              <div className="flex justify-between py-2 text-[0.84375rem]"><span className="text-gray-500"><T>Rate Type</T></span><span className="font-medium text-gray-800">{rateType}</span></div>
               {plan?.committee_decided ? (
                 festCommitteeFee > 0 ? (
                   <div className="py-2 border-t border-gray-100">
                     <div className="flex justify-between text-[0.84375rem]"><span className="text-gray-500">Committee Price ({festWindow?.name})</span><span className="font-bold text-gray-800">{money2(festCommitteeFee)}</span></div>
-                    <div className="text-[0.6875rem] text-emerald-700 mt-1">Set once by the committee in the Festival Master — no manual entry needed.</div>
+                    <div className="text-[0.6875rem] text-emerald-700 mt-1"><T>Set once by the committee in the Festival Master — no manual entry needed.</T></div>
                   </div>
                 ) : (
                 <div className="py-2 border-t border-gray-100">
                   <label className="label">Committee-Decided Amount (₹) *</label>
-                  <NumberField min="1" step="1" prefix="₹" className="mt-1" placeholder="Enter amount set by the committee"
+                  <NumberField min="1" step="1" prefix="₹" className="mt-1" placeholder={tr("Enter amount set by the committee")}
                          value={committeeAmt} onChange={(e) => setCommitteeAmt(e.target.value.replace(/[^\d.]/g, ''))} />
-                  {!amountReady && <div className="text-[0.6875rem] text-amber-600 mt-1">This pooja has no fixed fee — enter the committee's amount to continue.</div>}
+                  {!amountReady && <div className="text-[0.6875rem] text-amber-600 mt-1"><T>This pooja has no fixed fee — enter the committee's amount to continue.</T></div>}
                 </div>
                 )
               ) : (
@@ -486,11 +487,11 @@ export default function NewBooking() {
               <div className="flex justify-between py-2 text-[0.84375rem] border-t border-gray-100"><span className="text-gray-500">Discount (₹)</span><span className="font-medium text-gray-800">0.00</span></div>
               <div className="flex justify-between items-center py-3 mt-1 border-t border-gray-200"><span className="font-bold text-maroon-800">Total Amount (₹)</span><span className="text-xl font-extrabold text-maroon-800">{money2(fee)}</span></div>
             </div>
-            <div className="bg-amber-50/50 border border-amber-100 rounded-lg px-4 py-3 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-amber-600 shrink-0 mt-0.5" /> All payments are subject to temple rules and availability.</div>
+            <div className="bg-amber-50/50 border border-amber-100 rounded-lg px-4 py-3 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-amber-600 shrink-0 mt-0.5" />{' '}<T>All payments are subject to temple rules and availability.</T></div>
           </div>
 
           <div className="lg:col-span-2 flex justify-between">
-            <button onClick={() => setStep(0)} className="btn-outline"><ArrowLeft size={15} /> Previous</button>
+            <button onClick={() => setStep(0)} className="btn-outline"><ArrowLeft size={15} />{' '}<T>Previous</T></button>
             <button onClick={pay} disabled={busy || !amountReady} className="btn-maroon disabled:opacity-60">{busy ? 'Processing…' : <>Confirm Booking &amp; Pay <ArrowRight size={15} /></>}</button>
           </div>
         </div>
@@ -501,7 +502,7 @@ export default function NewBooking() {
         <div>
           <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl px-6 py-4 flex items-center gap-4 mb-5">
             <div className="w-12 h-12 rounded-full bg-emerald-600 text-white grid place-items-center shrink-0"><Check size={26} /></div>
-            <div><h2 className="font-serif text-xl font-bold text-emerald-700">Booking Successful!</h2><p className="text-[0.8125rem] text-gray-500">Your pooja booking has been confirmed successfully. Thank you for your devotion.</p></div>
+            <div><h2 className="font-serif text-xl font-bold text-emerald-700"><T>Booking Successful!</T></h2><p className="text-[0.8125rem] text-gray-500"><T>Your pooja booking has been confirmed successfully. Thank you for your devotion.</T></p></div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -516,7 +517,7 @@ export default function NewBooking() {
                 {ticket._utr && <Detail k="UTR / Transaction ID" v={<span className="text-emerald-700 font-mono">{ticket._utr}</span>} />}
                 <Detail k="Payment Date & Time" v={ticket._paidAt} />
               </div>
-              <div className="mt-3 bg-blue-50/60 border border-blue-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> Please show this ticket at the temple counter / pooja venue.</div>
+              <div className="mt-3 bg-blue-50/60 border border-blue-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Please show this ticket at the temple counter / pooja venue.</T></div>
             </div>
 
             {/* Ticket card */}
@@ -525,11 +526,11 @@ export default function NewBooking() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <Landmark size={34} className="text-amber-600" />
-                    <div><div className="font-display font-bold text-maroon-800 text-[0.9375rem] tracking-wide">SRI SHIRDI SAI BABA TEMPLE</div><div className="text-[0.625rem] text-gray-500">Endowments Department, Government of Telangana</div></div>
+                    <div><div className="font-display font-bold text-maroon-800 text-[0.9375rem] tracking-wide"><T>SRI SHIRDI SAI BABA TEMPLE</T></div><div className="text-[0.625rem] text-gray-500"><T>Endowments Department, Government of Telangana</T></div></div>
                   </div>
                   <TicketRef code={ticket.booking_code} />
                 </div>
-                <div className="text-center my-4"><span className="inline-block bg-maroon-800 text-cream text-[0.75rem] font-bold tracking-wider rounded px-4 py-1.5">POOJA BOOKING TICKET</span></div>
+                <div className="text-center my-4"><span className="inline-block bg-maroon-800 text-cream text-[0.75rem] font-bold tracking-wider rounded px-4 py-1.5"><T>POOJA BOOKING TICKET</T></span></div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-dashed border-amber-200 pt-4">
                   <TField k="Booking ID" v={ticket.booking_code} mono />
                   <TField k="Ticket Number" v={ticket.ticket_no || ticket.receipt_no} mono />
@@ -547,24 +548,23 @@ export default function NewBooking() {
                   <TField k="Payment Mode" v={modeLabel(ticket._method)} />
                   <TField k="Payment Date & Time" v={ticket._paidAt} />
                 </div>
-                <div className="text-center mt-4 pt-3 border-t border-dashed border-amber-200"><div className="font-display text-maroon-700 tracking-wide text-sm">✦ Om Sai Ram ✦</div><div className="text-[0.6875rem] text-gray-500 mt-0.5">Thank you for your devotion. May Sai Baba bless you.</div></div>
+                <div className="text-center mt-4 pt-3 border-t border-dashed border-amber-200"><div className="font-display text-maroon-700 tracking-wide text-sm"><T>✦ Om Sai Ram ✦</T></div><div className="text-[0.6875rem] text-gray-500 mt-0.5"><T>Thank you for your devotion. May Sai Baba bless you.</T></div></div>
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3 justify-center mt-6 no-print">
-            <button onClick={() => window.print()} className="btn-outline"><Printer size={15} /> Print Ticket / Receipt</button>
-            <button onClick={() => window.print()} className="btn-outline"><Download size={15} /> Download PDF</button>
-            <button onClick={() => { setStep(0); setDevotee(null); setPoojaId(''); setPlan(null); setTicket(null); setDevResults(null); setUtr(''); setCommitteeAmt(''); setSlot(SLOTS[0]); setPoojariId(''); setQuickAdd(null); setDevQ('') }} className="btn-outline"><Plus size={15} /> New Booking</button>
-            <button onClick={() => nav('/admin/bookings')} className="btn-maroon"><ArrowLeft size={15} /> Back to Bookings</button>
+            <button onClick={() => window.print()} className="btn-outline"><Printer size={15} />{' '}<T>Print Ticket / Receipt</T></button>
+            <button onClick={() => window.print()} className="btn-outline"><Download size={15} />{' '}<T>Download PDF</T></button>
+            <button onClick={() => { setStep(0); setDevotee(null); setPoojaId(''); setPlan(null); setTicket(null); setDevResults(null); setUtr(''); setCommitteeAmt(''); setSlot(SLOTS[0]); setPoojariId(''); setQuickAdd(null); setDevQ('') }} className="btn-outline"><Plus size={15} />{' '}<T>New Booking</T></button>
+            <button onClick={() => nav('/admin/bookings')} className="btn-maroon"><ArrowLeft size={15} />{' '}<T>Back to Bookings</T></button>
           </div>
         </div>
       )}
 
       {step === 0 && (
         <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5">
-          <ShieldCheck size={15} className="text-blue-500" /> All bookings are subject to temple rules and availability.
-        </div>
+          <ShieldCheck size={15} className="text-blue-500" />{' '}<T>All bookings are subject to temple rules and availability.</T>{' '}</div>
       )}
     </div>
   )

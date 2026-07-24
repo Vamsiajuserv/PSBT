@@ -7,6 +7,7 @@ import { PageHeader } from '../../components/common/UI.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { PoojasAPI, DevoteesAPI, BookingsAPI, PaymentsAPI, FestivalsAPI } from '../../api/client.js'
 import { promptDialog } from '../../components/common/Dialog.jsx'
+import { T, tr, useLang } from '../../i18n/LanguageContext.jsx'
 
 const CATS = ['All', 'Daily', 'Monthly', 'Long-Term', 'Occasion', 'Festival', 'Vehicle']
 
@@ -15,6 +16,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 const stampNow = () => new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 export default function Counter() {
+  const { lang } = useLang()
   const { role } = useOutletContext()
   const canBill = role !== 'Accountant'   // Accountant has read-only oversight of the counter
 
@@ -229,7 +231,7 @@ export default function Counter() {
   return (
     <div>
       <PageHeader
-        title="Counter Billing"
+        title={tr("Counter Billing")}
         subtitle="Walk-up billing — poojas start today. For a chosen date, slot or poojari use Advance Booking."
         action={<span className="badge bg-saffron-50 text-saffron-700">Counter 1 · {role}</span>}
       />
@@ -237,18 +239,17 @@ export default function Counter() {
       {catalogErr && <div className="mt-4 rounded-lg bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-2.5">{catalogErr}</div>}
       {!canBill && (
         <div className="mt-4 rounded-lg bg-blue-50 border border-blue-100 text-blue-700 text-sm px-4 py-2.5 flex items-center gap-2">
-          <Eye size={15} className="shrink-0" /> View-only access — the Accountant role can review the counter but cannot issue receipts.
-        </div>
+          <Eye size={15} className="shrink-0" />{' '}<T>View-only access — the Accountant role can review the counter but cannot issue receipts.</T>{' '}</div>
       )}
 
       <div className="grid lg:grid-cols-3 gap-4 mt-4">
         {/* ── Seva picker ── */}
         <div className="lg:col-span-2 card p-5">
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-            <h3 className="font-bold text-gray-900">Add Poojas</h3>
+            <h3 className="font-bold text-gray-900"><T>Add Poojas</T></h3>
             <div className="relative w-full sm:w-64">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={sevaQ} onChange={(e) => setSevaQ(e.target.value)} placeholder="Search pooja / plan…" className="input !pl-9 !py-2" />
+              <input value={sevaQ} onChange={(e) => setSevaQ(e.target.value)} placeholder={tr("Search pooja / plan…")} className="input !pl-9 !py-2" />
             </div>
           </div>
           {/* Category chips — jump to a pooja type fast */}
@@ -261,31 +262,31 @@ export default function Counter() {
             ))}
           </div>
           {cat === 'Occasion' && (
-            <p className="text-[0.6875rem] text-amber-700 mb-2">Booking a ceremony for a future date (Namakaranam, Annaprasana…)? Use <b>Advance Booking</b> to pick the date, slot and poojari.</p>
+            <p className="text-[0.6875rem] text-amber-700 mb-2">Booking a ceremony for a future date (Namakaranam, Annaprasana…)? Use <b><T>Advance Booking</T></b>{' '}<T>to pick the date, slot and poojari.</T></p>
           )}
           {cat === 'Festival' && (
-            <p className="text-[0.6875rem] text-amber-700 mb-2">Festival poojas are automatically scheduled for their festival window from the Festival Master.</p>
+            <p className="text-[0.6875rem] text-amber-700 mb-2"><T>Festival poojas are automatically scheduled for their festival window from the Festival Master.</T></p>
           )}
           <div className="grid sm:grid-cols-2 gap-2 max-h-[32.5rem] overflow-y-auto pr-1">
             {filtered.map((s) => (
               <button key={s.key} onClick={() => add(s)} className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2.5 text-left hover:border-saffron-400 hover:bg-saffron-50 transition-colors">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-gray-800 truncate">{s.pooja_name}</div>
-                  <div className="text-[0.6875rem] text-gray-400 truncate">{s.plan_name}{s.name_te ? ` · ${s.name_te}` : ''}</div>
+                  <div className="text-[0.6875rem] text-gray-400 truncate">{s.plan_name}{lang === 'te' && s.name_te ? ` · ${s.name_te}` : ''}</div>
                 </div>
                 <span className="flex items-center gap-1 text-saffron-700 font-bold text-sm shrink-0">
-                  <Plus size={14} />{s.committee ? <span className="text-[0.6875rem] text-amber-600 font-semibold">Committee</span> : `₹${Number(s.fee || 0).toLocaleString('en-IN')}`}
+                  <Plus size={14} />{s.committee ? <span className="text-[0.6875rem] text-amber-600 font-semibold"><T>Committee</T></span> : `₹${Number(s.fee || 0).toLocaleString('en-IN')}`}
                 </span>
               </button>
             ))}
-            {filtered.length === 0 && <p className="text-sm text-gray-400 col-span-full text-center py-8">No matching poojas.</p>}
+            {filtered.length === 0 && <p className="text-sm text-gray-400 col-span-full text-center py-8"><T>No matching poojas.</T></p>}
           </div>
         </div>
 
         {/* ── Bill ── */}
         <div className="card p-5 flex flex-col">
-          <div className="flex items-center gap-2 mb-1"><ReceiptIcon size={18} className="text-saffron-600" /><h3 className="font-bold text-gray-900">Bill / రసీదు</h3></div>
-          <p className="text-[0.6875rem] text-gray-400 mb-3">Records a real receipt against the temple ledger</p>
+          <div className="flex items-center gap-2 mb-1"><ReceiptIcon size={18} className="text-saffron-600" /><h3 className="font-bold text-gray-900"><T>Bill / రసీదు</T></h3></div>
+          <p className="text-[0.6875rem] text-gray-400 mb-3"><T>Records a real receipt against the temple ledger</T></p>
 
           {/* Devotee */}
           <div className="mb-3">
@@ -298,7 +299,7 @@ export default function Counter() {
               <div className="relative">
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input value={devQ} onChange={(e) => setDevQ(e.target.value)} placeholder="Link devotee by name / mobile (optional)…" className="input !pl-9 !py-2 text-sm" />
+                  <input value={devQ} onChange={(e) => setDevQ(e.target.value)} placeholder={tr("Link devotee by name / mobile (optional)…")} className="input !pl-9 !py-2 text-sm" />
                 </div>
                 {devResults && devResults.length > 0 && (
                   <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
@@ -311,19 +312,19 @@ export default function Counter() {
                   </div>
                 )}
                 {devResults && devResults.length === 0 && devQ.trim() && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs text-gray-400">No match — bill as a walk-in below.</div>
+                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs text-gray-400"><T>No match — bill as a walk-in below.</T></div>
                 )}
               </div>
             )}
           </div>
           <div className="grid grid-cols-2 gap-2 mb-3">
-            <input value={name} onChange={(e) => { setName(e.target.value); if (devotee) setDevotee(null) }} placeholder="Payer name *" className="input !py-2 text-sm" />
-            <input value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="Mobile" className="input !py-2 text-sm" />
+            <input value={name} onChange={(e) => { setName(e.target.value); if (devotee) setDevotee(null) }} placeholder={tr("Payer name *")} className="input !py-2 text-sm" />
+            <input value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder={tr("Mobile")} className="input !py-2 text-sm" />
           </div>
 
           {/* Line items */}
           <div className="flex-1 space-y-2 min-h-[5rem]">
-            {cart.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No items added.</p>}
+            {cart.length === 0 && <p className="text-sm text-gray-400 text-center py-6"><T>No items added.</T></p>}
             {cart.map((x) => (
               <div key={x.lineId} className="flex items-center justify-between text-sm border-b border-dashed border-gray-100 pb-2">
                 <div className="min-w-0">
@@ -335,7 +336,7 @@ export default function Counter() {
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="font-bold text-gray-700 text-right">₹{Number(x.amount || 0).toLocaleString('en-IN')}</span>
-                  <button onClick={() => remove(x.lineId)} className="text-gray-300 hover:text-red-500" title="Remove"><Trash2 size={14} /></button>
+                  <button onClick={() => remove(x.lineId)} className="text-gray-300 hover:text-red-500" title={tr("Remove")}><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}
@@ -350,16 +351,16 @@ export default function Counter() {
             ))}
           </div>
           {mode === 'UPI/QR Code' && (
-            <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder="UTR / Transaction ID *" className="input !py-2 text-sm mt-2" />
+            <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("UTR / Transaction ID *")} className="input !py-2 text-sm mt-2" />
           )}
 
           <div className="border-t border-gray-200 mt-3 pt-3">
             <div className="flex items-center justify-between font-extrabold text-lg">
-              <span>Total / మొత్తం</span><span className="text-maroon-700">{inr(total)}</span>
+              <span><T>Total / మొత్తం</T></span><span className="text-maroon-700">{inr(total)}</span>
             </div>
             {error && <p className="text-center text-xs text-red-600 font-semibold mt-2">{error}</p>}
             <button onClick={checkout} disabled={busy || !cart.length || !canBill} className="btn-primary w-full mt-3 disabled:bg-gray-300 justify-center">
-              {busy ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : !canBill ? <><Eye size={16} /> View Only</> : <><ReceiptIcon size={16} /> Complete Billing</>}
+              {busy ? <><Loader2 size={16} className="animate-spin" />{' '}<T>Processing…</T></> : !canBill ? <><Eye size={16} />{' '}<T>View Only</T></> : <><ReceiptIcon size={16} />{' '}<T>Complete Billing</T></>}
             </button>
           </div>
         </div>
@@ -392,12 +393,12 @@ function BillReceiptModal({ bill, onClose }) {
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 print:hidden">
           {bill.failed
             ? <span className="text-sm font-semibold text-amber-700">⚠ Partial — {bill.failed} item(s) not billed, still in cart</span>
-            : <span className="text-sm font-semibold text-emerald-700">✓ Receipt generated</span>}
+            : <span className="text-sm font-semibold text-emerald-700"><T>✓ Receipt generated</T></span>}
           <button onClick={onClose} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
         </div>
         <div className="p-5">
           <Receipt
-            title="Counter Receipt"
+            title={tr("Counter Receipt")}
             titleTe="కౌంటర్ రసీదు"
             no={bill.ref}
             subNo={bill.lines[0]?.booking?.ticket_no}
@@ -408,8 +409,8 @@ function BillReceiptModal({ bill, onClose }) {
           />
         </div>
         <div className="flex gap-2 px-5 py-4 border-t border-gray-100 print:hidden">
-          <button onClick={() => window.print()} className="btn-outline flex-1 justify-center"><Printer size={15} /> Print</button>
-          <button onClick={onClose} className="btn-maroon flex-1 justify-center">New Bill</button>
+          <button onClick={() => window.print()} className="btn-outline flex-1 justify-center"><Printer size={15} />{' '}<T>Print</T></button>
+          <button onClick={onClose} className="btn-maroon flex-1 justify-center"><T>New Bill</T></button>
         </div>
       </div>
     </div>

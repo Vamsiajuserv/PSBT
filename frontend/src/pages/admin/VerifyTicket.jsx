@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { BookingsAPI, ApiError } from '../../api/client.js'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
@@ -60,27 +61,27 @@ export default function VerifyTicket() {
 
   return (
     <div className="max-w-2xl">
-      <PageHeader title="Verify Ticket" subtitle="Scan or enter a devotee's ticket number to verify before performing the pooja" />
+      <PageHeader title={tr("Verify Ticket")} subtitle="Scan or enter a devotee's ticket number to verify before performing the pooja" />
 
       {/* Entry */}
       <form onSubmit={verify} className="card p-5">
-        <label className="label">Ticket / Receipt Number</label>
+        <label className="label"><T>Ticket / Receipt Number</T></label>
         <div className="flex gap-2 mt-1">
           <div className="relative flex-1">
             <ScanLine size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input ref={inputRef} autoFocus value={ticket}
               onChange={(e) => setTicket(e.target.value)}
-              placeholder="e.g. RCPT2607210001"
+              placeholder={tr("e.g. RCPT2607210001")}
               className="input !pl-10 font-mono" />
           </div>
           <button type="submit" disabled={busy} className="btn-maroon disabled:opacity-60">
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Verify
           </button>
           {(result || error) && (
-            <button type="button" onClick={reset} className="btn-outline" title="Clear"><RotateCcw size={16} /></button>
+            <button type="button" onClick={reset} className="btn-outline" title={tr("Clear")}><RotateCcw size={16} /></button>
           )}
         </div>
-        <p className="text-[0.75rem] text-gray-400 mt-2">Tip: a barcode/QR scanner types the number and submits automatically.</p>
+        <p className="text-[0.75rem] text-gray-400 mt-2"><T>Tip: a barcode/QR scanner types the number and submits automatically.</T></p>
       </form>
 
       {error && (

@@ -8,6 +8,7 @@ import { PageTitle, StatTile, Pill, Pager, num, fmtStamp } from '../../component
 import { NotificationsAPI } from '../../api/client.js'
 import { Select } from '../../components/common/Field.jsx'
 import { promptDialog } from '../../components/common/Dialog.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const CH_ICON = { SMS: Smartphone, Email: Mail, WhatsApp: MessageSquare }
 const STATUS_TONE = { SENT: 'green', FAILED: 'red', SKIPPED: 'amber', DISABLED: 'gray', QUEUED: 'blue' }
@@ -64,22 +65,22 @@ export default function Notifications() {
 
   return (
     <div>
-      <div className="mb-1 text-[0.75rem] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600">Settings</Link> › <span className="text-gray-500">Notifications</span></div>
-      <PageTitle title="Notifications" subtitle="Configure SMS, Email and WhatsApp channels and review delivery history." />
+      <div className="mb-1 text-[0.75rem] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600"><T>Settings</T></Link> › <span className="text-gray-500"><T>Notifications</T></span></div>
+      <PageTitle title={tr("Notifications")} subtitle="Configure SMS, Email and WhatsApp channels and review delivery history." />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={CheckCircle2} color="#059669" bg="bg-emerald-50" title="Delivered" value={stats ? num(stats.SENT) : '—'} sub="Sent successfully" />
-        <StatTile icon={XCircle} color="#dc2626" bg="bg-red-50" title="Failed" value={stats ? num(stats.FAILED) : '—'} sub="Provider errors" />
-        <StatTile icon={MinusCircle} color="#d97706" bg="bg-amber-50" title="Skipped" value={stats ? num(stats.SKIPPED) : '—'} sub="No provider / recipient" />
-        <StatTile icon={Ban} color="#6b7280" bg="bg-gray-100" title="Disabled" value={stats ? num(stats.DISABLED) : '—'} sub="Channel switched off" />
+        <StatTile icon={CheckCircle2} color="#059669" bg="bg-emerald-50" title={tr("Delivered")} value={stats ? num(stats.SENT) : '—'} sub="Sent successfully" />
+        <StatTile icon={XCircle} color="#dc2626" bg="bg-red-50" title={tr("Failed")} value={stats ? num(stats.FAILED) : '—'} sub="Provider errors" />
+        <StatTile icon={MinusCircle} color="#d97706" bg="bg-amber-50" title={tr("Skipped")} value={stats ? num(stats.SKIPPED) : '—'} sub="No provider / recipient" />
+        <StatTile icon={Ban} color="#6b7280" bg="bg-gray-100" title={tr("Disabled")} value={stats ? num(stats.DISABLED) : '—'} sub="Channel switched off" />
       </div>
 
       {!anyConfigured && (
         <div className="mb-5 flex items-start gap-2.5 bg-amber-50/70 border border-amber-100 rounded-xl px-5 py-3.5 text-[0.8125rem] text-gray-600">
           <Info size={17} className="text-amber-500 shrink-0 mt-0.5" />
-          <span>No delivery provider is configured yet, so notifications are <b>recorded but not sent</b> (status “Skipped”). Set the provider credentials
-            (<code className="text-[0.75rem]">SMTP_*</code>, <code className="text-[0.75rem]">SMS_API_*</code>, <code className="text-[0.75rem]">WHATSAPP_API_*</code>) in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.</span>
+          <span><T>No delivery provider is configured yet, so notifications are</T>{' '}<b><T>recorded but not sent</T></b> (status “Skipped”). Set the provider credentials
+            (<code className="text-[0.75rem]"><T>SMTP_*</T></code>, <code className="text-[0.75rem]"><T>SMS_API_*</T></code>, <code className="text-[0.75rem]"><T>WHATSAPP_API_*</T></code>) in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.</span>
         </div>
       )}
 
@@ -105,14 +106,13 @@ export default function Notifications() {
               </div>
               <div className="mt-4 flex items-center justify-between">
                 {c.configured
-                  ? <Pill tone="green">Provider configured</Pill>
-                  : <Pill tone="amber">Not configured</Pill>}
+                  ? <Pill tone="green"><T>Provider configured</T></Pill>
+                  : <Pill tone="amber"><T>Not configured</T></Pill>}
                 <button onClick={() => sendTest(c.channel)} disabled={busy === c.channel}
                   className="inline-flex items-center gap-1.5 text-[0.78125rem] font-semibold text-maroon-700 border border-maroon-200 rounded-lg px-3 py-1.5 hover:bg-maroon-50 disabled:opacity-50">
-                  <Send size={13} /> Send Test
-                </button>
+                  <Send size={13} />{' '}<T>Send Test</T>{' '}</button>
               </div>
-              {c.enabled ? null : <div className="mt-3 text-[0.71875rem] text-gray-400">Channel disabled — events will be logged as “Disabled”.</div>}
+              {c.enabled ? null : <div className="mt-3 text-[0.71875rem] text-gray-400"><T>Channel disabled — events will be logged as “Disabled”.</T></div>}
             </div>
           )
         })}
@@ -127,7 +127,7 @@ export default function Notifications() {
       {/* Delivery log */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100">
-          <h3 className="font-serif text-lg font-bold text-maroon-800">Delivery Log</h3>
+          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Delivery Log</T></h3>
           <div className="flex gap-2">
             <Select value={channel} onChange={(e) => setChannel(e.target.value)} className="input !w-auto !py-2 text-[0.8125rem]">
               <option value="">All Channels</option>{['SMS', 'Email', 'WhatsApp'].map((c) => <option key={c}>{c}</option>)}
@@ -157,7 +157,7 @@ export default function Notifications() {
                   </tr>
                 )
               })}
-              {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-400">No notifications yet.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-400"><T>No notifications yet.</T></td></tr>}
             </tbody>
           </table>
         </div>

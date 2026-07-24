@@ -10,6 +10,7 @@ import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, TimeField, NumberField } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const STATUS_TONE = { Scheduled: 'blue', 'In Progress': 'amber', Completed: 'green' }
 const to12h = (t) => {
@@ -140,25 +141,25 @@ export default function Auction() {
   const exportTotal = { code: 'Total', current_amount: rows.reduce((s, a) => s + Number(a.current_amount || 0), 0) }
   return (
     <div>
-      <PageTitle title="Auction Management" subtitle="Record temple auctions and their winning devotees."
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title="Auction Register" columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(emptyForm()); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} /> Create New Auction</button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700">View only</span>}</span>} />
+      <PageTitle title={tr("Auction Management")} subtitle="Record temple auctions and their winning devotees."
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Auction Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(emptyForm()); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Create New Auction</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={Gavel} color="#d97706" bg="bg-amber-50" title="Total Auctions" value={stats ? num(stats.total) : '—'} sub="All Time" />
-        <StatTile icon={CalendarClock} color="#ea580c" bg="bg-orange-50" title="Scheduled Auctions" value={stats ? num(stats.scheduled) : '—'} sub="Yet to Start" />
-        <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title="Auctions in Progress" value={stats ? num(stats.in_progress) : '—'} sub="Active Now" />
-        <StatTile icon={CheckCircle2} color="#059669" bg="bg-emerald-50" title="Completed Auctions" value={stats ? num(stats.completed) : '—'} sub="Completed Successfully" />
+        <StatTile icon={Gavel} color="#d97706" bg="bg-amber-50" title={tr("Total Auctions")} value={stats ? num(stats.total) : '—'} sub="All Time" />
+        <StatTile icon={CalendarClock} color="#ea580c" bg="bg-orange-50" title={tr("Scheduled Auctions")} value={stats ? num(stats.scheduled) : '—'} sub="Yet to Start" />
+        <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("Auctions in Progress")} value={stats ? num(stats.in_progress) : '—'} sub="Active Now" />
+        <StatTile icon={CheckCircle2} color="#059669" bg="bg-emerald-50" title={tr("Completed Auctions")} value={stats ? num(stats.completed) : '—'} sub="Completed Successfully" />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Search by Auction ID / Item Name</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Auction ID / Item Name</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search auction ID or item name…" className="input !pl-9" /></div>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search auction ID or item name…")} className="input !pl-9" /></div>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Date Range</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
             <div className="flex items-center gap-1.5">
               <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
               <span className="text-gray-400">–</span>
@@ -166,12 +167,12 @@ export default function Auction() {
             </div>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Status</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All</option><option>Scheduled</option><option>In Progress</option><option>Completed</option></Select>
           </div>
           <div className="md:col-span-3 flex gap-2 justify-end">
-            <button onClick={() => { setQ(''); setStatus(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button>
-            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} /> Search</button>
+            <button onClick={() => { setQ(''); setStatus(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
+            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
           </div>
         </div>
 
@@ -192,15 +193,15 @@ export default function Auction() {
                   <td className="px-4 py-3"><Pill tone={STATUS_TONE[a.status] || 'gray'}>{a.status}</Pill></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 relative">
-                      <button onClick={() => setView(a)} title="View details" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      <button onClick={() => setView(a)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                       {canWrite && a.status !== 'Completed' && a.status !== 'Void' && (
-                        <button onClick={() => recordResult(a)} title="Record bid / winner / close" className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-violet-200 text-violet-700 text-[0.78125rem] font-semibold hover:bg-violet-50">Record Result</button>
+                        <button onClick={() => recordResult(a)} title={tr("Record bid / winner / close")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-violet-200 text-violet-700 text-[0.78125rem] font-semibold hover:bg-violet-50"><T>Record Result</T></button>
                       )}
                       <button onClick={() => setMenu(menu === a.id ? null : a.id)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><MoreVertical size={15} /></button>
                       {menu === a.id && (
                         <div className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-lg shadow-lg py-1 w-36 text-sm">
-                          <button onClick={() => { setView(a); setMenu(null) }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-600"><Eye size={14} /> View</button>
-                          {isAdmin && <button onClick={() => remove(a)} className="w-full text-left px-3 py-2 hover:bg-red-50 flex items-center gap-2 text-red-600"><Trash2 size={14} /> Delete</button>}
+                          <button onClick={() => { setView(a); setMenu(null) }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-600"><Eye size={14} />{' '}<T>View</T></button>
+                          {isAdmin && <button onClick={() => remove(a)} className="w-full text-left px-3 py-2 hover:bg-red-50 flex items-center gap-2 text-red-600"><Trash2 size={14} />{' '}<T>Delete</T></button>}
                         </div>
                       )}
                     </div>
@@ -226,20 +227,20 @@ export default function Auction() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <div><h3 className="font-serif text-xl font-bold text-maroon-800">Create New Auction</h3>
-                <p className="text-[0.8125rem] text-gray-500 mt-0.5">Create a new auction for items, materials or rights.</p></div>
+              <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Create New Auction</T></h3>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Create a new auction for items, materials or rights.</T></p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-5 flex-1">
-              <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.875rem]">1. Auction Details</div>
-              <div><label className="label">Auction Item *</label>
+              <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.875rem]"><T>1. Auction Details</T></div>
+              <div><label className="label"><T>Auction Item *</T></label>
                 <Select required={drawer.itemChoice !== '__other__'} className="input" value={drawer.itemChoice} onChange={(e) => onItemSelect(e.target.value)}>
                   <option value="">Select an item…</option>
                   {items.map((it) => <option key={it.id} value={it.id}>{it.name}{it.category ? ` · ${it.category}` : ''}</option>)}
                   <option value="__other__">Other (enter manually)</option>
                 </Select>
                 {drawer.itemChoice === '__other__' && (
-                  <input required className="input mt-2" placeholder="Enter auction item name" value={drawer.item} onChange={(e) => setM({ item: e.target.value })} />
+                  <input required className="input mt-2" placeholder={tr("Enter auction item name")} value={drawer.item} onChange={(e) => setM({ item: e.target.value })} />
                 )}
               </div>
               <div><label className="label">Base Amount (₹) *</label>
@@ -249,7 +250,7 @@ export default function Auction() {
                 {!drawer.devotee ? (
                   <div className="relative">
                     <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input className="input pr-9" placeholder="Search name or mobile number…" value={dq} onChange={(e) => setDq(e.target.value)} />
+                    <input className="input pr-9" placeholder={tr("Search name or mobile number…")} value={dq} onChange={(e) => setDq(e.target.value)} />
                     {results.length > 0 && (
                       <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1">
                         {results.map((d) => (
@@ -265,34 +266,34 @@ export default function Auction() {
                   <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-3.5 py-3 bg-gray-50/50">
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{drawer.devotee.name}</span><Pill tone="green">Registered</Pill></div>
+                      <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{drawer.devotee.name}</span><Pill tone="green"><T>Registered</T></Pill></div>
                       <div className="text-[0.75rem] text-gray-500">Mobile: {drawer.devotee.mobile}</div>
                     </div>
                     <button type="button" onClick={() => { setM({ devotee: null }); setDq('') }} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
                   </div>
                 )}
               </div>
-              <div><label className="label">Winner / Highest Bidder (Optional)</label><input className="input" placeholder="Enter winner name" value={drawer.winner} onChange={(e) => setM({ winner: e.target.value })} /></div>
+              <div><label className="label">Winner / Highest Bidder (Optional)</label><input className="input" placeholder={tr("Enter winner name")} value={drawer.winner} onChange={(e) => setM({ winner: e.target.value })} /></div>
               <div><label className="label">Description (Optional)</label>
-                <textarea className="input min-h-[5.625rem]" maxLength={250} placeholder="Enter description…" value={drawer.description} onChange={(e) => setM({ description: e.target.value })} />
+                <textarea className="input min-h-[5.625rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.description} onChange={(e) => setM({ description: e.target.value })} />
                 <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{drawer.description.length} / 250</div></div>
-              <div><label className="label">Auction Date *</label>
+              <div><label className="label"><T>Auction Date *</T></label>
                 <DateField required value={drawer.auction_date} onChange={(e) => setM({ auction_date: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">Start Time *</label>
+                <div><label className="label"><T>Start Time *</T></label>
                   <TimeField required value={drawer.start_time} onChange={(e) => setM({ start_time: e.target.value })} /></div>
                 <div><label className="label">Notes (Optional)</label>
-                  <textarea className="input min-h-[2.75rem]" maxLength={250} placeholder="Enter notes…" value={drawer.notes} onChange={(e) => setM({ notes: e.target.value })} />
+                  <textarea className="input min-h-[2.75rem]" maxLength={250} placeholder={tr("Enter notes…")} value={drawer.notes} onChange={(e) => setM({ notes: e.target.value })} />
                   <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{drawer.notes.length} / 250</div></div>
               </div>
               <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-4 py-3.5">
-                <div className="flex items-center gap-2 text-[0.8125rem] font-semibold text-amber-700 mb-2"><Info size={15} /> Note</div>
-                <p className="text-[0.78125rem] text-gray-600">This records the auction and its winning devotee. Live bid-by-bid tracking and on-system payment receipts are not yet available — settle the winning payment at the counter and record it there.</p>
+                <div className="flex items-center gap-2 text-[0.8125rem] font-semibold text-amber-700 mb-2"><Info size={15} />{' '}<T>Note</T></div>
+                <p className="text-[0.78125rem] text-gray-600"><T>This records the auction and its winning devotee. Live bid-by-bid tracking and on-system payment receipts are not yet available — settle the winning payment at the counter and record it there.</T></p>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center">Cancel</button>
-              <button className="btn-maroon flex-1 justify-center">Create Auction</button>
+              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <button className="btn-maroon flex-1 justify-center"><T>Create Auction</T></button>
             </div>
           </form>
         </div>
@@ -304,7 +305,7 @@ export default function Auction() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setView(null)} />
           <div className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <div><h3 className="font-serif text-xl font-bold text-maroon-800">Auction Details</h3>
+              <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Auction Details</T></h3>
                 <p className="text-[0.8125rem] text-gray-500 mt-0.5 font-mono">{view.code}</p></div>
               <button onClick={() => setView(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
@@ -322,7 +323,7 @@ export default function Auction() {
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
-              <button onClick={() => setView(null)} className="btn-maroon w-full justify-center">Close</button>
+              <button onClick={() => setView(null)} className="btn-maroon w-full justify-center"><T>Close</T></button>
             </div>
           </div>
         </div>

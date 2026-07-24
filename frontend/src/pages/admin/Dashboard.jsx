@@ -9,6 +9,7 @@ import { useAuth, useHasModule } from '../../auth/AuthContext.jsx'
 import { DashboardAPI } from '../../api/client.js'
 import { DateField } from '../../components/common/Field.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -52,7 +53,7 @@ function BarChart({ days }) {
     return (
       <div className="mt-4 h-44 flex flex-col items-center justify-center text-gray-400">
         <BarChart3 size={28} className="mb-2 opacity-50" />
-        <span className="text-sm">No booking data for this period.</span>
+        <span className="text-sm"><T>No booking data for this period.</T></span>
       </div>
     )
   }
@@ -60,9 +61,9 @@ function BarChart({ days }) {
     <div className="mt-4">
       <div className="flex items-end justify-between gap-2 h-44">
         {days.map((d) => (
-          <div key={d.label} className="flex-1 h-full flex flex-col justify-end items-center">
-            <div className="text-[0.6875rem] font-bold text-gray-600 mb-1">{d.count}</div>
-            <div className="w-full max-w-[2.125rem] rounded-t bg-maroon-700" style={{ height: `${Math.max((d.count / max) * 100, d.count ? 3 : 0)}%` }} />
+          <div key={d.label} className="group flex-1 h-full flex flex-col justify-end items-center" title={`${d.label}: ${d.count}`}>
+            <div className="text-[0.6875rem] font-bold text-maroon-700 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">{d.count}</div>
+            <div className="w-full max-w-[2.125rem] rounded-t bg-maroon-700 group-hover:bg-maroon-800 transition-colors" style={{ height: `${Math.max((d.count / max) * 100, d.count ? 3 : 0)}%` }} />
           </div>
         ))}
       </div>
@@ -119,7 +120,7 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="font-serif text-[1.75rem] font-bold text-maroon-800">Dashboard</h1>
+          <h1 className="font-serif text-[1.75rem] font-bold text-maroon-800"><T>Dashboard</T></h1>
           <p className="text-sm text-gray-500 mt-1">Welcome back, {name} ({role})</p>
         </div>
         <div className="flex flex-col items-stretch lg:items-end gap-2">
@@ -136,10 +137,10 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <DateField value={start} max={end || todayISO} onChange={(e) => setStart(e.target.value)}
-              title="From date" className="!w-40 !py-2 text-[0.8125rem]" />
-            <span className="text-gray-400 text-sm">to</span>
+              title={tr("From date")} className="!w-40 !py-2 text-[0.8125rem]" />
+            <span className="text-gray-400 text-sm"><T>to</T></span>
             <DateField value={end} min={start} max={todayISO} onChange={(e) => setEnd(e.target.value)}
-              title="To date" className="!w-40 !py-2 text-[0.8125rem]" />
+              title={tr("To date")} className="!w-40 !py-2 text-[0.8125rem]" />
             <button onClick={refresh} disabled={refreshing} className="btn-maroon !py-2">
               <RotateCcw size={15} className={refreshing ? 'animate-spin' : ''} /> {refreshing ? 'Refreshing…' : 'Refresh'}</button>
           </div>
@@ -149,17 +150,17 @@ export default function Dashboard() {
       {/* KPI tiles — each gated to the module its screen needs, so a counter
           user sees only the collections they actually handle. */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-        {hasModule('Bookings') && <Kpi to="/admin/bookings" icon={CalendarDays} iconBg="bg-blue-50" iconColor="#2563eb" title="Pooja Bookings" sub={rangeSub}
+        {hasModule('Bookings') && <Kpi to="/admin/bookings" icon={CalendarDays} iconBg="bg-blue-50" iconColor="#2563eb" title={tr("Pooja Bookings")} sub={rangeSub}
           value={t ? num(t.pooja_bookings.count) : '—'} footLabel="Total Amount" footValue={inr(t?.pooja_bookings.amount)} />}
-        {hasModule('Donations') && <Kpi to="/admin/donations" icon={HandHeart} iconBg="bg-emerald-50" iconColor="#059669" title="Donations Received" sub={rangeSub}
+        {hasModule('Donations') && <Kpi to="/admin/donations" icon={HandHeart} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Donations Received")} sub={rangeSub}
           value={t ? inr(t.donations.amount) : '—'} footLabel="Total Receipts" footValue={t ? num(t.donations.receipts) : '—'} />}
-        {hasModule('Hundi') && <Kpi to="/admin/hundi" icon={HandCoins} iconBg="bg-amber-50" iconColor="#d97706" title="Hundi Collection" sub={rangeSub}
+        {hasModule('Hundi') && <Kpi to="/admin/hundi" icon={HandCoins} iconBg="bg-amber-50" iconColor="#d97706" title={tr("Hundi Collection")} sub={rangeSub}
           value={t ? inr(t.hundi.amount) : '—'} footLabel="Period" footValue={rangeLabel || '—'} />}
-        {hasModule('Auction') && <Kpi to="/admin/auction" icon={Gavel} iconBg="bg-violet-50" iconColor="#7c3aed" title="Auction Sales" sub={rangeSub}
+        {hasModule('Auction') && <Kpi to="/admin/auction" icon={Gavel} iconBg="bg-violet-50" iconColor="#7c3aed" title={tr("Auction Sales")} sub={rangeSub}
           value={t ? inr(t.auction.amount) : '—'} footLabel="Period" footValue={rangeLabel || '—'} />}
-        {hasModule('Annadanam') && <Kpi to="/admin/annadanam" icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title="Annadanam Sponsors" sub={rangeSub}
+        {hasModule('Annadanam') && <Kpi to="/admin/annadanam" icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Annadanam Sponsors")} sub={rangeSub}
           value={t ? num(t.annadanam.count) : '—'} footLabel="Beneficiaries" footValue={t ? num(t.annadanam.beneficiaries) : '—'} />}
-        {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title="Waste Material Sales" sub={rangeSub}
+        {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Waste Material Sales")} sub={rangeSub}
           value={t ? inr(t.waste.amount) : '—'} footLabel="Total Weight" footValue={t ? `${num(t.waste.weight)} Kg` : '—'} />}
       </div>
 
@@ -184,26 +185,26 @@ export default function Dashboard() {
               return to ? <Link key={o.label} to={to} className="block">{row}</Link> : <div key={o.label}>{row}</div>
             })}
           </div>
-          {hasModule('Reports') && <Link to="/admin/reports" className="mt-4 flex items-center justify-center gap-2 border border-maroon-200 text-maroon-700 rounded-lg py-2.5 text-[0.8125rem] font-semibold hover:bg-maroon-50"><TrendingUp size={15} /> View All Reports</Link>}
+          {hasModule('Reports') && <Link to="/admin/reports" className="mt-4 flex items-center justify-center gap-2 border border-maroon-200 text-maroon-700 rounded-lg py-2.5 text-[0.8125rem] font-semibold hover:bg-maroon-50"><TrendingUp size={15} />{' '}<T>View All Reports</T></Link>}
         </div>
 
         {/* Week chart */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-serif text-lg font-bold text-maroon-800">Pooja Bookings <span className="text-xs font-sans font-normal text-gray-400">– {ap === 'today' ? 'This Week' : rangeLabel}</span></h3>
-          <div className="text-[0.6875rem] text-gray-400 mt-0.5">No. of Bookings</div>
+          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Pooja Bookings</T>{' '}<span className="text-xs font-sans font-normal text-gray-400">– {ap === 'today' ? 'This Week' : rangeLabel}</span></h3>
+          <div className="text-[0.6875rem] text-gray-400 mt-0.5"><T>No. of Bookings</T></div>
           {d && <BarChart days={d.week_chart.days} />}
           <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-100 text-center">
-            <div><div className="text-[0.6875rem] text-gray-400">This Period</div><div className="text-lg font-extrabold text-gray-800 tabular-nums">{d ? num(d.week_chart.this_week) : '—'}</div></div>
-            <div><div className="text-[0.6875rem] text-gray-400">Prev Period</div><div className="text-lg font-extrabold text-gray-800 tabular-nums">{d ? num(d.week_chart.last_week) : '—'}</div></div>
-            <div><div className="text-[0.6875rem] text-gray-400">Change</div><div className={`text-lg font-extrabold flex items-center justify-center gap-1 tabular-nums ${d?.week_chart.change_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}><TrendingUp size={14} /> {d ? `${d.week_chart.change_pct}%` : '—'}</div></div>
+            <div><div className="text-[0.6875rem] text-gray-400"><T>This Period</T></div><div className="text-lg font-extrabold text-gray-800 tabular-nums">{d ? num(d.week_chart.this_week) : '—'}</div></div>
+            <div><div className="text-[0.6875rem] text-gray-400"><T>Prev Period</T></div><div className="text-lg font-extrabold text-gray-800 tabular-nums">{d ? num(d.week_chart.last_week) : '—'}</div></div>
+            <div><div className="text-[0.6875rem] text-gray-400"><T>Change</T></div><div className={`text-lg font-extrabold flex items-center justify-center gap-1 tabular-nums ${d?.week_chart.change_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}><TrendingUp size={14} /> {d ? `${d.week_chart.change_pct}%` : '—'}</div></div>
           </div>
         </div>
 
         {/* Recent Bookings */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
-            <h3 className="font-serif text-lg font-bold text-maroon-800">Recent Pooja Bookings</h3>
-            <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600">View All</Link>
+            <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Recent Pooja Bookings</T></h3>
+            <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600"><T>View All</T></Link>
           </div>
           <div className="mt-4 space-y-3">
             {(d?.recent_bookings || []).map((b, i) => (
@@ -219,7 +220,7 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
-            {d?.recent_bookings?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center">No recent bookings.</div>}
+            {d?.recent_bookings?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center"><T>No recent bookings.</T></div>}
           </div>
         </div>
       </div>
@@ -229,8 +230,8 @@ export default function Dashboard() {
         {/* Upcoming Special Poojas */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
-            <h3 className="font-serif text-lg font-bold text-maroon-800">Upcoming Special Pooja Bookings</h3>
-            <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600">View All</Link>
+            <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Upcoming Special Pooja Bookings</T></h3>
+            <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600"><T>View All</T></Link>
           </div>
           <div className="mt-4 space-y-3">
             {(d?.upcoming_special || []).map((u, i) => (
@@ -244,18 +245,18 @@ export default function Dashboard() {
                   <div className="text-[0.6875rem] text-gray-400">{u.plan ? `Plan: ${u.plan} Pooja` : 'One-off pooja'}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[0.625rem] text-gray-400">Bookings</div>
+                  <div className="text-[0.625rem] text-gray-400"><T>Bookings</T></div>
                   <div className="text-base font-extrabold text-maroon-700">{u.count}</div>
                 </div>
               </div>
             ))}
-            {d?.upcoming_special?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center">No upcoming special poojas.</div>}
+            {d?.upcoming_special?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center"><T>No upcoming special poojas.</T></div>}
           </div>
         </div>
 
         {/* Donations by Category */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-serif text-lg font-bold text-maroon-800">Donations by Category <span className="text-xs font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
+          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Donations by Category</T>{' '}<span className="text-xs font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
           <div className="flex items-center gap-4 mt-4">
             {donutSegs.length > 0
               ? <Donut segments={donutSegs} total="" centerLabel="" size={140} />
@@ -267,7 +268,7 @@ export default function Dashboard() {
                   <span className="text-gray-500">{inr(s.value)} <span className="text-gray-400">({s.pct}%)</span></span>
                 </div>
               ))}
-              {donutSegs.length === 0 && <div className="text-xs text-gray-400">No donations this week.</div>}
+              {donutSegs.length === 0 && <div className="text-xs text-gray-400"><T>No donations this week.</T></div>}
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
@@ -278,7 +279,7 @@ export default function Dashboard() {
 
         {/* Important Alerts */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-serif text-lg font-bold text-maroon-800">Important Alerts</h3>
+          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Important Alerts</T></h3>
           <div className="mt-4 space-y-3">
             {(d?.alerts || []).map((a, i) => {
               const map = { hundi: { icon: Calendar, c: '#d97706', bg: 'bg-amber-50' }, auction: { icon: Gavel, c: '#7c3aed', bg: 'bg-violet-50' }, donation: { icon: HeartHandshake, c: '#e11d48', bg: 'bg-rose-50' }, waste: { icon: Recycle, c: '#059669', bg: 'bg-emerald-50' } }
@@ -293,12 +294,12 @@ export default function Dashboard() {
                 </Link>
               )
             })}
-            {d?.alerts?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center">No alerts.</div>}
+            {d?.alerts?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center"><T>No alerts.</T></div>}
           </div>
         </div>
       </div>
 
-      <div className="mt-5 text-[0.75rem] text-gray-400 text-center">Note: All amounts shown are for the selected date range. Change the date range to view data for a different period.</div>
+      <div className="mt-5 text-[0.75rem] text-gray-400 text-center"><T>Note: All amounts shown are for the selected date range. Change the date range to view data for a different period.</T></div>
     </div>
   )
 }

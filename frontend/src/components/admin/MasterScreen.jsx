@@ -5,6 +5,7 @@ import { TableStates, LOAD_ERROR } from '../common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField } from '../common/Field.jsx'
 import { confirmDialog, toast } from '../common/Dialog.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 // Generic list + drawer master screen.
 // config: { title, subtitle, api, statCards, columns, fields, searchPlaceholder, addLabel, entity }
@@ -78,17 +79,17 @@ export default function MasterScreen({ config }) {
         <div className="px-5 py-5 flex flex-col lg:flex-row lg:items-end gap-4">
           <div className="flex-1 max-w-sm relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={searchPlaceholder} className="input !pl-9" /></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Status</label>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">All</option><option>Active</option><option>Inactive</option></Select></div>
-          <div className="lg:ml-auto flex gap-2"><button onClick={() => { setQ(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button></div>
+          <div className="lg:ml-auto flex gap-2"><button onClick={() => { setQ(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button></div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
               {columns.map((c) => <th key={c.key} className="px-4 py-3 font-semibold whitespace-nowrap">{c.label}</th>)}
-              <th className="px-4 py-3 font-semibold">Status</th>
-              <th className="px-4 py-3 font-semibold">Actions</th>
+              <th className="px-4 py-3 font-semibold"><T>Status</T></th>
+              <th className="px-4 py-3 font-semibold"><T>Actions</T></th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {items.map((row) => (
@@ -101,8 +102,8 @@ export default function MasterScreen({ config }) {
                   <td className="px-4 py-3.5"><Pill tone={statusOf(row) === 'Active' ? 'green' : 'gray'}>{statusOf(row)}</Pill></td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
-                      {canWrite && <button onClick={() => { setErr(''); setDrawer({ mode: 'edit', data: { ...empty, ...row } }) }} title="Edit" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Pencil size={15} /></button>}
-                      {isAdmin && <button onClick={() => remove(row)} title="Delete" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300"><Trash2 size={15} /></button>}
+                      {canWrite && <button onClick={() => { setErr(''); setDrawer({ mode: 'edit', data: { ...empty, ...row } }) }} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Pencil size={15} /></button>}
+                      {isAdmin && <button onClick={() => remove(row)} title={tr("Delete")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300"><Trash2 size={15} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -150,7 +151,7 @@ export default function MasterScreen({ config }) {
                           </label>
                         )
                       })}
-                      {(f.options || []).length === 0 && <div className="text-[0.75rem] text-gray-400 px-1">No options.</div>}
+                      {(f.options || []).length === 0 && <div className="text-[0.75rem] text-gray-400 px-1"><T>No options.</T></div>}
                     </div>
                   ) : (
                     <input required={f.required} className="input" placeholder={f.placeholder} value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
@@ -160,8 +161,8 @@ export default function MasterScreen({ config }) {
               {err && <div className="text-[0.8125rem] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{err}</div>}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center">Cancel</button>
-              <button className="btn-maroon flex-1 justify-center"><Save size={15} /> Save</button>
+              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <button className="btn-maroon flex-1 justify-center"><Save size={15} />{' '}<T>Save</T></button>
             </div>
           </form>
         </div>

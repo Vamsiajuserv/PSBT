@@ -37,6 +37,11 @@ EVENTS = {
 }
 
 TEMPLATES = {
+    # Inbound website inquiry — routed to the temple office mailbox.
+    "contact_inquiry": {
+        "Email": {"subject": "Website inquiry ({subject}) from {name}",
+                  "body": "A devotee sent a message from the website Contact page.\n\nName: {name}\nMobile: {mobile}\nEmail: {email}\nSubject: {subject}\n\nMessage:\n{message}\n\n— PSBT Portal"},
+    },
     "booking_confirmed": {
         "SMS": {"body": "Om Sai Ram {devotee}! Your {pooja} booking ({ticket}) for {date} is confirmed. Amount Rs.{amount}. - Sri Shirdi Sai Baba Temple"},
         "WhatsApp": {"body": "🙏 Om Sai Ram {devotee}!\nYour *{pooja}* booking is confirmed.\nTicket: {ticket}\nDate: {date}\nAmount: ₹{amount}\n— Sri Shirdi Sai Baba Temple"},

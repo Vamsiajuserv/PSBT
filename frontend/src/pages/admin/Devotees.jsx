@@ -10,6 +10,7 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField } from '../../components/common/Field.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const EMPTY = { name: '', mobile: '', email: '', city: '', gothram: '', nakshatram: '', address: '', preferred_language: 'English', dob: '', status: 'Active', notes: '' }
 const PAGE_SIZE = 20
@@ -77,38 +78,38 @@ export default function Devotees() {
 
   return (
     <div>
-      <PageTitle title="Devotee Management" subtitle="Maintain devotee master and view their activity history across temple services."
-        actions={canWrite && <button onClick={() => { setSaveErr(''); setModal({ mode: 'create', data: { ...EMPTY } }) }} className="btn-maroon !py-2.5"><Plus size={16} /> Add New Devotee</button>} />
+      <PageTitle title={tr("Devotee Management")} subtitle="Maintain devotee master and view their activity history across temple services."
+        actions={canWrite && <button onClick={() => { setSaveErr(''); setModal({ mode: 'create', data: { ...EMPTY } }) }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Devotee</T></button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={Users} color="#ea580c" bg="bg-orange-50" title="Total Devotees"
+        <StatTile icon={Users} color="#ea580c" bg="bg-orange-50" title={tr("Total Devotees")}
           value={stats ? num(stats.total) : '—'} sub="All registered devotees" />
-        <StatTile icon={CalendarPlus} color="#059669" bg="bg-emerald-50" title="Recent Registrations"
+        <StatTile icon={CalendarPlus} color="#059669" bg="bg-emerald-50" title={tr("Recent Registrations")}
           value={stats ? num(stats.recent_registrations) : '—'} sub="Registered in last 30 days" />
-        <StatTile icon={HeartHandshake} color="#7c3aed" bg="bg-violet-50" title="Devotees with Donations"
+        <StatTile icon={HeartHandshake} color="#7c3aed" bg="bg-violet-50" title={tr("Devotees with Donations")}
           value={stats ? num(stats.with_donations) : '—'} sub="Devotees who donated" />
-        <StatTile icon={HandHeart} color="#2563eb" bg="bg-blue-50" title="Total Annadanam Beneficiaries"
+        <StatTile icon={HandHeart} color="#2563eb" bg="bg-blue-50" title={tr("Total Annadanam Beneficiaries")}
           value={stats ? num(stats.annadanam_beneficiaries) : '—'} sub="Through devotee sponsorships" />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Search by Devotee Name / Mobile Number</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee Name / Mobile Number</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or mobile number…" className="input !pl-9" /></div>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search name or mobile number…")} className="input !pl-9" /></div>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">City / Location</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>City / Location</T></label>
             <Select value={city} onChange={(e) => setCity(e.target.value)} className="input"><option value="">All Cities</option>{allCities.map((c) => <option key={c}>{c}</option>)}</Select>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Status</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All Status</option><option>Active</option><option>Inactive</option></Select>
           </div>
           <div className="md:col-span-3 flex gap-2 justify-end">
-            <button onClick={() => { setQ(''); setCity(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button>
-            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} /> Search</button>
+            <button onClick={() => { setQ(''); setCity(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
+            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
           </div>
         </div>
 
@@ -127,7 +128,7 @@ export default function Devotees() {
                   <td className="px-4 py-3.5 text-gray-500 text-[0.8125rem]">{fmtDate(d.registered_on)}</td>
                   <td className="px-4 py-3.5"><Pill tone={d.status === 'Active' ? 'green' : 'gray'}>{d.status}</Pill></td>
                   <td className="px-4 py-3.5">
-                    <button onClick={() => openDetail(d.id)} title="View details" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                    <button onClick={() => openDetail(d.id)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                   </td>
                 </tr>
               ))}
@@ -156,22 +157,22 @@ export default function Devotees() {
                   <input required={req} className="input" value={modal.data[k] || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, [k]: e.target.value } })} />
                 </div>
               ))}
-              <div><label className="label">Date of Birth</label>
+              <div><label className="label"><T>Date of Birth</T></label>
                 <DateField className="input" value={modal.data.dob || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dob: e.target.value } })} />
               </div>
-              <div><label className="label">Status</label>
+              <div><label className="label"><T>Status</T></label>
                 <Select className="input" value={modal.data.status || 'Active'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, status: e.target.value } })}><option>Active</option><option>Inactive</option></Select>
               </div>
-              <div className="sm:col-span-2"><label className="label">Address</label><input className="input" value={modal.data.address || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, address: e.target.value } })} /></div>
-              <div><label className="label">Preferred Language</label>
+              <div className="sm:col-span-2"><label className="label"><T>Address</T></label><input className="input" value={modal.data.address || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, address: e.target.value } })} /></div>
+              <div><label className="label"><T>Preferred Language</T></label>
                 <Select className="input" value={modal.data.preferred_language || 'English'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, preferred_language: e.target.value } })}><option>English</option><option>Telugu</option></Select>
               </div>
-              <div className="sm:col-span-2"><label className="label">Notes</label>
+              <div className="sm:col-span-2"><label className="label"><T>Notes</T></label>
                 <textarea rows={3} className="input" value={modal.data.notes || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, notes: e.target.value } })} /></div>
             </div>
             {saveErr && <div className="mt-3 text-[0.75rem] text-red-600">{saveErr}</div>}
             <div className="flex justify-end gap-2 mt-5">
-              <button type="button" onClick={() => { setSaveErr(''); setModal(null) }} className="btn-outline">Cancel</button>
+              <button type="button" onClick={() => { setSaveErr(''); setModal(null) }} className="btn-outline"><T>Cancel</T></button>
               <button disabled={saving} className="btn-maroon disabled:opacity-60">{saving ? 'Saving…' : (modal.mode === 'create' ? 'Create Devotee' : 'Save Changes')}</button>
             </div>
           </form>
@@ -208,8 +209,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
         <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-          <div><h3 className="font-serif text-xl font-bold text-maroon-800">Devotee Details</h3>
-            <p className="text-[0.8125rem] text-gray-500 mt-0.5">View devotee profile and activity history.</p></div>
+          <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Devotee Details</T></h3>
+            <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>View devotee profile and activity history.</T></p></div>
           <button onClick={onClose} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
         </div>
 
@@ -246,7 +247,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
 
           {tab === 'Overview' && (
             <div className="mt-5">
-              <div className="text-[0.8125rem] font-bold text-gray-700 mb-3">Activity Summary</div>
+              <div className="text-[0.8125rem] font-bold text-gray-700 mb-3"><T>Activity Summary</T></div>
               <div className="grid grid-cols-4 gap-3">
                 {SUMMARY.map((s) => {
                   const Icon = s.icon
@@ -262,8 +263,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
               </div>
 
               <div className="flex items-center justify-between mt-6 mb-2">
-                <div className="text-[0.8125rem] font-bold text-gray-700">Recent Activities</div>
-                <Link to={`/admin/devotees/${dev.id}`} className="text-[0.75rem] font-semibold text-maroon-600 hover:underline">View full profile →</Link>
+                <div className="text-[0.8125rem] font-bold text-gray-700"><T>Recent Activities</T></div>
+                <Link to={`/admin/devotees/${dev.id}`} className="text-[0.75rem] font-semibold text-maroon-600 hover:underline"><T>View full profile →</T></Link>
               </div>
               <div className="divide-y divide-gray-100">
                 {recent.map((r, i) => {
@@ -277,7 +278,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
                     </div>
                   )
                 })}
-                {recent.length === 0 && <div className="py-8 text-center text-gray-400 text-sm">No recent activities.</div>}
+                {recent.length === 0 && <div className="py-8 text-center text-gray-400 text-sm"><T>No recent activities.</T></div>}
               </div>
             </div>
           )}
@@ -327,8 +328,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-          <button onClick={() => window.print()} className="btn-outline flex-1 justify-center"><Printer size={15} /> Print Devotee Summary</button>
-          <button onClick={onClose} className="btn-maroon flex-1 justify-center">Close</button>
+          <button onClick={() => window.print()} className="btn-outline flex-1 justify-center"><Printer size={15} />{' '}<T>Print Devotee Summary</T></button>
+          <button onClick={onClose} className="btn-maroon flex-1 justify-center"><T>Close</T></button>
         </div>
       </div>
     </div>

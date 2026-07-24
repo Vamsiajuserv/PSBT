@@ -7,6 +7,7 @@ import { PageTitle, Pill, num } from '../../components/admin/ui.jsx'
 import { SchedulesAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField } from '../../components/common/Field.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'Life Long': 'amber', 'One-Time': 'violet' }
 const STATUS_TONE = { Scheduled: 'green', 'In Progress': 'blue', Completed: 'gray', Cancelled: 'red' }
@@ -78,14 +79,14 @@ export default function PoojariSchedule() {
 
   return (
     <div>
-      <PageTitle title="Poojari Schedule" subtitle="Manage and view poojari assignments for scheduled temple poojas."
-        actions={canWrite && <button onClick={() => setDrawer({ data: emptyForm() })} className="btn-maroon !py-2.5"><Plus size={16} /> Assign Schedule</button>} />
+      <PageTitle title={tr("Poojari Schedule")} subtitle="Manage and view poojari assignments for scheduled temple poojas."
+        actions={canWrite && <button onClick={() => setDrawer({ data: emptyForm() })} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Assign Schedule</T></button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={CalendarCheck} color="#ea580c" bg="bg-orange-50" title="Today's Schedules" value={stats ? num(stats.today) : '—'} sub="Poojas scheduled today" />
-        <StatTile icon={UserCheck} color="#059669" bg="bg-emerald-50" title="Assigned Poojaris" value={stats ? num(stats.assigned_poojaris) : '—'} sub="Poojaris with active schedules" />
-        <StatTile icon={CalendarClock} color="#d97706" bg="bg-amber-50" title="Upcoming Schedules" value={stats ? num(stats.upcoming) : '—'} sub="Next 7 days schedules" />
-        <StatTile icon={UserX} color="#7c3aed" bg="bg-violet-50" title="Unassigned Schedules" value={stats ? num(stats.unassigned) : '—'} sub="Require poojari assignment" />
+        <StatTile icon={CalendarCheck} color="#ea580c" bg="bg-orange-50" title={tr("Today's Schedules")} value={stats ? num(stats.today) : '—'} sub="Poojas scheduled today" />
+        <StatTile icon={UserCheck} color="#059669" bg="bg-emerald-50" title={tr("Assigned Poojaris")} value={stats ? num(stats.assigned_poojaris) : '—'} sub="Poojaris with active schedules" />
+        <StatTile icon={CalendarClock} color="#d97706" bg="bg-amber-50" title={tr("Upcoming Schedules")} value={stats ? num(stats.upcoming) : '—'} sub="Next 7 days schedules" />
+        <StatTile icon={UserX} color="#7c3aed" bg="bg-violet-50" title={tr("Unassigned Schedules")} value={stats ? num(stats.unassigned) : '—'} sub="Require poojari assignment" />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -101,20 +102,20 @@ export default function PoojariSchedule() {
           <>
             <div className="px-5 py-5">
               <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-4">
-                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Search by Poojari or Pooja Name</label>
-                  <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} placeholder="Search…" className="input !pl-9" /></div></div>
-                <div className="sm:col-span-2"><label className="block text-[0.75rem] text-gray-500 mb-1.5">Date Range</label>
+                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Poojari or Pooja Name</T></label>
+                  <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} placeholder={tr("Search…")} className="input !pl-9" /></div></div>
+                <div className="sm:col-span-2"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
                   <div className="flex items-center gap-1"><DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2 !text-[0.75rem]" /><span className="text-gray-300">–</span><DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2 !text-[0.75rem]" /></div></div>
-                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Pooja</label>
+                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
                   <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">All Poojas</option>{uniquePoojaNames.map((n) => <option key={n}>{n}</option>)}</Select></div>
-                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Poojari</label>
+                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
                   <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input"><option value="">All Poojaris</option>{poojaris.map((p) => <option key={p.id}>{p.name}</option>)}</Select></div>
-                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Schedule Status</label>
+                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Schedule Status</T></label>
                   <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All Status</option><option>Scheduled</option><option>In Progress</option><option>Completed</option></Select></div>
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button onClick={clear} className="btn-outline !py-2"><RotateCcw size={14} /> Clear</button>
-                <button onClick={search} className="btn-maroon !py-2"><Search size={14} /> Search</button>
+                <button onClick={clear} className="btn-outline !py-2"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+                <button onClick={search} className="btn-maroon !py-2"><Search size={14} />{' '}<T>Search</T></button>
               </div>
             </div>
 
@@ -127,7 +128,7 @@ export default function PoojariSchedule() {
                   {rows.map((s) => (
                     <tr key={s.id} className="hover:bg-gray-50/60">
                       <td className="px-5 py-3.5 font-mono text-[0.75rem] text-gray-500">{s.code}</td>
-                      <td className="px-5 py-3.5 font-semibold text-gray-800">{s.poojari_name || <span className="text-amber-600 font-normal">Unassigned</span>}</td>
+                      <td className="px-5 py-3.5 font-semibold text-gray-800">{s.poojari_name || <span className="text-amber-600 font-normal"><T>Unassigned</T></span>}</td>
                       <td className="px-5 py-3.5 text-gray-700">{s.pooja_name}</td>
                       <td className="px-5 py-3.5"><Pill tone={planTone(s.plan_name)}>{s.plan_name || '—'}</Pill></td>
                       <td className="px-5 py-3.5 text-[0.8125rem] text-gray-600 whitespace-nowrap">{fmtDate(s.schedule_date)}<span className="block text-[0.6875rem] text-gray-400">{weekday(s.schedule_date)}</span></td>
@@ -136,12 +137,12 @@ export default function PoojariSchedule() {
                       <td className="px-5 py-3.5"><Pill tone={STATUS_TONE[s.status] || 'gray'}>{s.status}</Pill></td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
-                          {canWrite && <button onClick={() => setDrawer({ data: { ...emptyForm(), ...s, pooja_id: s.pooja_id || '', plan_id: s.plan_id || '', poojari_id: s.poojari_id || '' }, id: s.id })} title="Edit" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
+                          {canWrite && <button onClick={() => setDrawer({ data: { ...emptyForm(), ...s, pooja_id: s.pooja_id || '', plan_id: s.plan_id || '', poojari_id: s.poojari_id || '' }, id: s.id })} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
                         </div>
                       </td>
                     </tr>
                   ))}
-                  {rows.length === 0 && <tr><td colSpan={9} className="px-5 py-12 text-center text-gray-400">No schedules found.</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={9} className="px-5 py-12 text-center text-gray-400"><T>No schedules found.</T></td></tr>}
                 </tbody>
               </table>
             </div>
@@ -149,11 +150,11 @@ export default function PoojariSchedule() {
             <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
               <span className="text-[0.8125rem] text-gray-500">Showing {total === 0 ? 0 : (page - 1) * SIZE + 1} to {Math.min(page * SIZE, total)} of {total} schedules</span>
               <div className="flex items-center gap-1.5">
-                <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-500 disabled:opacity-40">Previous</button>
+                <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-500 disabled:opacity-40"><T>Previous</T></button>
                 {Array.from({ length: Math.min(pageCount, 4) }, (_, i) => i + 1).map((n) => (
                   <button key={n} onClick={() => setPage(n)} className={`w-8 h-8 grid place-items-center rounded-lg text-[0.8125rem] font-semibold ${n === page ? 'bg-maroon-700 text-cream' : 'border border-gray-200 text-gray-600'}`}>{n}</button>
                 ))}
-                <button disabled={page >= pageCount} onClick={() => setPage(page + 1)} className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-500 disabled:opacity-40">Next</button>
+                <button disabled={page >= pageCount} onClick={() => setPage(page + 1)} className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-500 disabled:opacity-40"><T>Next</T></button>
               </div>
             </div>
           </>
@@ -168,41 +169,41 @@ export default function PoojariSchedule() {
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
               <div><h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.id ? 'Edit Schedule' : 'Assign Poojari Schedule'}</h3>
-                <p className="text-[0.8125rem] text-gray-500 mt-0.5">Assign poojari to a pooja for specific date and time.</p></div>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Assign poojari to a pooja for specific date and time.</T></p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
 
             <div className="px-6 py-5 space-y-5 flex-1">
-              <div className="text-[0.8125rem] font-bold text-maroon-700">1. Assignment Details</div>
-              <div><label className="label">Pooja *</label>
+              <div className="text-[0.8125rem] font-bold text-maroon-700"><T>1. Assignment Details</T></div>
+              <div><label className="label"><T>Pooja *</T></label>
                 <Select required className="input" value={drawer.data.pooja_id} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, pooja_id: e.target.value, plan_id: '' } })}>
                   <option value="">Select Pooja</option>{poojas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></div>
-              <div><label className="label">Plan *</label>
+              <div><label className="label"><T>Plan *</T></label>
                 <Select required className="input" value={drawer.data.plan_id} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, plan_id: e.target.value } })}>
                   <option value="">Select Plan</option>{planOptions.map((pl) => <option key={pl.id} value={pl.id}>{pl.plan_name} - {pl.committee_decided ? 'Committee' : '₹' + num(pl.fee)}</option>)}</Select></div>
-              <div><label className="label">Poojari *</label>
+              <div><label className="label"><T>Poojari *</T></label>
                 <Select required className="input" value={drawer.data.poojari_id} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, poojari_id: e.target.value } })}>
                   <option value="">Select Poojari</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></div>
-              <div><label className="label">Schedule Type *</label>
+              <div><label className="label"><T>Schedule Type *</T></label>
                 <div className="flex gap-6 mt-1">
                   {['One-Time', 'Recurring'].map((t) => (
                     <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="stype" className="accent-maroon-700" checked={drawer.data.schedule_type === t} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, schedule_type: t } })} /> {t}</label>
                   ))}
                 </div></div>
-              <div><label className="label">Schedule Date *</label><DateField required className="input" value={drawer.data.schedule_date} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, schedule_date: e.target.value } })} /></div>
+              <div><label className="label"><T>Schedule Date *</T></label><DateField required className="input" value={drawer.data.schedule_date} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, schedule_date: e.target.value } })} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="label">Start Time *</label><div className="relative"><input required className="input !pr-8" value={drawer.data.start_time} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, start_time: e.target.value } })} /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
-                <div><label className="label">End Time *</label><div className="relative"><input required className="input !pr-8" value={drawer.data.end_time} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, end_time: e.target.value } })} /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
+                <div><label className="label"><T>Start Time *</T></label><div className="relative"><input required className="input !pr-8" value={drawer.data.start_time} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, start_time: e.target.value } })} /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
+                <div><label className="label"><T>End Time *</T></label><div className="relative"><input required className="input !pr-8" value={drawer.data.end_time} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, end_time: e.target.value } })} /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
               </div>
 
-              <div className="text-[0.8125rem] font-bold text-maroon-700 pt-1">2. Additional Information</div>
-              <div><label className="label">Notes (Optional)</label><textarea className="input min-h-[4.5rem]" placeholder="Enter any notes or special instructions…" value={drawer.data.notes} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, notes: e.target.value } })} /></div>
-              <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-amber-500 shrink-0 mt-0.5" /> Selecting a Pooja will load only the plans configured in Pooja Master.</div>
+              <div className="text-[0.8125rem] font-bold text-maroon-700 pt-1"><T>2. Additional Information</T></div>
+              <div><label className="label">Notes (Optional)</label><textarea className="input min-h-[4.5rem]" placeholder={tr("Enter any notes or special instructions…")} value={drawer.data.notes} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, notes: e.target.value } })} /></div>
+              <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-amber-500 shrink-0 mt-0.5" />{' '}<T>Selecting a Pooja will load only the plans configured in Pooja Master.</T></div>
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center">Cancel</button>
-              <button className="btn-maroon flex-1 justify-center"><Save size={15} /> Save Schedule</button>
+              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <button className="btn-maroon flex-1 justify-center"><Save size={15} />{' '}<T>Save Schedule</T></button>
             </div>
           </form>
         </div>
@@ -216,7 +217,7 @@ function CalendarView({ rows }) {
   const dates = Object.keys(byDate).sort()
   return (
     <div className="p-5">
-      {dates.length === 0 && <div className="text-center text-gray-400 py-12">No schedules for the current filter.</div>}
+      {dates.length === 0 && <div className="text-center text-gray-400 py-12"><T>No schedules for the current filter.</T></div>}
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {dates.map((d) => (
           <div key={d} className="border border-gray-100 rounded-xl p-4">

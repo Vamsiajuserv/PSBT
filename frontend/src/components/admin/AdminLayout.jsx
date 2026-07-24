@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey, keyOf } from '../../auth/access.js'
+import { useLang, T, tr } from '../../i18n/LanguageContext.jsx'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -94,6 +95,7 @@ function GopuraMark() {
 function SidebarNav({ onNavigate }) {
   const location = useLocation()
   const { user } = useAuth()
+  const { t } = useLang()
 
   // Keep only what this user may reach: leaves gate on their key; a group is
   // pruned to its visible children and dropped entirely if none remain.
@@ -123,7 +125,7 @@ function SidebarNav({ onNavigate }) {
                   groupActive ? 'bg-ivory text-maroon-800 font-semibold' : 'text-cream/85 hover:bg-white/10'
                 }`}
               >
-                <Icon size={18} /> <span className="flex-1 text-left">{n.label}</span>
+                <Icon size={18} /> <span className="flex-1 text-left">{t(n.label)}</span>
                 {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
               </button>
               {isOpen && (
@@ -136,7 +138,7 @@ function SidebarNav({ onNavigate }) {
                         }`
                       }
                     >
-                      <span className="w-1 h-1 rounded-full bg-current opacity-60" /> {c.label}
+                      <span className="w-1 h-1 rounded-full bg-current opacity-60" /> {t(c.label)}
                     </NavLink>
                   ))}
                 </div>
@@ -152,7 +154,7 @@ function SidebarNav({ onNavigate }) {
               }`
             }
           >
-            <Icon size={18} /> <span className="flex-1">{n.label}</span>
+            <Icon size={18} /> <span className="flex-1">{t(n.label)}</span>
             {n.chevron && <ChevronRight size={15} className="opacity-55" />}
           </NavLink>
         )
@@ -165,22 +167,23 @@ export default function AdminLayout() {
   const [open, setOpen] = useState(false)          // mobile overlay
   const [collapsed, setCollapsed] = useState(false) // desktop slide-away
   const { user, logout } = useAuth()
+  const { t, lang, toggle: toggleLang } = useLang()
   const navigate = useNavigate()
   const name = user?.name || 'Administrator'
   const role = user?.role || 'Admin'
   const roleLabel = role === 'Admin' ? 'Administrator' : role
   const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
 
-  const signOut = () => { logout(); navigate('/') }
+  const signOut = () => { logout(); navigate('/staff-login') }
 
   return (
-    <div className="min-h-screen bg-cream flex">
+    <div className="min-h-screen min-h-dvh bg-cream flex">
       {/* ── Sidebar ── */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream flex flex-col transition-all duration-300 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${collapsed ? 'lg:-ml-64' : 'lg:ml-0'}`}>
         <div className="px-5 pt-5 pb-4 text-center border-b border-white/10">
           <GopuraMark />
-          <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight mt-1">Sri Shirdi Sai Baba Temple</div>
-          <div className="text-[0.65625rem] text-cream/55 leading-tight mt-1">Dwarkapuri Colony, Punjagutta,<br />Hyderabad, Telangana</div>
+          <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight mt-1"><T>Sri Shirdi Sai Baba Temple</T></div>
+          <div className="text-[0.65625rem] text-cream/55 leading-tight mt-1"><T>Dwarkapuri Colony, Punjagutta,</T><br /><T>Hyderabad, Telangana</T></div>
         </div>
 
         <SidebarNav onNavigate={() => setOpen(false)} />
@@ -188,9 +191,9 @@ export default function AdminLayout() {
         <div className="px-3 pb-3">
           <div className="rounded-xl bg-[#3a0909] border-2 border-gold-500/50 py-4 text-center shadow-inner ring-1 ring-inset ring-gold-400/15">
             <div className="text-gold-300 text-2xl leading-none font-telugu">ॐ</div>
-            <div className="font-display text-[0.9375rem] tracking-[0.25em] text-gold-300 mt-1.5">Om Sai Ram</div>
+            <div className="font-display text-[0.9375rem] tracking-[0.25em] text-gold-300 mt-1.5"><T>Om Sai Ram</T></div>
           </div>
-          <div className="text-[0.625rem] text-cream/40 text-center mt-3 leading-tight">© 2026 Sri Shirdi Sai Baba Temple.<br />All rights reserved.</div>
+          <div className="text-[0.625rem] text-cream/40 text-center mt-3 leading-tight"><T>© 2026 Sri Shirdi Sai Baba Temple.</T><br /><T>All rights reserved.</T></div>
         </div>
       </aside>
 
@@ -200,29 +203,33 @@ export default function AdminLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <button className="text-gray-500 hover:text-maroon-700" title="Toggle sidebar" aria-label="Toggle sidebar"
+            <button className="text-gray-500 hover:text-maroon-700" title={tr("Toggle sidebar")} aria-label="Toggle sidebar"
               onClick={() => { setOpen((o) => !o); setCollapsed((c) => !c) }}><Menu size={22} /></button>
-            <span className="font-serif font-bold text-maroon-800 text-lg hidden sm:block">Sri Shirdi Sai Baba Temple</span>
+            <span className="font-serif font-bold text-maroon-800 text-lg hidden sm:block"><T>Sri Shirdi Sai Baba Temple</T></span>
           </div>
 
           <div className="flex items-center gap-4 lg:gap-5">
             <span className="hidden md:flex items-center gap-2 text-[0.8125rem] text-gray-600"><Calendar size={15} className="text-gray-400" /> {todayLabel()}</span>
             <span className="hidden md:flex items-center gap-2 text-[0.8125rem] text-gray-600"><Clock size={15} className="text-gray-400" /> {timeLabel()}</span>
-            <button onClick={() => navigate('/admin/notifications')} title="Notifications" aria-label="Notifications" className="relative text-gray-500 hover:text-maroon-700">
+            <button onClick={toggleLang} title={tr("Switch language / భాష మార్చండి")}
+              className="px-2.5 py-1 rounded-full border border-gold-300 text-[0.71875rem] font-bold text-maroon-700 hover:bg-gold-50">
+              {lang === 'en' ? 'తెలుగు' : 'English'}
+            </button>
+            <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label="Notifications" className="relative text-gray-500 hover:text-maroon-700">
               <Bell size={20} />
             </button>
             <div className="flex items-center gap-2.5 pl-4 border-l border-gray-200">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 text-white grid place-items-center text-sm font-bold">{initials}</div>
               <div className="hidden sm:block leading-tight">
                 <div className="text-[0.8125rem] font-bold text-gray-800">{name}</div>
-                <div className="text-[0.6875rem] text-gray-400">{roleLabel}</div>
+                <div className="text-[0.6875rem] text-gray-400">{t(roleLabel)}</div>
               </div>
-              <button onClick={signOut} title="Sign out" className="text-gray-400 hover:text-maroon-700 ml-1"><LogOut size={16} /></button>
+              <button onClick={signOut} title={tr("Sign out")} className="text-gray-400 hover:text-maroon-700 ml-1"><LogOut size={16} /></button>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-6 max-w-[100rem] w-full mx-auto">
+        <main className="flex-1 p-4 lg:p-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] max-w-[100rem] w-full mx-auto">
           <Outlet context={{ role }} />
         </main>
       </div>

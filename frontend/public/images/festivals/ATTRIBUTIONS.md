@@ -1,0 +1,17 @@
+# Festival image attributions (Wikimedia Commons)
+
+- `rama-navami.jpg` — File:SRI RANGANATHA SWAMY TEMPLE Vepulaparthi (V), Brahmasamudram (M), Ananthapuramu.jpg — CC0 — by Arhav08 — https://commons.wikimedia.org/wiki/File:SRI_RANGANATHA_SWAMY_TEMPLE_Vepulaparthi_(V),_Brahmasamudram_(M),_Ananthapuramu.jpg
+- `guru-purnima.jpg` — File:116 feet Sai Baba statue.jpg — CC BY-SA 4.0 — by Sreeja sadineni84 — https://commons.wikimedia.org/wiki/File:116_feet_Sai_Baba_statue.jpg
+- `mahasamadhi.jpg` — File:Baba's 98th Maha Samadhi Punya Thithi Pooja at Shirdi Sai Gurusthan Mandir Coimbatore.jpg — CC BY-SA 4.0 — by ShirdiSaiGurusthanTrust — https://commons.wikimedia.org/wiki/File:Baba%27s_98th_Maha_Samadhi_Punya_Thithi_Pooja_at_Shirdi_Sai_Gurusthan_Mandir_Coimbatore.jpg
+- `sai-jayanti.jpg` — File:Shirdi Sai Baba sitting.jpg — Public domain — by Photographer in Shirdi, India — https://commons.wikimedia.org/wiki/File:Shirdi_Sai_Baba_sitting.jpg
+- `vinayaka-chavithi.jpg` — File:Devotees carrying Ganesh idols for immersion during Ganesh Chaturthi, India.jpg — CC BY-SA 4.0 — by The open draft — https://commons.wikimedia.org/wiki/File:Devotees_carrying_Ganesh_idols_for_immersion_during_Ganesh_Chaturthi,_India.jpg
+- `navaratri.jpg` — File:Durga Puja Bengali Association New Delhi.jpg — Public domain — by Sougata Bhar @ Delhi, India — https://commons.wikimedia.org/wiki/File:Durga_Puja_Bengali_Association_New_Delhi.jpg
+- `karthika-masam.jpg` — File:Karthigai Deepam Festival.jpg — CC BY-SA 4.0 — by Gomathiram — https://commons.wikimedia.org/wiki/File:Karthigai_Deepam_Festival.jpg
+- `palki.jpg` — File:Decorated entrance of Nivdunga Vithoba Temple where Sant Tukaram Palkhi halted in Pune during the Pandharpur Wari 2023.jpg — CC BY 4.0 — https://commons.wikimedia.org/wiki/File:Decorated_entrance_of_Nivdunga_Vithoba_Temple_where_Sant_Tukaram_Palkhi_halted_in_Pune_during_the_Pandharpur_Wari_2023.jpg
+- `rama-navami.jpg` (replacement) — File:Lord Sree Sita Ramachandra Swamy temple archakas, Bhadrachalam.jpg — CC BY-SA 4.0 — https://commons.wikimedia.org/wiki/File:Lord_Sree_Sita_Ramachandra_Swamy_temple_archakas,_Bhadrachalam.jpg
+- `karthika-masam.jpg` (replacement) — File:Deepmala at temple courtyard, Walawal.jpg — CC BY-SA 4.0 — https://commons.wikimedia.org/wiki/File:Deepmala_at_temple_courtyard,_Walawal.jpg
+- `navaratri.jpg` (replacement) — File:A Hindu Navratri festival Golu dolls display in a home, South India.jpg — CC BY-SA 2.0 — https://commons.wikimedia.org/wiki/File:A_Hindu_Navratri_festival_Golu_dolls_display_in_a_home,_South_India.jpg
+- `vinayaka-chavithi.jpg` (replacement) — File:Ganesh Murti - Traditional Idol of Lord Ganesha 014.jpg — CC BY-SA 4.0 — https://commons.wikimedia.org/wiki/File:Ganesh_Murti_-_Traditional_Idol_of_Lord_Ganesha_014.jpg
+- `guru-purnima.jpg` (replacement) — File:Statue of a Shirdi Sai Baba.jpg — CC BY-SA 4.0 — https://commons.wikimedia.org/wiki/File:Statue_of_a_Shirdi_Sai_Baba.jpg
+- `navaratri.jpg` (final) — File:Idols at the pandal of College Square Sarbojonin Durgotsab (Durga Puja) in College Street, Kolkata, West Bengal.jpg — CC BY-SA 4.0 — https://commons.wikimedia.org/wiki/File:Idols_at_the_pandal_of_College_Square_Sarbojonin_Durgotsab_(Durga_Puja)_in_College_Street,_Kolkata,_West_Bengal.jpg
+- `karthika-masam.jpg` (final) — File:Dev Deepavali at Varanasi DSC04305 13.jpg — CC BY-SA 4.0 — https://commons.wikimedia.org/wiki/File:Dev_Deepavali_at_Varanasi_DSC04305_13.jpg

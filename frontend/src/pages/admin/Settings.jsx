@@ -8,6 +8,7 @@ import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { SettingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const CATS = [
   {
@@ -107,10 +108,10 @@ export default function Settings() {
 
   return (
     <div>
-      <PageTitle title="Settings" subtitle="Manage temple system settings and configurations." />
+      <PageTitle title={tr("Settings")} subtitle="Manage temple system settings and configurations." />
 
       {/* Settings Categories */}
-      <div className="text-[0.9375rem] font-bold text-maroon-800 mb-3">Settings Categories</div>
+      <div className="text-[0.9375rem] font-bold text-maroon-800 mb-3"><T>Settings Categories</T></div>
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
         {CATS.map((c) => {
           const Icon = c.icon; const on = cat === c.key
@@ -161,7 +162,7 @@ export default function Settings() {
                 <h3 className="font-serif text-lg font-bold text-maroon-800">{section.label}</h3>
                 <p className="text-[0.8125rem] text-gray-500 mt-0.5">{section.subtitle}</p>
               </div>
-              {isAdmin && <button onClick={save} className="btn-maroon !py-2.5"><Save size={15} /> Save Changes</button>}
+              {isAdmin && <button onClick={save} className="btn-maroon !py-2.5"><Save size={15} />{' '}<T>Save Changes</T></button>}
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
@@ -196,23 +197,23 @@ export default function Settings() {
                       <div>
                         {/* Honest input: file upload is not implemented server-side, so this
                             takes the logo image path/URL rather than pretending to upload. */}
-                        <div className="text-[0.75rem] text-gray-500 mb-1">Logo image path / URL</div>
-                        <input className="input !py-1.5 text-[0.8125rem]" placeholder="/babaimages/logo.png or https://…"
+                        <div className="text-[0.75rem] text-gray-500 mb-1"><T>Logo image path / URL</T></div>
+                        <input className="input !py-1.5 text-[0.8125rem]" placeholder={tr("/babaimages/logo.png or https://…")}
                                value={data[k] || ''} onChange={(e) => set(k, e.target.value)} />
-                        <div className="text-[0.6875rem] text-gray-400 mt-1">Place the file in frontend/public and enter its path here.</div>
+                        <div className="text-[0.6875rem] text-gray-400 mt-1"><T>Place the file in frontend/public and enter its path here.</T></div>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-            {saved && <div className="mt-4 text-[0.8125rem] text-emerald-700 flex items-center gap-2"><CheckCircle2 size={15} /> Settings saved successfully.</div>}
+            {saved && <div className="mt-4 text-[0.8125rem] text-emerald-700 flex items-center gap-2"><CheckCircle2 size={15} />{' '}<T>Settings saved successfully.</T></div>}
             {saveErr && <div className="mt-4 text-[0.8125rem] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 flex items-center gap-2"><AlertTriangle size={15} /> {saveErr}</div>}
           </div>
 
           {/* Audit Information */}
           <div className="bg-gray-50/70 rounded-xl border border-gray-100 px-5 py-4">
-            <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.84375rem] mb-3"><Info size={15} /> Audit Information</div>
+            <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.84375rem] mb-3"><Info size={15} />{' '}<T>Audit Information</T></div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[0.8125rem]">
               <Meta label="Created By" value={data.created_by} />
               <Meta label="Created On" value={data.created_on} />
@@ -221,8 +222,7 @@ export default function Settings() {
             </div>
           </div>
           <div className="flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5">
-            <Info size={15} className="text-blue-500" /> Changes will be applied to the system settings.
-          </div>
+            <Info size={15} className="text-blue-500" />{' '}<T>Changes will be applied to the system settings.</T>{' '}</div>
         </div>
       </div>
     </div>

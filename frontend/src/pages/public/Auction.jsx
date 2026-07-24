@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Gavel, Clock, X, PhoneCall } from 'lucide-react'
 import { SectionTitle, Badge } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const TONE = { Live: 'green', Upcoming: 'blue', Closed: 'gray' }
 
@@ -15,7 +16,7 @@ export default function Auction() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12">
-      <SectionTitle title="🔨 Seva Auctions" subtitle="Bid for the honour of leading special sevas during festivals." />
+      <SectionTitle title={tr("🔨 Seva Auctions")} subtitle="Bid for the honour of leading special sevas during festivals." />
 
       <div className="grid md:grid-cols-2 gap-5 mt-8">
         {auctions.map((a) => (
@@ -29,11 +30,11 @@ export default function Auction() {
 
             <div className="grid grid-cols-2 gap-3 mt-4">
               <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-[0.625rem] uppercase text-gray-400 font-bold">Base Price</div>
+                <div className="text-[0.625rem] uppercase text-gray-400 font-bold"><T>Base Price</T></div>
                 <div className="font-bold text-gray-700">₹{a.base.toLocaleString('en-IN')}</div>
               </div>
               <div className="bg-violet-50 rounded-lg p-3">
-                <div className="text-[0.625rem] uppercase text-violet-400 font-bold">Current Bid</div>
+                <div className="text-[0.625rem] uppercase text-violet-400 font-bold"><T>Current Bid</T></div>
                 <div className="font-bold text-violet-700">₹{a.current.toLocaleString('en-IN')}</div>
               </div>
             </div>
@@ -59,15 +60,12 @@ export default function Auction() {
             <button onClick={() => setBidFor(null)} className="absolute right-4 top-4 text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             <div className="w-12 h-12 mx-auto rounded-2xl bg-violet-100 text-violet-600 grid place-items-center mb-3"><Gavel size={24} /></div>
             <h3 className="font-serif text-xl font-bold text-maroon-700">{bidFor.item}</h3>
-            <p className="text-sm text-gray-500 mt-2">
-              Bids for this auction are placed in person at the temple or over the phone with our office —
-              online bidding is not available on the public site.
-            </p>
+            <p className="text-sm text-gray-500 mt-2"><T>Bids for this auction are placed in person at the temple or over the phone with our office — online bidding is not available on the public site.</T>{' '}</p>
             <div className="mt-4 flex items-center justify-center gap-2 text-maroon-700 font-bold">
               <PhoneCall size={16} className="text-gold-500" /> {phone}
             </div>
             <p className="text-xs text-gray-400 mt-1">9:00 AM – 8:00 PM · Current bid ₹{bidFor.current.toLocaleString('en-IN')}</p>
-            <button className="btn-primary mt-5" onClick={() => setBidFor(null)}>Got it</button>
+            <button className="btn-primary mt-5" onClick={() => setBidFor(null)}><T>Got it</T></button>
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { PageHeader, Table, Badge } from '../../components/common/UI.jsx'
 import { AuditAPI } from '../../api/client.js'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const ACTION_TONE = { CREATE: 'green', UPDATE: 'amber', DELETE: 'red', LOGIN: 'blue', DENIED: 'red' }
 
@@ -14,8 +15,8 @@ export default function AuditLog() {
 
   return (
     <div>
-      <PageHeader title="Audit Log" subtitle="Immutable trail of all staff actions — who, what, when"
-        action={<button onClick={load} className="btn-outline"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh</button>} />
+      <PageHeader title={tr("Audit Log")} subtitle="Immutable trail of all staff actions — who, what, when"
+        action={<button onClick={load} className="btn-outline"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />{' '}<T>Refresh</T></button>} />
       <Table columns={['Timestamp', 'User', 'Action', 'Entity', 'Detail', 'Status', 'IP']}>
         {rows.map((a) => (
           <tr key={a.id} className="hover:bg-gray-50">
@@ -28,7 +29,7 @@ export default function AuditLog() {
             <td className="px-4 py-3 text-gray-400 text-xs font-mono">{a.ip || '—'}</td>
           </tr>
         ))}
-        {!loading && rows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm">No audit entries yet.</td></tr>}
+        {!loading && rows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm"><T>No audit entries yet.</T></td></tr>}
       </Table>
     </div>
   )

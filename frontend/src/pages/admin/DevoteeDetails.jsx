@@ -8,6 +8,7 @@ import { DevoteesAPI } from '../../api/client.js'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
+import { T } from '../../i18n/LanguageContext.jsx'
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -66,19 +67,19 @@ export default function DevoteeDetails() {
       {/* Breadcrumb + header */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin" className="hover:text-maroon-600">Home</Link> › <Link to="/admin/devotees" className="hover:text-maroon-600">Devotees</Link> › <span className="text-gray-500">Devotee Details</span></div>
-          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800">Devotee Details</h1>
-          <p className="text-sm text-gray-500 mt-0.5">View devotee profile and linked temple activities.</p>
+          <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin" className="hover:text-maroon-600"><T>Home</T></Link> › <Link to="/admin/devotees" className="hover:text-maroon-600"><T>Devotees</T></Link> › <span className="text-gray-500"><T>Devotee Details</T></span></div>
+          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800"><T>Devotee Details</T></h1>
+          <p className="text-sm text-gray-500 mt-0.5"><T>View devotee profile and linked temple activities.</T></p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => nav('/admin/devotees')} className="btn-outline !py-2.5"><ArrowLeft size={15} /> Back to Devotees</button>
-          <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><Plus size={15} /> New Booking</Link>
+          <button onClick={() => nav('/admin/devotees')} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Devotees</T></button>
+          <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><Plus size={15} />{' '}<T>New Booking</T></Link>
         </div>
       </div>
 
       {/* Profile card */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-5 relative">
-        <button onClick={() => setEdit({ ...dev })} className="absolute top-4 right-4 flex items-center gap-1.5 text-[0.8125rem] font-semibold text-maroon-700 border border-maroon-200 rounded-lg px-3 py-1.5 hover:bg-maroon-50"><Pencil size={14} /> Edit Devotee</button>
+        <button onClick={() => setEdit({ ...dev })} className="absolute top-4 right-4 flex items-center gap-1.5 text-[0.8125rem] font-semibold text-maroon-700 border border-maroon-200 rounded-lg px-3 py-1.5 hover:bg-maroon-50"><Pencil size={14} />{' '}<T>Edit Devotee</T></button>
         <div className="grid lg:grid-cols-[1.4fr_1fr_1.2fr] gap-6">
           {/* identity */}
           <div className="flex items-start gap-4">
@@ -112,7 +113,7 @@ export default function DevoteeDetails() {
       {/* Family members — used as the "in the name of" beneficiary for ceremonies */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-serif text-[1rem] font-bold text-maroon-800">Family Members</h3>
+          <h3 className="font-serif text-[1rem] font-bold text-maroon-800"><T>Family Members</T></h3>
           <button onClick={async () => {
             const res = await promptDialog({
               title: 'Add family member',
@@ -125,10 +126,10 @@ export default function DevoteeDetails() {
             if (!res) return
             try { await DevoteesAPI.addFamily(dev.id, { name: res.name.trim(), relation: res.relation.trim() }); toast('Family member added.'); reload() }
             catch (ex) { toast(ex?.detail || 'Could not add the family member.', 'error') }
-          }} className="btn-outline !py-1.5 text-[0.75rem]"><Plus size={13} /> Add Member</button>
+          }} className="btn-outline !py-1.5 text-[0.75rem]"><Plus size={13} />{' '}<T>Add Member</T></button>
         </div>
         {(dev.family || []).length === 0 ? (
-          <p className="text-[0.8125rem] text-gray-400">No family members recorded.</p>
+          <p className="text-[0.8125rem] text-gray-400"><T>No family members recorded.</T></p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {dev.family.map((f) => (
@@ -185,7 +186,7 @@ export default function DevoteeDetails() {
         <div className="p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-maroon-800">{TABS.find((x) => x.key === tab).label}</h3>
-            {tab === 'bookings' && <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600 border border-maroon-200 rounded-lg px-3 py-1.5">View All Pooja Bookings</Link>}
+            {tab === 'bookings' && <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600 border border-maroon-200 rounded-lg px-3 py-1.5"><T>View All Pooja Bookings</T></Link>}
           </div>
 
           {tab === 'bookings' && (
@@ -202,7 +203,7 @@ export default function DevoteeDetails() {
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.booked_on)}</td>
                 </tr>
               ))}
-              {d.bookings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">No pooja bookings.</td></tr>}
+              {d.bookings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400"><T>No pooja bookings.</T></td></tr>}
             </Table>
           )}
 
@@ -215,11 +216,11 @@ export default function DevoteeDetails() {
                   <td className="px-4 py-3"><Badge tone="bg-blue-50 text-blue-700">{x.type}</Badge></td>
                   <td className="px-4 py-3 font-semibold text-emerald-700">{num(x.amount)}</td>
                   <td className="px-4 py-3 text-gray-600">{x.mode}</td>
-                  <td className="px-4 py-3">{x.g80 ? <Badge tone="bg-emerald-50 text-emerald-700">Eligible</Badge> : '—'}</td>
+                  <td className="px-4 py-3">{x.g80 ? <Badge tone="bg-emerald-50 text-emerald-700"><T>Eligible</T></Badge> : '—'}</td>
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtDate(x.date)}</td>
                 </tr>
               ))}
-              {d.donations.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">No donations.</td></tr>}
+              {d.donations.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400"><T>No donations.</T></td></tr>}
             </Table>
           )}
 
@@ -234,7 +235,7 @@ export default function DevoteeDetails() {
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtDate(a.date)}</td>
                 </tr>
               ))}
-              {d.annadanam.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">No annadanam sponsorships.</td></tr>}
+              {d.annadanam.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400"><T>No annadanam sponsorships.</T></td></tr>}
             </Table>
           )}
 
@@ -249,17 +250,16 @@ export default function DevoteeDetails() {
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtDate(a.date)}</td>
                 </tr>
               ))}
-              {d.auction.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">No auction purchases.</td></tr>}
+              {d.auction.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400"><T>No auction purchases.</T></td></tr>}
             </Table>
           )}
 
-          {tab === 'notes' && <div className="text-sm text-gray-400 py-8 text-center">No notes or remarks recorded.</div>}
+          {tab === 'notes' && <div className="text-sm text-gray-400 py-8 text-center"><T>No notes or remarks recorded.</T></div>}
         </div>
       </div>
 
       <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5">
-        <span className="text-blue-500">ⓘ</span> All transactions are linked to this devotee profile. Click on each tab to view detailed history.
-      </div>
+        <span className="text-blue-500">ⓘ</span>{' '}<T>All transactions are linked to this devotee profile. Click on each tab to view detailed history.</T>{' '}</div>
 
       {edit && <EditDevoteeModal data={edit} onChange={setEdit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload() }} />}
     </div>
@@ -287,7 +287,7 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
     <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-4" onClick={onClose}>
       <form onClick={(e) => e.stopPropagation()} onSubmit={save} className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-serif text-xl font-bold text-maroon-800">Edit Devotee</h3>
+          <h3 className="font-serif text-xl font-bold text-maroon-800"><T>Edit Devotee</T></h3>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
@@ -297,17 +297,17 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
               <input className="input" value={data[k] || ''} onChange={(e) => onChange({ ...data, [k]: e.target.value })} />
             </div>
           ))}
-          <div className="sm:col-span-2"><label className="label">Address</label><input className="input" value={data.address || ''} onChange={(e) => onChange({ ...data, address: e.target.value })} /></div>
-          <div><label className="label">Preferred Language</label>
+          <div className="sm:col-span-2"><label className="label"><T>Address</T></label><input className="input" value={data.address || ''} onChange={(e) => onChange({ ...data, address: e.target.value })} /></div>
+          <div><label className="label"><T>Preferred Language</T></label>
             <Select className="input" value={data.preferred_language || 'English'} onChange={(e) => onChange({ ...data, preferred_language: e.target.value })}><option>English</option><option>Telugu</option></Select>
           </div>
-          <div><label className="label">Status</label>
+          <div><label className="label"><T>Status</T></label>
             <Select className="input" value={data.status || 'Active'} onChange={(e) => onChange({ ...data, status: e.target.value })}><option>Active</option><option>Inactive</option></Select>
           </div>
         </div>
         {err && <p className="text-[0.8125rem] text-red-600 mt-3">{err}</p>}
         <div className="flex justify-end gap-2 mt-5">
-          <button type="button" onClick={onClose} className="btn-outline">Cancel</button>
+          <button type="button" onClick={onClose} className="btn-outline"><T>Cancel</T></button>
           <button disabled={busy} className="btn-maroon disabled:opacity-60">{busy ? 'Saving…' : 'Save Changes'}</button>
         </div>
       </form>

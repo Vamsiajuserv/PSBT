@@ -17,6 +17,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react'
 import { Checkbox, DateField, NumberField } from './Field.jsx'
+import { useLang } from '../../i18n/LanguageContext.jsx'
 
 let host = null // set by DialogHost on mount
 
@@ -67,6 +68,7 @@ export function DialogHost() {
 }
 
 function Toast({ message, tone, onClose }) {
+  const { t } = useLang()
   const style = {
     success: { icon: CheckCircle2, cls: 'bg-emerald-700 text-white' },
     error: { icon: AlertTriangle, cls: 'bg-red-700 text-white' },
@@ -76,13 +78,14 @@ function Toast({ message, tone, onClose }) {
   return (
     <div className={`pointer-events-auto flex items-center gap-2.5 rounded-xl px-4 py-2.5 shadow-lg text-[0.8125rem] font-medium max-w-md ${style.cls}`}>
       <Icon size={16} className="shrink-0" />
-      <span className="min-w-0">{message}</span>
+      <span className="min-w-0">{t(message)}</span>
       <button type="button" onClick={onClose} className="shrink-0 opacity-60 hover:opacity-100 ml-1"><X size={14} /></button>
     </div>
   )
 }
 
 function Modal({ dlg, finish }) {
+  const { t } = useLang()
   const { kind, title, message, mono, note, fields = [], confirmLabel, cancelLabel, tone } = dlg
   const danger = tone === 'danger'
   const [vals, setVals] = useState(() => Object.fromEntries(fields.map((f) => [f.k, f.defaultValue ?? (f.type === 'checkbox' ? false : '')])))
@@ -120,8 +123,8 @@ function Modal({ dlg, finish }) {
               {danger ? <AlertTriangle size={18} /> : kind === 'alert' ? <Info size={18} /> : <CheckCircle2 size={18} />}
             </div>
             <div className="min-w-0 flex-1">
-              {title && <div className="font-serif font-bold text-maroon-800 text-[0.9375rem] leading-snug">{title}</div>}
-              {message && <div className="text-[0.8125rem] text-gray-600 mt-1 whitespace-pre-line">{message}</div>}
+              {title && <div className="font-serif font-bold text-maroon-800 text-[0.9375rem] leading-snug">{t(title)}</div>}
+              {message && <div className="text-[0.8125rem] text-gray-600 mt-1 whitespace-pre-line">{t(message)}</div>}
             </div>
           </div>
 
@@ -139,11 +142,11 @@ function Modal({ dlg, finish }) {
                         checked={!!vals[f.k]}
                         onChange={(e) => setVals((v) => ({ ...v, [f.k]: e.target.checked }))}
                       />
-                      {f.label}
+                      {t(f.label)}
                     </label>
                   ) : (
                     <>
-                      <label className="label">{f.label}{f.required && ' *'}</label>
+                      <label className="label">{t(f.label)}{f.required && ' *'}</label>
                       {f.type === 'date' ? (
                         <DateField value={vals[f.k]} min={f.min} max={f.max} required={f.required}
                           onChange={(e) => setVals((v) => ({ ...v, [f.k]: e.target.value }))} />
@@ -169,18 +172,18 @@ function Modal({ dlg, finish }) {
                       )}
                     </>
                   )}
-                  {f.note && <div className="text-[0.6875rem] text-gray-400 mt-1">{f.note}</div>}
+                  {f.note && <div className="text-[0.6875rem] text-gray-400 mt-1">{t(f.note)}</div>}
                 </div>
               ))}
             </div>
           )}
-          {note && <div className="mt-3 text-[0.71875rem] text-gray-400">{note}</div>}
+          {note && <div className="mt-3 text-[0.71875rem] text-gray-400">{t(note)}</div>}
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-3.5 bg-cream/60 border-t border-gold-100">
           {kind !== 'alert' && (
             <button type="button" onClick={cancel} className="px-4 py-2 rounded-lg text-[0.8125rem] font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
-              {cancelLabel || 'Cancel'}
+              {t(cancelLabel || 'Cancel')}
             </button>
           )}
           <button
@@ -189,7 +192,7 @@ function Modal({ dlg, finish }) {
             disabled={kind === 'prompt' && missing}
             className={`px-4 py-2 rounded-lg text-[0.8125rem] font-bold text-white transition-colors disabled:opacity-40 ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-maroon-800 hover:bg-maroon-900'}`}
           >
-            {confirmLabel || (kind === 'alert' ? 'OK' : kind === 'prompt' ? 'Save' : 'Confirm')}
+            {t(confirmLabel || (kind === 'alert' ? 'OK' : kind === 'prompt' ? 'Save' : 'Confirm'))}
           </button>
         </div>
       </form>

@@ -1,3 +1,4 @@
+import { useLang } from '../../i18n/LanguageContext.jsx'
 import React from 'react'
 
 // ── Count-up number that animates once when it scrolls into view ─────────────
@@ -91,6 +92,8 @@ export function Particles({ items, core = '#F6E3A8', glow = 'rgba(212,175,55,0.8
    a faint velvet grain, gold-gradient title and a coloured breadcrumb. No
    ornaments, lamps, particles or glows by design.                           */
 export function MinimalBanner({ title, breadcrumb }) {
+  const { t } = useLang()
+  title = typeof title === 'string' ? t(title) : title
   // "Home › Gallery" → last crumb gold, the rest white.
   const crumbs = breadcrumb ? breadcrumb.split('›').map((s) => s.trim()).filter(Boolean) : []
 
@@ -255,6 +258,8 @@ const LAMPS = [
 ]
 
 export function TempleBanner({ title, breadcrumb }) {
+  const { t } = useLang()
+  title = typeof title === 'string' ? t(title) : title
   return (
     <section className="temple-banner relative overflow-hidden min-h-[7rem] sm:min-h-[7.75rem] animate-fade-in">
       <BannerDefs />
@@ -325,6 +330,10 @@ export function TempleBanner({ title, breadcrumb }) {
 
 // ── Section heading for public pages ────────────────────────────────────────
 export function SectionTitle({ title, subtitle, eyebrow, center = true }) {
+  const { t } = useLang()
+  title = typeof title === 'string' ? t(title) : title
+  subtitle = typeof subtitle === 'string' ? t(subtitle) : subtitle
+  eyebrow = typeof eyebrow === 'string' ? t(eyebrow) : eyebrow
   return (
     <div className={center ? 'text-center' : ''}>
       {eyebrow && <div className="font-script text-2xl text-gold-500 leading-none mb-1">{eyebrow}</div>}
@@ -377,6 +386,9 @@ export function StatBand({ stats }) {
 
 // ── Page header for admin pages ─────────────────────────────────────────────
 export function PageHeader({ title, subtitle, action }) {
+  const { t } = useLang()
+  title = typeof title === 'string' ? t(title) : title
+  subtitle = typeof subtitle === 'string' ? t(subtitle) : subtitle
   return (
     <div className="flex items-start justify-between gap-4 mb-6">
       <div>
@@ -409,6 +421,8 @@ const STAT_TONES = {
   violet: 'from-violet-500 to-violet-600',
 }
 export function StatCard({ label, value, delta, tone = 'saffron' }) {
+  const { t } = useLang()
+  label = typeof label === 'string' ? t(label) : label
   return (
     <div className="card p-5">
       <div className={`h-1.5 w-10 rounded-full bg-gradient-to-r ${STAT_TONES[tone]} mb-3`} />
@@ -451,13 +465,24 @@ export function Donut({ segments, total, centerLabel = 'Total', size = 150 }) {
       <circle cx="70" cy="70" r={r} fill="none" stroke="#f1ede2" strokeWidth="16" />
       {segments.map((s) => {
         const len = (s.pct / 100) * c
+        // Slice midpoint angle (chart starts at 12 o'clock) for the % label.
+        const mid = ((offset + len / 2) / c) * 2 * Math.PI - Math.PI / 2
+        const lx = 70 + r * Math.cos(mid)
+        const ly = 70 + r * Math.sin(mid)
         const el = (
-          <circle
-            key={s.label}
-            cx="70" cy="70" r={r} fill="none" stroke={s.color} strokeWidth="16"
-            strokeDasharray={`${len} ${c - len}`} strokeDashoffset={-offset}
-            transform="rotate(-90 70 70)" strokeLinecap="butt"
-          />
+          <g key={s.label}>
+            <circle
+              cx="70" cy="70" r={r} fill="none" stroke={s.color} strokeWidth="16"
+              strokeDasharray={`${len} ${c - len}`} strokeDashoffset={-offset}
+              transform="rotate(-90 70 70)" strokeLinecap="butt"
+            >
+              <title>{`${s.label}: ${s.pct}%`}</title>
+            </circle>
+            {s.pct >= 8 && (
+              <text x={lx} y={ly + 3} textAnchor="middle" className="pointer-events-none"
+                style={{ fontSize: 9, fontWeight: 700, fill: '#fff' }}>{Math.round(s.pct)}%</text>
+            )}
+          </g>
         )
         offset += len
         return el

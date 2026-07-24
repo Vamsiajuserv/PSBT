@@ -64,6 +64,77 @@ const UI_TE = {
   'General temple information and daily rituals.':
     'సాధారణ ఆలయ సమాచారం మరియు రోజువారీ ఆచారాలు.',
   'View More Photos': 'మరిన్ని ఫోటోలు చూడండి',
+
+  // ── Admin navigation ──
+  'Dashboard': 'డాష్‌బోర్డ్', 'Counter Billing': 'కౌంటర్ బిల్లింగ్',
+  'Advance Booking': 'ముందస్తు బుకింగ్', 'My Poojas': 'నా పూజలు',
+  'Verify Ticket': 'టికెట్ ధృవీకరణ', 'Devotee Management': 'భక్తుల నిర్వహణ',
+  'Pooja Management': 'పూజల నిర్వహణ', 'Bookings': 'బుకింగ్‌లు',
+  'Pooja Master': 'పూజల మాస్టర్', 'Poojari Schedule': 'పూజారి షెడ్యూల్',
+  'Poojari Master': 'పూజారి మాస్టర్', 'Pooja History': 'పూజల చరిత్ర',
+  'Calendar': 'క్యాలెండర్', 'Donation Management': 'విరాళాల నిర్వహణ',
+  'Donation Master': 'విరాళాల మాస్టర్', 'Hundi Management': 'హుండీ నిర్వహణ',
+  'Hundi Collections': 'హుండీ వసూళ్లు', 'Hundi Item Master': 'హుండీ వస్తువుల మాస్టర్',
+  'Auction Management': 'వేలం నిర్వహణ', 'Auctions': 'వేలాలు',
+  'Auction Item Master': 'వేలం వస్తువుల మాస్టర్', 'Annadanam Management': 'అన్నదాన నిర్వహణ',
+  'Waste Material Sales': 'వ్యర్థ పదార్థాల అమ్మకాలు', 'Waste Sales': 'వ్యర్థ అమ్మకాలు',
+  'Vendor Master': 'విక్రేతల మాస్టర్', 'Reports': 'నివేదికలు',
+  'Daily Closing': 'రోజువారీ ముగింపు', 'User Management': 'వినియోగదారుల నిర్వహణ',
+  'Role & Access Management': 'పాత్రలు & యాక్సెస్ నిర్వహణ', 'Settings': 'సెట్టింగ్‌లు',
+  'System Settings': 'సిస్టమ్ సెట్టింగ్‌లు', 'Committee Member Master': 'కమిటీ సభ్యుల మాస్టర్',
+  'Festival Master': 'పండుగల మాస్టర్', 'Notifications': 'నోటిఫికేషన్‌లు',
+  'Audit Trail': 'ఆడిట్ ట్రయల్', 'Backup & Restore': 'బ్యాకప్ & పునరుద్ధరణ',
+
+  // ── Roles ──
+  'Administrator': 'నిర్వాహకుడు', 'Counter Staff': 'కౌంటర్ సిబ్బంది',
+  'Poojari': 'పూజారి', 'Accountant': 'అకౌంటెంట్', 'Committee': 'కమిటీ',
+
+  // ── Common actions ──
+  'Save': 'సేవ్ చేయండి', 'Cancel': 'రద్దు', 'Confirm': 'నిర్ధారించండి',
+  'Delete': 'తొలగించండి', 'Edit': 'సవరించండి', 'Search': 'వెతకండి',
+  'Search…': 'వెతకండి…', 'Clear': 'క్లియర్', 'Reset': 'రీసెట్',
+  'Refresh': 'రిఫ్రెష్', 'Refreshing…': 'రిఫ్రెష్ అవుతోంది…',
+  'Export': 'ఎగుమతి', 'Print': 'ప్రింట్', 'Download': 'డౌన్‌లోడ్',
+  'Close': 'మూసివేయండి', 'Done': 'పూర్తయింది', 'Today': 'ఈరోజు', 'Now': 'ఇప్పుడు',
+  'View': 'చూడండి', 'View only': 'చూడటం మాత్రమే', 'Actions': 'చర్యలు',
+  'Filter': 'ఫిల్టర్', 'OK': 'సరే', 'Yes': 'అవును', 'No': 'కాదు',
+  'Add': 'జోడించండి', 'Remove': 'తీసివేయండి', 'Verify': 'ధృవీకరించండి',
+  'Reject': 'తిరస్కరించండి', 'Select…': 'ఎంచుకోండి…', 'Select date': 'తేదీ ఎంచుకోండి',
+  'Select time': 'సమయం ఎంచుకోండి', 'Select date & time': 'తేదీ & సమయం ఎంచుకోండి',
+  'Sign out': 'సైన్ అవుట్', 'Date Range': 'తేదీ పరిధి',
+
+  // ── Statuses ──
+  'Active': 'యాక్టివ్', 'Inactive': 'ఇనాక్టివ్', 'All': 'అన్నీ', 'All Status': 'అన్ని స్థితులు',
+  'Paid': 'చెల్లించబడింది', 'Pending': 'పెండింగ్', 'Confirmed': 'నిర్ధారించబడింది',
+  'Completed': 'పూర్తయింది', 'Cancelled': 'రద్దు చేయబడింది', 'Scheduled': 'షెడ్యూల్ చేయబడింది',
+  'In Progress': 'జరుగుతోంది', 'Verified': 'ధృవీకరించబడింది',
+  'Pending Verification': 'ధృవీకరణ పెండింగ్', 'Deposited': 'జమ చేయబడింది',
+  'Pending Deposit': 'జమ పెండింగ్', 'Rejected': 'తిరస్కరించబడింది',
+  'Open': 'తెరిచి ఉంది', 'Closed': 'మూసివేయబడింది', 'Void': 'రద్దు', 'Expired': 'గడువు ముగిసింది',
+
+  // ── Common labels / table headers ──
+  'Status': 'స్థితి', 'Date': 'తేదీ', 'Time': 'సమయం', 'Amount (₹)': 'మొత్తం (₹)',
+  'Total': 'మొత్తం', 'Total Amount (₹)': 'మొత్తం సొమ్ము (₹)', 'Cash': 'నగదు',
+  'Cash (₹)': 'నగదు (₹)', 'UPI / QR (₹)': 'యుపిఐ / క్యూఆర్ (₹)',
+  'Payment': 'చెల్లింపు', 'Payment Mode': 'చెల్లింపు విధానం', 'Receipt': 'రసీదు',
+  'Receipt No': 'రసీదు నం.', 'Ticket': 'టికెట్', 'Booking ID': 'బుకింగ్ ఐడి',
+  'Devotee': 'భక్తుడు', 'Devotees': 'భక్తులు', 'Devotee Name': 'భక్తుని పేరు',
+  'Pooja': 'పూజ', 'Poojas': 'పూజలు', 'Plan': 'ప్లాన్', 'Fee': 'రుసుము',
+  'Quantity': 'పరిమాణం', 'Rate': 'రేటు', 'Notes': 'గమనికలు', 'Reason': 'కారణం',
+  'Module': 'మాడ్యూల్', 'Transactions': 'లావాదేవీలు', 'Description': 'వివరణ',
+  'Category': 'వర్గం', 'Item': 'వస్తువు', 'Winner': 'విజేత', 'Vendor': 'విక్రేత',
+  'Gothram': 'గోత్రం', 'Nakshatram': 'నక్షత్రం', 'City': 'నగరం', 'Address': 'చిరునామా',
+  'Mobile': 'మొబైల్', 'Refund': 'వాపసు', 'Refunds': 'వాపసులు',
+  'Validity': 'చెల్లుబాటు', 'Persons': 'వ్యక్తులు', 'Occasion': 'సందర్భం',
+  'Festival': 'పండుగ', 'Collection Date': 'వసూలు తేదీ', 'Denomination': 'డినామినేషన్',
+  'Committee Members': 'కమిటీ సభ్యులు', 'Bank Name': 'బ్యాంక్ పేరు',
+  'Verification Status': 'ధృవీకరణ స్థితి', 'Deposit Status': 'జమ స్థితి',
+  'Deposit Date': 'జమ తేదీ', 'Booking Date': 'బుకింగ్ తేదీ', 'Vehicle Number': 'వాహన నంబర్',
+
+  // ── Login screen ──
+  'Username': 'యూజర్ పేరు', 'Password': 'పాస్‌వర్డ్', 'Sign In': 'సైన్ ఇన్',
+  'Forgot Password?': 'పాస్‌వర్డ్ మర్చిపోయారా?',
+  'Temple Management System': 'ఆలయ నిర్వహణ వ్యవస్థ',
 }
 
 const LangCtx = createContext(null)
@@ -96,8 +167,15 @@ export function LanguageProvider({ children }) {
   const t = useCallback((text) => {
     if (lang === 'en' || text == null || text === '') return text
     const s = String(text)
+    if (/[\u0C00-\u0C7F]/.test(s)) return s   // already Telugu — nothing to do
     const local = UI_TE[s] || glossaryTe(s)
     if (local) return local
+    // Suffix-tolerant: "Collection Date *" / "Amount:" hit the base entry.
+    const dm = s.match(/^(.*?)([\s:*…]+)$/)
+    if (dm) {
+      const base = UI_TE[dm[1].trim()] || glossaryTe(dm[1].trim())
+      if (base) return base + dm[2]
+    }
     if (cache[s]) return cache[s]
     if (!pending.current.has(s)) {
       pending.current.add(s)
@@ -107,7 +185,33 @@ export function LanguageProvider({ children }) {
     return text
   }, [lang, cache, flush])
 
-  return <LangCtx.Provider value={{ lang, setLang, toggle, t }}>{children}</LangCtx.Provider>
+  // Module-level handle so tr() (attribute props: placeholder/title) and <T>
+  // work anywhere without threading the hook through every component.
+  reg.lang = lang
+  reg.t = t
+
+  // key={lang} remounts the subtree on toggle, so even strings resolved via the
+  // module-level tr() re-evaluate instantly in the new language.
+  return (
+    <LangCtx.Provider value={{ lang, setLang, toggle, t }}>
+      <React.Fragment key={lang}>{children}</React.Fragment>
+    </LangCtx.Provider>
+  )
+}
+
+// ── Hook-free helpers (usable in any component, incl. ones without hooks) ──
+const reg = { lang: 'en', t: (s) => s }
+
+// Attribute-position translation (placeholder=, title=). Re-evaluates on the
+// provider's key={lang} remount; dictionary hits are instant.
+export function tr(text) { return reg.t(text) }
+
+// Text-node translation: <T>Some sentence</T>. Subscribes to the context, so
+// late-arriving dynamic translations (Azure cache) also re-render.
+export function T({ children }) {
+  const { t } = useLang()
+  if (children == null) return null
+  return t(typeof children === 'string' || typeof children === 'number' ? String(children) : String(children))
 }
 
 export function useLang() {

@@ -10,6 +10,7 @@ import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI, BookingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
@@ -57,10 +58,10 @@ export default function BookingDetails() {
 
   return (
     <div>
-      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/bookings" className="hover:text-maroon-600">Pooja Management</Link> › <Link to="/admin/bookings" className="hover:text-maroon-600">Bookings</Link> › <span className="text-gray-500">Booking Details</span></div>
-      <PageTitle title="Booking Details" actions={<>
-        {canOperate && d.status === 'Confirmed' && <button onClick={complete} className="btn-maroon !py-2.5"><CheckCircle2 size={15} /> Mark as Completed</button>}
-        <button onClick={() => nav('/admin/bookings')} className="btn-outline !py-2.5"><ArrowLeft size={15} /> Back to Bookings List</button>
+      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/bookings" className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to="/admin/bookings" className="hover:text-maroon-600"><T>Bookings</T></Link> › <span className="text-gray-500"><T>Booking Details</T></span></div>
+      <PageTitle title={tr("Booking Details")} actions={<>
+        {canOperate && d.status === 'Confirmed' && <button onClick={complete} className="btn-maroon !py-2.5"><CheckCircle2 size={15} />{' '}<T>Mark as Completed</T></button>}
+        <button onClick={() => nav('/admin/bookings')} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Bookings List</T></button>
       </>} />
 
       {/* Summary strip */}
@@ -76,13 +77,13 @@ export default function BookingDetails() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Left column */}
         <div className="space-y-5">
-          <Section n="1" icon={User} title="Devotee Details">
+          <Section n="1" icon={User} title={tr("Devotee Details")}>
             <Row label="Devotee Name" value={dev.name} />
             <Row label="Mobile Number" value={dev.mobile} />
             <Row label="Email (if any)" value={dev.email || '—'} />
           </Section>
 
-          <Section n="2" icon={Landmark} title="Pooja & Plan Details">
+          <Section n="2" icon={Landmark} title={tr("Pooja & Plan Details")}>
             <Row label="Pooja Name" value={d.pooja_name} />
             <Row label="Plan" value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
             <Row label="Plan Type" value={plan.plan_name} />
@@ -91,17 +92,17 @@ export default function BookingDetails() {
             <Row label="Plan Description" value={`${plan.description || ''} for ${validityShort(plan)}`.trim()} />
           </Section>
 
-          <Section n="3" icon={IndianRupee} title="Amount Details">
+          <Section n="3" icon={IndianRupee} title={tr("Amount Details")}>
             <Row label="Rate (₹)" value={money2(plan.rate_amount)} />
             <div className="flex text-[0.84375rem] pt-1"><span className="text-maroon-700 font-bold w-44 shrink-0">Total Amount Paid (₹)</span><span className="text-gray-400 mr-3">:</span><span className="text-maroon-700 font-extrabold">{money2(d.amount)}</span></div>
           </Section>
 
-          <Section n="4" icon={CreditCard} title="Payment Details">
+          <Section n="4" icon={CreditCard} title={tr("Payment Details")}>
             <Row label="Payment Mode" value={mode} />
             {isUpi && <Row label="UTR / Transaction ID" value={<span className="text-emerald-700 font-mono">{d.payment_ref}</span>} />}
             <Row label="Payment Date & Time" value={fmtStamp(d.created_at)} />
-            <Row label="Payment Status" value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} /> Payment Successful</span>} />
-            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Payment has been received successfully.</div>
+            <Row label="Payment Status" value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} />{' '}<T>Payment Successful</T></span>} />
+            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" />{' '}<T>Payment has been received successfully.</T></div>
           </Section>
         </div>
 
@@ -121,17 +122,17 @@ export default function BookingDetails() {
             <TF icon={CreditCard} label="Payment Mode" value={mode} />
             <TF icon={Ticket} label="UTR / Transaction ID" value={isUpi ? <span className="text-emerald-700 font-mono text-[0.75rem]">{d.payment_ref}</span> : '—'} />
             <TF icon={Calendar} label="Payment Date & Time" value={fmtStamp(d.created_at)} />
-            <TF icon={CheckCircle2} label="Payment Status" value={<span className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-emerald-700"><CheckCircle2 size={12} /> Payment Successful</span>} />
+            <TF icon={CheckCircle2} label="Payment Status" value={<span className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-emerald-700"><CheckCircle2 size={12} />{' '}<T>Payment Successful</T></span>} />
           </TicketShell>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-3 justify-center mt-6 no-print">
-        <button onClick={() => window.print()} className="btn-outline"><Printer size={15} /> Print Ticket / Receipt</button>
-        <button onClick={() => window.print()} className="btn-outline"><Download size={15} /> Download PDF</button>
-        <button onClick={() => nav('/admin/bookings')} className="btn-maroon"><ArrowLeft size={15} /> Back to Bookings List</button>
+        <button onClick={() => window.print()} className="btn-outline"><Printer size={15} />{' '}<T>Print Ticket / Receipt</T></button>
+        <button onClick={() => window.print()} className="btn-outline"><Download size={15} />{' '}<T>Download PDF</T></button>
+        <button onClick={() => nav('/admin/bookings')} className="btn-maroon"><ArrowLeft size={15} />{' '}<T>Back to Bookings List</T></button>
       </div>
-      <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5"><ShieldCheck size={15} className="text-blue-500" /> All bookings are subject to temple rules and availability.</div>
+      <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5"><ShieldCheck size={15} className="text-blue-500" />{' '}<T>All bookings are subject to temple rules and availability.</T></div>
     </div>
   )
 }

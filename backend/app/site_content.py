@@ -63,32 +63,68 @@ DEFAULT_CONTENT = {
     },
 
     "history": [
-        {"year": "1987", "title": "Temple Established", "desc": "Sri Shirdi Sai Premsamaj trust establishes the temple at Dwarakapuri Colony, Punjagutta."},
-        {"year": "1990s", "title": "Daily Sevas Begin", "desc": "Regular abhishekam, archana and aarti introduced following Shirdi traditions."},
-        {"year": "2000s", "title": "Annadanam & Healthcare", "desc": "Free food offering and charitable medical services for the public expanded."},
-        {"year": "Today", "title": "A Living Centre of Devotion", "desc": "Known for Thursday celebrations, Guru Purnima, Rama Navami, Sai Mahasamadhi & Sai Jayanti."},
+        {"year": "1983", "title": "The Foundation", "desc": "Sri Shirdi Sai Premsamaj, a registered charitable society, begins building a Sai mandir at Dwarakapuri Colony, Punjagutta — among the earliest Sai Baba temples of Hyderabad."},
+        {"year": "April 1987", "title": "Temple Opened to Devotees", "desc": "The temple is consecrated and opened to devotees, with daily sevas performed in the same manner as at Shirdi."},
+        {"year": "1990s", "title": "Shirdi Traditions Take Root", "desc": "Daily abhishekam, archana and the four aartis are established, and the Thursday evening Palki Yatra through Dwarakapuri Colony begins drawing devotees from across the city."},
+        {"year": "2000s", "title": "Annadanam & Free Healthcare", "desc": "The trust's seva grows beyond the temple — daily annadanam expands, and free medical consultations, physiotherapy, a pathology lab and a free pharmacy serve the public."},
+        {"year": "Today", "title": "A Living Centre of Devotion", "desc": "Thousands visit for Thursday palki seva and the great festivals — Sri Rama Navami, Guru Purnima, Vijayadashami (Mahasamadhi) and Sai Jayanti."},
     ],
 
+    # The life of Shirdi Sai Baba — rendered on the Temple History page. Historic
+    # imagery: public-domain photograph plus the temple's own gallery images.
+    "baba_story": [
+        {"era": "c. 1858", "title": "Arrival at Shirdi", "img": "/images/history/baba-portrait.jpg",
+         "desc": "A young fakir arrived in the village of Shirdi, Maharashtra, and sat in meditation beneath a neem tree at the place now revered as Gurusthan. The temple priest Mhalsapati greeted him “Ya Sai!” — welcome, Sai — and the name remained forever."},
+        {"era": "1858–1918", "title": "Life at Dwarkamai", "img": "/images/sai/sai2.jpg",
+         "desc": "For sixty years Baba lived in a humble mosque he named Dwarkamai — a Hindu name lovingly given to a Muslim structure. There he tended the sacred dhuni, whose udi (ash) he gave to devotees as a blessing of protection and grace."},
+        {"era": "Teachings", "title": "Shraddha & Saburi — For All", "img": "/images/sai/devotees.jpg",
+         "desc": "Baba asked only for two things: Shraddha (faith) and Saburi (patience). Hindus and Muslims alike sat together at his feet as he taught love, forgiveness, charity and contentment — “Sabka Malik Ek”, One God governs all."},
+        {"era": "15 Oct 1918", "title": "Mahasamadhi", "img": "/images/sai/samadhi.jpg",
+         "desc": "On Vijayadashami day, Baba attained Mahasamadhi. His samadhi at Shirdi draws millions each year, and his promise endures: “I shall be active and vigorous even from my tomb.” Temples across the world — including ours — carry his light forward."},
+    ],
+
+    # Gallery — categorised for the public page's filter chips ("cat"). The first
+    # five entries also feed the home-page gallery strip. Commons imagery is
+    # attributed in frontend/public/images/{festivals,history,gallery}/ATTRIBUTIONS.md.
     "gallery": [
-        {"id": "G1", "caption": "Golden Shrine — Sri Sai Baba", "img": _IMG("goldfull")},
-        {"id": "G2", "caption": "Samadhi Mandir, Shirdi", "img": _IMG("samadhi")},
-        {"id": "G3", "caption": "Sri Sai Baba (Marble Murti)", "img": _IMG("temple3")},
-        {"id": "G4", "caption": "Baba Blessing Devotees", "img": _IMG("temple2")},
-        {"id": "G5", "caption": "Sai Baba — Historic Portrait", "img": _IMG("sai3")},
-        {"id": "G6", "caption": "Baba Seated on Stone", "img": _IMG("sai2")},
-        {"id": "G7", "caption": "Baba with Devotees (1910s)", "img": _IMG("devotees")},
-        {"id": "G8", "caption": "116-ft Sai Baba Statue", "img": _IMG("st116")},
+        {"id": "G1", "caption": "Golden Shrine — Sri Sai Baba", "img": _IMG("goldfull"), "cat": "Sri Sai Baba"},
+        {"id": "G2", "caption": "Samadhi Mandir, Shirdi", "img": _IMG("samadhi"), "cat": "Heritage"},
+        {"id": "G3", "caption": "Sri Sai Baba — Marble Murti", "img": _IMG("temple3"), "cat": "Sri Sai Baba"},
+        {"id": "G4", "caption": "Baba Blessing Devotees", "img": _IMG("temple2"), "cat": "Sri Sai Baba"},
+        {"id": "G5", "caption": "Sai Baba — Historic Portrait", "img": _IMG("sai3"), "cat": "Sri Sai Baba"},
+        {"id": "G6", "caption": "Baba Seated on Stone — Dwarkamai", "img": _IMG("sai2"), "cat": "Heritage"},
+        {"id": "G7", "caption": "Baba with Devotees (1910s)", "img": _IMG("devotees"), "cat": "Heritage"},
+        {"id": "G8", "caption": "116-ft Sai Baba Statue", "img": _IMG("st116"), "cat": "Heritage"},
+        {"id": "G9", "caption": "Baba Walking with Devotees — Historic", "img": "/images/history/baba-portrait.jpg", "cat": "Heritage"},
+        {"id": "G10", "caption": "Sri Rama Navami — Sita Rama Kalyanam", "img": "/images/festivals/rama-navami.jpg", "cat": "Festivals"},
+        {"id": "G11", "caption": "Devi Navaratri Alankaram", "img": "/images/festivals/navaratri.jpg", "cat": "Festivals"},
+        {"id": "G12", "caption": "Vinayaka Chavithi", "img": "/images/festivals/vinayaka-chavithi.jpg", "cat": "Festivals"},
+        {"id": "G13", "caption": "Karthika Deepotsavam", "img": "/images/festivals/karthika-masam.jpg", "cat": "Festivals"},
+        {"id": "G14", "caption": "Mahasamadhi Observance", "img": "/images/festivals/mahasamadhi.jpg", "cat": "Festivals"},
+        {"id": "G15", "caption": "Evening Aarti — The Dance of Flames", "img": "/images/gallery/aarti-lamps.jpg", "cat": "Seva & Aarti"},
+        {"id": "G16", "caption": "Palki Seva Decorations", "img": "/images/festivals/palki.jpg", "cat": "Seva & Aarti"},
     ],
 
+    # Festival content follows the Shirdi tradition: Rama Navami, Guru Purnima and
+    # Vijayadashami (Mahasamadhi) are the three principal Sai festivals. Imagery is
+    # from Wikimedia Commons (see frontend/public/images/festivals/ATTRIBUTIONS.md).
     "festivals": [
-        {"name": "Sri Rama Navami", "nameTe": "శ్రీ రామ నవమి", "month": "Mar–Apr", "icon": "🏹", "img": _IMG("goldfull"), "desc": "Celebration of the birth of Lord Rama."},
-        {"name": "Guru Purnima", "nameTe": "గురు పూర్ణిమ", "month": "Jul", "icon": "🌕", "img": _IMG("sai3"), "desc": "Honouring the guru — a principal Sai festival."},
-        {"name": "Sai Baba Mahasamadhi", "nameTe": "సాయి మహాసమాధి", "month": "Oct (Vijayadashami)", "icon": "🪔", "img": _IMG("samadhi"), "desc": "Observance of Baba's Mahasamadhi day."},
-        {"name": "Sai Jayanti", "nameTe": "సాయి జయంతి", "month": "Sep–Oct", "icon": "✨", "img": _IMG("temple3"), "desc": "Birth celebration of Shirdi Sai Baba."},
-        {"name": "Vinayaka Chavithi", "nameTe": "వినాయక చవితి", "month": "Aug–Sep", "icon": "🐘", "img": _IMG("deoghar"), "desc": "Ganesh Chaturthi festivities."},
-        {"name": "Devi Navaratri", "nameTe": "దేవీ నవరాత్రి", "month": "Sep–Oct", "icon": "🌸", "img": _IMG("temple2"), "desc": "Nine nights of Devi worship."},
-        {"name": "Karthika Masam", "nameTe": "కార్తీక మాసం", "month": "Nov–Dec", "icon": "🪔", "img": _IMG("face"), "desc": "Month-long Karthika deepa poojas."},
-        {"name": "Thursday Celebrations", "nameTe": "గురువారం సేవలు", "month": "Weekly", "icon": "🔔", "img": _IMG("baba2"), "desc": "Special Sai aarti & palki every Thursday."},
+        {"name": "Sri Rama Navami", "nameTe": "శ్రీ రామ నవమి", "month": "Mar–Apr", "icon": "🏹", "img": "/images/festivals/rama-navami.jpg", "major": True,
+         "desc": "One of the three great Shirdi festivals — celebrated on a grand scale with Sita Rama Kalyanam and free annadanam served to thousands of devotees."},
+        {"name": "Guru Purnima", "nameTe": "గురు పూర్ణిమ", "month": "Jul", "icon": "🌕", "img": "/images/festivals/guru-purnima.jpg", "major": True,
+         "desc": "The day devotees honour the Guru. Special poojas, Sai Satcharitra parayanam and sevas performed exactly as at Shirdi."},
+        {"name": "Sai Baba Mahasamadhi", "nameTe": "సాయి మహాసమాధి", "month": "Oct (Vijayadashami)", "icon": "🪔", "img": "/images/festivals/mahasamadhi.jpg", "major": True,
+         "desc": "Vijayadashami — the day Baba attained Mahasamadhi (1918). Observed with akhanda parayana, special abhishekam and palki seva."},
+        {"name": "Sai Jayanti", "nameTe": "సాయి జయంతి", "month": "Sep–Oct", "icon": "✨", "img": "/images/festivals/sai-jayanti.jpg",
+         "desc": "Birth celebration of Shirdi Sai Baba with bhajans, abhishekam and prasadam distribution."},
+        {"name": "Vinayaka Chavithi", "nameTe": "వినాయక చవితి", "month": "Aug–Sep", "icon": "🐘", "img": "/images/festivals/vinayaka-chavithi.jpg",
+         "desc": "Ganesh Chaturthi festivities — multi-day poojas to Lord Vinayaka at the temple."},
+        {"name": "Devi Navaratri", "nameTe": "దేవీ నవరాత్రి", "month": "Sep–Oct", "icon": "🌸", "img": "/images/festivals/navaratri.jpg",
+         "desc": "Nine nights of Devi worship with daily alankaram and special archanas."},
+        {"name": "Karthika Masam", "nameTe": "కార్తీక మాసం", "month": "Nov–Dec", "icon": "🪔", "img": "/images/festivals/karthika-masam.jpg",
+         "desc": "The sacred month of lamps — month-long deepa poojas and Karthika deeparadhana every evening."},
+        {"name": "Thursday Celebrations", "nameTe": "గురువారం సేవలు", "month": "Weekly", "icon": "🔔", "img": "/images/festivals/palki.jpg",
+         "desc": "Baba's day — every Thursday evening at 7:30 PM the palki is carried through Dwarakapuri Colony with bhajans, followed by prasadam."},
     ],
 
     # Public Sevas page styling (per-category imagery + per-seva emoji/gradient).

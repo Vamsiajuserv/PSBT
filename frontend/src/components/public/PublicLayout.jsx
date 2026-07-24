@@ -3,14 +3,15 @@ import { Outlet, NavLink, Link } from 'react-router-dom'
 import {
   Menu, X, Phone, Mail, MapPin, ChevronDown, Facebook, Instagram, Youtube, ShieldCheck, Clock, Languages,
 } from 'lucide-react'
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, T } from '../../i18n/LanguageContext.jsx'
 import { useSiteContext, useTemple } from '../../lib/SiteContext.jsx'
+import TempleLoader from './TempleLoader.jsx'
 
 function LangToggle({ className = '' }) {
   const { lang, setLang } = useLang()
   return (
     <div className={`inline-flex items-center rounded-full border border-gold-400/60 overflow-hidden text-[0.6875rem] font-bold ${className}`}>
-      <button onClick={() => setLang('en')} className={`px-2 py-1 ${lang === 'en' ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}>EN</button>
+      <button onClick={() => setLang('en')} className={`px-2 py-1 ${lang === 'en' ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}><T>EN</T></button>
       <button onClick={() => setLang('te')} className={`px-2 py-1 font-telugu ${lang === 'te' ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}>తెలుగు</button>
     </div>
   )
@@ -74,10 +75,18 @@ export default function PublicLayout() {
   const flatMobile = NAV.flatMap((n) => (n.children ? n.children : [n]))
 
   if (loading) {
-    return <div className="min-h-screen grid place-items-center text-maroon-700 text-sm">Loading temple information…</div>
+    return <TempleLoader label={t('Loading temple information…')} />
   }
   if (!site) {
-    return <div className="min-h-screen grid place-items-center text-red-600 text-sm px-6 text-center">{error || 'Could not load temple information. Please try again.'}</div>
+    return (
+      <div className="temple-loader min-h-screen grid place-items-center px-6 text-center">
+        <div className="loader-fade">
+          <div className="font-script text-3xl text-gold-300 mb-3">|| Om Sri Sai Ram ||</div>
+          <p className="text-cream/80 text-sm max-w-sm mx-auto">{error || t('Could not load temple information. Please try again.')}</p>
+          <button onClick={() => window.location.reload()} className="btn-primary mt-5 !py-2 text-xs">{t('Retry')}</button>
+        </div>
+      </div>
+    )
   }
   const TEMPLE = site.temple
   const MANTRA = site.mantra

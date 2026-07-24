@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
+import { T, tr, useLang } from '../../i18n/LanguageContext.jsx'
 
 const CATS = [
   { key: 'all', label: 'All Services', icon: LayoutGrid },
@@ -98,9 +99,10 @@ const priceLabel = (s) =>
   s.committee ? 'Committee decided' : `${s.from ? 'from ' : ''}₹${fmt(s.amount)}`
 
 export default function Sevas() {
+  const { lang } = useLang()
   const site = useSite()
-  const [openCat, setOpenCat] = useState('Daily')   // which accordion is expanded (one at a time)
-  const [cat, setCat] = useState('Daily')           // category driving the right content
+  const [openCat, setOpenCat] = useState(null)      // which accordion is expanded (one at a time)
+  const [cat, setCat] = useState('all')             // category driving the right content — full catalogue first
   const [detail, setDetail] = useState(null)        // selected seva → detail view (null = list view)
   const [query, setQuery] = useState('')
 
@@ -156,25 +158,25 @@ export default function Sevas() {
 
   return (
     <div className="bg-cream">
-      <MinimalBanner title="Poojas & Services" breadcrumb="Home  ›  Poojas & Services" />
+      <MinimalBanner title={tr("Poojas & Services")} breadcrumb="Home  ›  Poojas & Services" />
 
-      <div className="max-w-7xl mx-auto px-4 pt-4 pb-10">
-        {/* Search */}
-        <div className="mb-6 relative w-full lg:max-w-[18.125rem]">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search pooja / seva…"
-            className="input !pl-9 text-black placeholder:text-black"
-          />
-        </div>
-
+      <div className="max-w-7xl mx-auto px-4 pt-8 pb-10">
         <div className="grid lg:grid-cols-[290px_1fr] gap-6 items-start">
           {/* ── Categories sidebar (sticky, accordion) ── */}
-          <aside className="lg:sticky lg:top-4 space-y-4">
+          <aside className="lg:sticky lg:top-24 space-y-4">
+            {/* Search — lives with the filters so both columns start level */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={tr("Search pooja / seva…")}
+                className="input !pl-9 text-black"
+              />
+            </div>
+
             <div className="card p-4">
-              <div className="font-display text-base uppercase tracking-widest text-maroon-900 mb-1">Categories</div>
+              <div className="font-display text-base uppercase tracking-widest text-maroon-900 mb-1"><T>Categories</T></div>
               <Flourish className="justify-start mb-3" width="w-8" />
 
               {/* All Services */}
@@ -182,7 +184,7 @@ export default function Sevas() {
                 onClick={() => selectCat('all')}
                 className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-[0.8125rem] font-semibold transition-colors mb-1.5 ${cat === 'all' ? 'bg-gold-cta text-maroon-900' : 'text-black hover:bg-gold-50'}`}
               >
-                <span className="flex items-center gap-2.5"><LayoutGrid size={16} /> All Services</span>
+                <span className="flex items-center gap-2.5"><LayoutGrid size={16} />{' '}<T>All Services</T></span>
                 <span className={`text-[0.6875rem] ${cat === 'all' ? 'text-maroon-800' : 'text-black'}`}>({catCount('all')})</span>
               </button>
 
@@ -212,14 +214,14 @@ export default function Sevas() {
                         <div className="overflow-hidden">
                           <div className="px-3 pb-3">
                             {rows.length === 0 ? (
-                              <div className="text-[0.6875rem] text-black py-2">No poojas listed.</div>
+                              <div className="text-[0.6875rem] text-black py-2"><T>No poojas listed.</T></div>
                             ) : (
                               <table className="w-full text-[0.75rem]">
                                 <thead>
                                   <tr className="text-gold-600 border-b border-gold-200">
-                                    <th className="text-left font-bold py-1.5">Pooja</th>
-                                    {showFreq && <th className="text-left font-bold py-1.5 px-2">Plan</th>}
-                                    <th className="text-right font-bold py-1.5">Fee</th>
+                                    <th className="text-left font-bold py-1.5"><T>Pooja</T></th>
+                                    {showFreq && <th className="text-left font-bold py-1.5 px-2"><T>Plan</T></th>}
+                                    <th className="text-right font-bold py-1.5"><T>Fee</T></th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -236,7 +238,7 @@ export default function Sevas() {
                                         <td className={`py-1.5 pr-2 ${picked ? 'font-bold text-maroon-700' : 'text-black'}`}>{s.name}</td>
                                         {showFreq && <td className="py-1.5 px-2 text-black whitespace-nowrap">{s.plans || '—'}</td>}
                                         <td className="py-1.5 text-right font-semibold text-maroon-700">
-                                          {s.committee ? <span className="text-[0.625rem] text-black font-medium">Committee Decided</span> : <span className="whitespace-nowrap">₹{fmt(s.amount)}</span>}
+                                          {s.committee ? <span className="text-[0.625rem] text-black font-medium"><T>Committee Decided</T></span> : <span className="whitespace-nowrap">₹{fmt(s.amount)}</span>}
                                         </td>
                                       </tr>
                                     )
@@ -254,22 +256,20 @@ export default function Sevas() {
             </div>
 
             <div className="card p-4 bg-gradient-to-br from-ivory to-gold-50">
-              <div className="flex items-center gap-2 text-maroon-700 font-bold text-sm"><PhoneCall size={16} className="text-gold-500" /> Need Help?</div>
+              <div className="flex items-center gap-2 text-maroon-700 font-bold text-sm"><PhoneCall size={16} className="text-gold-500" />{' '}<T>Need Help?</T></div>
               <div className="mt-3 space-y-2">
                 <a href="tel:+9104023353589" className="flex items-center gap-2 text-sm text-black hover:text-maroon-700">
                   <span className="w-7 h-7 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><Phone size={13} /></span>
                   +91 040 2335 3589
                 </a>
                 <div className="flex items-center gap-2 text-sm text-black">
-                  <span className="w-7 h-7 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><Clock size={13} /></span>
-                  9:00 AM – 8:00 PM
-                </div>
+                  <span className="w-7 h-7 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><Clock size={13} /></span><T>9:00 AM – 8:00 PM</T>{' '}</div>
               </div>
             </div>
           </aside>
 
           {/* ── Right content ── */}
-          <div className="lg:-mt-20">
+          <div>
             {detail ? (
               <ServiceDetail
                 key={detail.id}
@@ -280,13 +280,15 @@ export default function Sevas() {
               />
             ) : (
               <div className="animate-fade-in">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-baseline justify-between gap-3 mb-4">
                   <h2 className="font-serif text-2xl font-bold text-maroon-700">{activeLabel}</h2>
-                  <span className="text-xs text-black">{filtered.length} services</span>
+                  <span className="shrink-0 text-[0.6875rem] font-semibold text-maroon-700 bg-gold-50 border border-gold-200 rounded-full px-2.5 py-1">
+                    {filtered.length} {filtered.length === 1 ? 'service' : 'services'}
+                  </span>
                 </div>
 
                 {filtered.length === 0 ? (
-                  <div className="card p-10 text-center text-black text-sm">No services match your search.</div>
+                  <div className="card p-10 text-center text-black text-sm"><T>No services match your search.</T></div>
                 ) : (
                   <div className="space-y-4">
                     {filtered.map((s, i) => (
@@ -312,6 +314,7 @@ export default function Sevas() {
 
 /* ── Horizontal service card (image left, info + CTA right) ── */
 function ServiceCard({ seva, image, emoji, onView, style }) {
+  const { lang } = useLang()
   return (
     <div className="card overflow-hidden flex flex-col sm:flex-row group animate-slide-up" style={style}>
       <div className="sm:w-36 sm:h-36 shrink-0 relative overflow-hidden">
@@ -322,17 +325,29 @@ function ServiceCard({ seva, image, emoji, onView, style }) {
       </div>
 
       <div className="flex-1 p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex-1">
-          {/* The full description lives in the detail view only — cards stay compact. */}
+        <div className="flex-1 min-w-0">
           <h3 className="font-bold text-sm text-maroon-700">{seva.name}</h3>
-          {seva.nameTe && <p className="text-[0.625rem] text-black font-telugu">{seva.nameTe}</p>}
-          {seva.plans && <p className="text-[0.625rem] text-black mt-1">Plans: {seva.plans}</p>}
+          {lang === 'te' && seva.nameTe && <p className="text-[0.625rem] text-black font-telugu">{seva.nameTe}</p>}
+          {/* Two-line teaser (full text in the detail view) so wide rows don't sit hollow */}
+          {(SEVA_ABOUT[seva.name] || seva.desc) && (
+            <p className="hidden sm:block text-[0.6875rem] text-gray-600 leading-relaxed mt-1.5 line-clamp-2 max-w-xl">
+              {SEVA_ABOUT[seva.name] || seva.desc}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {seva.plans && (
+              <span className="text-[0.625rem] font-semibold text-maroon-700 bg-maroon-50 rounded-full px-2 py-0.5">{seva.plans}</span>
+            )}
+            {DURATION[seva.category] && (
+              <span className="text-[0.625rem] font-semibold text-gold-700 bg-gold-50 border border-gold-200 rounded-full px-2 py-0.5">{DURATION[seva.category]}</span>
+            )}
+          </div>
         </div>
 
         <div className="sm:text-right shrink-0">
-          <div className="text-[0.5625rem] uppercase tracking-wide text-[#800020] font-semibold">Starting From</div>
+          <div className="text-[0.5625rem] uppercase tracking-wide text-[#800020] font-semibold"><T>Starting From</T></div>
           <div className="text-lg font-extrabold text-maroon-700 leading-tight">
-            {seva.committee ? <span className="text-xs">Committee decided</span> : <>₹{fmt(seva.amount)}</>}
+            {seva.committee ? <span className="text-xs"><T>Committee decided</T></span> : <>₹{fmt(seva.amount)}</>}
           </div>
           <button
             onClick={onView}
@@ -348,6 +363,7 @@ function ServiceCard({ seva, image, emoji, onView, style }) {
 
 /* ── In-place detail view (no route / modal — replaces the list) ── */
 function ServiceDetail({ seva, image, emoji, onBack }) {
+  const { lang } = useLang()
   const plans = seva.planRows || []
   const multi = plans.length > 1
   // Multi-plan poojas start unselected (the table is the chooser); single-plan
@@ -367,8 +383,7 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
   return (
     <div className="animate-fade-in">
       <button onClick={onBack} className="btn-ghost !px-2 !py-1 !text-xs mb-2 text-maroon-700">
-        <ArrowLeft size={14} /> Back to list
-      </button>
+        <ArrowLeft size={14} />{' '}<T>Back to list</T>{' '}</button>
 
       <div className="card overflow-hidden animate-slide-up">
         <div className="grid md:grid-cols-[40%_60%]">
@@ -382,9 +397,9 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
 
           {/* Right — details */}
           <div className="p-4">
-            <div className="font-script text-lg text-gold-500 leading-none">About</div>
+            <div className="font-script text-lg text-gold-500 leading-none"><T>About</T></div>
             <h2 className="font-serif text-lg font-bold text-maroon-700">{seva.name}</h2>
-            {seva.nameTe && <p className="text-[0.6875rem] text-black font-telugu">{seva.nameTe}</p>}
+            {lang === 'te' && seva.nameTe && <p className="text-[0.6875rem] text-black font-telugu">{seva.nameTe}</p>}
             <Flourish className="justify-start my-1.5" width="w-8" />
             <p className="text-[0.75rem] text-black leading-relaxed">
               {SEVA_ABOUT[seva.name] || seva.desc || `${seva.name} is a sacred offering performed at the temple as an expression of devotion, bringing peace, prosperity and blessings to devotees.`}
@@ -395,17 +410,15 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
             {multi ? (
               <div className="mt-4">
                 <div className="flex items-baseline justify-between mb-1.5">
-                  <span className="text-[0.6875rem] uppercase tracking-wide text-black font-semibold">
-                    Available Plans
-                  </span>
-                  <span className="text-[0.6875rem] text-gold-600">Select a plan for details</span>
+                  <span className="text-[0.6875rem] uppercase tracking-wide text-black font-semibold"><T>Available Plans</T>{' '}</span>
+                  <span className="text-[0.6875rem] text-gold-600"><T>Select a plan for details</T></span>
                 </div>
 
                 <table className="w-full text-sm border border-gold-200 rounded-xl overflow-hidden">
                   <thead>
                     <tr className="bg-gold-50 text-gold-600 text-[0.6875rem] uppercase tracking-wide">
-                      <th className="text-left font-bold px-3 py-2">Plan</th>
-                      <th className="text-right font-bold px-3 py-2">Fee</th>
+                      <th className="text-left font-bold px-3 py-2"><T>Plan</T></th>
+                      <th className="text-right font-bold px-3 py-2"><T>Fee</T></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -422,7 +435,7 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
                         </td>
                         <td className="px-3 py-2 text-right font-semibold text-maroon-700 whitespace-nowrap">
                           {p.committee
-                            ? <span className="text-xs text-black font-medium">Committee Decided</span>
+                            ? <span className="text-xs text-black font-medium"><T>Committee Decided</T></span>
                             : `₹${fmt(p.amount)}`}
                         </td>
                       </tr>
@@ -433,14 +446,14 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
                 {selected && (
                   <div key={selected.plan}
                        className="mt-3 rounded-xl border border-gold-300 bg-gold-50 px-4 py-3 animate-fade-in">
-                    <div className="text-[0.625rem] font-bold uppercase tracking-wide text-gold-600">Selected Plan</div>
+                    <div className="text-[0.625rem] font-bold uppercase tracking-wide text-gold-600"><T>Selected Plan</T></div>
                     <div className="font-serif text-lg font-bold text-maroon-700 mt-0.5">
                       {seva.name} — {selected.plan}
                     </div>
                     <div className="flex items-baseline gap-2 mt-1">
-                      <span className="text-[0.6875rem] uppercase tracking-wide text-black font-semibold">Offering</span>
+                      <span className="text-[0.6875rem] uppercase tracking-wide text-black font-semibold"><T>Offering</T></span>
                       <span className="text-xl font-extrabold text-maroon-700">
-                        {selected.committee ? <span className="text-base">Committee Decided</span> : `₹${fmt(selected.amount)}`}
+                        {selected.committee ? <span className="text-base"><T>Committee Decided</T></span> : `₹${fmt(selected.amount)}`}
                       </span>
                     </div>
                   </div>
@@ -448,7 +461,7 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
               </div>
             ) : (
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-[0.625rem] uppercase tracking-wide text-black font-semibold">Offering</span>
+                <span className="text-[0.625rem] uppercase tracking-wide text-black font-semibold"><T>Offering</T></span>
                 <span className="text-lg font-extrabold text-maroon-700">{priceLabel(seva)}</span>
                 {!seva.committee && <span className="text-xs font-semibold text-black">/-</span>}
               </div>
@@ -468,6 +481,13 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
                   </div>
                 )
               })}
+            </div>
+
+            {/* How to book — counter-first, matching the temple's actual flow */}
+            <div className="mt-4 flex items-center gap-2.5 bg-gold-50 border border-gold-200 rounded-xl px-3.5 py-2.5">
+              <PhoneCall size={15} className="text-gold-600 shrink-0" />
+              <p className="text-[0.75rem] text-black"><T>Book this pooja at the temple counter — a ticket with a scannable QR is issued instantly. For queries call</T>{' '}<a href="tel:+9104023353589" className="font-semibold text-maroon-700 hover:underline">+91 040 2335 3589</a>.
+              </p>
             </div>
           </div>
         </div>

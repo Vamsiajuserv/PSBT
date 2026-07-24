@@ -562,6 +562,19 @@ class Translation(Base):
     __table_args__ = (UniqueConstraint("source_text", "target_lang", name="uq_translation_src_lang"),)
 
 
+# ── Public contact-us messages (devotee inquiries from the website) ──────────
+class ContactMessage(Base):
+    __tablename__ = "contact_messages"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(120), nullable=False)
+    mobile = Column(String(20), nullable=True)
+    email = Column(String(160), nullable=True)
+    subject = Column(String(60), nullable=True)      # General | Pooja | Donation | Annadanam | Festival
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+
+
 # ── Notification delivery log ────────────────────────────────────────────────
 class NotificationLog(Base):
     __tablename__ = "notification_logs"

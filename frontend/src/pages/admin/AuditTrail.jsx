@@ -4,6 +4,7 @@ import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { AuditAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const ACTION_TONE = { LOGIN: 'blue', CREATE: 'green', UPDATE: 'amber', DELETE: 'red', DENIED: 'red', LOGOUT: 'gray' }
 const ACTIONS = ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'DENIED']
@@ -44,29 +45,29 @@ export default function AuditTrail() {
 
   return (
     <div>
-      <PageTitle title="Audit Trail" subtitle="Immutable log of every action performed in the system." />
+      <PageTitle title={tr("Audit Trail")} subtitle="Immutable log of every action performed in the system." />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={ScrollText} color="#8a1c1c" bg="bg-maroon-50" title="Total Events" value={stats ? num(stats.total) : '—'} sub="All logged actions" />
-        <StatTile icon={Activity} color="#2563eb" bg="bg-blue-50" title="Today" value={stats ? num(stats.today) : '—'} sub="Events today" />
-        <StatTile icon={LogIn} color="#059669" bg="bg-emerald-50" title="Logins" value={stats ? num(stats.logins) : '—'} sub="Total sign-ins" />
-        <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title="Active Users" value={stats ? num(stats.users) : '—'} sub="Distinct actors" />
+        <StatTile icon={ScrollText} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Events")} value={stats ? num(stats.total) : '—'} sub="All logged actions" />
+        <StatTile icon={Activity} color="#2563eb" bg="bg-blue-50" title={tr("Today")} value={stats ? num(stats.today) : '—'} sub="Events today" />
+        <StatTile icon={LogIn} color="#059669" bg="bg-emerald-50" title={tr("Logins")} value={stats ? num(stats.logins) : '—'} sub="Total sign-ins" />
+        <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("Active Users")} value={stats ? num(stats.users) : '—'} sub="Distinct actors" />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Search</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="User, entity or detail…" className="input !pl-9" /></div>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("User, entity or detail…")} className="input !pl-9" /></div>
           </div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Action</label>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Action</T></label>
             <Select value={action} onChange={(e) => setAction(e.target.value)} className="input"><option value="">All</option>{ACTIONS.map((a) => <option key={a}>{a}</option>)}</Select></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">Entity</label>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Entity</T></label>
             <Select value={entity} onChange={(e) => setEntity(e.target.value)} className="input"><option value="">All</option>{entities.map((e) => <option key={e}>{e}</option>)}</Select></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5">From</label><DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label><DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
           <div className="flex gap-2 items-end">
-            <div className="flex-1"><label className="block text-[0.75rem] text-gray-500 mb-1.5">To</label><DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></div>
+            <div className="flex-1"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label><DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></div>
             <button onClick={() => { setQ(''); setAction(''); setEntity(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /></button>
           </div>
         </div>

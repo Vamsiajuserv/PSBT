@@ -11,6 +11,7 @@ import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, Checkbox, NumberField } from '../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../components/common/Dialog.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
 const VER_TONE = { Verified: 'green', 'Pending Verification': 'blue' }
@@ -166,24 +167,24 @@ export default function Hundi() {
   const exportTotal = { code: 'Total', counted_amount: rows.reduce((s, h) => s + Number(h.counted_amount || 0), 0) }
   return (
     <div>
-      <PageTitle title="Hundi Management" subtitle="Manage physical hundi collections from the temple, counting, verification and bank deposits."
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title="Hundi Collection Register" columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} /> Record New Collection</button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700">View only</span>}</span>} />
+      <PageTitle title={tr("Hundi Management")} subtitle="Manage physical hundi collections from the temple, counting, verification and bank deposits."
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Hundi Collection Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record New Collection</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={HandCoins} color="#059669" bg="bg-emerald-50" title="Latest Collection"
+        <StatTile icon={HandCoins} color="#059669" bg="bg-emerald-50" title={tr("Latest Collection")}
           value={stats ? inr(stats.latest_amount) : '—'} sub={stats?.latest_date ? fmtDate(stats.latest_date) : '—'} />
-        <StatTile icon={IndianRupee} color="#7c3aed" bg="bg-violet-50" title="This Month Collections"
+        <StatTile icon={IndianRupee} color="#7c3aed" bg="bg-violet-50" title={tr("This Month Collections")}
           value={stats ? inr(stats.month_amount) : '—'} sub={stats ? `${num(stats.month_count)} Collections` : ''} />
-        <StatTile icon={Landmark} color="#d97706" bg="bg-amber-50" title="Deposited This Month"
+        <StatTile icon={Landmark} color="#d97706" bg="bg-amber-50" title={tr("Deposited This Month")}
           value={stats ? inr(stats.deposited_month_amount) : '—'} sub={stats ? `${num(stats.deposited_month_count)} Deposits` : ''} />
-        <StatTile icon={CalendarClock} color="#2563eb" bg="bg-blue-50" title="Pending Deposit"
+        <StatTile icon={CalendarClock} color="#2563eb" bg="bg-blue-50" title={tr("Pending Deposit")}
           value={stats ? inr(stats.pending_amount) : '—'} sub={stats ? `${num(stats.pending_count)} Collections` : ''} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Date Range</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
             <div className="flex items-center gap-1.5">
               <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
               <span className="text-gray-400">–</span>
@@ -191,21 +192,21 @@ export default function Hundi() {
             </div>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Verification Status</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Verification Status</T></label>
             <Select value={verification} onChange={(e) => setVerification(e.target.value)} className="input"><option value="">All</option><option>Verified</option><option>Pending Verification</option></Select>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Deposit Status</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Deposit Status</T></label>
             <Select value={deposit} onChange={(e) => setDeposit(e.target.value)} className="input"><option value="">All</option><option>Deposited</option><option>Pending Deposit</option></Select>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Search by Reference No.</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Reference No.</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search reference number…" className="input !pl-9" /></div>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search reference number…")} className="input !pl-9" /></div>
           </div>
           <div className="xl:col-span-4 flex gap-2 justify-end">
-            <button onClick={() => { setQ(''); setVerification(''); setDeposit(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button>
-            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} /> Search</button>
+            <button onClick={() => { setQ(''); setVerification(''); setDeposit(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
+            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
           </div>
         </div>
 
@@ -227,15 +228,15 @@ export default function Hundi() {
                   <td className="px-4 py-3 text-gray-600 text-[0.8125rem]">{h.bank_name || <span className="text-gray-300">-</span>}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setView(h)} title="View details" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      <button onClick={() => setView(h)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                       {canVerify && h.verification_status === 'Pending Verification' && (
                         <>
-                          <button onClick={() => verify(h)} title="Verify collection" className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-emerald-200 text-emerald-700 text-[0.78125rem] font-semibold hover:bg-emerald-50"><CheckCircle2 size={15} /> Verify</button>
-                          <button onClick={() => rejectCollection(h)} title="Flag a discrepancy" className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-red-200 text-red-600 text-[0.78125rem] font-semibold hover:bg-red-50">Reject</button>
+                          <button onClick={() => verify(h)} title={tr("Verify collection")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-emerald-200 text-emerald-700 text-[0.78125rem] font-semibold hover:bg-emerald-50"><CheckCircle2 size={15} />{' '}<T>Verify</T></button>
+                          <button onClick={() => rejectCollection(h)} title={tr("Flag a discrepancy")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-red-200 text-red-600 text-[0.78125rem] font-semibold hover:bg-red-50"><T>Reject</T></button>
                         </>
                       )}
                       {canWrite && h.verification_status === 'Verified' && h.deposit_status !== 'Deposited' && (
-                        <button onClick={() => depositCollection(h)} title="Record bank deposit" className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-blue-200 text-blue-700 text-[0.78125rem] font-semibold hover:bg-blue-50"><Landmark size={15} /> Deposit</button>
+                        <button onClick={() => depositCollection(h)} title={tr("Record bank deposit")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-blue-200 text-blue-700 text-[0.78125rem] font-semibold hover:bg-blue-50"><Landmark size={15} />{' '}<T>Deposit</T></button>
                       )}
                     </div>
                   </td>
@@ -256,21 +257,21 @@ export default function Hundi() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <div><h3 className="font-serif text-xl font-bold text-maroon-800">Record New Hundi Collection</h3>
-                <p className="text-[0.8125rem] text-gray-500 mt-0.5">Record hundi collection, counting, verification and deposit details.</p></div>
+              <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Record New Hundi Collection</T></h3>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Record hundi collection, counting, verification and deposit details.</T></p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-6 flex-1">
-              <DSection n="1" icon={FileText} title="Collection Details">
-                <div><label className="label">Collection Date *</label><DateField required className="input" value={drawer.collected_on} onChange={(e) => setM({ collected_on: e.target.value })} /></div>
-                <div><label className="label">Reference No.</label><input disabled className="input bg-gray-50" value="Auto-generated on save" /><div className="text-[0.6875rem] text-gray-400 mt-1">Auto generated</div></div>
+              <DSection n="1" icon={FileText} title={tr("Collection Details")}>
+                <div><label className="label"><T>Collection Date *</T></label><DateField required className="input" value={drawer.collected_on} onChange={(e) => setM({ collected_on: e.target.value })} /></div>
+                <div><label className="label"><T>Reference No.</T></label><input disabled className="input bg-gray-50" value="Auto-generated on save" /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Auto generated</T></div></div>
               </DSection>
 
-              <DSection n="2" icon={Calculator} title="Counting Details">
+              <DSection n="2" icon={Calculator} title={tr("Counting Details")}>
                 <div className="col-span-2">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="label !mb-0 flex items-center gap-1.5"><Package size={13} /> Item-wise Counting Register *</label>
-                    <button type="button" onClick={addLine} className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-800"><Plus size={13} /> Add Item</button>
+                    <label className="label !mb-0 flex items-center gap-1.5"><Package size={13} />{' '}<T>Item-wise Counting Register *</T></label>
+                    <button type="button" onClick={addLine} className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-800"><Plus size={13} />{' '}<T>Add Item</T></button>
                   </div>
                   <div className="space-y-2.5">
                     {drawer.lines.map((l, i) => (
@@ -280,28 +281,28 @@ export default function Hundi() {
                             <option value="">Select item…</option>
                             {itemMaster.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}
                           </Select>
-                          <button type="button" onClick={() => removeLine(i)} disabled={drawer.lines.length <= 1} title="Remove line"
+                          <button type="button" onClick={() => removeLine(i)} disabled={drawer.lines.length <= 1} title={tr("Remove line")}
                             className="w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 disabled:opacity-40"><Trash2 size={14} /></button>
                         </div>
-                        <input className="input !py-1.5 text-[0.78125rem]" placeholder="Item name (or free text)" value={l.item_name}
+                        <input className="input !py-1.5 text-[0.78125rem]" placeholder={tr("Item name (or free text)")} value={l.item_name}
                           onChange={(e) => setLine(i, { item_name: e.target.value, hundi_item_id: '' })} />
                         <div className="grid grid-cols-3 gap-2">
-                          <NumberField min="0" step="any" className="!py-1.5 text-[0.78125rem]" placeholder="Qty" value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
-                          <input className="input !py-1.5 text-[0.78125rem]" placeholder="Unit" value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />
-                          <NumberField required min="0" step="any" prefix="₹" className="!py-1.5 text-[0.78125rem]" placeholder="Value *" value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} />
+                          <NumberField min="0" step="any" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Qty")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
+                          <input className="input !py-1.5 text-[0.78125rem]" placeholder={tr("Unit")} value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />
+                          <NumberField required min="0" step="any" prefix="₹" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Value *")} value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} />
                         </div>
                       </div>
                     ))}
                   </div>
                   <div className="flex items-center justify-between bg-maroon-50 border border-maroon-100 rounded-lg px-3 py-2.5 mt-3">
-                    <span className="text-[0.78125rem] font-semibold text-maroon-800">Total Amount Counted</span>
+                    <span className="text-[0.78125rem] font-semibold text-maroon-800"><T>Total Amount Counted</T></span>
                     <span className="text-[0.9375rem] font-extrabold text-maroon-800 tabular-nums">{inr(lineTotal(drawer.lines))}</span>
                   </div>
                 </div>
-                <div><label className="label">Counting Completed On *</label><DateTimeField required value={drawer.counting_completed_on} onChange={(e) => setM({ counting_completed_on: e.target.value })} /></div>
-                <div><label className="label">Denomination *</label>
+                <div><label className="label"><T>Counting Completed On *</T></label><DateTimeField required value={drawer.counting_completed_on} onChange={(e) => setM({ counting_completed_on: e.target.value })} /></div>
+                <div><label className="label"><T>Denomination *</T></label>
                   <Select className="input" value={drawer.denomination} onChange={(e) => setM({ denomination: e.target.value })}>{DENOMINATIONS.map((d) => <option key={d}>{d}</option>)}</Select></div>
-                <div className="col-span-2"><label className="label">Officer</label>
+                <div className="col-span-2"><label className="label"><T>Officer</T></label>
                   <Select className="input" value={drawer.officer} onChange={(e) => setM({ officer: e.target.value })}>
                     <option value="">Select…</option>{committeeNames.map((n) => <option key={n}>{n}</option>)}
                   </Select></div>
@@ -313,7 +314,7 @@ export default function Hundi() {
                   <span className="font-semibold text-[0.84375rem]">Committee Members (Present During Counting)</span>
                 </div>
                 <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-52 overflow-y-auto">
-                  {committee.length === 0 && <div className="px-3 py-2.5 text-[0.75rem] text-gray-400">No active committee members found.</div>}
+                  {committee.length === 0 && <div className="px-3 py-2.5 text-[0.75rem] text-gray-400"><T>No active committee members found.</T></div>}
                   {committee.map((c) => (
                     <label key={c.id} className="flex items-center gap-2.5 px-3 py-2 text-[0.8125rem] text-gray-700 hover:bg-gray-50 cursor-pointer">
                       <Checkbox checked={drawer.members.includes(c.name)} onChange={() => toggleMember(c.name)} />
@@ -330,14 +331,13 @@ export default function Hundi() {
                   verifies it from the list, and the bank deposit is recorded after
                   verification via the Deposit action. */}
               <div className="bg-amber-50/70 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2">
-                <Info size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                New collections are recorded as <b>&nbsp;Pending Verification&nbsp;</b>. A different committee
+                <Info size={15} className="text-amber-600 shrink-0 mt-0.5" /><T>New collections are recorded as</T>{' '}<b>&nbsp;Pending Verification&nbsp;</b>. A different committee
                 member verifies from the list; the bank deposit is recorded after verification (Deposit action).
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center">Cancel</button>
-              <button className="btn-maroon flex-1 justify-center">Save Collection <ChevronDown size={14} /></button>
+              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <button className="btn-maroon flex-1 justify-center"><T>Save Collection</T>{' '}<ChevronDown size={14} /></button>
             </div>
           </form>
         </div>
@@ -349,12 +349,12 @@ export default function Hundi() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setView(null)} />
           <div className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <div><h3 className="font-serif text-xl font-bold text-maroon-800">Hundi Collection</h3>
+              <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Hundi Collection</T></h3>
                 <p className="text-[0.8125rem] text-gray-500 mt-0.5 font-mono">{view.code}</p></div>
               <button onClick={() => setView(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-6 flex-1">
-              <DSection n="1" icon={FileText} title="Collection Details">
+              <DSection n="1" icon={FileText} title={tr("Collection Details")}>
                 <VField label="Collection Date" value={fmtDate(view.collected_on)} />
                 <VField label="Counting Completed" value={fmtStamp(view.counting_completed_on)} />
                 <VField label="Total Amount Counted" value={inr(view.counted_amount)} />
@@ -365,7 +365,7 @@ export default function Hundi() {
                 <div>
                   <div className="flex items-center gap-2 mb-3 text-maroon-700">
                     <span className="w-5 h-5 rounded-full bg-maroon-700 text-cream text-[0.6875rem] grid place-items-center font-bold"><Package size={12} /></span>
-                    <span className="font-semibold text-[0.84375rem]">Counted Items</span>
+                    <span className="font-semibold text-[0.84375rem]"><T>Counted Items</T></span>
                   </div>
                   <div className="border border-gray-100 rounded-lg divide-y divide-gray-100">
                     {view.items.map((it, i) => (
@@ -381,18 +381,18 @@ export default function Hundi() {
                       </div>
                     ))}
                     <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50/70">
-                      <span className="text-[0.75rem] font-semibold text-gray-500">Total</span>
+                      <span className="text-[0.75rem] font-semibold text-gray-500"><T>Total</T></span>
                       <span className="text-[0.8125rem] font-extrabold text-maroon-800 tabular-nums">{inr(view.counted_amount)}</span>
                     </div>
                   </div>
                 </div>
               )}
-              <DSection n="2" icon={ShieldCheck} title="Verification">
+              <DSection n="2" icon={ShieldCheck} title={tr("Verification")}>
                 <VField label="Status" value={<Pill tone={VER_TONE[view.verification_status]}>{view.verification_status}</Pill>} />
                 <VField label="Verified By" value={view.verified_by || '—'} />
                 <VField label="Verified On" value={view.verified_on ? fmtStamp(view.verified_on) : '—'} wide />
               </DSection>
-              <DSection n="3" icon={Building2} title="Deposit">
+              <DSection n="3" icon={Building2} title={tr("Deposit")}>
                 <VField label="Status" value={<Pill tone={DEP_TONE[view.deposit_status]}>{view.deposit_status}</Pill>} />
                 <VField label="Deposit Date" value={view.deposited_on ? fmtDate(view.deposited_on) : '—'} />
                 <VField label="Bank Name" value={view.bank_name || '—'} wide />
@@ -401,7 +401,7 @@ export default function Hundi() {
               </DSection>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
-              <button onClick={() => setView(null)} className="btn-maroon w-full justify-center">Close</button>
+              <button onClick={() => setView(null)} className="btn-maroon w-full justify-center"><T>Close</T></button>
             </div>
           </div>
         </div>

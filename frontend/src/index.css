@@ -95,6 +95,80 @@
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
 
+/* ── Devotional loading screen (TempleLoader) ────────────────────────────── */
+.temple-loader {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 42%, rgba(120,25,20,0.55) 0%, transparent 70%),
+    linear-gradient(160deg, #4A0F0F 0%, #380A0A 55%, #2B0505 100%);
+}
+.loader-mandala {
+  background-image:
+    radial-gradient(circle at 50% 42%, rgba(212,175,55,0.10) 0, transparent 30%),
+    radial-gradient(circle at 12% 18%, rgba(212,175,55,0.06) 0, transparent 22%),
+    radial-gradient(circle at 88% 82%, rgba(212,175,55,0.06) 0, transparent 22%);
+}
+/* Slow-rotating conic light rays behind the portrait */
+.loader-rays {
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+    rgba(255,214,120,0.28) 0deg, transparent 14deg, transparent 30deg,
+    rgba(255,214,120,0.28) 44deg, transparent 58deg, transparent 74deg,
+    rgba(255,214,120,0.28) 88deg, transparent 102deg, transparent 118deg,
+    rgba(255,214,120,0.28) 132deg, transparent 146deg, transparent 162deg,
+    rgba(255,214,120,0.28) 176deg, transparent 190deg, transparent 206deg,
+    rgba(255,214,120,0.28) 220deg, transparent 234deg, transparent 250deg,
+    rgba(255,214,120,0.28) 264deg, transparent 278deg, transparent 294deg,
+    rgba(255,214,120,0.28) 308deg, transparent 322deg, transparent 338deg,
+    rgba(255,214,120,0.28) 352deg, transparent 360deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 44%, #000 52%, transparent 78%);
+  mask-image: radial-gradient(circle, transparent 44%, #000 52%, transparent 78%);
+  animation: loaderSpin 14s linear infinite;
+}
+/* Pulsing warm halo directly around the portrait */
+.loader-halo {
+  background: radial-gradient(circle, rgba(255,205,90,0.45) 0%, rgba(212,175,55,0.18) 45%, transparent 70%);
+  filter: blur(6px);
+  animation: loaderHalo 2.6s ease-in-out infinite;
+}
+/* Thin rotating gold ring */
+.loader-ring {
+  border: 2px solid transparent;
+  border-top-color: #E8C76A;
+  border-right-color: rgba(232,199,106,0.4);
+  animation: loaderSpin 3.2s linear infinite;
+}
+.loader-breathe { animation: loaderBreathe 2.6s ease-in-out infinite; }
+.loader-fade { animation: fadeIn .8s ease both; }
+.loader-dot { animation: loaderDot 1.4s ease-in-out infinite; }
+.loader-spark {
+  position: absolute; bottom: 22%; width: 4px; height: 4px; border-radius: 9999px;
+  background: radial-gradient(circle, #F6E3A8, rgba(212,175,55,0));
+  box-shadow: 0 0 8px rgba(255,205,90,0.9);
+  animation: loaderSpark 6s ease-in-out infinite;
+}
+@keyframes loaderSpin { to { transform: rotate(360deg); } }
+@keyframes loaderHalo {
+  0%, 100% { transform: scale(1);    opacity: .7; }
+  50%      { transform: scale(1.12); opacity: 1;  }
+}
+@keyframes loaderBreathe {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 30px rgba(212,175,55,0.45); }
+  50%      { transform: scale(1.04); box-shadow: 0 0 55px rgba(212,175,55,0.75); }
+}
+@keyframes loaderDot {
+  0%, 100% { opacity: .25; } 50% { opacity: 1; }
+}
+@keyframes loaderSpark {
+  0%   { transform: translateY(0) scale(.8);   opacity: 0; }
+  20%  { opacity: .9; }
+  100% { transform: translateY(-120px) scale(1.2); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader-rays, .loader-ring, .loader-halo, .loader-breathe, .loader-dot, .loader-spark {
+    animation: none;
+  }
+}
+
 /* ── Temple History — premium spiritual section ──────────────────────────── */
 
 /* Full-width warm golden-beige wallpaper */

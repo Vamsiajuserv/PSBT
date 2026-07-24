@@ -156,6 +156,36 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Seva impact band — live numbers from the temple's records ── */}
+      <section className="relative bg-maroon-900 text-cream overflow-hidden">
+        <div className="absolute inset-0 bg-mandala" />
+        <div className="relative max-w-7xl mx-auto px-4 py-14">
+          <div className="text-center">
+            <div className="font-script text-2xl text-gold-300">{t('Seva in Numbers')}</div>
+            <h2 className="font-serif text-2xl md:text-3xl font-bold text-gold-200 mt-1">{t("Baba's Grace at Work — Every Day")}</h2>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10">
+            {[
+              { value: yearsOfSeva, plus: true, label: 'Years of Service', sub: `Serving devotees since ${TEMPLE.established || '1987'}` },
+              { value: ann.total_plates || 0, label: 'Meals Served', sub: 'Through Annadanam seva' },
+              { value: (site?.sevas || []).length, plus: true, label: 'Poojas & Sevas', sub: 'Performed as in Shirdi' },
+              { value: ann.total_sponsorships || 0, label: 'Annadanam Sponsors', sub: 'Devotees who fed devotees' },
+            ].map((s) => (
+              <div key={s.label} className="rounded-2xl border border-gold-400/30 bg-white/[0.06] px-6 py-6 text-center">
+                <div className="font-serif text-3xl md:text-4xl font-bold text-gold-200 tabular-nums">
+                  <CountUp value={s.value} />{s.plus ? '+' : ''}
+                </div>
+                <div className="font-bold text-sm mt-1.5">{t(s.label)}</div>
+                <div className="text-[0.6875rem] text-cream/60 mt-0.5">{t(s.sub)}</div>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-8">
+            <Link to="/annadanam" className="btn-primary">{t('Sponsor Annadanam')} <ArrowRight size={16} /></Link>
+          </div>
+        </div>
+      </section>
+
       {/* ── Gallery ── */}
       <section className="max-w-7xl mx-auto px-4 py-16">
         <SectionTitle title={t('Gallery')} />

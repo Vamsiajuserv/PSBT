@@ -10,6 +10,7 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 // Page-number list with ellipsis, e.g. 1 … 4 5 [6] 7 8 … 12
 function pagesFor(page, count) {
@@ -141,23 +142,23 @@ export default function Bookings() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800">Pooja Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage pooja bookings and related operations.</p>
+          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800"><T>Pooja Management</T></h1>
+          <p className="text-sm text-gray-500 mt-1"><T>Manage pooja bookings and related operations.</T></p>
         </div>
-        <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><Plus size={16} /> New Booking</Link>
+        <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>New Booking</T></Link>
       </div>
 
       {/* KPI tiles */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
-        <Kpi icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title="Today's Bookings"
+        <Kpi icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Today's Bookings")}
           value={stats?.today.count ?? '—'} foot={{ label: 'Amount', value: inr(stats?.today.amount) }} />
-        <Kpi icon={CalendarDays} iconBg="bg-emerald-50" iconColor="#059669" title="This Week Bookings"
+        <Kpi icon={CalendarDays} iconBg="bg-emerald-50" iconColor="#059669" title={tr("This Week Bookings")}
           value={stats?.week.count ?? '—'} foot={{ label: 'Amount', value: inr(stats?.week.amount) }} />
-        <Kpi icon={CalendarRange} iconBg="bg-rose-50" iconColor="#e11d48" title="This Month Bookings"
+        <Kpi icon={CalendarRange} iconBg="bg-rose-50" iconColor="#e11d48" title={tr("This Month Bookings")}
           value={stats?.month.count ?? '—'} foot={{ label: 'Amount', value: inr(stats?.month.amount) }} />
-        <Kpi icon={TicketCheck} iconBg="bg-violet-50" iconColor="#7c3aed" title="Tickets Generated (This Month)"
+        <Kpi icon={TicketCheck} iconBg="bg-violet-50" iconColor="#7c3aed" title={tr("Tickets Generated (This Month)")}
           value={stats ? Number(stats.tickets_month).toLocaleString('en-IN') : '—'} />
-        <Kpi icon={Clock} iconBg="bg-amber-50" iconColor="#d97706" title="Upcoming Bookings"
+        <Kpi icon={Clock} iconBg="bg-amber-50" iconColor="#d97706" title={tr("Upcoming Bookings")}
           value={stats?.upcoming ?? '—'} foot={{ label: 'Next 7 Days', value: '' }} />
       </div>
 
@@ -167,16 +168,16 @@ export default function Bookings() {
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()}
-              placeholder="Search by Pooja Name, Devotee Name or Booking ID" className="input !pl-9" />
+              placeholder={tr("Search by Pooja Name, Devotee Name or Booking ID")} className="input !pl-9" />
           </div>
           <div className="flex gap-2">
-            <button onClick={clear} className="btn-outline !py-2.5"><RotateCcw size={15} /> Clear</button>
-            <button onClick={search} className="btn-maroon !py-2.5"><Search size={15} /> Search</button>
+            <button onClick={clear} className="btn-outline !py-2.5"><RotateCcw size={15} />{' '}<T>Clear</T></button>
+            <button onClick={search} className="btn-maroon !py-2.5"><Search size={15} />{' '}<T>Search</T></button>
           </div>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-7 gap-4 mt-4">
           <div className="sm:col-span-2">
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Date Range</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
             <div className="flex items-center gap-1">
               <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2 !text-[0.75rem]" />
               <span className="text-gray-300">–</span>
@@ -184,35 +185,35 @@ export default function Bookings() {
             </div>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Pooja</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
             <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input">
               <option value="">All Poojas</option>
               {poojas.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
             </Select>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Plan</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Plan</T></label>
             <Select value={plan} onChange={(e) => setPlan(e.target.value)} className="input">
               <option value="">All Plans</option>
               {planOptions.map((p) => <option key={p}>{p}</option>)}
             </Select>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Status</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
               <option value="">All Status</option>
               <option>Confirmed</option><option>Pending</option><option>Cancelled</option><option>Completed</option>
             </Select>
           </div>
           <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5">Payment Status</label>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Status</T></label>
             <Select value={payment} onChange={(e) => setPayment(e.target.value)} className="input">
               <option value="">All Payments</option>
               <option>Paid</option><option>Pending</option><option>Failed</option>
             </Select>
           </div>
           <div className="flex items-end">
-            <button onClick={search} className="btn-maroon !py-2.5 w-full justify-center"><SlidersHorizontal size={15} /> Apply Filters</button>
+            <button onClick={search} className="btn-maroon !py-2.5 w-full justify-center"><SlidersHorizontal size={15} />{' '}<T>Apply Filters</T></button>
           </div>
         </div>
       </div>
@@ -220,7 +221,7 @@ export default function Bookings() {
       {/* Bookings list */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-4 py-4 border-b border-gray-100">
-          <h3 className="font-serif text-lg font-bold text-maroon-800">Bookings List</h3>
+          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Bookings List</T></h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -245,11 +246,11 @@ export default function Bookings() {
                   <td className="px-3 py-3.5 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.created_at)}</td>
                   <td className="px-3 py-3.5">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title="View" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
-                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title="Ticket" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Ticket size={15} /></button>
-                      {canOperate && b.status === 'Confirmed' && <button onClick={() => complete(b)} title="Mark Completed" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300"><CheckCircle2 size={15} /></button>}
-                      {canOperate && b.status === 'Confirmed' && b.payment_status === 'Paid' && !(b.performances_done > 0) && <button onClick={() => reschedule(b)} title="Reschedule" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"><CalendarClock size={15} /></button>}
-                      {isAdmin && b.status !== 'Cancelled' && <button onClick={() => cancel(b)} title="Cancel" className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300"><Ban size={15} /></button>}
+                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("Ticket")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Ticket size={15} /></button>
+                      {canOperate && b.status === 'Confirmed' && <button onClick={() => complete(b)} title={tr("Mark Completed")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300"><CheckCircle2 size={15} /></button>}
+                      {canOperate && b.status === 'Confirmed' && b.payment_status === 'Paid' && !(b.performances_done > 0) && <button onClick={() => reschedule(b)} title={tr("Reschedule")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"><CalendarClock size={15} /></button>}
+                      {isAdmin && b.status !== 'Cancelled' && <button onClick={() => cancel(b)} title={tr("Cancel")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300"><Ban size={15} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -271,8 +272,7 @@ export default function Bookings() {
       </div>
 
       <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-amber-50/60 border border-amber-100 rounded-lg px-4 py-2.5">
-        <span className="text-amber-500">ⓘ</span> Counter staff books the pooja and issues the ticket to the devotee.
-      </div>
+        <span className="text-amber-500">ⓘ</span>{' '}<T>Counter staff books the pooja and issues the ticket to the devotee.</T>{' '}</div>
     </div>
   )
 }

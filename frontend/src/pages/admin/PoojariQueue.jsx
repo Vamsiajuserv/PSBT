@@ -8,6 +8,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { PoojarisAPI, BookingsAPI, ApiError } from '../../api/client.js'
 import { DateField } from '../../components/common/Field.jsx'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const fmtDate = (iso) =>
@@ -71,15 +72,15 @@ export default function PoojariQueue() {
 
   return (
     <div>
-      <PageHeader title="My Poojas" subtitle="Today's pooja queue — verify the ticket and mark each pooja performed" />
+      <PageHeader title={tr("My Poojas")} subtitle="Today's pooja queue — verify the ticket and mark each pooja performed" />
 
       {/* Controls */}
       <div className="flex flex-wrap items-end gap-3 mb-5">
         <div>
-          <label className="label">Date</label>
+          <label className="label"><T>Date</T></label>
           <div className="relative mt-1">
             <DateField value={day} onChange={(e) => setDay(e.target.value)}
-              className="" title="Open a future day to prepare — performing is only possible for today" />
+              className="" title={tr("Open a future day to prepare — performing is only possible for today")} />
           </div>
         </div>
         {linked && (
@@ -92,7 +93,7 @@ export default function PoojariQueue() {
             ))}
           </div>
         )}
-        <button onClick={load} className="btn-outline !py-2"><RotateCcw size={15} /> Refresh</button>
+        <button onClick={load} className="btn-outline !py-2"><RotateCcw size={15} />{' '}<T>Refresh</T></button>
         {day === todayISO() && pending > 0 && (
           <button onClick={markAllDue} className="btn-maroon !py-2"><CheckCircle2 size={15} /> Mark all due ({pending})</button>
         )}
@@ -114,10 +115,10 @@ export default function PoojariQueue() {
       ) : (
         <div className="space-y-3">
           {items.map((b) => (
-            <div key={b.id} className="card p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div key={b.id} className={`card p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${b.done_today || b.status === 'Completed' || b.remaining === 0 ? 'opacity-75 bg-emerald-50/40 border-emerald-100' : ''}`}>
               {/* Time */}
               <div className="w-20 shrink-0 text-center">
-                <div className="text-[0.6875rem] text-gray-400 flex items-center justify-center gap-1"><Clock size={11} /> Slot</div>
+                <div className="text-[0.6875rem] text-gray-400 flex items-center justify-center gap-1"><Clock size={11} />{' '}<T>Slot</T></div>
                 <div className="text-sm font-bold text-maroon-700">{b.time_slot || '—'}</div>
               </div>
               {/* Pooja + devotee */}
@@ -153,9 +154,9 @@ export default function PoojariQueue() {
               {/* Status + action */}
               <div className="flex items-center gap-3 shrink-0">
                 {b.done_today ? (
-                  <span className="flex items-center gap-1 text-emerald-600 text-[0.8125rem] font-semibold"><CheckCircle2 size={15} /> Done today</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 text-emerald-700 px-3 py-1.5 text-[0.8125rem] font-bold"><CheckCircle2 size={15} />{' '}<T>Performed today</T></span>
                 ) : (b.status === 'Completed' || b.remaining === 0) ? (
-                  <span className="flex items-center gap-1 text-gray-400 text-[0.8125rem] font-semibold"><CheckCircle2 size={15} /> Completed</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 text-gray-500 px-3 py-1.5 text-[0.8125rem] font-bold"><CheckCircle2 size={15} />{' '}<T>All performances completed</T></span>
                 ) : (
                   <button onClick={() => markPerformed(b.id)} disabled={busyId === b.id}
                     className="btn-maroon !py-2 disabled:opacity-60">

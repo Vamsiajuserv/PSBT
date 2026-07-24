@@ -4,6 +4,7 @@ import { Flourish } from '../../components/common/UI.jsx'
 import { BookingsAPI } from '../../api/client.js'
 import { fmtDate } from '../../components/admin/ui.jsx'
 import { Select } from '../../components/common/Field.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 // ── Month-only calendar view ────────────────────────────────────────────────
 // The Day/Week toggle was removed: a Month-only calendar is preferred over a
@@ -112,19 +113,19 @@ export default function Calendar() {
     <div>
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <h1 className="font-serif text-2xl font-bold text-maroon-700">Calendar View</h1>
-          <p className="text-sm text-gray-500 mt-1">Visual schedule of all poojas and services.</p>
+          <h1 className="font-serif text-2xl font-bold text-maroon-700"><T>Calendar View</T></h1>
+          <p className="text-sm text-gray-500 mt-1"><T>Visual schedule of all poojas and services.</T></p>
         </div>
       </div>
 
       {/* Toolbar */}
       <div className="card p-3 flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <button onClick={goToday} className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gold-50 text-maroon-700 hover:bg-gold-100">Today</button>
+          <button onClick={goToday} className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gold-50 text-maroon-700 hover:bg-gold-100"><T>Today</T></button>
           <div className="flex items-center gap-2 text-sm">
-            <button onClick={() => goMonth(-1)} title="Previous month" className="text-gray-400 hover:text-maroon-700"><ChevronLeft size={18} /></button>
+            <button onClick={() => goMonth(-1)} title={tr("Previous month")} className="text-gray-400 hover:text-maroon-700"><ChevronLeft size={18} /></button>
             <span className="font-bold text-maroon-700 min-w-[8.125rem] text-center">{MONTHS[month]} {year}</span>
-            <button onClick={() => goMonth(1)} title="Next month" className="text-gray-400 hover:text-maroon-700"><ChevronRight size={18} /></button>
+            <button onClick={() => goMonth(1)} title={tr("Next month")} className="text-gray-400 hover:text-maroon-700"><ChevronRight size={18} /></button>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -194,7 +195,7 @@ export default function Calendar() {
         </div>
       </div>
 
-      {loading && <div className="mt-3 text-sm text-gray-400">Loading events…</div>}
+      {loading && <div className="mt-3 text-sm text-gray-400"><T>Loading events…</T></div>}
       {!loading && !error && monthBookings.length === 0 && (
         <div className="mt-3 text-sm text-gray-400">No events scheduled for {MONTHS[month]} {year}.</div>
       )}
@@ -206,10 +207,10 @@ export default function Calendar() {
             <h3 className="font-serif text-base font-bold text-maroon-700">
               {fmtDate(new Date(year, month, selectedDay))}
             </h3>
-            <button onClick={() => setSelectedDay(null)} className="text-xs text-gray-400 hover:text-maroon-700">Close</button>
+            <button onClick={() => setSelectedDay(null)} className="text-xs text-gray-400 hover:text-maroon-700"><T>Close</T></button>
           </div>
           {selectedEvents.length === 0 ? (
-            <p className="text-sm text-gray-400">No events on this day.</p>
+            <p className="text-sm text-gray-400"><T>No events on this day.</T></p>
           ) : (
             <ul className="space-y-2">
               {selectedEvents.map((e, i) => (

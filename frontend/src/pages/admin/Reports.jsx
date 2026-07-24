@@ -9,6 +9,7 @@ import { ReportsAPI } from '../../api/client.js'
 import { exportReportToExcel } from '../../lib/excel.js'
 import { exportReportToPdf } from '../../lib/pdf.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const firstOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
 const today = () => new Date().toISOString().slice(0, 10)
@@ -79,10 +80,10 @@ export default function Reports() {
 
   return (
     <div>
-      <PageTitle title="Reports" subtitle="Generate, view and export reports for all temple activities." />
+      <PageTitle title={tr("Reports")} subtitle="Generate, view and export reports for all temple activities." />
 
       {/* Report Categories */}
-      <div className="text-[0.9375rem] font-bold text-maroon-800 mb-3">Report Categories</div>
+      <div className="text-[0.9375rem] font-bold text-maroon-800 mb-3"><T>Report Categories</T></div>
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 mb-5">
         {cats.map((c) => {
           const cfg = CAT_ICON[c.key] || CAT_ICON.pooja; const Icon = cfg.icon; const on = category === c.key
@@ -99,7 +100,7 @@ export default function Reports() {
       {/* Filter bar */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-5 mb-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
         <div>
-          <label className="block text-[0.75rem] text-gray-500 mb-1.5">Date Range</label>
+          <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
           <div className="flex items-center gap-1.5">
             <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
             <span className="text-gray-400">–</span>
@@ -107,29 +108,29 @@ export default function Reports() {
           </div>
         </div>
         <div>
-          <label className="block text-[0.75rem] text-gray-500 mb-1.5">Report Category</label>
+          <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Report Category</T></label>
           <Select value={category} onChange={(e) => { const k = e.target.value; setCategory(k); const rp = cats.find((c) => c.key === k)?.reports[0]; if (rp) setReport(rp) }} className="input">
             {cats.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
           </Select>
         </div>
         <div>
-          <label className="block text-[0.75rem] text-gray-500 mb-1.5">Report Name</label>
+          <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Report Name</T></label>
           <Select value={report} onChange={(e) => setReport(e.target.value)} className="input">
             {reportsInCat.map((r) => <option key={r}>{r}</option>)}
           </Select>
         </div>
         <div className="flex gap-2 justify-end">
-          <button onClick={reset} className="btn-outline !py-2.5"><RotateCcw size={14} /> Reset</button>
-          <button onClick={() => generate()} className="btn-maroon !py-2.5"><Search size={14} /> Generate Report</button>
+          <button onClick={reset} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
+          <button onClick={() => generate()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Generate Report</T></button>
         </div>
       </div>
 
       {/* Reports list + result */}
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 h-max">
-          <div className="font-serif text-lg font-bold text-maroon-800 mb-3">Reports List</div>
+          <div className="font-serif text-lg font-bold text-maroon-800 mb-3"><T>Reports List</T></div>
           <div className="relative mb-3"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={rq} onChange={(e) => setRq(e.target.value)} placeholder="Search reports…" className="input !pl-9" /></div>
+            <input value={rq} onChange={(e) => setRq(e.target.value)} placeholder={tr("Search reports…")} className="input !pl-9" /></div>
           <div className="space-y-0.5">
             {filteredList.map((r) => (
               <button key={r.name} onClick={() => pickReport(r.name, r.category)}
@@ -147,7 +148,7 @@ export default function Reports() {
               {result?.subtitle && <p className="text-[0.8125rem] text-gray-500 mt-0.5">{result.subtitle}</p>}
             </div>
             <div className="flex gap-2 no-print">
-              <button onClick={() => exportReportToPdf(result)} disabled={!result?.rows?.length} className="btn-outline !py-2 text-red-600 border-red-200 disabled:opacity-60"><FileText size={15} /> Export PDF</button>
+              <button onClick={() => exportReportToPdf(result)} disabled={!result?.rows?.length} className="btn-outline !py-2 text-red-600 border-red-200 disabled:opacity-60"><FileText size={15} />{' '}<T>Export PDF</T></button>
               <button onClick={exportExcel} disabled={exporting} className="btn-outline !py-2 text-emerald-700 border-emerald-200 disabled:opacity-60"><FileSpreadsheet size={15} /> {exporting ? 'Exporting…' : 'Export Excel'}</button>
             </div>
           </div>
@@ -157,11 +158,11 @@ export default function Reports() {
                 {(result?.columns || []).map((c) => <th key={c.key} className={`px-5 py-3 font-semibold whitespace-nowrap ${c.type !== 'text' ? 'text-right' : ''}`}>{c.label}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {loading && <tr><td colSpan={(result?.columns.length) || 1} className="px-5 py-12 text-center text-gray-400 text-sm">Loading…</td></tr>}
+                {loading && <tr><td colSpan={(result?.columns.length) || 1} className="px-5 py-12 text-center text-gray-400 text-sm"><T>Loading…</T></td></tr>}
                 {!loading && loadErr && (
                   <tr><td colSpan={(result?.columns.length) || 1} className="px-5 py-12 text-center">
                     <div className="text-sm text-red-600 mb-3">{loadErr}</div>
-                    <button onClick={() => generate()} className="btn-outline !py-1.5 mx-auto"><Search size={14} /> Retry</button>
+                    <button onClick={() => generate()} className="btn-outline !py-1.5 mx-auto"><Search size={14} />{' '}<T>Retry</T></button>
                   </td></tr>
                 )}
                 {!loading && !loadErr && (result?.rows || []).map((row, i) => (
@@ -174,8 +175,8 @@ export default function Reports() {
                     {result.columns.map((c) => <td key={c.key} className={`px-5 py-3 ${c.type !== 'text' ? 'text-right tabular-nums' : ''}`}>{cell(c, result.total, true)}</td>)}
                   </tr>
                 )}
-                {!loading && !loadErr && result && result.rows.length === 0 && <tr><td colSpan={result.columns.length} className="px-5 py-12 text-center text-gray-400">No records for the selected period.</td></tr>}
-                {!loading && !loadErr && !result && <tr><td className="px-5 py-12 text-center text-gray-400">Choose a report and click Generate Report.</td></tr>}
+                {!loading && !loadErr && result && result.rows.length === 0 && <tr><td colSpan={result.columns.length} className="px-5 py-12 text-center text-gray-400"><T>No records for the selected period.</T></td></tr>}
+                {!loading && !loadErr && !result && <tr><td className="px-5 py-12 text-center text-gray-400"><T>Choose a report and click Generate Report.</T></td></tr>}
               </tbody>
             </table>
           </div>

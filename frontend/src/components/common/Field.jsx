@@ -10,6 +10,7 @@
 // empty form submit via an invisible proxy input that focuses open the widget.
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useLang } from '../../i18n/LanguageContext.jsx'
 import {
   ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Calendar as CalendarIcon, Check, Clock, Search, X,
@@ -120,6 +121,7 @@ function collectOptions(children, out = []) {
 }
 
 export function Select({ value, onChange, children, className = '', disabled = false, required = false, title, placeholder }) {
+  const { t } = useLang()
   const opts = useMemo(() => collectOptions(children), [children])
   const items = opts.filter((o) => !o.group)
   const [open, setOpen] = useState(false)
@@ -178,7 +180,7 @@ export function Select({ value, onChange, children, className = '', disabled = f
         className={`input flex items-center justify-between gap-2 text-left disabled:bg-gray-50 disabled:text-gray-400 ${open ? 'ring-2 ring-gold-400 border-transparent' : ''} ${className}`}
       >
         <span className={`truncate ${current && current.label ? 'text-gray-800' : 'text-gray-400'}`}>
-          {current?.label || placeholder || (items[0]?.label ?? 'Select…')}
+          {t(current?.label || placeholder || (items[0]?.label ?? 'Select…'))}
         </span>
         <ChevronDown size={15} className={`shrink-0 text-maroon-700/50 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -193,7 +195,7 @@ export function Select({ value, onChange, children, className = '', disabled = f
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setActive(-1) }}
                 onKeyDown={onKey}
-                placeholder="Search…"
+                placeholder={t('Search…')}
                 className="w-full bg-transparent text-[0.8125rem] outline-none placeholder:text-gray-400"
               />
               {query && <button type="button" onClick={() => setQuery('')} className="text-gray-400 hover:text-maroon-700"><X size={13} /></button>}
@@ -221,7 +223,7 @@ export function Select({ value, onChange, children, className = '', disabled = f
                         : idx === active ? 'bg-gold-100/70 text-maroon-900' : 'text-gray-700 hover:bg-gold-100/70'
                   }`}
                 >
-                  <span className="truncate">{o.label || <span className="text-gray-400">—</span>}</span>
+                  <span className="truncate">{o.label ? t(o.label) : <span className="text-gray-400">—</span>}</span>
                   {sel && <Check size={14} className="shrink-0" />}
                 </button>
               )
@@ -426,6 +428,7 @@ function FieldTrigger({ triggerRef, open, setOpen, disabled, title, className, l
 }
 
 export function DateField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder = 'Select date', title }) {
+  const { t } = useLang()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
   const popRef = useRef(null)
@@ -439,7 +442,7 @@ export function DateField({ value, onChange, min, max, required = false, disable
   return (
     <>
       <FieldTrigger triggerRef={triggerRef} open={open} setOpen={setOpen} disabled={disabled} title={title}
-        className={className} empty={!value} label={value ? fmt(value) : placeholder} icon={CalendarIcon} />
+        className={className} empty={!value} label={value ? fmt(value) : t(placeholder)} icon={CalendarIcon} />
       {required && !disabled && <RequiredProxy value={value ?? ''} onFocus={() => setOpen(true)} />}
       {open && (
         <Popover pos={pos} popRef={popRef}>
@@ -452,10 +455,10 @@ export function DateField({ value, onChange, min, max, required = false, disable
                 onClick={() => set(todayIso)}
                 className="text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-900 disabled:text-gray-300"
               >
-                Today
+                {t('Today')}
               </button>
               {!required && value && (
-                <button type="button" onClick={() => set('')} className="text-[0.75rem] font-semibold text-gray-400 hover:text-red-600">Clear</button>
+                <button type="button" onClick={() => set('')} className="text-[0.75rem] font-semibold text-gray-400 hover:text-red-600">{t('Clear')}</button>
               )}
             </div>
           </div>
@@ -467,6 +470,7 @@ export function DateField({ value, onChange, min, max, required = false, disable
 
 // Time-only field — value is 24h "HH:MM" like a native <input type="time">.
 export function TimeField({ value, onChange, required = false, disabled = false, className = '', placeholder = 'Select time', title }) {
+  const { t } = useLang()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
   const popRef = useRef(null)
@@ -478,19 +482,19 @@ export function TimeField({ value, onChange, required = false, disabled = false,
   return (
     <>
       <FieldTrigger triggerRef={triggerRef} open={open} setOpen={setOpen} disabled={disabled} title={title}
-        className={className} empty={!value} label={value ? fmt12(value) : placeholder} icon={Clock} />
+        className={className} empty={!value} label={value ? fmt12(value) : t(placeholder)} icon={Clock} />
       {required && !disabled && <RequiredProxy value={value ?? ''} onFocus={() => setOpen(true)} />}
       {open && (
         <Popover pos={pos} popRef={popRef}>
           <div className="p-3 select-none">
             <div className="flex justify-center"><TimePanel value={value} onChange={emit} /></div>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-gold-100">
-              <button type="button" onClick={() => emit(nowHHMM())} className="text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-900">Now</button>
+              <button type="button" onClick={() => emit(nowHHMM())} className="text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-900">{t('Now')}</button>
               <div className="flex items-center gap-3">
                 {!required && value && (
-                  <button type="button" onClick={() => { emit(''); setOpen(false) }} className="text-[0.75rem] font-semibold text-gray-400 hover:text-red-600">Clear</button>
+                  <button type="button" onClick={() => { emit(''); setOpen(false) }} className="text-[0.75rem] font-semibold text-gray-400 hover:text-red-600">{t('Clear')}</button>
                 )}
-                <button type="button" onClick={() => { setOpen(false); triggerRef.current?.focus() }} className="px-3 py-1.5 rounded-lg text-[0.75rem] font-bold text-white bg-maroon-800 hover:bg-maroon-900">Done</button>
+                <button type="button" onClick={() => { setOpen(false); triggerRef.current?.focus() }} className="px-3 py-1.5 rounded-lg text-[0.75rem] font-bold text-white bg-maroon-800 hover:bg-maroon-900">{t('Done')}</button>
               </div>
             </div>
           </div>
@@ -504,6 +508,7 @@ export function TimeField({ value, onChange, required = false, disabled = false,
 // <input type="datetime-local">. Picking either part fills the other with a
 // sensible default (today / the current time) so the value is always complete.
 export function DateTimeField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder = 'Select date & time', title }) {
+  const { t } = useLang()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
   const popRef = useRef(null)
@@ -517,7 +522,7 @@ export function DateTimeField({ value, onChange, min, max, required = false, dis
     <>
       <FieldTrigger triggerRef={triggerRef} open={open} setOpen={setOpen} disabled={disabled} title={title}
         className={className} empty={!value}
-        label={value ? `${fmt(datePart)} · ${fmt12(timePart)}` : placeholder} icon={CalendarIcon} />
+        label={value ? `${fmt(datePart)} · ${fmt12(timePart)}` : t(placeholder)} icon={CalendarIcon} />
       {required && !disabled && <RequiredProxy value={value ?? ''} onFocus={() => setOpen(true)} />}
       {open && (
         <Popover pos={pos} popRef={popRef}>
@@ -530,12 +535,12 @@ export function DateTimeField({ value, onChange, min, max, required = false, dis
               </div>
             </div>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-gold-100">
-              <button type="button" onClick={() => emit(iso(new Date()), nowHHMM())} className="text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-900">Now</button>
+              <button type="button" onClick={() => emit(iso(new Date()), nowHHMM())} className="text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-900">{t('Now')}</button>
               <div className="flex items-center gap-3">
                 {!required && value && (
-                  <button type="button" onClick={() => { emit('', ''); setOpen(false) }} className="text-[0.75rem] font-semibold text-gray-400 hover:text-red-600">Clear</button>
+                  <button type="button" onClick={() => { emit('', ''); setOpen(false) }} className="text-[0.75rem] font-semibold text-gray-400 hover:text-red-600">{t('Clear')}</button>
                 )}
-                <button type="button" onClick={() => { setOpen(false); triggerRef.current?.focus() }} className="px-3 py-1.5 rounded-lg text-[0.75rem] font-bold text-white bg-maroon-800 hover:bg-maroon-900">Done</button>
+                <button type="button" onClick={() => { setOpen(false); triggerRef.current?.focus() }} className="px-3 py-1.5 rounded-lg text-[0.75rem] font-bold text-white bg-maroon-800 hover:bg-maroon-900">{t('Done')}</button>
               </div>
             </div>
           </div>

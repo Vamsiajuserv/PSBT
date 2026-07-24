@@ -1,4 +1,5 @@
 import React from 'react'
+import { useLang } from '../../i18n/LanguageContext.jsx'
 import { Search } from 'lucide-react'
 
 // Shared admin design-system primitives — matches the Dashboard / Bookings /
@@ -22,10 +23,15 @@ const PILL_TONES = {
 }
 
 export function Pill({ tone = 'gray', children }) {
+  const { t } = useLang()
+  children = typeof children === 'string' ? t(children) : children
   return <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${PILL_TONES[tone] || PILL_TONES.gray}`}>{children}</span>
 }
 
 export function PageTitle({ title, subtitle, actions }) {
+  const { t } = useLang()
+  title = typeof title === 'string' ? t(title) : title
+  subtitle = typeof subtitle === 'string' ? t(subtitle) : subtitle
   return (
     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
       <div>
@@ -64,6 +70,9 @@ export function KpiCard({ icon: Icon, iconBg = 'bg-blue-50', iconColor = '#2563e
 // KPI tile matching the reference screens: pastel circular icon on the left,
 // uppercase micro-title, large number, muted subtitle underneath.
 export function StatTile({ icon: Icon, color = '#8a1c1c', bg = 'bg-maroon-50', title, value, sub, onClick }) {
+  const { t } = useLang()
+  title = typeof title === 'string' ? t(title) : title
+  sub = typeof sub === 'string' ? t(sub) : sub
   const clickable = typeof onClick === 'function'
   return (
     <div onClick={onClick} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
@@ -131,17 +140,20 @@ export const Td = ({ children, className = '' }) => <td className={`px-4 py-3.5 
 // a `flex items-center justify-between` footer. Buttons enable/disable off total.
 export function Pager({ page, size, total, onPage, unit = 'records' }) {
   const pageCount = Math.max(1, Math.ceil((total || 0) / size))
+  // Jump back to the top on page change — the pager sits at the bottom, so the
+  // new page's rows would otherwise start above the viewport (DEF-005).
+  const go = (p) => { onPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const from = total === 0 ? 0 : (page - 1) * size + 1
   const to = Math.min(page * size, total || 0)
   const btn = 'px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-600 disabled:opacity-40 hover:border-maroon-300'
   return (
     <>
       <span className="text-[0.8125rem] text-gray-500">Showing {from} to {to} of {num(total)} {unit}</span>
-      <div className="flex items-center gap-1.5">
-        <button disabled={page <= 1} onClick={() => onPage(page - 1)} className={btn}>Previous</button>
+      {total > 0 && <div className="flex items-center gap-1.5">
+        <button disabled={page <= 1} onClick={() => go(page - 1)} className={btn}>Previous</button>
         <span className="px-3 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.8125rem] font-semibold">{page} / {pageCount}</span>
-        <button disabled={page >= pageCount} onClick={() => onPage(page + 1)} className={btn}>Next</button>
-      </div>
+        <button disabled={page >= pageCount} onClick={() => go(page + 1)} className={btn}>Next</button>
+      </div>}
     </>
   )
 }

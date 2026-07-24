@@ -8,6 +8,7 @@ import { PageTitle, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI } from '../../api/client.js'
+import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
@@ -40,8 +41,8 @@ export default function PoojaHistoryDetails() {
 
   return (
     <div>
-      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/pooja-history" className="hover:text-maroon-600">Pooja Management</Link> › <Link to="/admin/pooja-history" className="hover:text-maroon-600">Pooja History</Link> › <span className="text-gray-500">Pooja History Details</span></div>
-      <PageTitle title="Pooja History Details" actions={<button onClick={() => nav('/admin/pooja-history')} className="btn-outline !py-2.5"><ArrowLeft size={15} /> Back to Pooja History List</button>} />
+      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/pooja-history" className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to="/admin/pooja-history" className="hover:text-maroon-600"><T>Pooja History</T></Link> › <span className="text-gray-500"><T>Pooja History Details</T></span></div>
+      <PageTitle title={tr("Pooja History Details")} actions={<button onClick={() => nav('/admin/pooja-history')} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Pooja History List</T></button>} />
 
       {/* Summary strip */}
       <div className="bg-amber-50/40 border border-amber-100 rounded-xl px-5 py-4 mb-5 flex flex-wrap items-center gap-x-8 gap-y-4">
@@ -51,35 +52,35 @@ export default function PoojaHistoryDetails() {
         <Meta icon={CalendarDays} label="Pooja Date" value={fmtDate(d.scheduled_date)} />
         <div className="ml-auto flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2">
           <CheckCircle2 size={26} className="text-emerald-600" />
-          <div><div className="text-[0.6875rem] text-gray-500">Final Status</div><div className="text-[0.9375rem] font-extrabold text-emerald-700 leading-none">{completed ? 'COMPLETED' : (d.completion || '').toUpperCase()}</div><div className="text-[0.625rem] text-gray-400 mt-0.5">Pooja Completed Successfully</div></div>
+          <div><div className="text-[0.6875rem] text-gray-500"><T>Final Status</T></div><div className="text-[0.9375rem] font-extrabold text-emerald-700 leading-none">{completed ? 'COMPLETED' : (d.completion || '').toUpperCase()}</div><div className="text-[0.625rem] text-gray-400 mt-0.5"><T>Pooja Completed Successfully</T></div></div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Left column */}
         <div className="space-y-5">
-          <Section n="1" icon={User} title="Devotee Details">
+          <Section n="1" icon={User} title={tr("Devotee Details")}>
             <Row label="Devotee Name" value={dev.name} />
             <Row label="Mobile Number" value={dev.mobile} />
             <Row label="Email (if any)" value={dev.email || '—'} />
           </Section>
-          <Section n="2" icon={Landmark} title="Pooja & Plan Details">
+          <Section n="2" icon={Landmark} title={tr("Pooja & Plan Details")}>
             <Row label="Pooja Name" value={d.pooja_name} />
             <Row label="Plan" value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
             <Row label="Plan Type" value={plan.plan_name} />
             <Row label="Rate Type" value={plan.rate_type} />
             <Row label="Plan Description" value={`${plan.description || ''} for ${validityShort(plan)}`.trim()} />
           </Section>
-          <Section n="3" icon={CalendarDays} title="Booking & Validity Details">
+          <Section n="3" icon={CalendarDays} title={tr("Booking & Validity Details")}>
             <Row label="Pooja Date" value={`${fmtDate(d.scheduled_date)} (${weekday(d.scheduled_date)})`} />
             <Row label="Booking Date & Time" value={fmtStamp(d.created_at)} />
             <Row label="Validity" value={validRange} />
             <Row label="Completion Status" value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} /> {d.completion}</span>} />
           </Section>
           {pr.name && (
-            <Section n="4" icon={UserCog} title="Poojari Details">
+            <Section n="4" icon={UserCog} title={tr("Poojari Details")}>
               <Row label="Poojari Name" value={pr.name} />
-              <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Pooja was performed by the assigned Poojari.</div>
+              <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" />{' '}<T>Pooja was performed by the assigned Poojari.</T></div>
             </Section>
           )}
         </div>
@@ -101,24 +102,24 @@ export default function PoojaHistoryDetails() {
             </TicketShell>
           </div>
 
-          <Section n="5" icon={IndianRupee} title="Amount Details">
+          <Section n="5" icon={IndianRupee} title={tr("Amount Details")}>
             <Row label="Rate (₹)" value={money2(plan.rate_amount)} />
             <div className="flex text-[0.84375rem] pt-1"><span className="text-maroon-700 font-bold w-44 shrink-0">Total Amount Paid (₹)</span><span className="text-gray-400 mr-3">:</span><span className="text-maroon-700 font-extrabold">{money2(d.amount)}</span></div>
           </Section>
-          <Section n="6" icon={CreditCard} title="Payment Details">
+          <Section n="6" icon={CreditCard} title={tr("Payment Details")}>
             <Row label="Payment Mode" value={mode} />
             {isUpi && <Row label="UTR / Transaction ID" value={<span className="text-emerald-700 font-mono">{d.payment_ref}</span>} />}
             <Row label="Payment Date & Time" value={fmtStamp(d.created_at)} />
-            <Row label="Payment Status" value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} /> Payment Successful</span>} />
+            <Row label="Payment Status" value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} />{' '}<T>Payment Successful</T></span>} />
             <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Payment received successfully on {fmtStamp(d.created_at)}.</div>
           </Section>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-3 justify-center mt-6 no-print">
-        <button onClick={() => window.print()} className="btn-outline"><Printer size={15} /> Print Ticket / Receipt</button>
-        <button onClick={() => window.print()} className="btn-outline"><Download size={15} /> Download PDF</button>
-        <button onClick={() => nav('/admin/pooja-history')} className="btn-maroon"><ArrowLeft size={15} /> Back to Pooja History List</button>
+        <button onClick={() => window.print()} className="btn-outline"><Printer size={15} />{' '}<T>Print Ticket / Receipt</T></button>
+        <button onClick={() => window.print()} className="btn-outline"><Download size={15} />{' '}<T>Download PDF</T></button>
+        <button onClick={() => nav('/admin/pooja-history')} className="btn-maroon"><ArrowLeft size={15} />{' '}<T>Back to Pooja History List</T></button>
       </div>
     </div>
   )

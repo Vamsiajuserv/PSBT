@@ -21,6 +21,12 @@
 //               the counter's booking screens off the Poojari's menu — both roles
 //               hold the Bookings module, but their screens differ.
 export const ACCESS = {
+  // ── Dashboard ('' = the /admin index) ──
+  // The money dashboard is meaningless to a Poojari — /admin already redirects
+  // them to My Poojas, so showing a "Dashboard" nav entry that appears to do
+  // nothing is a UX trap. Hide it for them (Administrators always pass).
+  '': { roles: ['Counter Staff', 'Accountant', 'Committee'] },
+
   // ── Transactional screens (visible to any role holding the module) ──
   devotees: { module: 'Devotees' },
   bookings: { module: 'Bookings', roles: ['Counter Staff'] },

@@ -174,6 +174,9 @@ def create_booking(body: BookingCreate, request: Request,
     # A booking may be scheduled for a future day, but not back-dated onto a day
     # that Daily Closing has already finalised. The money is collected today, so
     # today itself must also be open (daily closing buckets bookings by created_at).
+    sd_guard = data.get("scheduled_date")
+    if sd_guard and sd_guard < date.today():
+        raise HTTPException(422, "The scheduled date cannot be in the past — bookings start from today.")
     assert_txn_date_open(db, data.get("scheduled_date"), allow_future=True, label="scheduled date")
     assert_txn_date_open(db, date.today(), label="today")
 
@@ -316,7 +319,7 @@ def complete_booking(bid: int, request: Request, db: Session = Depends(get_db),
     if b.valid_until and today > b.valid_until:
         raise HTTPException(409, f"This ticket expired on {b.valid_until}")
     if b.last_performed_on == today:
-        raise HTTPException(409, "This pooja has already been performed today")
+        raise HTTPException(409, "This pooja has already been performed today — the next performance can be recorded tomorrow.")
     allowed = b.performances_allowed
     done = (b.performances_done or 0)
     if allowed is not None and done >= allowed:
@@ -344,6 +347,14 @@ def reschedule_booking(bid: int, body: dict, request: Request,
     b = db.get(Booking, bid)
     if not b:
         raise HTTPException(404, "Booking not found")
+    nd_guard = body.get("scheduled_date")
+    try:
+        from datetime import date as _d
+        nd_parsed = _d.fromisoformat(nd_guard) if isinstance(nd_guard, str) else nd_guard
+    except ValueError:
+        nd_parsed = None
+    if nd_parsed and nd_parsed < date.today():
+        raise HTTPException(422, "The new date cannot be in the past.")
     if b.status != "Confirmed" or b.payment_status != "Paid":
         raise HTTPException(409, "Only a paid, confirmed booking can be rescheduled")
     if (b.performances_done or 0) > 0:
