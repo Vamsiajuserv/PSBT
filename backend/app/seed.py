@@ -34,13 +34,17 @@ DEMO_COMMITTEE = [
     ("R. Venkateswarlu", "Treasurer", "9848000003"), ("S. Ramachandra", "Member", "9848000004"),
     ("P. Anjaneyulu", "Member", "9848000005"), ("G. Meena Kumari", "Member", "9848000006"),
 ]
-# (name, start_offset_days, duration_days, status, [associated pooja names])
+# (name, start_date ISO, duration_days, status, [associated pooja names])
+# Real 2026 Hindu-calendar dates (Telugu/Telangana panchang), not demo offsets:
+#   Rama Navami 27 Mar · Guru Purnima 29 Jul · Vinayaka Chavithi 14 Sep ·
+#   Devi Navaratri 11–19 Oct · Vijayadashami (Mahasamadhi) 20 Oct · Karthika Masam 9 Nov–8 Dec.
 DEMO_FESTIVALS = [
-    ("Sri Rama Navami", 20, 1, "Active", ["Sri Rama Navami", "Abhishekam"]),
-    ("Devi Navaratri", 60, 9, "Active", ["Devi Navaratri Pooja"]),
-    ("Vinayaka Chavithi", 90, 3, "Active", ["Vinayaka Chavithi Pooja"]),
-    ("Karthika Masam", 120, 30, "Active", ["Karthika Masam Pooja"]),
-    ("Guru Purnima", -30, 1, "Inactive", ["Sai Vratam (Pournami)"]),
+    ("Sri Rama Navami", "2026-03-27", 1, "Active", ["Sri Rama Navami", "Abhishekam"]),
+    ("Guru Purnima", "2026-07-29", 1, "Active", ["Sai Vratam (Pournami)"]),
+    ("Vinayaka Chavithi", "2026-09-14", 3, "Active", ["Vinayaka Chavithi Pooja"]),
+    ("Devi Navaratri", "2026-10-11", 9, "Active", ["Devi Navaratri Pooja"]),
+    ("Sai Baba Mahasamadhi", "2026-10-20", 1, "Active", ["Abhishekam"]),
+    ("Karthika Masam", "2026-11-09", 30, "Active", ["Karthika Masam Pooja"]),
 ]
 
 # Roles & module access (doc §Role & Access) — (code, name, description, module keys, active).
@@ -644,8 +648,8 @@ def run():
         # Festival Master
         if db.query(Festival).count() == 0:
             pooja_by_name = {p.name: p.id for p in db.query(Pooja).all()}
-            for i, (name, off, dur, status, pnames) in enumerate(DEMO_FESTIVALS, start=1):
-                sd = date.today() + timedelta(days=off)
+            for i, (name, sd_iso, dur, status, pnames) in enumerate(DEMO_FESTIVALS, start=1):
+                sd = date.fromisoformat(sd_iso)
                 ids = [pooja_by_name[n] for n in pnames if n in pooja_by_name]
                 db.add(Festival(code=f"FEST-{str(i).zfill(4)}", name=name, start_date=sd,
                                 end_date=sd + timedelta(days=dur - 1), pooja_ids=",".join(map(str, ids)),

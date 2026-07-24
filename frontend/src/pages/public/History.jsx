@@ -44,9 +44,9 @@ export default function History() {
                   <img src={s.img} alt={s.title} className="w-full h-full object-cover" loading="lazy" />
                 </div>
                 <div className="p-5">
-                  <div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-[#B8860B]">{s.era}</div>
-                  <h3 className="font-serif text-lg font-bold text-[#6A1E1E] mt-1">{s.title}</h3>
-                  <p className="text-[0.8125rem] text-black leading-relaxed mt-1.5">{s.desc}</p>
+                  <div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-[#B8860B]"><T>{s.era}</T></div>
+                  <h3 className="font-serif text-lg font-bold text-[#6A1E1E] mt-1"><T>{s.title}</T></h3>
+                  <p className="text-[0.8125rem] text-black leading-relaxed mt-1.5"><T>{s.desc}</T></p>
                 </div>
               </article>
             ))}

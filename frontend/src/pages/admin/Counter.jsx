@@ -262,7 +262,7 @@ export default function Counter() {
             ))}
           </div>
           {cat === 'Occasion' && (
-            <p className="text-[0.6875rem] text-amber-700 mb-2">Booking a ceremony for a future date (Namakaranam, Annaprasana…)? Use <b><T>Advance Booking</T></b>{' '}<T>to pick the date, slot and poojari.</T></p>
+            <p className="text-[0.6875rem] text-amber-700 mb-2"><T>Booking a ceremony for a future date (Namakaranam, Annaprasana…)? Use</T> <b><T>Advance Booking</T></b>{' '}<T>to pick the date, slot and poojari.</T></p>
           )}
           {cat === 'Festival' && (
             <p className="text-[0.6875rem] text-amber-700 mb-2"><T>Festival poojas are automatically scheduled for their festival window from the Festival Master.</T></p>

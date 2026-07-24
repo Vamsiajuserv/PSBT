@@ -202,7 +202,7 @@ export function Select({ value, onChange, children, className = '', disabled = f
             </div>
           )}
           <div className="overflow-y-auto py-1" style={{ maxHeight: (pos?.maxHeight ?? 300) - (searchable ? 40 : 0) }}>
-            {shown.length === 0 && <div className="px-3 py-2.5 text-[0.8125rem] text-gray-400">No matches</div>}
+            {shown.length === 0 && <div className="px-3 py-2.5 text-[0.8125rem] text-gray-400">{t('No matches')}</div>}
             {shown.map((o, i) => {
               if (o.group) {
                 return <div key={`g${i}`} className="px-3 pt-2 pb-1 text-[0.625rem] font-bold uppercase tracking-wider text-maroon-700/60">{o.group}</div>
@@ -530,7 +530,7 @@ export function DateTimeField({ value, onChange, min, max, required = false, dis
             <div className="flex gap-3">
               <CalendarPanel value={datePart || ''} min={min} max={max} onPick={(d) => emit(d, timePart || nowHHMM())} />
               <div className="border-l border-gold-100 pl-3">
-                <div className="text-[0.625rem] font-bold uppercase tracking-wider text-maroon-700/50 mb-1.5 text-center">Time</div>
+                <div className="text-[0.625rem] font-bold uppercase tracking-wider text-maroon-700/50 mb-1.5 text-center">{t('Time')}</div>
                 <TimePanel value={timePart || ''} onChange={(t) => emit(datePart || iso(new Date()), t)} />
               </div>
             </div>

@@ -253,7 +253,7 @@ export default function WasteSales() {
                       <button type="button" onClick={() => setM({ quantity: (Number(drawer.quantity) || 0) + 1 })} className="w-10 h-11 grid place-items-center text-gray-500 hover:bg-gray-50 border-l border-gray-200"><Plus size={15} /></button>
                     </div>
                   </div>
-                  <div><label className="label">Rate per Unit (₹) *</label><NumberField required step="0.01" min="0" prefix="₹" placeholder="0.00" value={drawer.rate} onChange={(e) => setM({ rate: e.target.value })} /></div>
+                  <div><label className="label"><T>Rate per Unit (₹) *</T></label><NumberField required step="0.01" min="0" prefix="₹" placeholder="0.00" value={drawer.rate} onChange={(e) => setM({ rate: e.target.value })} /></div>
                 </div>
                 <div className="bg-amber-50/70 border border-amber-200 rounded-xl px-4 py-3.5 mt-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 grid place-items-center shrink-0"><Calculator size={18} /></div>

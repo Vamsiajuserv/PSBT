@@ -26,6 +26,7 @@ PUBLIC_SETTING_KEYS = {
     "trust_name", "about", "address_line", "city", "state", "pincode",
     "phone", "email", "website", "timings_morning", "timings_evening",
     "social_facebook", "social_instagram", "social_youtube",
+    "receipt_footer_note", "default_language",
 }
 
 
@@ -60,6 +61,8 @@ def _temple(db: Session, content: dict) -> dict:
         "phone": cfg.get("phone"),
         "email": cfg.get("email"),
         "website": cfg.get("website"),
+        "receiptFooter": cfg.get("receipt_footer_note"),
+        "defaultLanguage": cfg.get("default_language"),
         "about": cfg.get("about"),
         "timings": content.get("timings_line") or TEMPLE_EXTRAS["timings"],
         "timingsNote": content.get("timingsNote") or TEMPLE_EXTRAS["timingsNote"],

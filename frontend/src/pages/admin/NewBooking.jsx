@@ -326,7 +326,7 @@ export default function NewBooking() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div><label className="label"><T>Full Name *</T></label><input autoFocus className="input" placeholder={tr("Devotee name")} value={quickAdd.name} onChange={(e) => setQuickAdd((q) => ({ ...q, name: e.target.value }))} /></div>
                   <div><label className="label"><T>Mobile Number *</T></label><input className="input" placeholder={tr("10-digit mobile")} value={quickAdd.mobile} maxLength={10} onChange={(e) => setQuickAdd((q) => ({ ...q, mobile: e.target.value.replace(/\D/g, '') }))} /></div>
-                  <div><label className="label">Email (optional)</label><input className="input" placeholder={tr("email@example.com")} value={quickAdd.email} onChange={(e) => setQuickAdd((q) => ({ ...q, email: e.target.value }))} /></div>
+                  <div><label className="label"><T>Email (optional)</T></label><input className="input" placeholder={tr("email@example.com")} value={quickAdd.email} onChange={(e) => setQuickAdd((q) => ({ ...q, email: e.target.value }))} /></div>
                 </div>
                 {qaErr && <div className="text-[0.75rem] text-red-600 mt-2">{qaErr}</div>}
                 <div className="flex items-center gap-2 mt-3">
@@ -355,7 +355,7 @@ export default function NewBooking() {
               ) : (
                 <div className="border border-gray-100 rounded-xl overflow-hidden overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-500"><th className="px-4 py-2.5"><T>Plan Name</T></th><th className="px-2 py-2.5"><T>Plan Type</T></th><th className="px-2 py-2.5 text-right">Rate (₹)</th><th className="px-2 py-2.5"><T>Validity</T></th><th className="px-2 py-2.5"><T>Availability</T></th><th className="px-2 py-2.5"><T>Select</T></th></tr></thead>
+                    <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-500"><th className="px-4 py-2.5"><T>Plan Name</T></th><th className="px-2 py-2.5"><T>Plan Type</T></th><th className="px-2 py-2.5 text-right"><T>Rate (₹)</T></th><th className="px-2 py-2.5"><T>Validity</T></th><th className="px-2 py-2.5"><T>Availability</T></th><th className="px-2 py-2.5"><T>Select</T></th></tr></thead>
                     <tbody className="divide-y divide-gray-100">
                       {pooja.plans.map((pl) => {
                         const on = plan?.id === pl.id
@@ -405,7 +405,7 @@ export default function NewBooking() {
                 <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Select the pooja timing slot for the booking.</T></div>
               </div>
               <div>
-                <label className="label">Assign Poojari (Optional)</label>
+                <label className="label"><T>Assign Poojari (Optional)</T></label>
                 <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)}><option value="">Not assigned</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}{p.specialization ? ` · ${p.specialization}` : ''}</option>)}</Select>
                 <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Optionally assign a poojari to perform this booking.</T></div>
               </div>
@@ -448,14 +448,14 @@ export default function NewBooking() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                 <div>
                   <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-3.5 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2 mb-3"><Info size={14} className="text-amber-600 shrink-0 mt-0.5" />{' '}<T>If payment mode is UPI / QR Code, please enter the UTR / Transaction ID.</T></div>
-                  <label className="label">Payment Date &amp; Time</label>
+                  <label className="label"><T>Payment Date &amp; Time</T></label>
                   <div className="flex gap-2">
                     <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={fmtDate(new Date().toISOString())} readOnly /><Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
                     <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} readOnly /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
                   </div>
                 </div>
                 <div>
-                  <label className="label">UTR / Transaction ID (For UPI)</label>
+                  <label className="label"><T>UTR / Transaction ID (For UPI)</T></label>
                   <input className="input" placeholder={tr("Enter UTR / Transaction ID")} value={utr} onChange={(e) => setUtr(e.target.value)} disabled={method !== 'UPI/QR Code'} />
                   <div className="text-[0.6875rem] text-gray-400 mt-1"><T>Enter UPI transaction reference number / UTR</T></div>
                 </div>
@@ -475,17 +475,17 @@ export default function NewBooking() {
                   </div>
                 ) : (
                 <div className="py-2 border-t border-gray-100">
-                  <label className="label">Committee-Decided Amount (₹) *</label>
+                  <label className="label"><T>Committee-Decided Amount (₹) *</T></label>
                   <NumberField min="1" step="1" prefix="₹" className="mt-1" placeholder={tr("Enter amount set by the committee")}
                          value={committeeAmt} onChange={(e) => setCommitteeAmt(e.target.value.replace(/[^\d.]/g, ''))} />
                   {!amountReady && <div className="text-[0.6875rem] text-amber-600 mt-1"><T>This pooja has no fixed fee — enter the committee's amount to continue.</T></div>}
                 </div>
                 )
               ) : (
-                <div className="flex justify-between py-2 text-[0.84375rem] border-t border-gray-100"><span className="text-gray-500">Rate (₹)</span><span className="font-medium text-gray-800">{money2(fee)}</span></div>
+                <div className="flex justify-between py-2 text-[0.84375rem] border-t border-gray-100"><span className="text-gray-500"><T>Rate (₹)</T></span><span className="font-medium text-gray-800">{money2(fee)}</span></div>
               )}
-              <div className="flex justify-between py-2 text-[0.84375rem] border-t border-gray-100"><span className="text-gray-500">Discount (₹)</span><span className="font-medium text-gray-800">0.00</span></div>
-              <div className="flex justify-between items-center py-3 mt-1 border-t border-gray-200"><span className="font-bold text-maroon-800">Total Amount (₹)</span><span className="text-xl font-extrabold text-maroon-800">{money2(fee)}</span></div>
+              <div className="flex justify-between py-2 text-[0.84375rem] border-t border-gray-100"><span className="text-gray-500"><T>Discount (₹)</T></span><span className="font-medium text-gray-800">0.00</span></div>
+              <div className="flex justify-between items-center py-3 mt-1 border-t border-gray-200"><span className="font-bold text-maroon-800"><T>Total Amount (₹)</T></span><span className="text-xl font-extrabold text-maroon-800">{money2(fee)}</span></div>
             </div>
             <div className="bg-amber-50/50 border border-amber-100 rounded-lg px-4 py-3 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-amber-600 shrink-0 mt-0.5" />{' '}<T>All payments are subject to temple rules and availability.</T></div>
           </div>
@@ -544,7 +544,7 @@ export default function NewBooking() {
                   <TField k="Time Slot" v={slot} />
                   {ticket._poojari && <TField k="Poojari" v={ticket._poojari} />}
                   <TField k="Validity" v={validityShort(plan)} sub={validText.includes('(') ? validText.slice(validText.indexOf('(')) : ''} />
-                  <div className="bg-amber-100/60 rounded-lg px-3 py-2 col-span-2 flex items-center justify-between"><span className="text-[0.6875rem] text-gray-500">Amount Paid (₹)</span><span className="font-extrabold text-maroon-800">{money2(fee)}</span></div>
+                  <div className="bg-amber-100/60 rounded-lg px-3 py-2 col-span-2 flex items-center justify-between"><span className="text-[0.6875rem] text-gray-500"><T>Amount Paid (₹)</T></span><span className="font-extrabold text-maroon-800">{money2(fee)}</span></div>
                   <TField k="Payment Mode" v={modeLabel(ticket._method)} />
                   <TField k="Payment Date & Time" v={ticket._paidAt} />
                 </div>

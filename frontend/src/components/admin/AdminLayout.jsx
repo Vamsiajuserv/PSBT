@@ -77,21 +77,6 @@ const NAV = [
 const todayLabel = () => new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', weekday: 'short' })
 const timeLabel = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 
-function GopuraMark() {
-  return (
-    <div className="w-16 h-16 mx-auto grid place-items-center text-gold-300">
-      <svg viewBox="0 0 64 64" className="w-12 h-12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
-        <path d="M32 4 36 12H28z" fill="currentColor" />
-        <path d="M22 20l10-8 10 8v4H22z" />
-        <path d="M18 30l14-8 14 8v4H18z" />
-        <path d="M14 42l18-10 18 10v4H14z" />
-        <path d="M16 46h32v14H16z" />
-        <path d="M28 60V50a4 4 0 018 0v10" />
-      </svg>
-    </div>
-  )
-}
-
 function SidebarNav({ onNavigate }) {
   const location = useLocation()
   const { user } = useAuth()
@@ -181,7 +166,7 @@ export default function AdminLayout() {
       {/* ── Sidebar ── */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream flex flex-col transition-all duration-300 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${collapsed ? 'lg:-ml-64' : 'lg:ml-0'}`}>
         <div className="px-5 pt-5 pb-4 text-center border-b border-white/10">
-          <GopuraMark />
+          <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-20 h-20 mx-auto drop-shadow-md" />
           <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight mt-1"><T>Sri Shirdi Sai Baba Temple</T></div>
           <div className="text-[0.65625rem] text-cream/55 leading-tight mt-1"><T>Dwarkapuri Colony, Punjagutta,</T><br /><T>Hyderabad, Telangana</T></div>
         </div>

@@ -94,7 +94,7 @@ export default function BookingDetails() {
 
           <Section n="3" icon={IndianRupee} title={tr("Amount Details")}>
             <Row label="Rate (₹)" value={money2(plan.rate_amount)} />
-            <div className="flex text-[0.84375rem] pt-1"><span className="text-maroon-700 font-bold w-44 shrink-0">Total Amount Paid (₹)</span><span className="text-gray-400 mr-3">:</span><span className="text-maroon-700 font-extrabold">{money2(d.amount)}</span></div>
+            <div className="flex text-[0.84375rem] pt-1"><span className="text-maroon-700 font-bold w-44 shrink-0"><T>Total Amount Paid (₹)</T></span><span className="text-gray-400 mr-3">:</span><span className="text-maroon-700 font-extrabold">{money2(d.amount)}</span></div>
           </Section>
 
           <Section n="4" icon={CreditCard} title={tr("Payment Details")}>

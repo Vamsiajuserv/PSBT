@@ -92,7 +92,7 @@ export default function StaffLogin() {
           {images?.about && <img src={images.about} alt="Temple" className="absolute inset-0 w-full h-full object-cover opacity-30" />}
           <div className="absolute inset-0 bg-gradient-to-t from-maroon-900 via-maroon-900/70 to-maroon-900/40" />
           <div className="relative text-cream">
-            <div className="w-20 h-20 mx-auto rounded-full border-2 border-gold-400 bg-maroon-800 grid place-items-center text-4xl">🛕</div>
+            <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-24 h-24 mx-auto drop-shadow-lg" />
             <h1 className="font-serif text-3xl font-bold text-gold-200 mt-5 tracking-wide">{temple?.name || 'Sri Shirdi Sai Baba Temple'}</h1>
             <p className="text-cream/70 text-sm mt-2">{temple?.place || temple?.address || 'Dwarakapuri Colony, Punjagutta, Hyderabad'}</p>
             <Flourish className="mt-4" width="w-14" />
@@ -141,7 +141,7 @@ export default function StaffLogin() {
                   <button disabled={busy} className="btn-maroon w-full !py-3 disabled:opacity-60"><LogIn size={16} /> {busy ? 'Signing in…' : 'Login'}</button>
                   <div className="bg-gold-50 border border-gold-200 rounded-lg px-3 py-2.5 flex items-start gap-2 text-[0.6875rem] text-gray-500">
                     <ShieldCheck size={16} className="text-gold-500 shrink-0 mt-0.5" />
-                    Two-Factor Authentication will be requested after successful login (if enabled for your account).
+                    <T>Two-Factor Authentication will be requested after successful login (if enabled for your account).</T>
                   </div>
 
                   {/* Demo accounts — click to auto-fill & sign in */}

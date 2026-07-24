@@ -49,8 +49,8 @@ export default function About() {
           <h2 className="font-serif text-3xl font-bold text-maroon-700 mt-1"><T>A Divine Abode of Faith and Service</T></h2>
           <Flourish className="justify-start mt-3" width="w-16" />
           <div className="text-black leading-relaxed space-y-4 mt-5">
-            <p>{ABOUT.intro}</p>
-            <p>{ABOUT.mission}</p>
+            <p><T>{ABOUT.intro}</T></p>
+            <p><T>{ABOUT.mission}</T></p>
           </div>
           <div className="bg-gold-50 border-l-4 border-gold-400 rounded-r-xl px-5 py-4 mt-6">
             <p className="font-serif italic text-maroon-700"><T>“Have faith and patience, and everything will be possible.”</T></p>

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useLang, T } from '../../i18n/LanguageContext.jsx'
 import { useSiteContext, useTemple } from '../../lib/SiteContext.jsx'
+import { getFontScale, setFontScale } from '../../lib/fontScale.js'
 import TempleLoader from './TempleLoader.jsx'
 
 function LangToggle({ className = '' }) {
@@ -13,6 +14,26 @@ function LangToggle({ className = '' }) {
     <div className={`inline-flex items-center rounded-full border border-gold-400/60 overflow-hidden text-[0.6875rem] font-bold ${className}`}>
       <button onClick={() => setLang('en')} className={`px-2 py-1 ${lang === 'en' ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}><T>EN</T></button>
       <button onClick={() => setLang('te')} className={`px-2 py-1 font-telugu ${lang === 'te' ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}>తెలుగు</button>
+    </div>
+  )
+}
+
+// Accessibility text-size control (A− / A / A+) — bumps the whole UI via the
+// --font-scale CSS variable, remembered across visits (see lib/fontScale.js).
+function FontSizeToggle({ className = '' }) {
+  const [level, setLevel] = useState(getFontScale())
+  const pick = (l) => setLevel(setFontScale(l))
+  const btn = (l, node, title) => (
+    <button onClick={() => pick(l)} title={title} aria-label={title}
+      className={`px-2 py-1 leading-none ${level === l ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}>
+      {node}
+    </button>
+  )
+  return (
+    <div className={`inline-flex items-stretch rounded-full border border-gold-400/60 overflow-hidden font-bold ${className}`}>
+      {btn('small', <span className="text-[0.625rem]">A−</span>, 'Smaller text')}
+      {btn('normal', <span className="text-[0.8125rem]">A</span>, 'Default text size')}
+      {btn('large', <span className="text-[1rem]">A+</span>, 'Larger text')}
     </div>
   )
 }
@@ -52,9 +73,9 @@ function Logo({ light = false }) {
   const temple = useTemple()
   return (
     <Link to="/" className="flex items-center gap-3">
-      <div className={`w-12 h-12 rounded-full grid place-items-center text-2xl shrink-0 border-2 ${light ? 'border-gold-300 bg-maroon-800' : 'border-gold-400 bg-gradient-to-br from-gold-200 to-gold-400'}`}>
-        🛕
-      </div>
+      {/* Official temple seal — the badge carries its own ring, so it sits
+          directly on both the ivory header and the maroon footer. */}
+      <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-16 h-16 shrink-0 drop-shadow-sm" />
       <div className="leading-tight">
         <div className={`font-display font-bold text-[0.9375rem] sm:text-lg tracking-wide uppercase ${light ? 'text-gold-200' : 'text-maroon-700'}`}>
           {temple?.name || 'Sri Shirdi Sai Baba Temple'}
@@ -80,7 +101,7 @@ export default function PublicLayout() {
   if (!site) {
     return (
       <div className="temple-loader min-h-screen grid place-items-center px-6 text-center">
-        <div className="loader-fade">
+        <div className="animate-fade-in">
           <div className="font-script text-3xl text-gold-300 mb-3">|| Om Sri Sai Ram ||</div>
           <p className="text-cream/80 text-sm max-w-sm mx-auto">{error || t('Could not load temple information. Please try again.')}</p>
           <button onClick={() => window.location.reload()} className="btn-primary mt-5 !py-2 text-xs">{t('Retry')}</button>
@@ -108,7 +129,8 @@ export default function PublicLayout() {
                   <Ic size={12} />
                 </a>
               ))}
-            <LangToggle className="text-gold-200 ml-1" />
+            <FontSizeToggle className="text-gold-200" />
+            <LangToggle className="text-gold-200" />
           </div>
         </div>
       </div>

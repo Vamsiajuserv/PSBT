@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { X, ChevronLeft, ChevronRight, Camera } from 'lucide-react'
 import { MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
@@ -7,13 +7,9 @@ import { useLang } from '../../i18n/LanguageContext.jsx'
 export default function Gallery() {
   const { t } = useLang()
   const site = useSite()
-  const all = site?.gallery || []
+  const items = site?.gallery || []
 
-  const cats = useMemo(() => ['All', ...[...new Set(all.map((g) => g.cat).filter(Boolean))]], [all])
-  const [cat, setCat] = useState('All')
-  const items = cat === 'All' ? all : all.filter((g) => g.cat === cat)
-
-  // Lightbox — index into the *filtered* list; null = closed.
+  // Lightbox — index into the photo list; null = closed.
   const [open, setOpen] = useState(null)
   const show = open !== null ? items[open] : null
   const step = (d) => setOpen((i) => (i + d + items.length) % items.length)
@@ -40,36 +36,26 @@ export default function Gallery() {
           {t('Glimpses of sevas, festivals and temple life at Sri Shirdi Sai Baba Temple.')}
         </p>
 
-        {/* Category filter chips */}
-        <div className="flex flex-wrap justify-center gap-2 mt-8">
-          {cats.map((c) => (
-            <button key={c} onClick={() => { setCat(c); setOpen(null) }}
-              className={`rounded-full px-4 py-1.5 text-[0.8125rem] font-semibold border transition-colors ${
-                cat === c ? 'bg-maroon-700 text-cream border-maroon-700'
-                          : 'bg-white text-maroon-700 border-gold-300 hover:bg-gold-50'}`}>
-              {t(c)}{c !== 'All' && <span className="text-[0.6875rem] opacity-70"> · {all.filter((g) => g.cat === c).length}</span>}
-            </button>
-          ))}
-        </div>
-
-        {/* Photo grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-8">
-          {items.map((g, i) => (
-            <button key={g.id} onClick={() => setOpen(i)}
-              className="card overflow-hidden group text-left focus:outline-none focus:ring-2 focus:ring-gold-400">
-              <div className="aspect-square overflow-hidden relative">
-                <img src={g.img} alt={g.caption}
+        {/* Photo grid — clean tiles, click to open the lightbox. */}
+        {items.length === 0 ? (
+          <div className="mt-12 mb-8 text-center">
+            <div className="w-16 h-16 mx-auto rounded-full bg-gold-50 border border-gold-200 grid place-items-center text-gold-500"><Camera size={26} /></div>
+            <p className="mt-4 text-maroon-700 font-semibold">{t('Photo gallery coming soon')}</p>
+            <p className="mt-1 text-sm text-black/70">{t('Our temple photographs will be added here shortly.')}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-10">
+            {items.map((g, i) => (
+              <button key={g.id} onClick={() => setOpen(i)}
+                className="group relative aspect-square overflow-hidden rounded-xl border border-gold-200 shadow-card focus:outline-none focus:ring-2 focus:ring-gold-400">
+                <img src={g.img} alt=""
                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 <Camera size={16} className="absolute bottom-2.5 right-2.5 text-white opacity-0 group-hover:opacity-90 transition-opacity" />
-              </div>
-              <div className="px-3 py-2.5 flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-maroon-700 truncate">{t(g.caption)}</p>
-                {g.cat && <span className="shrink-0 text-[0.625rem] font-semibold text-gold-600 bg-gold-50 border border-gold-200 rounded-full px-2 py-0.5">{t(g.cat)}</span>}
-              </div>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Lightbox ── */}
@@ -85,15 +71,9 @@ export default function Gallery() {
             <ChevronLeft size={22} />
           </button>
           <figure className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-            <img src={show.img} alt={show.caption}
-                 className="w-full max-h-[74vh] object-contain rounded-xl shadow-2xl" />
-            <figcaption className="text-center mt-4">
-              <div className="font-serif text-lg font-bold text-gold-200">{t(show.caption)}</div>
-              <div className="text-[0.75rem] text-white/60 mt-0.5">
-                {show.cat && <span className="text-gold-300">{t(show.cat)}</span>}
-                <span className="mx-2">·</span>{open + 1} / {items.length}
-              </div>
-            </figcaption>
+            <img src={show.img} alt=""
+                 className="w-full max-h-[80vh] object-contain rounded-xl shadow-2xl" />
+            <figcaption className="text-center mt-3 text-[0.75rem] text-white/60">{open + 1} / {items.length}</figcaption>
           </figure>
           <button onClick={(e) => { e.stopPropagation(); step(1) }} aria-label="Next"
                   className="absolute right-3 sm:right-6 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 text-white grid place-items-center">

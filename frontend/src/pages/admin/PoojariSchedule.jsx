@@ -197,7 +197,7 @@ export default function PoojariSchedule() {
               </div>
 
               <div className="text-[0.8125rem] font-bold text-maroon-700 pt-1"><T>2. Additional Information</T></div>
-              <div><label className="label">Notes (Optional)</label><textarea className="input min-h-[4.5rem]" placeholder={tr("Enter any notes or special instructions…")} value={drawer.data.notes} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, notes: e.target.value } })} /></div>
+              <div><label className="label"><T>Notes (Optional)</T></label><textarea className="input min-h-[4.5rem]" placeholder={tr("Enter any notes or special instructions…")} value={drawer.data.notes} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, notes: e.target.value } })} /></div>
               <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-amber-500 shrink-0 mt-0.5" />{' '}<T>Selecting a Pooja will load only the plans configured in Pooja Master.</T></div>
             </div>
 

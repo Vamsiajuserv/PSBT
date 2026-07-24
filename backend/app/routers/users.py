@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import User, Role
+from ..models import User, Role, Setting
 from ..schemas import UserCreate, UserUpdate, UserOut
 from ..security import hash_password, require_admin, log_action, client_ip, MODULES
 from sqlalchemy import func, or_
@@ -58,6 +58,11 @@ def create_user(body: UserCreate, request: Request,
         raise HTTPException(409, "Username already exists")
     if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(409, "Email already exists")
+    # Fall back to the configured Default New-User Role when none is chosen.
+    role = body.role
+    if not role:
+        dr = db.query(Setting).filter(Setting.skey == "default_role").first()
+        role = dr.svalue if dr else "Counter Staff"
     emp = body.employee_id
     if not emp:
         seq = (db.query(func.count(User.id)).scalar() or 0) + 1
@@ -66,7 +71,7 @@ def create_user(body: UserCreate, request: Request,
         emp = f"EMP{seq:03d}"
     u = User(
         name=body.name, username=username, email=body.email, mobile=body.mobile,
-        employee_id=emp, role=body.role, is_active=body.is_active,
+        employee_id=emp, role=role, is_active=body.is_active,
         modules=",".join(body.modules), password_hash=hash_password(body.password),
         twofa_enabled=body.twofa_enabled,
         totp_secret=pyotp.random_base32() if body.twofa_enabled else None,

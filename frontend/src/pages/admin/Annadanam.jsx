@@ -219,7 +219,7 @@ export default function Annadanam() {
               {/* 1. Devotee Details */}
               <div>
                 <div className="text-maroon-700 font-semibold text-[0.875rem] mb-3"><T>1. Devotee Details</T></div>
-                <label className="label">Search Devotee (Name / Mobile Number) *</label>
+                <label className="label"><T>Search Devotee (Name / Mobile Number) *</T></label>
                 <div className="relative">
                   <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input className="input pr-9" placeholder={tr("Search name or mobile number…")}
@@ -262,7 +262,7 @@ export default function Annadanam() {
                     </div>
                   </div>
                   <div>
-                    <label className="label">Rate per plate (₹) *</label>
+                    <label className="label"><T>Rate per plate (₹) *</T></label>
                     <NumberField required min="0" step="1" prefix="₹" className="h-11" value={drawer.rate} onChange={(e) => setM({ rate: e.target.value })} />
                   </div>
                 </div>
@@ -278,7 +278,7 @@ export default function Annadanam() {
                   )}
                 </div>
                 <div className="mt-4">
-                  <label className="label">Scheduled On (Optional)</label>
+                  <label className="label"><T>Scheduled On (Optional)</T></label>
                   <DateField value={drawer.scheduled_on} onChange={(e) => setM({ scheduled_on: e.target.value })} />
                 </div>
                 <div className="bg-amber-50/70 border border-amber-200 rounded-xl px-4 py-3.5 mt-4 flex items-center gap-3">

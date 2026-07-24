@@ -243,10 +243,10 @@ export default function Auction() {
                   <input required className="input mt-2" placeholder={tr("Enter auction item name")} value={drawer.item} onChange={(e) => setM({ item: e.target.value })} />
                 )}
               </div>
-              <div><label className="label">Base Amount (₹) *</label>
+              <div><label className="label"><T>Base Amount (₹) *</T></label>
                 <NumberField required min="0" step="1" prefix="₹" placeholder="0" value={drawer.base_amount} onChange={(e) => setM({ base_amount: e.target.value })} />
               </div>
-              <div><label className="label">Devotee (Optional)</label>
+              <div><label className="label"><T>Devotee (Optional)</T></label>
                 {!drawer.devotee ? (
                   <div className="relative">
                     <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -273,8 +273,8 @@ export default function Auction() {
                   </div>
                 )}
               </div>
-              <div><label className="label">Winner / Highest Bidder (Optional)</label><input className="input" placeholder={tr("Enter winner name")} value={drawer.winner} onChange={(e) => setM({ winner: e.target.value })} /></div>
-              <div><label className="label">Description (Optional)</label>
+              <div><label className="label"><T>Winner / Highest Bidder (Optional)</T></label><input className="input" placeholder={tr("Enter winner name")} value={drawer.winner} onChange={(e) => setM({ winner: e.target.value })} /></div>
+              <div><label className="label"><T>Description (Optional)</T></label>
                 <textarea className="input min-h-[5.625rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.description} onChange={(e) => setM({ description: e.target.value })} />
                 <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{drawer.description.length} / 250</div></div>
               <div><label className="label"><T>Auction Date *</T></label>
@@ -282,7 +282,7 @@ export default function Auction() {
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="label"><T>Start Time *</T></label>
                   <TimeField required value={drawer.start_time} onChange={(e) => setM({ start_time: e.target.value })} /></div>
-                <div><label className="label">Notes (Optional)</label>
+                <div><label className="label"><T>Notes (Optional)</T></label>
                   <textarea className="input min-h-[2.75rem]" maxLength={250} placeholder={tr("Enter notes…")} value={drawer.notes} onChange={(e) => setM({ notes: e.target.value })} />
                   <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{drawer.notes.length} / 250</div></div>
               </div>

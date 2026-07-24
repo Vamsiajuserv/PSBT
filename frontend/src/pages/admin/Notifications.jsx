@@ -79,8 +79,7 @@ export default function Notifications() {
       {!anyConfigured && (
         <div className="mb-5 flex items-start gap-2.5 bg-amber-50/70 border border-amber-100 rounded-xl px-5 py-3.5 text-[0.8125rem] text-gray-600">
           <Info size={17} className="text-amber-500 shrink-0 mt-0.5" />
-          <span><T>No delivery provider is configured yet, so notifications are</T>{' '}<b><T>recorded but not sent</T></b> (status “Skipped”). Set the provider credentials
-            (<code className="text-[0.75rem]"><T>SMTP_*</T></code>, <code className="text-[0.75rem]"><T>SMS_API_*</T></code>, <code className="text-[0.75rem]"><T>WHATSAPP_API_*</T></code>) in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.</span>
+          <span><T>No delivery provider is configured yet, so notifications are</T>{' '}<b><T>recorded but not sent</T></b>{' '}<T>(status “Skipped”). Set the provider credentials (</T><code className="text-[0.75rem]"><T>SMTP_*</T></code>, <code className="text-[0.75rem]"><T>SMS_API_*</T></code>, <code className="text-[0.75rem]"><T>WHATSAPP_API_*</T></code>) in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.</span>
         </div>
       )}
 

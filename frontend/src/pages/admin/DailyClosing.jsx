@@ -149,9 +149,9 @@ export default function DailyClosing() {
                   <tr className="bg-gray-50/70 text-gray-500 text-[0.71875rem] uppercase tracking-wide">
                     <th className="px-4 py-3 text-left font-semibold w-10">#</th>
                     <th className="px-2 py-3 text-left font-semibold"><T>Module</T></th>
-                    <th className="px-4 py-3 text-right font-semibold">Cash (₹)</th>
-                    <th className="px-4 py-3 text-right font-semibold">UPI / QR (₹)</th>
-                    <th className="px-4 py-3 text-right font-semibold">Total Amount (₹)</th>
+                    <th className="px-4 py-3 text-right font-semibold"><T>Cash (₹)</T></th>
+                    <th className="px-4 py-3 text-right font-semibold"><T>UPI / QR (₹)</T></th>
+                    <th className="px-4 py-3 text-right font-semibold"><T>Total Amount (₹)</T></th>
                     <th className="px-4 py-3 text-right font-semibold"><T>Transactions</T></th>
                   </tr>
                 </thead>
@@ -186,7 +186,7 @@ export default function DailyClosing() {
                 <div className="shrink-0"><Donut cashPct={sum.cash_pct} upiPct={sum.upi_pct} /></div>
                 <div className="flex-1 min-w-0 text-[0.8125rem]">
                   <div className="flex text-[0.6875rem] uppercase tracking-wide text-gray-400 font-semibold pb-2 border-b border-gray-100">
-                    <span className="flex-1"><T>Payment Mode</T></span><span className="w-20 text-right">Amount (₹)</span><span className="w-12 text-right">%</span>
+                    <span className="flex-1"><T>Payment Mode</T></span><span className="w-20 text-right"><T>Amount (₹)</T></span><span className="w-12 text-right">%</span>
                   </div>
                   <div className="flex items-center py-2.5 border-b border-gray-50">
                     <span className="flex-1 flex items-center gap-2 text-gray-700"><span className="w-2.5 h-2.5 rounded-full" style={{ background: '#7a1220' }} />{' '}<T>Cash</T></span>
@@ -219,7 +219,7 @@ export default function DailyClosing() {
                   <Row label="Actual Cash in Hand (₹)" value={inr(actualNum)} />
                 </div>
                 <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 mt-1 font-bold ${closingDiff === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                  <span>Difference (₹)</span><span className="tabular-nums">{inr(closingDiff)}</span>
+                  <span><T>Difference (₹)</T></span><span className="tabular-nums">{inr(closingDiff)}</span>
                 </div>
               </div>
             </div>
@@ -242,7 +242,7 @@ export default function DailyClosing() {
               <div className="border-t border-gray-100 pt-3 space-y-3">
                 <Row label="Cash in Hand (Expected) (₹)" value={inr(sum.expected_cash)} />
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Cash in Hand (Actual) (₹)</span>
+                  <span className="text-gray-600"><T>Cash in Hand (Actual) (₹)</T></span>
                   <NumberField prefix="₹" value={actual} disabled={closed || !canClose}
                     title={!canClose ? 'Only the closing role enters the counted cash' : undefined}
                     onChange={(e) => setActual(e.target.value)}
@@ -293,7 +293,7 @@ export default function DailyClosing() {
           ) : (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-baseline justify-between mb-2">
-                <label className="font-serif text-[0.9375rem] font-bold text-maroon-800"><T>Closing Notes</T>{' '}<span className="text-gray-400 font-sans font-normal text-[0.75rem]">(Optional)</span></label>
+                <label className="font-serif text-[0.9375rem] font-bold text-maroon-800"><T>Closing Notes</T>{' '}<span className="text-gray-400 font-sans font-normal text-[0.75rem]"><T>(Optional)</T></span></label>
               </div>
               <textarea rows={3} maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)}
                 placeholder={tr("Enter any closing notes / observations…")}

@@ -311,7 +311,7 @@ export default function Hundi() {
               <div>
                 <div className="flex items-center gap-2 mb-3 text-maroon-700">
                   <span className="w-5 h-5 rounded-full bg-maroon-700 text-cream text-[0.6875rem] grid place-items-center font-bold">3</span>
-                  <span className="font-semibold text-[0.84375rem]">Committee Members (Present During Counting)</span>
+                  <span className="font-semibold text-[0.84375rem]"><T>Committee Members (Present During Counting)</T></span>
                 </div>
                 <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-52 overflow-y-auto">
                   {committee.length === 0 && <div className="px-3 py-2.5 text-[0.75rem] text-gray-400"><T>No active committee members found.</T></div>}

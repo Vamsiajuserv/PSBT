@@ -259,7 +259,7 @@ export default function Donations() {
               </div>
 
               <div>
-                <label className="label">Devotee (optional — leave blank for walk-in)</label>
+                <label className="label"><T>Devotee (optional — leave blank for walk-in)</T></label>
                 {drawer.devotee_id ? (
                   <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-3.5 py-3 bg-gray-50/50">
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
@@ -290,7 +290,7 @@ export default function Donations() {
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label"><T>Donor Name *</T></label>
                   <input required className="input" placeholder={tr("Walk-in / donor name")} value={drawer.donor_name} onChange={(e) => setDrawer({ ...drawer, donor_name: e.target.value })} /></div>
-                <div><label className="label">Mobile (Optional)</label>
+                <div><label className="label"><T>Mobile (Optional)</T></label>
                   <input className="input" placeholder={tr("Mobile number")} value={drawer.mobile} onChange={(e) => setDrawer({ ...drawer, mobile: e.target.value })} /></div>
               </div>
 
@@ -303,7 +303,7 @@ export default function Donations() {
                   <div><label className="label"><T>Unit</T></label><input className="input bg-gray-50" value={drawer.unit || ''} readOnly /></div>
                 </div>
               ) : (
-                <div><label className="label">Amount (₹) *</label><NumberField required min="1" prefix="₹" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>
+                <div><label className="label"><T>Amount (₹) *</T></label><NumberField required min="1" prefix="₹" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>
               )}
 
               {drawer.donation_type !== 'Material' && (
@@ -325,12 +325,12 @@ export default function Donations() {
               <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Tax exemption is applicable only for Medical Donations.</T></div>
               <label className="flex items-center gap-2 text-sm text-gray-700"><Checkbox checked={drawer.g80} disabled={drawer.donation_type !== 'Cash'} onChange={(e) => { setDrawer({ ...drawer, g80: e.target.checked }); if (!e.target.checked) setPanErr('') }} /> Eligible for Tax Exemption (Medical Donation)</label>
 
-              <div><label className="label">PAN {drawer.g80 && <span className="text-red-500">*</span>}{drawer.g80 && <span className="text-[0.6875rem] text-gray-400 font-normal"> (required for 80G)</span>}</label>
+              <div><label className="label">PAN {drawer.g80 && <span className="text-red-500">*</span>}{drawer.g80 && <span className="text-[0.6875rem] text-gray-400 font-normal"> <T>(required for 80G)</T></span>}</label>
                 <input className={`input uppercase ${panErr ? 'border-red-400' : ''}`} placeholder={tr("ABCDE1234F")}
                   value={drawer.pan} onChange={(e) => { setDrawer({ ...drawer, pan: e.target.value.toUpperCase() }); if (panErr) setPanErr('') }} />
                 {panErr && <div className="text-[0.71875rem] text-red-600 mt-1">{panErr}</div>}</div>
 
-              <div><label className="label">Notes (Optional)</label>
+              <div><label className="label"><T>Notes (Optional)</T></label>
                 <textarea className="input min-h-[4.5rem]" maxLength={250} placeholder={tr("Enter any additional notes…")} value={drawer.notes} onChange={(e) => setDrawer({ ...drawer, notes: e.target.value })} />
                 <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{(drawer.notes || '').length} / 250</div></div>
             </div>

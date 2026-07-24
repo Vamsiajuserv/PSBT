@@ -126,7 +126,7 @@ export default function DonationMaster() {
                   <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="ctype" className="accent-maroon-700" checked={dtype === t} onChange={() => setType2(t)} /> {t === 'Cash' ? 'Cash Donation' : t === 'Material' ? 'Material Donation' : 'Sponsorship'}</label>
                 ))}</div></div>
               <div><label className="label"><T>Category Name *</T></label><input required className="input" placeholder={tr("Enter category name")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: e.target.value } })} /></div>
-              <div><label className="label">Description (Optional)</label><textarea className="input min-h-[4.5rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.data.description || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
+              <div><label className="label"><T>Description (Optional)</T></label><textarea className="input min-h-[4.5rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.data.description || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
               <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Fields below will change based on the category type selected.</T></div>
               {dtype !== 'Material' && (
                 <div className="bg-amber-50/70 border border-amber-200 rounded-lg px-3 py-3">

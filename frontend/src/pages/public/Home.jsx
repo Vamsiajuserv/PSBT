@@ -44,8 +44,10 @@ export default function Home() {
     <div>
       {/* ── Hero ── */}
       <section className="relative bg-maroon-900 text-cream overflow-hidden">
-        <img src={IMG.hero} alt="Sri Shirdi Sai Baba Temple" className="absolute inset-0 w-full h-full object-cover object-right" />
-        <div className="absolute inset-0 bg-gradient-to-r from-maroon-900 via-maroon-900/85 to-maroon-900/20" />
+        <img src={IMG.hero} alt="Sri Shirdi Sai Baba Temple" className="absolute inset-0 w-full h-full object-cover object-center" />
+        {/* Left-anchored scrim: dark enough behind the text (which sits over a
+            light wall), then clears fast so Baba — center-right — stays bright. */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(56,10,10,0.90)_0%,rgba(56,10,10,0.64)_34%,rgba(56,10,10,0.14)_58%,transparent_78%)]" />
         <div className="absolute inset-0 bg-mandala" />
 
         <div className="relative max-w-7xl mx-auto px-4 py-20 lg:py-28">
@@ -156,43 +158,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Seva impact band — live numbers from the temple's records ── */}
-      <section className="relative bg-maroon-900 text-cream overflow-hidden">
-        <div className="absolute inset-0 bg-mandala" />
-        <div className="relative max-w-7xl mx-auto px-4 py-14">
-          <div className="text-center">
-            <div className="font-script text-2xl text-gold-300">{t('Seva in Numbers')}</div>
-            <h2 className="font-serif text-2xl md:text-3xl font-bold text-gold-200 mt-1">{t("Baba's Grace at Work — Every Day")}</h2>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10">
-            {[
-              { value: yearsOfSeva, plus: true, label: 'Years of Service', sub: `Serving devotees since ${TEMPLE.established || '1987'}` },
-              { value: ann.total_plates || 0, label: 'Meals Served', sub: 'Through Annadanam seva' },
-              { value: (site?.sevas || []).length, plus: true, label: 'Poojas & Sevas', sub: 'Performed as in Shirdi' },
-              { value: ann.total_sponsorships || 0, label: 'Annadanam Sponsors', sub: 'Devotees who fed devotees' },
-            ].map((s) => (
-              <div key={s.label} className="rounded-2xl border border-gold-400/30 bg-white/[0.06] px-6 py-6 text-center">
-                <div className="font-serif text-3xl md:text-4xl font-bold text-gold-200 tabular-nums">
-                  <CountUp value={s.value} />{s.plus ? '+' : ''}
-                </div>
-                <div className="font-bold text-sm mt-1.5">{t(s.label)}</div>
-                <div className="text-[0.6875rem] text-cream/60 mt-0.5">{t(s.sub)}</div>
-              </div>
-            ))}
-          </div>
-          <div className="text-center mt-8">
-            <Link to="/annadanam" className="btn-primary">{t('Sponsor Annadanam')} <ArrowRight size={16} /></Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Gallery ── */}
+      {/* ── Gallery (only when the temple has added photos) ── */}
+      {GALLERY.length > 0 && (
       <section className="max-w-7xl mx-auto px-4 py-16">
         <SectionTitle title={t('Gallery')} />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-10">
           {GALLERY.slice(0, 5).map((g) => (
             <div key={g.id} className="rounded-xl overflow-hidden border border-gold-200 shadow-card group aspect-[4/5]">
-              <img src={g.img} alt={g.caption} className="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+              <img src={g.img} alt={g.caption || ''} className="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
             </div>
           ))}
         </div>
@@ -200,6 +173,7 @@ export default function Home() {
           <Link to="/gallery" className="btn-primary">{t('View More Photos')} <ArrowRight size={16} /></Link>
         </div>
       </section>
+      )}
     </div>
   )
 }

@@ -139,6 +139,7 @@ export const Td = ({ children, className = '' }) => <td className={`px-4 py-3.5 
 // Server-side pager. Renders as two siblings (count + controls) so it drops into
 // a `flex items-center justify-between` footer. Buttons enable/disable off total.
 export function Pager({ page, size, total, onPage, unit = 'records' }) {
+  const { t } = useLang()
   const pageCount = Math.max(1, Math.ceil((total || 0) / size))
   // Jump back to the top on page change — the pager sits at the bottom, so the
   // new page's rows would otherwise start above the viewport (DEF-005).
@@ -148,11 +149,11 @@ export function Pager({ page, size, total, onPage, unit = 'records' }) {
   const btn = 'px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-600 disabled:opacity-40 hover:border-maroon-300'
   return (
     <>
-      <span className="text-[0.8125rem] text-gray-500">Showing {from} to {to} of {num(total)} {unit}</span>
+      <span className="text-[0.8125rem] text-gray-500">{t('Showing')} {from} {t('to')} {to} {t('of')} {num(total)} {t(unit)}</span>
       {total > 0 && <div className="flex items-center gap-1.5">
-        <button disabled={page <= 1} onClick={() => go(page - 1)} className={btn}>Previous</button>
+        <button disabled={page <= 1} onClick={() => go(page - 1)} className={btn}>{t('Previous')}</button>
         <span className="px-3 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.8125rem] font-semibold">{page} / {pageCount}</span>
-        <button disabled={page >= pageCount} onClick={() => go(page + 1)} className={btn}>Next</button>
+        <button disabled={page >= pageCount} onClick={() => go(page + 1)} className={btn}>{t('Next')}</button>
       </div>}
     </>
   )

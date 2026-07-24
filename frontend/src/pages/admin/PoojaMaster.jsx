@@ -122,7 +122,7 @@ export default function PoojaMaster() {
         actions={canWrite && <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Pooja</T></button>} />
 
       <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-4 py-2.5 mb-5 text-[0.8125rem] text-gray-600 flex items-center gap-2">
-        <Info size={16} className="text-amber-500 shrink-0" /> Category classifies the pooja type. Plans define how the pooja can be booked (e.g., Daily, Monthly, One-Time, Life Long).
+        <Info size={16} className="text-amber-500 shrink-0" /> <T>Category classifies the pooja type. Plans define how the pooja can be booked (e.g., Daily, Monthly, One-Time, Life Long).</T>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
@@ -226,7 +226,7 @@ export default function PoojaMaster() {
                         <div><label className="label"><T>Plan Name *</T></label><input required className="input" placeholder={tr("Daily / Monthly…")} value={pl.plan_name} onChange={(e) => setPlan(i, { plan_name: e.target.value })} /></div>
                         <div><label className="label"><T>Frequency / Type *</T></label><input className="input" placeholder={tr("Per Day…")} value={pl.frequency} onChange={(e) => setPlan(i, { frequency: e.target.value })} /></div>
                         <div><label className="label"><T>Rate Type *</T></label><Select className="input" value={pl.rate_type} onChange={(e) => setPlan(i, { rate_type: e.target.value })}><option value="Fixed">Fixed Rate</option><option value="Committee">Committee Decided</option></Select></div>
-                        <div><label className="label">Rate Amount (₹)</label><NumberField prefix="₹" disabled={pl.rate_type === 'Committee'} placeholder={pl.rate_type === 'Committee' ? '—' : 'Amount'} value={pl.fee} onChange={(e) => setPlan(i, { fee: e.target.value })} /></div>
+                        <div><label className="label"><T>Rate Amount (₹)</T></label><NumberField prefix="₹" disabled={pl.rate_type === 'Committee'} placeholder={pl.rate_type === 'Committee' ? '—' : 'Amount'} value={pl.fee} onChange={(e) => setPlan(i, { fee: e.target.value })} /></div>
                         <div><label className="label"><T>Validity Type *</T></label><Select className="input" value={pl.validity_type} onChange={(e) => setPlan(i, { validity_type: e.target.value })}><option value="">Select</option>{VALIDITY_TYPES.map((v) => <option key={v}>{v}</option>)}</Select></div>
                         <div className="grid grid-cols-2 gap-2">
                           <div><label className="label"><T>Value</T></label><NumberField value={pl.validity_value} onChange={(e) => setPlan(i, { validity_value: e.target.value })} /></div>

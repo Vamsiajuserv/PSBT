@@ -13,8 +13,7 @@ read = RequireModule("Reports")   # any staff with a back-office module can view
 # Bank + security config are Administrator-only; redacted for other staff who can
 # read the (mostly display) settings via the Reports module.
 SENSITIVE_KEYS = {"account_number", "ifsc", "account_name", "bank_name", "gst_number",
-                  "max_login_attempts", "session_timeout_minutes", "enforce_2fa",
-                  "auto_backup", "backup_frequency", "retention_days"}
+                  "max_login_attempts"}
 
 # Default temple configuration (seeded on first read).
 DEFAULTS = {
@@ -26,8 +25,6 @@ DEFAULTS = {
     "trust_name": "Sri Shirdi Sai Premsamaj",
     "gst_number": "36AAAAA0000A1Z5",
     "about": "Sri Shirdi Sai Baba Temple is dedicated to the worship of Shirdi Sai Baba and provides various services to devotees.",
-    "temple_logo": "temple_logo.png",
-    "receipt_logo": "receipt_logo.png",
     # Address Details
     "address_line": "Dwarkapuri Colony, Punjagutta",
     "city": "Hyderabad",
@@ -54,23 +51,14 @@ DEFAULTS = {
     "bank_list": "State Bank of India,HDFC Bank,ICICI Bank,Axis Bank,Union Bank of India,Kotak Mahindra Bank,Bank of Baroda",
     # General Settings
     "currency": "₹ INR",
-    "date_format": "DD MMM YYYY",
     "default_language": "English",
-    "financial_year_start": "April",
     # User & Role Settings
     "default_role": "Counter Staff",
     # Receipt Settings
-    "receipt_prefix": "RCPT",
-    "receipt_start_number": "1000",
     "receipt_footer_note": "Thank you for your contribution. || Om Sai Ram ||",
     # Security Settings
-    "session_timeout_minutes": "30",
     "max_login_attempts": "5",
-    "enforce_2fa": "No",
     # Backup Settings
-    "auto_backup": "Enabled",
-    "backup_frequency": "Daily",
-    "retention_days": "90",
     # Audit
     "created_by": "Administrator",
     "created_on": "15 Jan 2024 10:30 AM",

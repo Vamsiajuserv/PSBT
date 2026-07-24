@@ -24,7 +24,7 @@ TEMPLE_EXTRAS = {
 DEFAULT_CONTENT = {
     "mantra": {"hi": "ॐ श्री साईं राम", "te": "సబకా మాలిక్ ఏక్", "sloka": "శ్రద్ధ · సబూరి"},
 
-    "images": {"hero": _IMG("goldfull"), "about": _IMG("samadhi"), "banner": _IMG("temple3")},
+    "images": {"hero": "/images/hero-baba.jpg", "about": "/images/about-temple.jpg", "banner": _IMG("temple3")},
 
     "stats": [
         {"value": "38+", "label": "Years of Service"},
@@ -86,23 +86,34 @@ DEFAULT_CONTENT = {
     # Gallery — categorised for the public page's filter chips ("cat"). The first
     # five entries also feed the home-page gallery strip. Commons imagery is
     # attributed in frontend/public/images/{festivals,history,gallery}/ATTRIBUTIONS.md.
+    # Gallery images — populated with the temple's own photos. Each entry:
+    #   {"id","img", optional "caption", optional "cat" (filter chip)}.
     "gallery": [
-        {"id": "G1", "caption": "Golden Shrine — Sri Sai Baba", "img": _IMG("goldfull"), "cat": "Sri Sai Baba"},
-        {"id": "G2", "caption": "Samadhi Mandir, Shirdi", "img": _IMG("samadhi"), "cat": "Heritage"},
-        {"id": "G3", "caption": "Sri Sai Baba — Marble Murti", "img": _IMG("temple3"), "cat": "Sri Sai Baba"},
-        {"id": "G4", "caption": "Baba Blessing Devotees", "img": _IMG("temple2"), "cat": "Sri Sai Baba"},
-        {"id": "G5", "caption": "Sai Baba — Historic Portrait", "img": _IMG("sai3"), "cat": "Sri Sai Baba"},
-        {"id": "G6", "caption": "Baba Seated on Stone — Dwarkamai", "img": _IMG("sai2"), "cat": "Heritage"},
-        {"id": "G7", "caption": "Baba with Devotees (1910s)", "img": _IMG("devotees"), "cat": "Heritage"},
-        {"id": "G8", "caption": "116-ft Sai Baba Statue", "img": _IMG("st116"), "cat": "Heritage"},
-        {"id": "G9", "caption": "Baba Walking with Devotees — Historic", "img": "/images/history/baba-portrait.jpg", "cat": "Heritage"},
-        {"id": "G10", "caption": "Sri Rama Navami — Sita Rama Kalyanam", "img": "/images/festivals/rama-navami.jpg", "cat": "Festivals"},
-        {"id": "G11", "caption": "Devi Navaratri Alankaram", "img": "/images/festivals/navaratri.jpg", "cat": "Festivals"},
-        {"id": "G12", "caption": "Vinayaka Chavithi", "img": "/images/festivals/vinayaka-chavithi.jpg", "cat": "Festivals"},
-        {"id": "G13", "caption": "Karthika Deepotsavam", "img": "/images/festivals/karthika-masam.jpg", "cat": "Festivals"},
-        {"id": "G14", "caption": "Mahasamadhi Observance", "img": "/images/festivals/mahasamadhi.jpg", "cat": "Festivals"},
-        {"id": "G15", "caption": "Evening Aarti — The Dance of Flames", "img": "/images/gallery/aarti-lamps.jpg", "cat": "Seva & Aarti"},
-        {"id": "G16", "caption": "Palki Seva Decorations", "img": "/images/festivals/palki.jpg", "cat": "Seva & Aarti"},
+        {"id": "G1", "img": "/images/gallery/baba-golden-throne.jpg"},
+        {"id": "G2", "img": "/images/gallery/baba-murti.jpg"},
+        {"id": "G3", "img": "/images/gallery/baba-alankaram.jpg"},
+        {"id": "G4", "img": "/images/gallery/baba-shrine-floral.jpg"},
+        {"id": "G5", "img": "/images/gallery/baba-portrait-shrine.jpg"},
+        {"id": "G6", "img": "/images/gallery/daily-seva.jpg"},
+        {"id": "G7", "img": "/images/gallery/archana.jpg"},
+        {"id": "G8", "img": "/images/gallery/sanctum.jpg"},
+        {"id": "G9", "img": "/images/gallery/palki-uyyala.jpg"},
+        {"id": "G10", "img": "/images/gallery/sai-leela-1.jpg"},
+        {"id": "G11", "img": "/images/gallery/sai-leela-2.jpg"},
+        {"id": "G12", "img": "/images/gallery/baba-painting.jpg"},
+        {"id": "G13", "img": "/images/gallery/baba-fakir.jpg"},
+        {"id": "G14", "img": "/images/gallery/vinayaka.jpg"},
+        {"id": "G15", "img": "/images/gallery/dattatreya.jpg"},
+        {"id": "G16", "img": "/images/gallery/krishna.jpg"},
+        {"id": "G17", "img": "/images/gallery/shiva-lingam.jpg"},
+        {"id": "G18", "img": "/images/gallery/temple-entrance.jpg"},
+        {"id": "G19", "img": "/images/gallery/prayer-hall.jpg"},
+        {"id": "G20", "img": "/images/gallery/temple-hall.jpg"},
+        {"id": "G21", "img": "/images/gallery/temple-interior.jpg"},
+        {"id": "G22", "img": "/images/gallery/temple-grounds.jpg"},
+        {"id": "G23", "img": "/images/gallery/temple-exterior.jpg"},
+        {"id": "G24", "img": "/images/gallery/temple-pathway.jpg"},
+        {"id": "G25", "img": "/images/gallery/temple-night.jpg"},
     ],
 
     # Festival content follows the Shirdi tradition: Rama Navami, Guru Purnima and
@@ -164,18 +175,30 @@ DEFAULT_CONTENT = {
 
 
 def ensure_site_content(engine) -> None:
-    """Seed the ``site_content`` settings row on first run (idempotent)."""
+    """Keep the ``site_content`` settings row in sync with DEFAULT_CONTENT.
+
+    Public content (hero image, history, gallery, festivals, …) lives in this
+    module and is cached in the DB row that /api/public/site reads. Nothing
+    else writes that row, so on startup we (re)sync it to the current code —
+    otherwise edits here never reach the live site (the row was insert-only
+    before and stayed frozen at its first-run value). If a content editor is
+    ever added, gate this re-sync on an "admin-edited" flag."""
     import json
     from .database import SessionLocal
     from .models import Setting
 
+    payload = json.dumps(DEFAULT_CONTENT, ensure_ascii=False)
     db = SessionLocal()
     try:
         row = db.query(Setting).filter(Setting.skey == "site_content").first()
         if row is None:
-            db.add(Setting(skey="site_content", svalue=json.dumps(DEFAULT_CONTENT, ensure_ascii=False),
-                           updated_by="system"))
+            db.add(Setting(skey="site_content", svalue=payload, updated_by="system"))
             db.commit()
             print("[startup] seeded public site_content")
+        elif row.svalue != payload:
+            row.svalue = payload
+            row.updated_by = "system"
+            db.commit()
+            print("[startup] re-synced public site_content to code")
     finally:
         db.close()

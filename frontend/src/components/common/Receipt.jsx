@@ -64,6 +64,7 @@ export function Receipt({ title = 'Pooja Ticket', titleTe = 'పూజ టిక
       <div className="text-center text-[0.625rem] text-gray-500 leading-relaxed">
         <div className={bi ? 'font-telugu text-maroon-700 text-xs' : 'font-display text-maroon-700 text-xs tracking-wide'}>{bi ? '|| ఓం శ్రీ సాయి రామ్ ||' : '|| Om Sri Sai Ram ||'}</div>
         {footerNote && <div className="mt-1">{footerNote}</div>}
+        {temple?.receiptFooter && <div className="mt-1 font-medium text-maroon-700">{temple.receiptFooter}</div>}
         <div className="mt-1">This is a computer-generated receipt.</div>
         {bi && <div className="font-telugu">ఇది కంప్యూటర్ ద్వారా రూపొందించబడిన రసీదు.</div>}
       </div>

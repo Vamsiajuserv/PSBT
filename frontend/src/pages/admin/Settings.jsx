@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  Landmark, Settings as SettingsIcon, Users as UsersIcon, FileText, Shield, Database,
+  Landmark, Settings as SettingsIcon, Users as UsersIcon, FileText, Shield,
   ChevronDown, ChevronRight, Save, Upload, CheckCircle2, Info, AlertTriangle,
 } from 'lucide-react'
 import { PageTitle } from '../../components/admin/ui.jsx'
@@ -15,7 +15,7 @@ const CATS = [
     key: 'temple', title: 'Temple Information', desc: 'Manage temple details, address and contact information.',
     icon: Landmark, color: '#8a1c1c', bg: 'bg-maroon-50',
     subs: [
-      { key: 'basic', label: 'Basic Information', subtitle: 'Manage basic information about the temple.', logos: true,
+      { key: 'basic', label: 'Basic Information', subtitle: 'Manage basic information about the temple.',
         fields: [
           { k: 'temple_name', label: 'Temple Name', req: true }, { k: 'short_name', label: 'Short Name', req: true },
           { k: 'established_year', label: 'Established Year' }, { k: 'registration_number', label: 'Registration Number' },
@@ -36,9 +36,8 @@ const CATS = [
     key: 'general', title: 'General Settings', desc: 'Configure general system settings and preferences.',
     icon: SettingsIcon, color: '#059669', bg: 'bg-emerald-50',
     subs: [{ key: 'prefs', label: 'Preferences', subtitle: 'Configure general preferences.',
-      fields: [{ k: 'currency', label: 'Currency' }, { k: 'date_format', label: 'Date Format' },
-        { k: 'default_language', label: 'Default Language', type: 'select', options: ['English', 'Telugu'] },
-        { k: 'financial_year_start', label: 'Financial Year Start' }] }],
+      fields: [{ k: 'currency', label: 'Currency' },
+        { k: 'default_language', label: 'Default Language', type: 'select', options: ['English', 'Telugu'] }] }],
   },
   {
     key: 'userrole', title: 'User & Role Settings', desc: 'Manage users, roles and permissions.',
@@ -47,26 +46,16 @@ const CATS = [
       fields: [{ k: 'default_role', label: 'Default New-User Role', type: 'select', options: ['Administrator', 'Counter Staff', 'Poojari', 'Accountant', 'Committee'] }] }],
   },
   {
-    key: 'receipt', title: 'Receipt Settings', desc: 'Configure receipt template, numbering and logo.',
+    key: 'receipt', title: 'Receipt Settings', desc: 'Configure the receipt footer note.',
     icon: FileText, color: '#d97706', bg: 'bg-amber-50',
-    subs: [{ key: 'config', label: 'Receipt Configuration', subtitle: 'Configure receipt numbering and template.',
-      fields: [{ k: 'receipt_prefix', label: 'Receipt Prefix' }, { k: 'receipt_start_number', label: 'Start Number' },
-        { k: 'receipt_footer_note', label: 'Footer Note', type: 'textarea', full: true }] }],
+    subs: [{ key: 'config', label: 'Receipt Configuration', subtitle: 'Configure the note printed at the bottom of every receipt.',
+      fields: [{ k: 'receipt_footer_note', label: 'Footer Note', type: 'textarea', full: true }] }],
   },
   {
     key: 'security', title: 'Security Settings', desc: 'Manage login policy and security preferences.',
     icon: Shield, color: '#2563eb', bg: 'bg-blue-50',
-    subs: [{ key: 'login', label: 'Login Policy', subtitle: 'Manage login and security preferences.',
-      fields: [{ k: 'session_timeout_minutes', label: 'Session Timeout (minutes)' }, { k: 'max_login_attempts', label: 'Max Login Attempts' },
-        ] }],
-  },
-  {
-    key: 'backup', title: 'Backup Settings', desc: 'Configure automatic backup and data retention.',
-    icon: Database, color: '#8a1c1c', bg: 'bg-maroon-50',
-    subs: [{ key: 'config', label: 'Backup Configuration', subtitle: 'Configure automatic backup and retention.',
-      fields: [{ k: 'auto_backup', label: 'Automatic Backup', type: 'select', options: ['Enabled', 'Disabled'] },
-        { k: 'backup_frequency', label: 'Backup Frequency', type: 'select', options: ['Daily', 'Weekly', 'Monthly'] },
-        { k: 'retention_days', label: 'Retention (days)' }] }],
+    subs: [{ key: 'login', label: 'Login Policy', subtitle: 'Lock an account after too many failed sign-in attempts.',
+      fields: [{ k: 'max_login_attempts', label: 'Max Login Attempts' }] }],
   },
 ]
 
@@ -183,31 +172,7 @@ export default function Settings() {
               ))}
             </div>
 
-            {section.logos && (
-              <div className="grid sm:grid-cols-2 gap-6 mt-7 pt-6 border-t border-gray-100">
-                {[['temple_logo', 'Temple Logo', 'This logo will be used in the system and reports.'],
-                  ['receipt_logo', 'Receipt Logo', 'This logo will be printed on all receipts.']].map(([k, title, note]) => (
-                  <div key={k}>
-                    <div className="text-[0.8125rem] font-bold text-maroon-700">{title}</div>
-                    <div className="text-[0.75rem] text-gray-400 mb-3">{note}</div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-full border border-gray-200 grid place-items-center text-gray-300 bg-gray-50 overflow-hidden">
-                        <Landmark size={26} />
-                      </div>
-                      <div>
-                        {/* Honest input: file upload is not implemented server-side, so this
-                            takes the logo image path/URL rather than pretending to upload. */}
-                        <div className="text-[0.75rem] text-gray-500 mb-1"><T>Logo image path / URL</T></div>
-                        <input className="input !py-1.5 text-[0.8125rem]" placeholder={tr("/babaimages/logo.png or https://…")}
-                               value={data[k] || ''} onChange={(e) => set(k, e.target.value)} />
-                        <div className="text-[0.6875rem] text-gray-400 mt-1"><T>Place the file in frontend/public and enter its path here.</T></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {saved && <div className="mt-4 text-[0.8125rem] text-emerald-700 flex items-center gap-2"><CheckCircle2 size={15} />{' '}<T>Settings saved successfully.</T></div>}
+            {saved &&<div className="mt-4 text-[0.8125rem] text-emerald-700 flex items-center gap-2"><CheckCircle2 size={15} />{' '}<T>Settings saved successfully.</T></div>}
             {saveErr && <div className="mt-4 text-[0.8125rem] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 flex items-center gap-2"><AlertTriangle size={15} /> {saveErr}</div>}
           </div>
 

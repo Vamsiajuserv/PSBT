@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import {
   Search, LayoutGrid, Flame, CalendarDays, Repeat, Sparkles, Star, Car,
-  PhoneCall, Phone, ChevronDown, ArrowRight, ArrowLeft, Users, Clock, Flame as FlameIcon,
-  UserCheck, Heart, CalendarCheck,
+  PhoneCall, Phone, ChevronDown, ArrowRight, ArrowLeft, Clock, ShieldCheck,
 } from 'lucide-react'
 import { Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
@@ -79,10 +78,31 @@ const SEVA_ABOUT = {
 }
 
 // Human-readable duration hint per category (shown in the detail view).
-const DURATION = {
-  Daily: '1 Day', Monthly: 'Monthly', 'Long-term': 'Ongoing / Yearly',
-  Ceremony: 'Single Occasion', Festival: 'Festival Day', Donation: 'One-time', Vahana: '1 Day',
+// A real booking CONDITION a devotee must read before booking — a performance
+// quota or a validity window (Vishesha = 3 poojas/year, Nithya = lifelong,
+// festival multi-day). Everyday plans (daily, monthly, one-time, a single
+// festival day) return null: there is nothing to warn about.
+function planQuota(plan) {
+  const n = (plan || '').toLowerCase()
+  if (n.includes('life')) return 'Lifetime · unlimited poojas'
+  if (n.includes('thrice')) return '3 poojas within 1 year'
+  if (n.includes('yearly')) return '1 pooja within 1 year'
+  const dm = n.match(/(\d+)\s*-?\s*day/)
+  if (dm && +dm[1] > 1) return `${dm[1]}-day festival pooja`
+  return null
 }
+// Milder validity shown in the plan table (includes the plain monthly plan).
+function planValidity(plan) {
+  const q = planQuota(plan)
+  if (q) return q
+  const n = (plan || '').toLowerCase()
+  if (n.includes('monthly') || n.includes('30 day') || n.includes('full month') || n.includes('pournami')) return 'Valid for the month'
+  return null
+}
+// Real terms → the "Terms apply" badge + Booking Terms note (Vishesha, Nithya,
+// festivals). Plain multi-plan poojas like Archana (daily/monthly) are NOT this.
+const sevaHasTerms = (seva) => (seva.planRows || []).some((p) => planQuota(p.plan))
+const sevaMultiPlan = (seva) => (seva.planRows || []).length > 1
 
 // Normalise a backend SevaOut row into the shape the cards expect.
 const normalize = (s) => ({
@@ -314,13 +334,13 @@ export default function Sevas() {
 
 /* ── Horizontal service card (image left, info + CTA right) ── */
 function ServiceCard({ seva, image, emoji, onView, style }) {
-  const { lang } = useLang()
+  const { t, lang } = useLang()
   return (
     <div className="card overflow-hidden flex flex-col sm:flex-row group animate-slide-up" style={style}>
       <div className="sm:w-36 sm:h-36 shrink-0 relative overflow-hidden">
         <img src={image} alt={seva.name} className="w-full h-28 sm:h-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
         <div className="absolute inset-0 bg-gradient-to-t from-maroon-900/40 to-transparent" />
-        <span className="absolute top-1.5 left-1.5 text-[0.5625rem] font-bold uppercase tracking-wide bg-white/90 text-maroon-700 rounded-full px-1.5 py-0.5">{seva.category}</span>
+        <span className="absolute top-1.5 left-1.5 text-[0.5625rem] font-bold uppercase tracking-wide bg-white/90 text-maroon-700 rounded-full px-1.5 py-0.5">{t(seva.category)}</span>
         {emoji && <span className="absolute bottom-1.5 right-1.5 text-lg drop-shadow-lg">{emoji}</span>}
       </div>
 
@@ -328,24 +348,23 @@ function ServiceCard({ seva, image, emoji, onView, style }) {
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-sm text-maroon-700">{seva.name}</h3>
           {lang === 'te' && seva.nameTe && <p className="text-[0.625rem] text-black font-telugu">{seva.nameTe}</p>}
-          {/* Two-line teaser (full text in the detail view) so wide rows don't sit hollow */}
-          {(SEVA_ABOUT[seva.name] || seva.desc) && (
-            <p className="hidden sm:block text-[0.6875rem] text-gray-600 leading-relaxed mt-1.5 line-clamp-2 max-w-xl">
-              {SEVA_ABOUT[seva.name] || seva.desc}
-            </p>
+          {/* A "plans" chip where the pooja offers choices, and a "terms apply"
+              hint only where it carries a real quota/validity. Plain same-day
+              poojas (Abhishekam, one-time ceremonies) show neither. */}
+          {(sevaMultiPlan(seva) || sevaHasTerms(seva)) && (
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {sevaMultiPlan(seva) && (
+                <span className="text-[0.625rem] font-semibold text-maroon-700 bg-maroon-50 rounded-full px-2 py-0.5">{seva.planRows.length} <T>plans</T></span>
+              )}
+              {sevaHasTerms(seva) && (
+                <span className="text-[0.625rem] font-semibold text-gold-700 bg-gold-50 border border-gold-200 rounded-full px-2 py-0.5"><T>Terms apply</T></span>
+              )}
+            </div>
           )}
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {seva.plans && (
-              <span className="text-[0.625rem] font-semibold text-maroon-700 bg-maroon-50 rounded-full px-2 py-0.5">{seva.plans}</span>
-            )}
-            {DURATION[seva.category] && (
-              <span className="text-[0.625rem] font-semibold text-gold-700 bg-gold-50 border border-gold-200 rounded-full px-2 py-0.5">{DURATION[seva.category]}</span>
-            )}
-          </div>
         </div>
 
         <div className="sm:text-right shrink-0">
-          <div className="text-[0.5625rem] uppercase tracking-wide text-[#800020] font-semibold"><T>Starting From</T></div>
+          <div className="text-[0.5625rem] uppercase tracking-wide text-[#800020] font-semibold">{(sevaMultiPlan(seva) || sevaHasTerms(seva)) ? <T>Starting From</T> : <T>Offering</T>}</div>
           <div className="text-lg font-extrabold text-maroon-700 leading-tight">
             {seva.committee ? <span className="text-xs"><T>Committee decided</T></span> : <>₹{fmt(seva.amount)}</>}
           </div>
@@ -353,7 +372,7 @@ function ServiceCard({ seva, image, emoji, onView, style }) {
             onClick={onView}
             className="btn-maroon !rounded-lg !py-1.5 !px-3 !text-[0.6875rem] mt-2 hover:!bg-gold-cta hover:!text-maroon-900"
           >
-            View Details <ArrowRight size={13} />
+            {sevaHasTerms(seva) ? <T>View Plans &amp; Terms</T> : <T>View Details</T>} <ArrowRight size={13} />
           </button>
         </div>
       </div>
@@ -370,15 +389,8 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
   // poojas are implicitly "selected".
   const [planIdx, setPlanIdx] = useState(multi ? null : 0)
   const selected = planIdx != null ? plans[planIdx] : null
-
-  const info = [
-    { icon: Users, label: 'Category', value: `${seva.category} Pooja` },
-    { icon: Clock, label: 'Duration', value: selected?.plan || DURATION[seva.category] || '1 Day' },
-    { icon: FlameIcon, label: 'Type', value: `${seva.category} Pooja` },
-    { icon: UserCheck, label: 'Performed By', value: 'Temple Priests' },
-    { icon: Heart, label: 'Best For', value: 'All Devotees' },
-    { icon: CalendarCheck, label: 'Booking', value: 'Advance booking recommended' },
-  ]
+  const hasTerms = sevaHasTerms(seva)
+  const singleValidity = !multi && plans[0] ? planQuota(plans[0].plan) : null
 
   return (
     <div className="animate-fade-in">
@@ -402,7 +414,7 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
             {lang === 'te' && seva.nameTe && <p className="text-[0.6875rem] text-black font-telugu">{seva.nameTe}</p>}
             <Flourish className="justify-start my-1.5" width="w-8" />
             <p className="text-[0.75rem] text-black leading-relaxed">
-              {SEVA_ABOUT[seva.name] || seva.desc || `${seva.name} is a sacred offering performed at the temple as an expression of devotion, bringing peace, prosperity and blessings to devotees.`}
+              <T>{SEVA_ABOUT[seva.name] || seva.desc || `${seva.name} is a sacred offering performed at the temple as an expression of devotion, bringing peace, prosperity and blessings to devotees.`}</T>
             </p>
 
             {/* A pooja offered on several plans lists them all; a single-plan
@@ -418,6 +430,7 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
                   <thead>
                     <tr className="bg-gold-50 text-gold-600 text-[0.6875rem] uppercase tracking-wide">
                       <th className="text-left font-bold px-3 py-2"><T>Plan</T></th>
+                      <th className="text-left font-bold px-3 py-2"><T>Validity</T></th>
                       <th className="text-right font-bold px-3 py-2"><T>Fee</T></th>
                     </tr>
                   </thead>
@@ -431,8 +444,9 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
                         }`}
                       >
                         <td className={`px-3 py-2 ${planIdx === i ? 'font-bold text-maroon-700' : 'text-black'}`}>
-                          {p.plan}
+                          <T>{p.plan}</T>
                         </td>
+                        <td className="px-3 py-2 text-[0.6875rem] text-gray-600">{planValidity(p.plan) ? <T>{planValidity(p.plan)}</T> : '—'}</td>
                         <td className="px-3 py-2 text-right font-semibold text-maroon-700 whitespace-nowrap">
                           {p.committee
                             ? <span className="text-xs text-black font-medium"><T>Committee Decided</T></span>
@@ -467,21 +481,18 @@ function ServiceDetail({ seva, image, emoji, onBack }) {
               </div>
             )}
 
-            {/* Responsive info grid (2 columns) */}
-            <div className="grid sm:grid-cols-2 gap-2 mt-4">
-              {info.map((it) => {
-                const Icon = it.icon
-                return (
-                  <div key={it.label} className="rounded-lg border border-gold-200 bg-ivory px-2.5 py-2 flex items-start gap-2">
-                    <span className="w-7 h-7 rounded-full border border-gold-300 bg-gold-50 text-maroon-600 grid place-items-center shrink-0"><Icon size={13} /></span>
-                    <div>
-                      <div className="text-[0.625rem] font-bold uppercase tracking-wide text-gold-600">{it.label}</div>
-                      <div className="text-[0.75rem] text-black font-medium">{it.value}</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            {/* Booking terms — shown ONLY for poojas that carry validity/quota
+                (Vishesha, Nithya, festivals). Simple same-day poojas skip this. */}
+            {hasTerms && (
+              <div className="mt-4 rounded-xl border border-maroon-200 bg-maroon-50/50 px-3.5 py-2.5">
+                <div className="flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-wide text-maroon-700"><ShieldCheck size={13} /> <T>Booking Terms</T></div>
+                <p className="text-[0.75rem] text-black leading-relaxed mt-1">
+                  {singleValidity
+                    ? <><T>{singleValidity}</T>. <T>Validity begins from the booking date; each pooja is performed once per day.</T></>
+                    : <T>Each plan above has its own validity — select a plan to see its terms. Validity begins from the booking date.</T>}
+                </p>
+              </div>
+            )}
 
             {/* How to book — counter-first, matching the temple's actual flow */}
             <div className="mt-4 flex items-center gap-2.5 bg-gold-50 border border-gold-200 rounded-xl px-3.5 py-2.5">
