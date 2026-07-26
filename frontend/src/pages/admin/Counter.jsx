@@ -7,7 +7,7 @@ import { PageHeader } from '../../components/common/UI.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { PoojasAPI, DevoteesAPI, BookingsAPI, PaymentsAPI, FestivalsAPI } from '../../api/client.js'
 import { promptDialog } from '../../components/common/Dialog.jsx'
-import { T, tr, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useLang, personName } from '../../i18n/LanguageContext.jsx'
 
 const CATS = ['All', 'Daily', 'Monthly', 'Long-Term', 'Occasion', 'Festival', 'Vehicle']
 
@@ -95,8 +95,8 @@ export default function Counter() {
     if (entry.category === 'Vehicle') {
       const res = await promptDialog({
         title: 'Vehicle pooja',
-        confirmLabel: 'Add to Bill',
-        fields: [{ k: 'vehicle', label: 'Vehicle number', placeholder: 'e.g. TS09 AB 1234', note: 'Optional — printed on the receipt.' }],
+        confirmLabel: tr('Add to Bill'),
+        fields: [{ k: 'vehicle', label: tr('Vehicle number'), placeholder: 'e.g. TS09 AB 1234', note: 'Optional — printed on the receipt.' }],
       })
       if (!res) return
       vehicle_no = res.vehicle.trim().toUpperCase() || undefined
@@ -107,8 +107,8 @@ export default function Counter() {
       const res = await promptDialog({
         title: `${entry.pooja_name} · ${entry.plan_name}`,
         message: entry.committee ? 'Committee-decided plan — enter the amount set for this occurrence.' : 'No fee is configured for this plan — enter the amount.',
-        confirmLabel: 'Add to Bill',
-        fields: [{ k: 'amount', label: 'Amount (₹)', type: 'number', required: true }],
+        confirmLabel: tr('Add to Bill'),
+        fields: [{ k: 'amount', label: tr('Amount (₹)'), type: 'number', required: true }],
       })
       if (!res) return
       amount = Number(res.amount)
@@ -226,14 +226,14 @@ export default function Counter() {
     setBusy(false)
   }
 
-  const modeLabel = (m) => (m === 'UPI/QR Code' ? 'UPI / QR Code' : m)
+  const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI / QR Code' : m)
 
   return (
     <div>
       <PageHeader
         title={tr("Counter Billing")}
-        subtitle="Walk-up billing — poojas start today. For a chosen date, slot or poojari use Advance Booking."
-        action={<span className="badge bg-saffron-50 text-saffron-700">Counter 1 · {role}</span>}
+        subtitle={tr("Walk-up billing — poojas start today. For a chosen date, slot or poojari use Advance Booking.")}
+        action={<span className="badge bg-saffron-50 text-saffron-700">{tr('Counter')} 1 · {tr(role)}</span>}
       />
 
       {catalogErr && <div className="mt-4 rounded-lg bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-2.5">{catalogErr}</div>}
@@ -257,7 +257,7 @@ export default function Counter() {
             {CATS.map((c) => (
               <button key={c} onClick={() => setCat(c)}
                 className={`px-3 py-1.5 rounded-full text-[0.75rem] font-semibold border transition ${cat === c ? 'bg-maroon-700 text-cream border-maroon-700' : 'bg-white text-gray-600 border-gray-200 hover:border-maroon-300'}`}>
-                {c}
+                {tr(c)}
               </button>
             ))}
           </div>
@@ -271,8 +271,8 @@ export default function Counter() {
             {filtered.map((s) => (
               <button key={s.key} onClick={() => add(s)} className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2.5 text-left hover:border-saffron-400 hover:bg-saffron-50 transition-colors">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-800 truncate">{s.pooja_name}</div>
-                  <div className="text-[0.6875rem] text-gray-400 truncate">{s.plan_name}{lang === 'te' && s.name_te ? ` · ${s.name_te}` : ''}</div>
+                  <div className="text-sm font-semibold text-gray-800 truncate">{lang === 'te' && s.name_te ? s.name_te : tr(s.pooja_name)}</div>
+                  <div className="text-[0.6875rem] text-gray-400 truncate">{tr(s.plan_name)}</div>
                 </div>
                 <span className="flex items-center gap-1 text-saffron-700 font-bold text-sm shrink-0">
                   <Plus size={14} />{s.committee ? <span className="text-[0.6875rem] text-amber-600 font-semibold"><T>Committee</T></span> : `₹${Number(s.fee || 0).toLocaleString('en-IN')}`}
@@ -285,14 +285,14 @@ export default function Counter() {
 
         {/* ── Bill ── */}
         <div className="card p-5 flex flex-col">
-          <div className="flex items-center gap-2 mb-1"><ReceiptIcon size={18} className="text-saffron-600" /><h3 className="font-bold text-gray-900"><T>Bill / రసీదు</T></h3></div>
+          <div className="flex items-center gap-2 mb-1"><ReceiptIcon size={18} className="text-saffron-600" /><h3 className="font-bold text-gray-900">{lang === 'te' ? 'రసీదు' : 'Bill / రసీదు'}</h3></div>
           <p className="text-[0.6875rem] text-gray-400 mb-3"><T>Records a real receipt against the temple ledger</T></p>
 
           {/* Devotee */}
           <div className="mb-3">
             {devotee ? (
               <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-                <div className="flex items-center gap-2 text-sm text-emerald-800"><User size={14} /> <span className="font-semibold">{devotee.name}</span> <span className="text-emerald-600">{devotee.mobile}</span></div>
+                <div className="flex items-center gap-2 text-sm text-emerald-800"><User size={14} /> <span className="font-semibold">{personName(devotee, lang)}</span> <span className="text-emerald-600">{devotee.mobile}</span></div>
                 <button onClick={clearDevotee} className="text-emerald-600 hover:text-emerald-900"><X size={15} /></button>
               </div>
             ) : (
@@ -305,7 +305,7 @@ export default function Counter() {
                   <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
                     {devResults.map((d) => (
                       <button key={d.id} onClick={() => pickDevotee(d)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between">
-                        <span className="font-medium text-gray-800">{d.name}</span>
+                        <span className="font-medium text-gray-800">{personName(d, lang)}</span>
                         <span className="text-gray-400 text-xs">{d.mobile}</span>
                       </button>
                     ))}
@@ -356,7 +356,7 @@ export default function Counter() {
 
           <div className="border-t border-gray-200 mt-3 pt-3">
             <div className="flex items-center justify-between font-extrabold text-lg">
-              <span><T>Total / మొత్తం</T></span><span className="text-maroon-700">{inr(total)}</span>
+              <span>{lang === 'te' ? 'మొత్తం' : 'Total / మొత్తం'}</span><span className="text-maroon-700">{inr(total)}</span>
             </div>
             {error && <p className="text-center text-xs text-red-600 font-semibold mt-2">{error}</p>}
             <button onClick={checkout} disabled={busy || !cart.length || !canBill} className="btn-primary w-full mt-3 disabled:bg-gray-300 justify-center">
@@ -380,7 +380,7 @@ function BillReceiptModal({ bill, onClose }) {
       valueTe: l.name_te || undefined,
       value: `₹ ${Number(l.amount || 0).toLocaleString('en-IN')}`,
     })),
-    { en: 'Payment Mode', value: bill.mode === 'UPI/QR Code' ? 'UPI / QR Code' : bill.mode },
+    { en: 'Payment Mode', value: tr(bill.mode === 'UPI/QR Code' ? 'UPI / QR Code' : bill.mode) },
     ...(bill.utr ? [{ en: 'UTR / Txn ID', value: bill.utr }] : []),
     { en: 'Date & Time', value: bill.paidAt },
     ...(bill.lines.length > 1

@@ -10,7 +10,7 @@ import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, TimeField, NumberField } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const STATUS_TONE = { Scheduled: 'blue', 'In Progress': 'amber', Completed: 'green' }
 const to12h = (t) => {
@@ -23,6 +23,7 @@ const to12h = (t) => {
 const emptyForm = () => ({ itemChoice: '', item: '', base_amount: '', devotee: null, winner: '', description: '', auction_date: '', start_time: '', notes: '' })
 
 export default function Auction() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const canWrite = user?.role !== 'Accountant'
@@ -93,21 +94,21 @@ export default function Auction() {
       })
       setDrawer(null); setDq(''); load()
     } catch (ex) {
-      toast(ex?.detail || 'Could not save the auction — check the base amount and details.', 'error')
+      toast(ex?.detail || tr('Could not save the auction — check the base amount and details.'), 'error')
     }
   }
 
   // Committee decision: record the highest bid + winner, optionally close the auction.
   async function recordResult(a) {
     const res = await promptDialog({
-      title: `Record result — ${a.item}`,
-      confirmLabel: 'Record Result',
+      title: `${tr('Record result')} — ${tr(a.item)}`,
+      confirmLabel: tr('Record Result'),
       fields: [
-        { k: 'amount', label: 'Highest bid (₹)', type: 'number', required: true,
+        { k: 'amount', label: tr('Highest bid (₹)'), type: 'number', required: true,
           defaultValue: String(a.current_amount || a.base_amount || ''),
           note: `Base amount ₹${Number(a.base_amount).toLocaleString('en-IN')} — the bid cannot be below it.` },
-        { k: 'winner', label: 'Winning bidder name', defaultValue: a.winner || '' },
-        { k: 'close', label: 'Mark as Completed (winner finalised)', type: 'checkbox' },
+        { k: 'winner', label: tr('Winning bidder name'), defaultValue: a.winner || '' },
+        { k: 'close', label: tr('Mark as Completed (winner finalised)'), type: 'checkbox' },
       ],
     })
     if (!res) return
@@ -117,13 +118,13 @@ export default function Auction() {
         winner: res.winner.trim() || null,
         status: res.close ? 'Completed' : 'In Progress',
       })
-      toast(res.close ? 'Auction completed.' : 'Bid recorded.')
+      toast(res.close ? tr('Auction completed.') : tr('Bid recorded.'))
       load()
     } catch (ex) {
-      toast(ex?.detail || 'Could not record the auction result.', 'error')
+      toast(ex?.detail || tr('Could not record the auction result.'), 'error')
     }
   }
-  async function remove(a) { setMenu(null); if (await confirmDialog({ title: `Delete auction "${a.item}"?`, message: 'It will be marked Void and excluded from totals.', tone: 'danger', confirmLabel: 'Delete' })) { await AuctionAPI.remove(a.id); toast('Auction voided.'); load() } }
+  async function remove(a) { setMenu(null); if (await confirmDialog({ title: `${tr('Delete auction')} "${tr(a.item)}"?`, message: tr('It will be marked Void and excluded from totals.'), tone: 'danger', confirmLabel: tr('Delete') })) { await AuctionAPI.remove(a.id); toast(tr('Auction voided.')); load() } }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
 
   // item dropdown → sets item name + prefills base amount from master base_price
@@ -134,21 +135,21 @@ export default function Auction() {
     else setM({ itemChoice: '', item: '' })
   }
 
-  const EXPORT_COLS = [{ key: 'code', label: 'Auction ID' }, { key: 'item', label: 'Item' }, { key: 'auction_date', label: 'Date' },
-    { key: 'base_amount', label: 'Base (₹)', type: 'money' }, { key: 'current_amount', label: 'Highest Bid (₹)', type: 'money' },
-    { key: 'bids', label: 'Bids' }, { key: 'winner', label: 'Winner' }, { key: 'status', label: 'Status' }]
+  const EXPORT_COLS = [{ key: 'code', label: tr('Auction ID') }, { key: 'item', label: tr('Item') }, { key: 'auction_date', label: tr('Date') },
+    { key: 'base_amount', label: tr('Base (₹)'), type: 'money' }, { key: 'current_amount', label: tr('Highest Bid (₹)'), type: 'money' },
+    { key: 'bids', label: tr('Bids') }, { key: 'winner', label: tr('Winner') }, { key: 'status', label: tr('Status') }]
   const exportRows = rows
   const exportTotal = { code: 'Total', current_amount: rows.reduce((s, a) => s + Number(a.current_amount || 0), 0) }
   return (
     <div>
-      <PageTitle title={tr("Auction Management")} subtitle="Record temple auctions and their winning devotees."
+      <PageTitle title={tr("Auction Management")} subtitle={tr("Record temple auctions and their winning devotees.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Auction Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(emptyForm()); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Create New Auction</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={Gavel} color="#d97706" bg="bg-amber-50" title={tr("Total Auctions")} value={stats ? num(stats.total) : '—'} sub="All Time" />
-        <StatTile icon={CalendarClock} color="#ea580c" bg="bg-orange-50" title={tr("Scheduled Auctions")} value={stats ? num(stats.scheduled) : '—'} sub="Yet to Start" />
-        <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("Auctions in Progress")} value={stats ? num(stats.in_progress) : '—'} sub="Active Now" />
-        <StatTile icon={CheckCircle2} color="#059669" bg="bg-emerald-50" title={tr("Completed Auctions")} value={stats ? num(stats.completed) : '—'} sub="Completed Successfully" />
+        <StatTile icon={Gavel} color="#d97706" bg="bg-amber-50" title={tr("Total Auctions")} value={stats ? num(stats.total) : '—'} sub={tr("All Time")} />
+        <StatTile icon={CalendarClock} color="#ea580c" bg="bg-orange-50" title={tr("Scheduled Auctions")} value={stats ? num(stats.scheduled) : '—'} sub={tr("Yet to Start")} />
+        <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("Auctions in Progress")} value={stats ? num(stats.in_progress) : '—'} sub={tr("Active Now")} />
+        <StatTile icon={CheckCircle2} color="#059669" bg="bg-emerald-50" title={tr("Completed Auctions")} value={stats ? num(stats.completed) : '—'} sub={tr("Completed Successfully")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -168,7 +169,7 @@ export default function Auction() {
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All</option><option>Scheduled</option><option>In Progress</option><option>Completed</option></Select>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Scheduled">{tr("Scheduled")}</option><option value="In Progress">{tr("In Progress")}</option><option value="Completed">{tr("Completed")}</option></Select>
           </div>
           <div className="md:col-span-3 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setStatus(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
@@ -179,18 +180,18 @@ export default function Auction() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Auction ID', 'Item Name', 'Auction Date', 'No. of Bidders', 'Highest Bid (₹)', 'Highest Bidder', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['Auction ID', 'Item Name', 'Auction Date', 'No. of Bidders', 'Highest Bid (₹)', 'Highest Bidder', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{a.code}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{a.item}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{tr(a.item)}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.auction_date)}</div><div className="text-[0.6875rem] text-gray-400">{a.start_time || ''}</div></td>
                   <td className="px-4 py-3 text-gray-700">{a.bids}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{Number(a.current_amount) > 0 ? inr(a.current_amount) : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-3 text-gray-600">{a.winner || <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-3"><Pill tone={STATUS_TONE[a.status] || 'gray'}>{a.status}</Pill></td>
+                  <td className="px-4 py-3 text-gray-600">{a.winner ? personName({ name: a.winner }, lang) : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3"><Pill tone={STATUS_TONE[a.status] || 'gray'}>{tr(a.status)}</Pill></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 relative">
                       <button onClick={() => setView(a)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
@@ -208,12 +209,12 @@ export default function Auction() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty="No auctions found." />}
+              {rows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty={tr("No auctions found.")} />}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit="auctions" />
+          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit={tr("auctions")} />
         </div>
       </div>
 
@@ -235,16 +236,16 @@ export default function Auction() {
               <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.875rem]"><T>1. Auction Details</T></div>
               <div><label className="label"><T>Auction Item *</T></label>
                 <Select required={drawer.itemChoice !== '__other__'} className="input" value={drawer.itemChoice} onChange={(e) => onItemSelect(e.target.value)}>
-                  <option value="">Select an item…</option>
+                  <option value="">{tr("Select an item…")}</option>
                   {items.map((it) => <option key={it.id} value={it.id}>{it.name}{it.category ? ` · ${it.category}` : ''}</option>)}
-                  <option value="__other__">Other (enter manually)</option>
+                  <option value="__other__">{tr("Other (enter manually)")}</option>
                 </Select>
                 {drawer.itemChoice === '__other__' && (
                   <input required className="input mt-2" placeholder={tr("Enter auction item name")} value={drawer.item} onChange={(e) => setM({ item: e.target.value })} />
                 )}
               </div>
               <div><label className="label"><T>Base Amount (₹) *</T></label>
-                <NumberField required min="0" step="1" prefix="₹" placeholder="0" value={drawer.base_amount} onChange={(e) => setM({ base_amount: e.target.value })} />
+                <NumberField required min="0" step="1" prefix="₹" placeholder={tr("0")} value={drawer.base_amount} onChange={(e) => setM({ base_amount: e.target.value })} />
               </div>
               <div><label className="label"><T>Devotee (Optional)</T></label>
                 {!drawer.devotee ? (
@@ -256,7 +257,7 @@ export default function Auction() {
                         {results.map((d) => (
                           <button type="button" key={d.id} onClick={() => { setM({ devotee: d, winner: d.name }); setResults([]); setDq('') }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
                             <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
-                            <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{d.name}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
+                            <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
                           </button>
                         ))}
                       </div>
@@ -311,15 +312,15 @@ export default function Auction() {
             </div>
             <div className="px-6 py-5 space-y-4 flex-1">
               <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-                <VField label="Item Name" value={view.item} wide />
-                <VField label="Description" value={view.description || '—'} wide />
-                <VField label="Auction Date" value={fmtDate(view.auction_date)} />
-                <VField label="Start Time" value={view.start_time || '—'} />
-                <VField label="No. of Bidders" value={view.bids} />
-                <VField label="Status" value={<Pill tone={STATUS_TONE[view.status] || 'gray'}>{view.status}</Pill>} />
-                <VField label="Highest Bid" value={Number(view.current_amount) > 0 ? inr(view.current_amount) : '—'} />
-                <VField label="Highest Bidder" value={view.winner || '—'} />
-                <VField label="Notes" value={view.notes || '—'} wide />
+                <VField label={tr("Item Name")} value={tr(view.item)} wide />
+                <VField label={tr("Description")} value={view.description || '—'} wide />
+                <VField label={tr("Auction Date")} value={fmtDate(view.auction_date)} />
+                <VField label={tr("Start Time")} value={view.start_time || '—'} />
+                <VField label={tr("No. of Bidders")} value={view.bids} />
+                <VField label={tr("Status")} value={<Pill tone={STATUS_TONE[view.status] || 'gray'}>{tr(view.status)}</Pill>} />
+                <VField label={tr("Highest Bid")} value={Number(view.current_amount) > 0 ? inr(view.current_amount) : '—'} />
+                <VField label={tr("Highest Bidder")} value={view.winner ? personName({ name: view.winner }, lang) : '—'} />
+                <VField label={tr("Notes")} value={view.notes || '—'} wide />
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">

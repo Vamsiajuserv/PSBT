@@ -2,6 +2,7 @@ import React from 'react'
 import { Users, UserCheck, UserX } from 'lucide-react'
 import MasterScreen from '../../components/admin/MasterScreen.jsx'
 import { PoojarisAPI } from '../../api/client.js'
+import { tr } from '../../i18n/LanguageContext.jsx'
 
 const api = {
   list: (p) => PoojarisAPI.master(p), stats: () => PoojarisAPI.stats(),
@@ -18,18 +19,20 @@ export default function PoojariMaster() {
       { key: 'inactive', icon: UserX, color: '#dc2626', bg: 'bg-red-50', title: 'Inactive', sub: 'Not active' },
     ],
     columns: [
-      { key: 'code', label: 'Poojari ID', mono: true },
-      { key: 'name', label: 'Name', strong: true },
-      { key: 'phone', label: 'Phone' },
-      { key: 'email', label: 'Email' },
-      { key: 'specialization', label: 'Specialization' },
+      { key: 'code', label: tr('Poojari ID'), mono: true },
+      { key: 'name', label: tr('Name'), strong: true },
+      { key: 'phone', label: tr('Phone') },
+      { key: 'email', label: tr('Email') },
+      { key: 'specialization', label: tr('Specialization'),
+        // Comma-separated list — translate each entry, not the joined string.
+        render: (r) => (r.specialization || '').split(',').map((x) => tr(x.trim())).filter(Boolean).join(', ') || '—' },
     ],
     fields: [
-      { k: 'name', label: 'Full Name', required: true },
-      { k: 'phone', label: 'Phone' },
-      { k: 'email', label: 'Email' },
-      { k: 'specialization', label: 'Specialization', placeholder: 'e.g. Abhishekam, Homam' },
-      { k: 'active', label: 'Status', type: 'active' },
+      { k: 'name', label: tr('Full Name'), required: true },
+      { k: 'phone', label: tr('Phone') },
+      { k: 'email', label: tr('Email') },
+      { k: 'specialization', label: tr('Specialization'), placeholder: 'e.g. Abhishekam, Homam' },
+      { k: 'active', label: tr('Status'), type: 'active' },
     ],
   }} />
 }

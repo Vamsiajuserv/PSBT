@@ -9,7 +9,7 @@ import { useAuth, useHasModule } from '../../auth/AuthContext.jsx'
 import { DashboardAPI } from '../../api/client.js'
 import { DateField } from '../../components/common/Field.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -28,6 +28,26 @@ const OVERVIEW_ROUTE = {
   'Annadanam Sponsors': '/admin/annadanam', 'Hundi Collection': '/admin/hundi',
   'Auction Sales': '/admin/auction', 'Waste Material Sales': '/admin/waste-sales',
 }
+// Alerts arrive as a key plus values, so the sentence is built in the reader's
+// language instead of being assembled as English on the server. `text` is the
+// fallback for an alert the client doesn't have a template for.
+const ALERT_TEXT = {
+  hundi_pending_verification: '{count} hundi collection(s) awaiting committee verification',
+  hundi_pending_deposit: '{count} verified collection(s) pending bank deposit',
+  auction_open: '{count} auction(s) open — record the result when concluded',
+  festival_upcoming: '{festival} begins {date} — confirm committee prices in the Festival Master',
+}
+
+function alertText(a) {
+  const template = ALERT_TEXT[a.key]
+  if (!template) return tr(a.text || '')
+  return tr(template).replace(/\{(\w+)\}/g, (_, k) => {
+    const v = a.params?.[k] ?? ''
+    // Festival names and month tokens are words; counts are digits.
+    return k === 'count' ? v : tr(String(v)).replace(/[A-Za-z]{3,}/g, (w) => tr(w))
+  })
+}
+
 const ALERT_ROUTE = { hundi: '/admin/hundi', auction: '/admin/auction', donation: '/admin/donations', waste: '/admin/waste-sales' }
 
 function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, footValue, to }) {
@@ -76,8 +96,9 @@ function BarChart({ days }) {
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const { lang } = useLang()
   const hasModule = useHasModule()
-  const name = user?.name || 'Administrator'
+  const name = personName(user, lang) || tr('Administrator')
   const role = user?.role === 'Admin' ? 'Administrator' : (user?.role || '')
   const [d, setD] = useState(null)
   const todayISO = new Date().toISOString().slice(0, 10)
@@ -94,12 +115,14 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const refresh = () => {
     setRefreshing(true)
-    Promise.resolve(load()).finally(() => { setRefreshing(false); toast('Dashboard refreshed.', 'info') })
+    Promise.resolve(load()).finally(() => { setRefreshing(false); toast(tr('Dashboard refreshed.'), 'info') })
   }
   useEffect(() => { load() }, [load])
 
-  const rangeLabel = d?.range?.label || ''
-  const rangeSub = d?.range?.single ? (start === todayISO ? '(Today)' : `(${rangeLabel})`) : `(${rangeLabel})`
+  // The API formats the range as '25 Jul 2026'; the month is a word, so it
+  // translates while the numerals stay put.
+  const rangeLabel = (d?.range?.label || '').replace(/[A-Za-z]{3,}/g, (w) => tr(w))
+  const rangeSub = d?.range?.single ? (start === todayISO ? `(${tr('Today')})` : `(${rangeLabel})`) : `(${rangeLabel})`
   const setPreset = (from, to) => { setStart(from); setEnd(to) }
   const shift = (days) => { const t = new Date(); t.setDate(t.getDate() - days); return t.toISOString().slice(0, 10) }
   const activePreset = () => {
@@ -121,7 +144,7 @@ export default function Dashboard() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="font-serif text-[1.75rem] font-bold text-maroon-800"><T>Dashboard</T></h1>
-          <p className="text-sm text-gray-500 mt-1">Welcome back, {name} ({role})</p>
+          <p className="text-sm text-gray-500 mt-1">{tr('Welcome back,')} {name}{role && !name.includes(role) ? ` (${tr(role)})` : ''}</p>
         </div>
         <div className="flex flex-col items-stretch lg:items-end gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -131,7 +154,7 @@ export default function Dashboard() {
               ['month', 'This Month', () => setPreset(monthStartISO, todayISO)]].map(([key, label, fn]) => (
               <button key={key} onClick={fn}
                 className={`px-3 py-1.5 rounded-lg text-[0.75rem] font-semibold border transition ${ap === key ? 'bg-maroon-700 text-cream border-maroon-700' : 'bg-white text-gray-600 border-gray-200 hover:border-maroon-300'}`}>
-                {label}
+                {tr(label)}
               </button>
             ))}
           </div>
@@ -142,7 +165,7 @@ export default function Dashboard() {
             <DateField value={end} min={start} max={todayISO} onChange={(e) => setEnd(e.target.value)}
               title={tr("To date")} className="!w-40 !py-2 text-[0.8125rem]" />
             <button onClick={refresh} disabled={refreshing} className="btn-maroon !py-2">
-              <RotateCcw size={15} className={refreshing ? 'animate-spin' : ''} /> {refreshing ? 'Refreshing…' : 'Refresh'}</button>
+              <RotateCcw size={15} className={refreshing ? 'animate-spin' : ''} /> {refreshing ? tr('Refreshing…') : tr('Refresh')}</button>
           </div>
         </div>
       </div>
@@ -151,24 +174,24 @@ export default function Dashboard() {
           user sees only the collections they actually handle. */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         {hasModule('Bookings') && <Kpi to="/admin/bookings" icon={CalendarDays} iconBg="bg-blue-50" iconColor="#2563eb" title={tr("Pooja Bookings")} sub={rangeSub}
-          value={t ? num(t.pooja_bookings.count) : '—'} footLabel="Total Amount" footValue={inr(t?.pooja_bookings.amount)} />}
+          value={t ? num(t.pooja_bookings.count) : '—'} footLabel={tr("Total Amount")} footValue={inr(t?.pooja_bookings.amount)} />}
         {hasModule('Donations') && <Kpi to="/admin/donations" icon={HandHeart} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Donations Received")} sub={rangeSub}
-          value={t ? inr(t.donations.amount) : '—'} footLabel="Total Receipts" footValue={t ? num(t.donations.receipts) : '—'} />}
+          value={t ? inr(t.donations.amount) : '—'} footLabel={tr("Total Receipts")} footValue={t ? num(t.donations.receipts) : '—'} />}
         {hasModule('Hundi') && <Kpi to="/admin/hundi" icon={HandCoins} iconBg="bg-amber-50" iconColor="#d97706" title={tr("Hundi Collection")} sub={rangeSub}
-          value={t ? inr(t.hundi.amount) : '—'} footLabel="Period" footValue={rangeLabel || '—'} />}
+          value={t ? inr(t.hundi.amount) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Auction') && <Kpi to="/admin/auction" icon={Gavel} iconBg="bg-violet-50" iconColor="#7c3aed" title={tr("Auction Sales")} sub={rangeSub}
-          value={t ? inr(t.auction.amount) : '—'} footLabel="Period" footValue={rangeLabel || '—'} />}
+          value={t ? inr(t.auction.amount) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Annadanam') && <Kpi to="/admin/annadanam" icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Annadanam Sponsors")} sub={rangeSub}
-          value={t ? num(t.annadanam.count) : '—'} footLabel="Beneficiaries" footValue={t ? num(t.annadanam.beneficiaries) : '—'} />}
+          value={t ? num(t.annadanam.count) : '—'} footLabel={tr("Beneficiaries")} footValue={t ? num(t.annadanam.beneficiaries) : '—'} />}
         {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Waste Material Sales")} sub={rangeSub}
-          value={t ? inr(t.waste.amount) : '—'} footLabel="Total Weight" footValue={t ? `${num(t.waste.weight)} Kg` : '—'} />}
+          value={t ? inr(t.waste.amount) : '—'} footLabel={tr("Total Weight")} footValue={t ? `${num(t.waste.weight)} ${tr("Kg")}` : '—'} />}
       </div>
 
       {/* Row: Today's Overview | Week chart | Recent Bookings */}
       <div className="grid lg:grid-cols-3 gap-5 mb-5">
         {/* Today's Overview */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-serif text-lg font-bold text-maroon-800">{ap === 'today' ? "Today's Overview" : 'Overview'} <span className="text-xs font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
+          <h3 className="font-serif text-lg font-bold text-maroon-800">{ap === 'today' ? tr("Today's Overview") : tr('Overview')} <span className="text-xs font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
           <div className="mt-4 space-y-3">
             {(d?.today_overview || []).map((o) => {
               const m = OVERVIEW_ICONS[o.label] || { icon: CalendarDays, c: '#6b7280', bg: 'bg-gray-50' }
@@ -177,7 +200,7 @@ export default function Dashboard() {
               const row = (
                 <div className={`flex items-center gap-3 rounded-lg -mx-1 px-1 py-1 ${to ? 'hover:bg-gray-50' : ''}`}>
                   <div className={`w-9 h-9 rounded-lg grid place-items-center shrink-0 ${m.bg}`} style={{ color: m.c }}><Icon size={17} /></div>
-                  <span className="text-[0.8125rem] text-gray-600 flex-1">{o.label}</span>
+                  <span className="text-[0.8125rem] text-gray-600 flex-1">{tr(o.label)}</span>
                   <span className="text-[0.8125rem] font-bold text-gray-700">{num(o.count)}</span>
                   <span className="text-[0.8125rem] font-bold text-maroon-700 w-24 text-right">{inr(o.amount)}</span>
                 </div>
@@ -190,7 +213,7 @@ export default function Dashboard() {
 
         {/* Week chart */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Pooja Bookings</T>{' '}<span className="text-xs font-sans font-normal text-gray-400">– {ap === 'today' ? 'This Week' : rangeLabel}</span></h3>
+          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Pooja Bookings</T>{' '}<span className="text-xs font-sans font-normal text-gray-400">– {ap === 'today' ? tr('This Week') : rangeLabel}</span></h3>
           <div className="text-[0.6875rem] text-gray-400 mt-0.5"><T>No. of Bookings</T></div>
           {d && <BarChart days={d.week_chart.days} />}
           <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-100 text-center">
@@ -211,12 +234,12 @@ export default function Dashboard() {
               <div key={i} className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-orange-50 text-orange-500 grid place-items-center shrink-0"><Flame size={16} /></div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[0.8125rem] font-semibold text-gray-800 truncate">{b.pooja}{b.plan ? <span className="text-gray-400 font-normal"> ({b.plan})</span> : null}</div>
+                  <div className="text-[0.8125rem] font-semibold text-gray-800 truncate">{tr(b.pooja)}{b.plan ? <span className="text-gray-400 font-normal"> ({tr(b.plan)})</span> : null}</div>
                   <div className="text-[0.6875rem] text-gray-400">{b.devotee}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[0.6875rem] text-gray-400 flex items-center gap-1 justify-end"><Clock size={10} /> {b.time}</div>
-                  <span className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-emerald-50 text-emerald-700">{b.status}</span>
+                  <div className="text-[0.6875rem] text-gray-400 flex items-center gap-1 justify-end"><Clock size={10} /> {String(b.time || '').replace(/\b(AM|PM)\b/, (w) => tr(w))}</div>
+                  <span className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-emerald-50 text-emerald-700">{tr(b.status)}</span>
                 </div>
               </div>
             ))}
@@ -238,11 +261,11 @@ export default function Dashboard() {
               <div key={i} className="flex items-center gap-3 border-b border-dashed border-gray-100 pb-3 last:border-0">
                 <div className="w-11 text-center shrink-0">
                   <div className="text-lg font-extrabold text-maroon-700 leading-none">{u.day}</div>
-                  <div className="text-[0.625rem] text-gray-400 uppercase">{u.month}</div>
+                  <div className="text-[0.625rem] text-gray-400 uppercase">{tr(u.month)}</div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[0.8125rem] font-semibold text-gray-800">{u.pooja}{u.plan ? <span className="text-gray-400 font-normal"> ({u.plan})</span> : null}</div>
-                  <div className="text-[0.6875rem] text-gray-400">{u.plan ? `Plan: ${u.plan} Pooja` : 'One-off pooja'}</div>
+                  <div className="text-[0.8125rem] font-semibold text-gray-800">{tr(u.pooja)}{u.plan ? <span className="text-gray-400 font-normal"> ({tr(u.plan)})</span> : null}</div>
+                  <div className="text-[0.6875rem] text-gray-400">{u.plan ? `${tr('Plan')}: ${tr(u.plan)} ${tr('Pooja')}` : tr('One-off pooja')}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-[0.625rem] text-gray-400"><T>Bookings</T></div>
@@ -272,7 +295,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-[0.8125rem] text-gray-500">Total Donations ({rangeLabel})</span>
+            <span className="text-[0.8125rem] text-gray-500">{tr('Total Donations')} ({rangeLabel})</span>
             <span className="text-lg font-extrabold text-maroon-700">{inr(dc?.total)}</span>
           </div>
         </div>
@@ -289,7 +312,7 @@ export default function Dashboard() {
               return (
                 <Link key={i} to={to} className="flex items-center gap-3 border border-gray-100 rounded-lg px-3 py-2.5 hover:bg-gray-50 hover:border-maroon-200 transition">
                   <div className={`w-9 h-9 rounded-lg grid place-items-center shrink-0 ${m.bg}`} style={{ color: m.c }}><Icon size={16} /></div>
-                  <span className="text-[0.8125rem] text-gray-600 flex-1">{a.text}</span>
+                  <span className="text-[0.8125rem] text-gray-600 flex-1">{alertText(a)}</span>
                   <ChevronRight size={16} className="text-gray-300" />
                 </Link>
               )

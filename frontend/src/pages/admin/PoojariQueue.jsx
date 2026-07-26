@@ -8,7 +8,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { PoojarisAPI, BookingsAPI, ApiError } from '../../api/client.js'
 import { DateField } from '../../components/common/Field.jsx'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const fmtDate = (iso) =>
@@ -21,6 +21,7 @@ const STATUS_PILL = {
 }
 
 export default function PoojariQueue() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const linked = !!user?.poojari_id            // only a linked Poojari can filter to "mine"
   const [day, setDay] = useState(todayISO())
@@ -55,12 +56,12 @@ export default function PoojariQueue() {
   async function markAllDue() {
     const due = (data?.items || []).filter((i) => !i.done_today && i.status === 'Confirmed' && (i.remaining === null || i.remaining > 0)).length
     if (!due) return
-    if (!(await confirmDialog({ title: `Mark all ${due} due pooja(s) as performed?`, message: 'Each will be recorded as performed for today.', confirmLabel: 'Mark All' }))) return
+    if (!(await confirmDialog({ title: `${tr('Mark all due poojas as performed?')} (${due})`, message: tr('Each will be recorded as performed for today.'), confirmLabel: tr('Mark All') }))) return
     setError('')
     try {
       const r = await PoojarisAPI.completeDue({ mine })
       load()
-      if (r.skipped?.length) setError(`${r.completed} performed · ${r.skipped.length} skipped (quota exhausted).`)
+      if (r.skipped?.length) setError(`${r.completed} ${tr('performed')} · ${r.skipped.length} ${tr('skipped (quota exhausted).')}`)
     } catch (e) {
       setError(e instanceof ApiError ? e.detail : 'Bulk action failed.')
     }
@@ -72,7 +73,7 @@ export default function PoojariQueue() {
 
   return (
     <div>
-      <PageHeader title={tr("My Poojas")} subtitle="Today's pooja queue — verify the ticket and mark each pooja performed" />
+      <PageHeader title={tr("My Poojas")} subtitle={tr("Today's pooja queue — verify the ticket and mark each pooja performed")} />
 
       {/* Controls */}
       <div className="flex flex-wrap items-end gap-3 mb-5">
@@ -88,29 +89,29 @@ export default function PoojariQueue() {
             {[['all', 'All poojas', false], ['mine', 'Assigned to me', true]].map(([k, lbl, val]) => (
               <button key={k} onClick={() => setMine(val)}
                 className={`px-4 py-2 text-[0.8125rem] font-semibold transition ${mine === val ? 'bg-maroon-700 text-cream' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                {lbl}
+                {tr(lbl)}
               </button>
             ))}
           </div>
         )}
         <button onClick={load} className="btn-outline !py-2"><RotateCcw size={15} />{' '}<T>Refresh</T></button>
         {day === todayISO() && pending > 0 && (
-          <button onClick={markAllDue} className="btn-maroon !py-2"><CheckCircle2 size={15} /> Mark all due ({pending})</button>
+          <button onClick={markAllDue} className="btn-maroon !py-2"><CheckCircle2 size={15} /> {tr('Mark all due')} ({pending})</button>
         )}
         <div className="ml-auto flex items-center gap-4 text-[0.8125rem]">
-          <span className="text-amber-700 font-semibold">{pending} to perform</span>
-          <span className="text-emerald-700 font-semibold">{done} done</span>
+          <span className="text-amber-700 font-semibold">{pending} {tr('to perform')}</span>
+          <span className="text-emerald-700 font-semibold">{done} {tr('done')}</span>
         </div>
       </div>
 
       {loading ? (
-        <LoadingBlock label="Loading pooja queue…" />
+        <LoadingBlock label={tr("Loading pooja queue…")} />
       ) : error ? (
         <ErrorBlock message={error} onRetry={load} />
       ) : items.length === 0 ? (
         <div className="card p-10 text-center text-gray-500">
           <Flame size={32} className="mx-auto text-gold-300 mb-3" />
-          No poojas {mine ? 'assigned to you ' : ''}for {fmtDate(day)}.
+          {mine ? tr('No poojas assigned to you for') : tr('No poojas for')} {fmtDate(day)}.
         </div>
       ) : (
         <div className="space-y-3">
@@ -123,31 +124,31 @@ export default function PoojariQueue() {
               </div>
               {/* Pooja + devotee */}
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-gray-800">{b.pooja}{b.plan ? <span className="text-gray-400 font-normal"> · {b.plan}</span> : null}</div>
+                <div className="font-semibold text-gray-800">{tr(b.pooja)}{b.plan ? <span className="text-gray-400 font-normal"> · {tr(b.plan)}</span> : null}</div>
                 <div className="text-[0.8125rem] text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
-                  <span className="flex items-center gap-1"><User size={12} /> {b.devotee_name}</span>
+                  <span className="flex items-center gap-1"><User size={12} /> {personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</span>
                   {b.mobile && <span className="flex items-center gap-1"><Phone size={12} /> {b.mobile}</span>}
                   <span className="text-gray-400">#{b.ticket_no || b.booking_code}</span>
                 </div>
                 {(b.gothram || b.nakshatram || b.beneficiary_name) && (
                   <div className="text-[0.6875rem] text-gray-500 mt-0.5">
-                    {b.beneficiary_name ? `For ${b.beneficiary_name} · ` : ''}
-                    {b.gothram ? `${b.gothram} gothram` : ''}{b.gothram && b.nakshatram ? ' · ' : ''}
-                    {b.nakshatram ? `${b.nakshatram} nakshatram` : ''}
+                    {b.beneficiary_name ? `${tr('For')} ${b.beneficiary_name} · ` : ''}
+                    {b.gothram ? `${tr(b.gothram)} ${tr('gothram')}` : ''}{b.gothram && b.nakshatram ? ' · ' : ''}
+                    {b.nakshatram ? `${tr(b.nakshatram)} ${tr('nakshatram')}` : ''}
                   </div>
                 )}
                 {(b.remaining === null || (b.performances_allowed && b.performances_allowed > 1)) && (
                   <div className="text-[0.6875rem] text-amber-700 mt-0.5">
                     {b.remaining === null
-                      ? 'Ongoing · Life Long'
-                      : `${b.performances_done} of ${b.performances_allowed} performed · ${b.remaining} left`}
-                    {b.valid_until ? ` · valid till ${fmtDate(b.valid_until)}` : ''}
+                      ? tr('Ongoing · Life Long')
+                      : `${b.performances_done} / ${b.performances_allowed} ${tr('performed')} · ${b.remaining} ${tr('left')}`}
+                    {b.valid_until ? ` · ${tr('valid till')} ${fmtDate(b.valid_until)}` : ''}
                   </div>
                 )}
                 {b.repeat && (
                   <div className="mt-1.5 inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-violet-700 bg-violet-50 rounded-full px-2 py-0.5">
-                    <Repeat size={11} /> Repeat devotee · {b.visits} visit{b.visits === 1 ? '' : 's'}
-                    {b.last_visit ? ` · last ${fmtDate(b.last_visit)}` : ''}
+                    <Repeat size={11} /> {tr('Repeat devotee')} · {b.visits} {tr(b.visits === 1 ? 'visit' : 'visits')}
+                    {b.last_visit ? ` · ${tr('last')} ${fmtDate(b.last_visit)}` : ''}
                   </div>
                 )}
               </div>
@@ -161,7 +162,7 @@ export default function PoojariQueue() {
                   <button onClick={() => markPerformed(b.id)} disabled={busyId === b.id}
                     className="btn-maroon !py-2 disabled:opacity-60">
                     {busyId === b.id ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
-                    Mark Performed
+                    {tr('Mark Performed')}
                   </button>
                 )}
               </div>

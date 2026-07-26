@@ -149,7 +149,7 @@ cm_read = RequireModule("Hundi")   # committee-master edits are Administrator-on
 
 
 def _cm(x: CommitteeMember):
-    return {"id": x.id, "code": x.code, "name": x.name, "designation": x.designation,
+    return {"id": x.id, "code": x.code, "name": x.name, "name_te": x.name_te, "designation": x.designation,
             "phone": x.phone, "email": x.email, "active": x.active}
 
 

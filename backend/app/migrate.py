@@ -7,6 +7,8 @@ columns added to tables that already exist.
 from sqlalchemy import bindparam, text
 
 COLUMN_MIGRATIONS = {
+    "waste_vendors": [("name_te", "VARCHAR(160)")],
+    "committee_members": [("name_te", "VARCHAR(160)")],
     "bookings": [
         ("pooja_id", "INTEGER"), ("plan_id", "INTEGER"), ("category", "VARCHAR(40)"),
         ("plan_name", "VARCHAR(60)"), ("valid_until", "DATE"),
@@ -43,6 +45,7 @@ COLUMN_MIGRATIONS = {
         ("start_time", "VARCHAR(20)"), ("notes", "TEXT"),
     ],
     "devotees": [
+        ("name_te", "VARCHAR(160)"),
         ("preferred_language", "VARCHAR(20) DEFAULT 'English'"),
     ],
     "annadanam": [
@@ -56,8 +59,10 @@ COLUMN_MIGRATIONS = {
         ("mobile", "VARCHAR(20)"), ("unit", "VARCHAR(20) DEFAULT 'Kilogram (kg)'"),
         ("mode", "VARCHAR(20) DEFAULT 'Cash'"), ("txn_ref", "VARCHAR(60)"), ("paid_at", "TIMESTAMP"),
     ],
-    "users": [("mobile", "VARCHAR(20)"), ("poojari_id", "INTEGER")],
-    "poojaris": [("email", "VARCHAR(160)")],
+    "users": [
+        ("name_te", "VARCHAR(160)"), ("mobile", "VARCHAR(20)"), ("poojari_id", "INTEGER")],
+    "poojaris": [
+        ("name_te", "VARCHAR(160)"),("email", "VARCHAR(160)")],
     "daily_closings": [
         ("opening_cash", "NUMERIC(14,2) DEFAULT 0"), ("refunds", "NUMERIC(14,2) DEFAULT 0"),
         ("expected_cash", "NUMERIC(14,2) DEFAULT 0"), ("actual_cash", "NUMERIC(14,2) DEFAULT 0"),

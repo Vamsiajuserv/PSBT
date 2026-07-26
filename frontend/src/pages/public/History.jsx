@@ -41,7 +41,7 @@ export default function History() {
               <article key={s.era} className="card overflow-hidden animate-slide-up"
                        style={{ animationDelay: `${i * 120}ms` }}>
                 <div className="aspect-[4/3] overflow-hidden">
-                  <img src={s.img} alt={s.title} className="w-full h-full object-cover" loading="lazy" />
+                  <img src={s.img} alt={tr(s.title)} className="w-full h-full object-cover" loading="lazy" />
                 </div>
                 <div className="p-5">
                   <div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-[#B8860B]"><T>{s.era}</T></div>

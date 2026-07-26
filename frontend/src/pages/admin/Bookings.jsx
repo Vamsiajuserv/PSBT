@@ -10,7 +10,7 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 // Page-number list with ellipsis, e.g. 1 … 4 5 [6] 7 8 … 12
 function pagesFor(page, count) {
@@ -33,7 +33,10 @@ const STATUS_TONE = {
   Confirmed: 'bg-emerald-50 text-emerald-700', Pending: 'bg-amber-50 text-amber-700',
   Cancelled: 'bg-red-50 text-red-700', Completed: 'bg-blue-50 text-blue-700',
 }
-const fmtDT = (d, slot) => (d ? `${new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}${slot ? ', ' + slot : ''}` : '—')
+const fmtDT = (d, slot) => (d
+  ? `${new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/[A-Za-z]{3,}/g, (w) => tr(w))}`
+    + (slot ? ', ' + slot.replace(/\b(AM|PM)\b/g, (w) => tr(w)) : '')
+  : '—')
 const fmtStamp = (s) => (s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
 
 function Kpi({ icon: Icon, iconBg, iconColor, title, value, foot }) {
@@ -52,6 +55,7 @@ function Kpi({ icon: Icon, iconBg, iconColor, title, value, foot }) {
 }
 
 export default function Bookings() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const nav = useNavigate()
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
@@ -100,10 +104,10 @@ export default function Bookings() {
       : Number(b.amount)
     const res = await promptDialog({
       title: `Cancel booking ${b.booking_code}?`,
-      tone: 'danger', confirmLabel: 'Cancel Booking', cancelLabel: 'Keep Booking',
+      tone: 'danger', confirmLabel: tr('Cancel Booking'), cancelLabel: 'Keep Booking',
       fields: [
-        { k: 'reason', label: 'Reason', required: true, placeholder: 'Why is this booking being cancelled?' },
-        ...(paid ? [{ k: 'refund', label: 'Refund amount (₹)', type: 'number', defaultValue: String(suggested),
+        { k: 'reason', label: tr('Reason'), required: true, placeholder: 'Why is this booking being cancelled?' },
+        ...(paid ? [{ k: 'refund', label: tr('Refund amount (₹)'), type: 'number', defaultValue: String(suggested),
           note: allowed && done > 0 ? `Prorated — ${done}/${allowed} already performed.` : 'Full paid amount suggested.' }] : []),
       ],
     })
@@ -118,8 +122,8 @@ export default function Bookings() {
     }
     const res = await promptDialog({
       title: `Reschedule ${b.booking_code}`,
-      fields: [{ k: 'date', label: 'New date', type: 'date', required: true, defaultValue: b.scheduled_date || '' }],
-      confirmLabel: 'Reschedule',
+      fields: [{ k: 'date', label: tr('New date'), type: 'date', required: true, defaultValue: b.scheduled_date || '' }],
+      confirmLabel: tr('Reschedule'),
     })
     if (!res) return
     try { await BookingsAPI.reschedule(b.id, { scheduled_date: res.date }); toast('Booking rescheduled.'); loadList(applied, page); loadStats() }
@@ -151,15 +155,15 @@ export default function Bookings() {
       {/* KPI tiles */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         <Kpi icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Today's Bookings")}
-          value={stats?.today.count ?? '—'} foot={{ label: 'Amount', value: inr(stats?.today.amount) }} />
+          value={stats?.today.count ?? '—'} foot={{ label: tr('Amount'), value: inr(stats?.today.amount) }} />
         <Kpi icon={CalendarDays} iconBg="bg-emerald-50" iconColor="#059669" title={tr("This Week Bookings")}
-          value={stats?.week.count ?? '—'} foot={{ label: 'Amount', value: inr(stats?.week.amount) }} />
+          value={stats?.week.count ?? '—'} foot={{ label: tr('Amount'), value: inr(stats?.week.amount) }} />
         <Kpi icon={CalendarRange} iconBg="bg-rose-50" iconColor="#e11d48" title={tr("This Month Bookings")}
-          value={stats?.month.count ?? '—'} foot={{ label: 'Amount', value: inr(stats?.month.amount) }} />
+          value={stats?.month.count ?? '—'} foot={{ label: tr('Amount'), value: inr(stats?.month.amount) }} />
         <Kpi icon={TicketCheck} iconBg="bg-violet-50" iconColor="#7c3aed" title={tr("Tickets Generated (This Month)")}
           value={stats ? Number(stats.tickets_month).toLocaleString('en-IN') : '—'} />
         <Kpi icon={Clock} iconBg="bg-amber-50" iconColor="#d97706" title={tr("Upcoming Bookings")}
-          value={stats?.upcoming ?? '—'} foot={{ label: 'Next 7 Days', value: '' }} />
+          value={stats?.upcoming ?? '—'} foot={{ label: tr('Next 7 Days'), value: '' }} />
       </div>
 
       {/* Filters */}
@@ -187,29 +191,29 @@ export default function Bookings() {
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
             <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input">
-              <option value="">All Poojas</option>
+              <option value="">{tr("All Poojas")}</option>
               {poojas.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
             </Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Plan</T></label>
             <Select value={plan} onChange={(e) => setPlan(e.target.value)} className="input">
-              <option value="">All Plans</option>
+              <option value="">{tr("All Plans")}</option>
               {planOptions.map((p) => <option key={p}>{p}</option>)}
             </Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
-              <option value="">All Status</option>
-              <option>Confirmed</option><option>Pending</option><option>Cancelled</option><option>Completed</option>
+              <option value="">{tr("All Status")}</option>
+              <option value="Confirmed">{tr("Confirmed")}</option><option value="Pending">{tr("Pending")}</option><option value="Cancelled">{tr("Cancelled")}</option><option value="Completed">{tr("Completed")}</option>
             </Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Status</T></label>
             <Select value={payment} onChange={(e) => setPayment(e.target.value)} className="input">
-              <option value="">All Payments</option>
-              <option>Paid</option><option>Pending</option><option>Failed</option>
+              <option value="">{tr("All Payments")}</option>
+              <option value="Paid">{tr("Paid")}</option><option value="Pending">{tr("Pending")}</option><option value="Failed">{tr("Failed")}</option>
             </Select>
           </div>
           <div className="flex items-end">
@@ -228,7 +232,7 @@ export default function Bookings() {
             <thead>
               <tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
                 {['Booking ID', 'Pooja Name', 'Devotee Name', 'Plan', 'Date & Time', 'Amount (₹)', 'Status', 'Ticket No.', 'Booked On', 'Actions'].map((c) => (
-                  <th key={c} className="px-3 py-3 font-semibold whitespace-nowrap">{c}</th>
+                  <th key={c} className="px-3 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>
                 ))}
               </tr>
             </thead>
@@ -236,12 +240,12 @@ export default function Bookings() {
               {rows.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50/60">
                   <td className="px-3 py-3.5 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
-                  <td className="px-3 py-3.5 font-semibold text-gray-800">{b.seva_name}</td>
-                  <td className="px-3 py-3.5 text-gray-700">{b.devotee_name}</td>
-                  <td className="px-3 py-3.5"><span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${PLAN_TONE[b.plan_name] || 'bg-gray-100 text-gray-500'}`}>{b.plan_name || '—'}</span></td>
+                  <td className="px-3 py-3.5 font-semibold text-gray-800">{tr(b.seva_name)}</td>
+                  <td className="px-3 py-3.5 text-gray-700">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>
+                  <td className="px-3 py-3.5"><span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${PLAN_TONE[b.plan_name] || 'bg-gray-100 text-gray-500'}`}>{b.plan_name ? tr(b.plan_name) : '—'}</span></td>
                   <td className="px-3 py-3.5 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDT(b.scheduled_date, b.time_slot)}</td>
                   <td className="px-3 py-3.5 font-semibold text-gray-800">{Number(b.amount).toLocaleString('en-IN')}</td>
-                  <td className="px-3 py-3.5"><span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_TONE[b.status] || 'bg-gray-100 text-gray-500'}`}>{b.status}</span></td>
+                  <td className="px-3 py-3.5"><span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_TONE[b.status] || 'bg-gray-100 text-gray-500'}`}>{tr(b.status)}</span></td>
                   <td className="px-3 py-3.5 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
                   <td className="px-3 py-3.5 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.created_at)}</td>
                   <td className="px-3 py-3.5">
@@ -255,12 +259,12 @@ export default function Bookings() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={10} loading={loading} error={loadErr} onRetry={() => loadList(applied, page)} empty="No bookings found." />}
+              {rows.length === 0 && <TableStates colSpan={10} loading={loading} error={loadErr} onRetry={() => loadList(applied, page)} empty={tr("No bookings found.")} />}
             </tbody>
           </table>
         </div>
         <div className="px-4 py-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-[0.8125rem] text-gray-500">Showing {from} to {to} of {total} bookings</div>
+          <div className="text-[0.8125rem] text-gray-500">{tr('Showing')} {from} {tr('to')} {to} {tr('of')} {total} {tr('bookings')}</div>
           <div className="flex items-center gap-1.5">
             <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-40 hover:border-maroon-300"><ChevronLeft size={15} /></button>
             {pageNums.map((n, i) => n === '…'

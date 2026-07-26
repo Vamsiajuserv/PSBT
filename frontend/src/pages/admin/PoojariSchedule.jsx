@@ -7,13 +7,14 @@ import { PageTitle, Pill, num } from '../../components/admin/ui.jsx'
 import { SchedulesAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'Life Long': 'amber', 'One-Time': 'violet' }
 const STATUS_TONE = { Scheduled: 'green', 'In Progress': 'blue', Completed: 'gray', Cancelled: 'red' }
 const planTone = (n) => PLAN_TONE[n] || (/\d+-Day/.test(n || '') ? 'violet' : 'gray')
-const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
-const weekday = (s) => (s ? new Date(s).toLocaleDateString('en-US', { weekday: 'short' }) : '')
+const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  .replace(/[A-Za-z]{3,}/g, (w) => tr(w)) : '—')
+const weekday = (s) => (s ? tr(new Date(s).toLocaleDateString('en-US', { weekday: 'short' })) : '')
 
 function StatTile({ icon: Icon, color, bg, title, value, sub }) {
   return (
@@ -31,6 +32,7 @@ function StatTile({ icon: Icon, color, bg, title, value, sub }) {
 const emptyForm = () => ({ pooja_id: '', plan_id: '', poojari_id: '', schedule_type: 'One-Time', schedule_date: new Date().toISOString().slice(0, 10), start_time: '07:30 AM', end_time: '08:30 AM', notes: '', status: 'Scheduled' })
 
 export default function PoojariSchedule() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const canWrite = user?.role !== 'Accountant'
   const [tab, setTab] = useState('list')
@@ -79,21 +81,21 @@ export default function PoojariSchedule() {
 
   return (
     <div>
-      <PageTitle title={tr("Poojari Schedule")} subtitle="Manage and view poojari assignments for scheduled temple poojas."
+      <PageTitle title={tr("Poojari Schedule")} subtitle={tr("Manage and view poojari assignments for scheduled temple poojas.")}
         actions={canWrite && <button onClick={() => setDrawer({ data: emptyForm() })} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Assign Schedule</T></button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={CalendarCheck} color="#ea580c" bg="bg-orange-50" title={tr("Today's Schedules")} value={stats ? num(stats.today) : '—'} sub="Poojas scheduled today" />
-        <StatTile icon={UserCheck} color="#059669" bg="bg-emerald-50" title={tr("Assigned Poojaris")} value={stats ? num(stats.assigned_poojaris) : '—'} sub="Poojaris with active schedules" />
-        <StatTile icon={CalendarClock} color="#d97706" bg="bg-amber-50" title={tr("Upcoming Schedules")} value={stats ? num(stats.upcoming) : '—'} sub="Next 7 days schedules" />
-        <StatTile icon={UserX} color="#7c3aed" bg="bg-violet-50" title={tr("Unassigned Schedules")} value={stats ? num(stats.unassigned) : '—'} sub="Require poojari assignment" />
+        <StatTile icon={CalendarCheck} color="#ea580c" bg="bg-orange-50" title={tr("Today's Schedules")} value={stats ? num(stats.today) : '—'} sub={tr("Poojas scheduled today")} />
+        <StatTile icon={UserCheck} color="#059669" bg="bg-emerald-50" title={tr("Assigned Poojaris")} value={stats ? num(stats.assigned_poojaris) : '—'} sub={tr("Poojaris with active schedules")} />
+        <StatTile icon={CalendarClock} color="#d97706" bg="bg-amber-50" title={tr("Upcoming Schedules")} value={stats ? num(stats.upcoming) : '—'} sub={tr("Next 7 days schedules")} />
+        <StatTile icon={UserX} color="#7c3aed" bg="bg-violet-50" title={tr("Unassigned Schedules")} value={stats ? num(stats.unassigned) : '—'} sub={tr("Require poojari assignment")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center gap-6 px-5 border-b border-gray-100">
           {[['list', 'List View', List], ['calendar', 'Calendar View', CalendarDays]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setTab(k)} className={`flex items-center gap-2 py-3.5 text-[0.84375rem] font-semibold border-b-2 -mb-px ${tab === k ? 'border-maroon-600 text-maroon-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-              <Icon size={15} /> {label}
+              <Icon size={15} /> {tr(label)}
             </button>
           ))}
         </div>
@@ -107,11 +109,11 @@ export default function PoojariSchedule() {
                 <div className="sm:col-span-2"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
                   <div className="flex items-center gap-1"><DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2 !text-[0.75rem]" /><span className="text-gray-300">–</span><DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2 !text-[0.75rem]" /></div></div>
                 <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
-                  <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">All Poojas</option>{uniquePoojaNames.map((n) => <option key={n}>{n}</option>)}</Select></div>
+                  <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">{tr("All Poojas")}</option>{uniquePoojaNames.map((n) => <option key={n}>{n}</option>)}</Select></div>
                 <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
-                  <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input"><option value="">All Poojaris</option>{poojaris.map((p) => <option key={p.id}>{p.name}</option>)}</Select></div>
+                  <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input"><option value="">{tr("All Poojaris")}</option>{poojaris.map((p) => <option key={p.id}>{p.name}</option>)}</Select></div>
                 <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Schedule Status</T></label>
-                  <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All Status</option><option>Scheduled</option><option>In Progress</option><option>Completed</option></Select></div>
+                  <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Scheduled">{tr("Scheduled")}</option><option value="In Progress">{tr("In Progress")}</option><option value="Completed">{tr("Completed")}</option></Select></div>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button onClick={clear} className="btn-outline !py-2"><RotateCcw size={14} />{' '}<T>Clear</T></button>
@@ -122,14 +124,14 @@ export default function PoojariSchedule() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-                  {['Schedule ID', 'Poojari Name', 'Pooja Name', 'Plan', 'Schedule Date', 'Time', 'Execution Frequency', 'Status', 'Actions'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+                  {['Schedule ID', 'Poojari Name', 'Pooja Name', 'Plan', 'Schedule Date', 'Time', 'Execution Frequency', 'Status', 'Actions'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100">
                   {rows.map((s) => (
                     <tr key={s.id} className="hover:bg-gray-50/60">
                       <td className="px-5 py-3.5 font-mono text-[0.75rem] text-gray-500">{s.code}</td>
-                      <td className="px-5 py-3.5 font-semibold text-gray-800">{s.poojari_name || <span className="text-amber-600 font-normal"><T>Unassigned</T></span>}</td>
-                      <td className="px-5 py-3.5 text-gray-700">{s.pooja_name}</td>
+                      <td className="px-5 py-3.5 font-semibold text-gray-800">{s.poojari_name ? personName({ name: s.poojari_name, name_te: s.poojari_name_te }, lang) : <span className="text-amber-600 font-normal"><T>Unassigned</T></span>}</td>
+                      <td className="px-5 py-3.5 text-gray-700">{tr(s.pooja_name)}</td>
                       <td className="px-5 py-3.5"><Pill tone={planTone(s.plan_name)}>{s.plan_name || '—'}</Pill></td>
                       <td className="px-5 py-3.5 text-[0.8125rem] text-gray-600 whitespace-nowrap">{fmtDate(s.schedule_date)}<span className="block text-[0.6875rem] text-gray-400">{weekday(s.schedule_date)}</span></td>
                       <td className="px-5 py-3.5 text-[0.8125rem] text-gray-600 whitespace-nowrap">{s.start_time} –<span className="block">{s.end_time}</span></td>
@@ -148,7 +150,7 @@ export default function PoojariSchedule() {
             </div>
 
             <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-              <span className="text-[0.8125rem] text-gray-500">Showing {total === 0 ? 0 : (page - 1) * SIZE + 1} to {Math.min(page * SIZE, total)} of {total} schedules</span>
+              <span className="text-[0.8125rem] text-gray-500">{tr('Showing')} {total === 0 ? 0 : (page - 1) * SIZE + 1} {tr('to')} {Math.min(page * SIZE, total)} {tr('of')} {total} {tr('schedules')}</span>
               <div className="flex items-center gap-1.5">
                 <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-500 disabled:opacity-40"><T>Previous</T></button>
                 {Array.from({ length: Math.min(pageCount, 4) }, (_, i) => i + 1).map((n) => (
@@ -168,7 +170,7 @@ export default function PoojariSchedule() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <div><h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.id ? 'Edit Schedule' : 'Assign Poojari Schedule'}</h3>
+              <div><h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.id ? tr('Edit Schedule') : tr('Assign Poojari Schedule')}</h3>
                 <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Assign poojari to a pooja for specific date and time.</T></p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
@@ -177,13 +179,13 @@ export default function PoojariSchedule() {
               <div className="text-[0.8125rem] font-bold text-maroon-700"><T>1. Assignment Details</T></div>
               <div><label className="label"><T>Pooja *</T></label>
                 <Select required className="input" value={drawer.data.pooja_id} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, pooja_id: e.target.value, plan_id: '' } })}>
-                  <option value="">Select Pooja</option>{poojas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></div>
+                  <option value="">{tr("Select Pooja")}</option>{poojas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></div>
               <div><label className="label"><T>Plan *</T></label>
                 <Select required className="input" value={drawer.data.plan_id} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, plan_id: e.target.value } })}>
-                  <option value="">Select Plan</option>{planOptions.map((pl) => <option key={pl.id} value={pl.id}>{pl.plan_name} - {pl.committee_decided ? 'Committee' : '₹' + num(pl.fee)}</option>)}</Select></div>
+                  <option value="">{tr("Select Plan")}</option>{planOptions.map((pl) => <option key={pl.id} value={pl.id}>{pl.plan_name} - {pl.committee_decided ? 'Committee' : '₹' + num(pl.fee)}</option>)}</Select></div>
               <div><label className="label"><T>Poojari *</T></label>
                 <Select required className="input" value={drawer.data.poojari_id} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, poojari_id: e.target.value } })}>
-                  <option value="">Select Poojari</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></div>
+                  <option value="">{tr("Select Poojari")}</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></div>
               <div><label className="label"><T>Schedule Type *</T></label>
                 <div className="flex gap-6 mt-1">
                   {['One-Time', 'Recurring'].map((t) => (
@@ -226,7 +228,7 @@ function CalendarView({ rows }) {
               {byDate[d].map((s) => (
                 <div key={s.id} className="flex items-center gap-2 text-[0.8125rem] border-b border-dashed border-gray-100 pb-2">
                   <span className="text-gray-400 text-[0.6875rem] w-16">{s.start_time}</span>
-                  <span className="flex-1"><span className="font-semibold text-gray-800">{s.pooja_name}</span><span className="block text-[0.6875rem] text-gray-400">{s.poojari_name || 'Unassigned'}</span></span>
+                  <span className="flex-1"><span className="font-semibold text-gray-800">{tr(s.pooja_name)}</span><span className="block text-[0.6875rem] text-gray-400">{s.poojari_name || tr('Unassigned')}</span></span>
                   <Pill tone={STATUS_TONE[s.status] || 'gray'}>{s.status}</Pill>
                 </div>
               ))}

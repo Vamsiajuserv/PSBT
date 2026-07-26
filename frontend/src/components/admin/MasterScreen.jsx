@@ -53,14 +53,14 @@ export default function MasterScreen({ config }) {
       setDrawer(null); load()
     } catch (ex) { setErr(ex.detail || ex.message || 'Failed to save.') }
   }
-  async function remove(row) { if (await confirmDialog({ title: `Delete this ${entity}?`, message: 'This cannot be undone.', tone: 'danger', confirmLabel: 'Delete' })) { try { await api.remove(row.id); toast(`${entity} deleted.`); load() } catch (ex) { toast(ex.detail || 'Failed', 'error') } } }
+  async function remove(row) { if (await confirmDialog({ title: `Delete this ${entity}?`, message: 'This cannot be undone.', tone: 'danger', confirmLabel: tr('Delete') })) { try { await api.remove(row.id); toast(`${entity} deleted.`); load() } catch (ex) { toast(ex.detail || 'Failed', 'error') } } }
 
   const statusOf = (row) => (row.active !== undefined ? (row.active ? 'Active' : 'Inactive') : row.status)
 
   return (
     <div>
-      <PageTitle title={title} subtitle={subtitle}
-        actions={canWrite && <button onClick={() => { setErr(''); setDrawer({ mode: 'create', data: { ...empty } }) }} className="btn-maroon !py-2.5"><Plus size={16} /> {addLabel}</button>} />
+      <PageTitle title={tr(title)} subtitle={tr(subtitle)}
+        actions={canWrite && <button onClick={() => { setErr(''); setDrawer({ mode: 'create', data: { ...empty } }) }} className="btn-maroon !py-2.5"><Plus size={16} /> {tr(addLabel)}</button>} />
 
       {statCards.length > 0 && (
         /* Column count follows the number of tiles so the row always fills the
@@ -69,8 +69,8 @@ export default function MasterScreen({ config }) {
           { 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4' }[statCards.length] || 'lg:grid-cols-4'
         }`}>
           {statCards.map((c) => (
-            <StatTile key={c.key} icon={c.icon} color={c.color} bg={c.bg} title={c.title}
-              value={stats ? num(stats[c.key]) : '—'} sub={c.sub} />
+            <StatTile key={c.key} icon={c.icon} color={c.color} bg={c.bg} title={tr(c.title)}
+              value={stats ? num(stats[c.key]) : '—'} sub={tr(c.sub)} />
           ))}
         </div>
       )}
@@ -78,16 +78,16 @@ export default function MasterScreen({ config }) {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 flex flex-col lg:flex-row lg:items-end gap-4">
           <div className="flex-1 max-w-sm relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={searchPlaceholder} className="input !pl-9" /></div>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr(searchPlaceholder)} className="input !pl-9" /></div>
           <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">All</option><option>Active</option><option>Inactive</option></Select></div>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">{tr("All")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
           <div className="lg:ml-auto flex gap-2"><button onClick={() => { setQ(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button></div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {columns.map((c) => <th key={c.key} className="px-4 py-3 font-semibold whitespace-nowrap">{c.label}</th>)}
+              {columns.map((c) => <th key={c.key} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c.label)}</th>)}
               <th className="px-4 py-3 font-semibold"><T>Status</T></th>
               <th className="px-4 py-3 font-semibold"><T>Actions</T></th>
             </tr></thead>
@@ -96,7 +96,7 @@ export default function MasterScreen({ config }) {
                 <tr key={row.id} className="hover:bg-gray-50/60">
                   {columns.map((c) => (
                     <td key={c.key} className={`px-4 py-3.5 ${c.mono ? 'font-mono text-[0.75rem] text-gray-500' : c.strong ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
-                      {c.render ? c.render(row) : (row[c.key] ?? '—')}
+                      {c.render ? c.render(row) : (row[c.key] != null ? tr(String(row[c.key])) : '—')}
                     </td>
                   ))}
                   <td className="px-4 py-3.5"><Pill tone={statusOf(row) === 'Active' ? 'green' : 'gray'}>{statusOf(row)}</Pill></td>
@@ -112,7 +112,7 @@ export default function MasterScreen({ config }) {
             </tbody>
           </table>
         </div>
-        <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">Showing 1 to {items.length} of {items.length} {entity}s</div>
+        <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">{tr('Showing')} 1 {tr('to')} {items.length} {tr('of')} {items.length} {tr(entity + 's')}</div>
       </div>
 
       {drawer && (
@@ -126,13 +126,13 @@ export default function MasterScreen({ config }) {
             <div className="px-6 py-5 space-y-4 flex-1">
               {fields.map((f) => (
                 <div key={f.k} className={f.full ? '' : ''}>
-                  <label className="label">{f.label}{f.required && ' *'}</label>
+                  <label className="label">{tr(f.label)}{f.required && ' *'}</label>
                   {f.type === 'select' ? (
                     <Select required={f.required} className="input" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })}>
-                      <option value="">Select…</option>{f.options.map((o) => <option key={o}>{o}</option>)}
+                      <option value="">{tr("Select…")}</option>{f.options.map((o) => <option key={o}>{o}</option>)}
                     </Select>
                   ) : f.type === 'active' ? (
-                    <Select className="input" value={drawer.data.active ? 'Active' : 'Inactive'} onChange={(e) => setD({ active: e.target.value === 'Active' })}><option>Active</option><option>Inactive</option></Select>
+                    <Select className="input" value={drawer.data.active ? tr('Active') : tr('Inactive')} onChange={(e) => setD({ active: e.target.value === 'Active' })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
                   ) : f.type === 'textarea' ? (
                     <textarea className="input min-h-[4.5rem]" value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
                   ) : f.type === 'date' ? (
@@ -147,14 +147,14 @@ export default function MasterScreen({ config }) {
                         const on = (drawer.data[f.k] || []).includes(o.value)
                         return (
                           <label key={o.value} className="flex items-center gap-2 text-[0.8125rem] text-gray-700 px-1 py-0.5">
-                            <Checkbox checked={on} onChange={() => setD({ [f.k]: on ? drawer.data[f.k].filter((x) => x !== o.value) : [...(drawer.data[f.k] || []), o.value] })} /> {o.label}
+                            <Checkbox checked={on} onChange={() => setD({ [f.k]: on ? drawer.data[f.k].filter((x) => x !== o.value) : [...(drawer.data[f.k] || []), o.value] })} /> {tr(o.label)}
                           </label>
                         )
                       })}
                       {(f.options || []).length === 0 && <div className="text-[0.75rem] text-gray-400 px-1"><T>No options.</T></div>}
                     </div>
                   ) : (
-                    <input required={f.required} className="input" placeholder={f.placeholder} value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
+                    <input required={f.required} className="input" placeholder={tr(f.placeholder)} value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
                   )}
                 </div>
               ))}

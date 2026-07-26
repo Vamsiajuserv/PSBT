@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { CalendarDays, Bell, Sparkles, ArrowRight, Clock } from 'lucide-react'
 import { Badge, MinimalBanner, SectionTitle } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, useContentText } from '../../i18n/LanguageContext.jsx'
 
 const DAY = 24 * 60 * 60 * 1000
 const norm = (s) => (s || '').toLowerCase().replace(/[^a-z]/g, '')
@@ -15,7 +15,8 @@ function fmtRange(start, end) {
 }
 
 export default function Festivals() {
-  const { t } = useLang()
+  const { t, lang } = useLang()
+  const te = useContentText()
   const site = useSite()
   const festivals = site?.festivals || []
   const dates = site?.festival_dates || []
@@ -90,18 +91,18 @@ export default function Festivals() {
             return (
               <div key={f.name} className="card overflow-hidden group border-gold-300 ring-1 ring-gold-200/70">
                 <div className="aspect-[16/9] relative overflow-hidden">
-                  <img src={f.img} alt={f.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                  <img src={f.img} alt={te(f, 'name')} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
                   <span className="absolute bottom-2 left-3 text-3xl drop-shadow-lg">{f.icon}</span>
                   <span className="absolute top-2 right-2 bg-gold-500 text-maroon-900 text-[0.625rem] font-bold uppercase tracking-wide rounded-full px-2.5 py-0.5">{t('Major Festival')}</span>
                 </div>
                 <div className="p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-serif text-lg font-bold text-maroon-700">{t(f.name)}</h3>
-                    <Badge tone="amber">{live?.start ? fmtRange(live.start, live.end) : t(f.month)}</Badge>
+                    <h3 className="font-serif text-lg font-bold text-maroon-700">{te(f, 'name')}</h3>
+                    <Badge tone="amber">{live?.start ? fmtRange(live.start, live.end) : te(f, 'month')}</Badge>
                   </div>
-                  <p className="text-xs text-black font-telugu">{f.nameTe}</p>
-                  <p className="text-sm text-black mt-2 leading-relaxed">{t(f.desc)}</p>
+                  {lang === 'en' && <p className="text-xs text-black font-telugu">{f.nameTe}</p>}
+                  <p className="text-sm text-black mt-2 leading-relaxed">{te(f, 'desc')}</p>
                 </div>
               </div>
             )
@@ -117,16 +118,16 @@ export default function Festivals() {
               return (
                 <div key={f.name} className="card overflow-hidden group">
                   <div className="aspect-[16/9] relative overflow-hidden">
-                    <img src={f.img} alt={f.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                    <img src={f.img} alt={te(f, 'name')} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
                     <span className="absolute bottom-2 left-3 text-2xl drop-shadow-lg">{f.icon}</span>
                   </div>
                   <div className="p-4">
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-serif text-base font-bold text-maroon-700">{t(f.name)}</h3>
-                      <Badge tone="amber">{live?.start ? fmtRange(live.start, live.end) : t(f.month)}</Badge>
+                      <h3 className="font-serif text-base font-bold text-maroon-700">{te(f, 'name')}</h3>
+                      <Badge tone="amber">{live?.start ? fmtRange(live.start, live.end) : te(f, 'month')}</Badge>
                     </div>
-                    <p className="text-[0.6875rem] text-black font-telugu">{f.nameTe}</p>
-                    <p className="text-[0.8125rem] text-black mt-1.5 leading-relaxed">{t(f.desc)}</p>
+                    {lang === 'en' && <p className="text-[0.6875rem] text-black font-telugu">{f.nameTe}</p>}
+                    <p className="text-[0.8125rem] text-black mt-1.5 leading-relaxed">{te(f, 'desc')}</p>
                   </div>
                 </div>
               )

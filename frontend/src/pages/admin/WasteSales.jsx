@@ -16,27 +16,28 @@ import { T, tr } from '../../i18n/LanguageContext.jsx'
 const DEFAULT_MATERIALS = ['Coconut Shells', 'Flowers', 'Banana Leaves', 'Cardboard', 'Plastic', 'Waste Oil', 'Metal Scrap', 'Old Cloth']
 const UNITS = ['Kilogram (kg)', 'Tonne', 'Piece', 'Bundle']
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
-const fmtTime = (s) => (s ? new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '')
-const modeLabel = (m) => (m === 'UPI/QR Code' ? 'UPI (QR)' : m)
+const fmtTime = (s) => (s ? new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  .replace(/\b(AM|PM)\b/, (w) => tr(w)) : '')
+const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI (QR)' : m)
 const unitShort = (u) => { const m = /\(([^)]+)\)/.exec(u || ''); return m ? m[1] : (u || '').toLowerCase() }
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 function toWords(n) {
   n = Math.round(Number(n) || 0)
-  if (n === 0) return 'Zero Rupees Only'
-  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen']
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+  if (n === 0) return tr('Zero Rupees Only')
+  const a = ['', tr('One'), tr('Two'), tr('Three'), tr('Four'), tr('Five'), tr('Six'), tr('Seven'), tr('Eight'), tr('Nine'), tr('Ten'), tr('Eleven'), tr('Twelve'), tr('Thirteen'), tr('Fourteen'), tr('Fifteen'), tr('Sixteen'), tr('Seventeen'), tr('Eighteen'), tr('Nineteen')]
+  const b = ['', '', tr('Twenty'), tr('Thirty'), tr('Forty'), tr('Fifty'), tr('Sixty'), tr('Seventy'), tr('Eighty'), tr('Ninety')]
   const two = (x) => (x < 20 ? a[x] : b[Math.floor(x / 10)] + (x % 10 ? ' ' + a[x % 10] : ''))
-  const three = (x) => (x >= 100 ? a[Math.floor(x / 100)] + ' Hundred' + (x % 100 ? ' ' + two(x % 100) : '') : two(x))
+  const three = (x) => (x >= 100 ? a[Math.floor(x / 100)] + ' ' + tr('Hundred') + (x % 100 ? ' ' + two(x % 100) : '') : two(x))
   let out = ''
   const crore = Math.floor(n / 10000000); n %= 10000000
   const lakh = Math.floor(n / 100000); n %= 100000
   const thou = Math.floor(n / 1000); n %= 1000
-  if (crore) out += three(crore) + ' Crore '
-  if (lakh) out += two(lakh) + ' Lakh '
-  if (thou) out += two(thou) + ' Thousand '
+  if (crore) out += three(crore) + ' ' + tr('Crore') + ' '
+  if (lakh) out += two(lakh) + ' ' + tr('Lakh') + ' '
+  if (thou) out += two(thou) + ' ' + tr('Thousand') + ' '
   if (n) out += three(n) + ' '
-  return out.trim() + ' Rupees Only'
+  return out.trim() + ' ' + tr('Rupees Only')
 }
 
 const emptyForm = () => ({ vendor_id: '', vendor_name: '', buyer_name: '', mobile: '', material: DEFAULT_MATERIALS[0], materialCustom: false, unit: 'Kilogram (kg)', quantity: 1, rate: '', mode: 'Cash', txn_ref: '', paid_at: nowLocal(), verified_by: '' })
@@ -118,21 +119,21 @@ export default function WasteSales() {
     setDrawer(null); load(); setPrintDoc(created)
   }
 
-  const EXPORT_COLS = [{ key: 'code', label: 'Sale ID' }, { key: 'vendor_name', label: 'Buyer / Vendor' }, { key: 'material', label: 'Material' },
-    { key: 'weight_kg', label: 'Weight (kg)' }, { key: 'rate', label: 'Rate (₹)', type: 'money' },
-    { key: 'amount', label: 'Amount (₹)', type: 'money' }, { key: 'mode', label: 'Mode' }]
+  const EXPORT_COLS = [{ key: 'code', label: tr('Sale ID') }, { key: 'vendor_name', label: tr('Buyer / Vendor') }, { key: 'material', label: tr('Material') },
+    { key: 'weight_kg', label: tr('Weight (kg)') }, { key: 'rate', label: tr('Rate (₹)'), type: 'money' },
+    { key: 'amount', label: tr('Amount (₹)'), type: 'money' }, { key: 'mode', label: tr('Mode') }]
   const exportRows = rows
   const exportTotal = { code: 'Total', amount: rows.reduce((s, r) => s + Number(r.amount || 0), 0) }
   return (
     <div>
-      <PageTitle title={tr("Waste Material Sales Management")} subtitle="Record waste material sales, accept payments and generate receipt."
+      <PageTitle title={tr("Waste Material Sales Management")} subtitle={tr("Record waste material sales, accept payments and generate receipt.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Waste Material Sales Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => setDrawer(emptyForm())} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Waste Material Sale</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={IndianRupee} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Sales Amount")} value={stats ? inr(stats.total_amount) : '—'} sub="All Time" />
-        <StatTile icon={CalendarDays} color="#059669" bg="bg-emerald-50" title={tr("Today's Sales Amount")} value={stats ? inr(stats.today_amount) : '—'} sub={`Today (${fmtDate(new Date().toISOString())})`} />
-        <StatTile icon={ShoppingCart} color="#7c3aed" bg="bg-violet-50" title={tr("Today's Transactions")} value={stats ? num(stats.today_transactions) : '—'} sub="Sales recorded today" />
-        <StatTile icon={FileText} color="#2563eb" bg="bg-blue-50" title={tr("Total Sale Records")} value={stats ? num(stats.total_records) : '—'} sub="All Time" />
+        <StatTile icon={IndianRupee} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Sales Amount")} value={stats ? inr(stats.total_amount) : '—'} sub={tr("All Time")} />
+        <StatTile icon={CalendarDays} color="#059669" bg="bg-emerald-50" title={tr("Today's Sales Amount")} value={stats ? inr(stats.today_amount) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
+        <StatTile icon={ShoppingCart} color="#7c3aed" bg="bg-violet-50" title={tr("Today's Transactions")} value={stats ? num(stats.today_transactions) : '—'} sub={tr("Sales recorded today")} />
+        <StatTile icon={FileText} color="#2563eb" bg="bg-blue-50" title={tr("Total Sale Records")} value={stats ? num(stats.total_records) : '—'} sub={tr("All Time")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -152,11 +153,11 @@ export default function WasteSales() {
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Material Type</T></label>
-            <Select value={material} onChange={(e) => setMaterial(e.target.value)} className="input"><option value="">All</option>{DEFAULT_MATERIALS.map((m) => <option key={m}>{m}</option>)}</Select>
+            <Select value={material} onChange={(e) => setMaterial(e.target.value)} className="input"><option value="">{tr("All")}</option>{DEFAULT_MATERIALS.map((m) => <option key={m}>{m}</option>)}</Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
-            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">All</option><option value="Cash">Cash</option><option value="UPI/QR Code">UPI / QR Code</option></Select>
+            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("UPI / QR Code")}</option></Select>
           </div>
           <div className="xl:col-span-4 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setMaterial(''); setMode(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
@@ -167,17 +168,17 @@ export default function WasteSales() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Receipt No.', 'Date & Time', 'Buyer Name', 'Mobile Number', 'Material Type', 'Quantity / Unit', 'Rate (₹/Unit)', 'Amount (₹)', 'Payment Mode', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['Receipt No.', 'Date & Time', 'Buyer Name', 'Mobile Number', 'Material Type', 'Quantity / Unit', 'Rate (₹/Unit)', 'Amount (₹)', 'Payment Mode', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((s) => (
                 <tr key={s.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{s.code}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(s.paid_at || s.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(s.paid_at || s.created_at)}</div></td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{s.buyer_name}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{tr(s.buyer_name)}</td>
                   <td className="px-4 py-3 text-gray-600">{s.mobile || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{s.material}</td>
-                  <td className="px-4 py-3 text-gray-700">{money2(s.weight_kg)} {unitShort(s.unit)}</td>
+                  <td className="px-4 py-3 text-gray-600">{tr(s.material)}</td>
+                  <td className="px-4 py-3 text-gray-700">{money2(s.weight_kg)} {tr(unitShort(s.unit))}</td>
                   <td className="px-4 py-3 text-gray-700">{money2(s.rate)}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{money2(s.amount)}</td>
                   <td className="px-4 py-3 text-gray-600">{modeLabel(s.mode)}</td>
@@ -189,12 +190,12 @@ export default function WasteSales() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={10} loading={loading} error={loadErr} onRetry={load} empty="No sales records found." />}
+              {rows.length === 0 && <TableStates colSpan={10} loading={loading} error={loadErr} onRetry={load} empty={tr("No sales records found.")} />}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit="records" />
+          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit={tr("records")} />
         </div>
       </div>
 
@@ -215,7 +216,7 @@ export default function WasteSales() {
                 <div className="mb-4">
                   <label className="label"><T>Vendor</T></label>
                   <Select className="input" value={drawer.vendor_id} onChange={(e) => onVendor(e.target.value)}>
-                    <option value="">Other / walk-in buyer</option>
+                    <option value="">{tr("Other / walk-in buyer")}</option>
                     {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.phone ? ` — ${v.phone}` : ''}</option>)}
                   </Select>
                 </div>
@@ -239,7 +240,7 @@ export default function WasteSales() {
                   <div><label className="label"><T>Material Type *</T></label>
                     <Select className="input" value={drawer.materialCustom ? '__other__' : drawer.material} onChange={(e) => { const v = e.target.value; if (v === '__other__') setM({ materialCustom: true, material: '' }); else setM({ materialCustom: false, material: v }) }}>
                       {materialOptions.map((m) => <option key={m}>{m}</option>)}
-                      <option value="__other__">Other</option>
+                      <option value="__other__">{tr("Other")}</option>
                     </Select>
                     {drawer.materialCustom && <input required className="input mt-2" placeholder={tr("Enter material")} value={drawer.material} onChange={(e) => setM({ material: e.target.value })} />}
                   </div>
@@ -253,7 +254,7 @@ export default function WasteSales() {
                       <button type="button" onClick={() => setM({ quantity: (Number(drawer.quantity) || 0) + 1 })} className="w-10 h-11 grid place-items-center text-gray-500 hover:bg-gray-50 border-l border-gray-200"><Plus size={15} /></button>
                     </div>
                   </div>
-                  <div><label className="label"><T>Rate per Unit (₹) *</T></label><NumberField required step="0.01" min="0" prefix="₹" placeholder="0.00" value={drawer.rate} onChange={(e) => setM({ rate: e.target.value })} /></div>
+                  <div><label className="label"><T>Rate per Unit (₹) *</T></label><NumberField required step="0.01" min="0" prefix="₹" placeholder={tr("0.00")} value={drawer.rate} onChange={(e) => setM({ rate: e.target.value })} /></div>
                 </div>
                 <div className="bg-amber-50/70 border border-amber-200 rounded-xl px-4 py-3.5 mt-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 grid place-items-center shrink-0"><Calculator size={18} /></div>
@@ -271,7 +272,7 @@ export default function WasteSales() {
                 <label className="label"><T>Payment Mode *</T></label>
                 <div className="flex gap-6 mt-1 mb-4">
                   {['Cash', 'UPI/QR Code'].map((mo) => (
-                    <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setM({ mode: mo })} /> {mo === 'UPI/QR Code' ? 'UPI / QR Code' : mo}</label>
+                    <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setM({ mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'UPI / QR Code' : mo)}</label>
                   ))}
                 </div>
                 {drawer.mode === 'UPI/QR Code' && (
@@ -284,7 +285,7 @@ export default function WasteSales() {
                   <DateTimeField required value={drawer.paid_at} onChange={(e) => setM({ paid_at: e.target.value })} /></div>
                 <div className="mb-4"><label className="label"><T>Verified By</T></label>
                   <Select className="input" value={drawer.verified_by} onChange={(e) => setM({ verified_by: e.target.value })}>
-                    <option value="">Select…</option>{committeeNames.map((n) => <option key={n}>{n}</option>)}
+                    <option value="">{tr("Select…")}</option>{committeeNames.map((n) => <option key={n}>{n}</option>)}
                   </Select></div>
                 <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl px-4 py-3.5 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center shrink-0"><IndianRupee size={17} /></div>
@@ -301,7 +302,7 @@ export default function WasteSales() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button className="btn-maroon flex-1 justify-center">Save Payment &amp; Generate Receipt <Printer size={15} /></button>
+              <button className="btn-maroon flex-1 justify-center">{tr('Save Payment & Generate Receipt')} <Printer size={15} /></button>
             </div>
           </form>
         </div>

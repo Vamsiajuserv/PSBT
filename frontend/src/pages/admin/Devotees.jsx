@@ -10,7 +10,7 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const EMPTY = { name: '', mobile: '', email: '', city: '', gothram: '', nakshatram: '', address: '', preferred_language: 'English', dob: '', status: 'Active', notes: '' }
 const PAGE_SIZE = 20
@@ -20,6 +20,7 @@ const STATUS_TONE = { Confirmed: 'green', Completed: 'green', Pending: 'amber', 
 const TABS = ['Overview', 'Pooja History', 'Donation History', 'Other Activities']
 
 export default function Devotees() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const canWrite = user?.role !== 'Accountant'
   const [rows, setRows] = useState([])
@@ -78,18 +79,18 @@ export default function Devotees() {
 
   return (
     <div>
-      <PageTitle title={tr("Devotee Management")} subtitle="Maintain devotee master and view their activity history across temple services."
+      <PageTitle title={tr("Devotee Management")} subtitle={tr("Maintain devotee master and view their activity history across temple services.")}
         actions={canWrite && <button onClick={() => { setSaveErr(''); setModal({ mode: 'create', data: { ...EMPTY } }) }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Devotee</T></button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={Users} color="#ea580c" bg="bg-orange-50" title={tr("Total Devotees")}
-          value={stats ? num(stats.total) : '—'} sub="All registered devotees" />
+          value={stats ? num(stats.total) : '—'} sub={tr("All registered devotees")} />
         <StatTile icon={CalendarPlus} color="#059669" bg="bg-emerald-50" title={tr("Recent Registrations")}
-          value={stats ? num(stats.recent_registrations) : '—'} sub="Registered in last 30 days" />
+          value={stats ? num(stats.recent_registrations) : '—'} sub={tr("Registered in last 30 days")} />
         <StatTile icon={HeartHandshake} color="#7c3aed" bg="bg-violet-50" title={tr("Devotees with Donations")}
-          value={stats ? num(stats.with_donations) : '—'} sub="Devotees who donated" />
+          value={stats ? num(stats.with_donations) : '—'} sub={tr("Devotees who donated")} />
         <StatTile icon={HandHeart} color="#2563eb" bg="bg-blue-50" title={tr("Total Annadanam Beneficiaries")}
-          value={stats ? num(stats.annadanam_beneficiaries) : '—'} sub="Through devotee sponsorships" />
+          value={stats ? num(stats.annadanam_beneficiaries) : '—'} sub={tr("Through devotee sponsorships")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -101,11 +102,11 @@ export default function Devotees() {
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>City / Location</T></label>
-            <Select value={city} onChange={(e) => setCity(e.target.value)} className="input"><option value="">All Cities</option>{allCities.map((c) => <option key={c}>{c}</option>)}</Select>
+            <Select value={city} onChange={(e) => setCity(e.target.value)} className="input"><option value="">{tr("All Cities")}</option>{allCities.map((c) => <option key={c}>{c}</option>)}</Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All Status</option><option>Active</option><option>Inactive</option></Select>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
           </div>
           <div className="md:col-span-3 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setCity(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
@@ -116,15 +117,15 @@ export default function Devotees() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Devotee ID', 'Devotee Name', 'Mobile Number', 'City / Location', 'Registered On', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['Devotee ID', 'Devotee Name', 'Mobile Number', 'City / Location', 'Registered On', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3.5 font-mono text-[0.75rem] text-gray-500">{d.code}</td>
-                  <td className="px-4 py-3.5 font-semibold text-gray-800">{d.name}</td>
+                  <td className="px-4 py-3.5 font-semibold text-gray-800">{personName(d, lang)}</td>
                   <td className="px-4 py-3.5 text-gray-600">{d.mobile}</td>
-                  <td className="px-4 py-3.5 text-gray-600">{d.city || '—'}</td>
+                  <td className="px-4 py-3.5 text-gray-600">{d.city ? tr(d.city.trim()) : '—'}</td>
                   <td className="px-4 py-3.5 text-gray-500 text-[0.8125rem]">{fmtDate(d.registered_on)}</td>
                   <td className="px-4 py-3.5"><Pill tone={d.status === 'Active' ? 'green' : 'gray'}>{d.status}</Pill></td>
                   <td className="px-4 py-3.5">
@@ -132,12 +133,12 @@ export default function Devotees() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty="No devotees found." />}
+              {rows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No devotees found.")} />}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <Pager page={page} size={PAGE_SIZE} total={total} onPage={setPage} unit="devotees" />
+          <Pager page={page} size={PAGE_SIZE} total={total} onPage={setPage} unit={tr("devotees")} />
         </div>
       </div>
 
@@ -147,11 +148,11 @@ export default function Devotees() {
         <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-4" onClick={() => setModal(null)}>
           <form onClick={(e) => e.stopPropagation()} onSubmit={save} className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-serif text-xl font-bold text-maroon-800">{modal.mode === 'create' ? 'Add New Devotee' : 'Edit Devotee'}</h3>
+              <h3 className="font-serif text-xl font-bold text-maroon-800">{modal.mode === 'create' ? tr('Add New Devotee') : tr('Edit Devotee')}</h3>
               <button type="button" onClick={() => setModal(null)} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
-              {[['name', 'Full Name *', true], ['mobile', 'Mobile *', true], ['email', 'Email', false], ['city', 'City', false], ['gothram', 'Gothram', false], ['nakshatram', 'Nakshatram', false]].map(([k, label, req]) => (
+              {[['name', 'Full Name *', true], ['name_te', 'Full Name (Telugu)', false], ['mobile', 'Mobile *', true], ['email', 'Email', false], ['city', 'City', false], ['gothram', 'Gothram', false], ['nakshatram', 'Nakshatram', false]].map(([k, label, req]) => (
                 <div key={k}>
                   <label className="label">{label}</label>
                   <input required={req} className="input" value={modal.data[k] || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, [k]: e.target.value } })} />
@@ -161,11 +162,11 @@ export default function Devotees() {
                 <DateField className="input" value={modal.data.dob || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dob: e.target.value } })} />
               </div>
               <div><label className="label"><T>Status</T></label>
-                <Select className="input" value={modal.data.status || 'Active'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, status: e.target.value } })}><option>Active</option><option>Inactive</option></Select>
+                <Select className="input" value={modal.data.status || 'Active'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, status: e.target.value } })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
               </div>
               <div className="sm:col-span-2"><label className="label"><T>Address</T></label><input className="input" value={modal.data.address || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, address: e.target.value } })} /></div>
               <div><label className="label"><T>Preferred Language</T></label>
-                <Select className="input" value={modal.data.preferred_language || 'English'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, preferred_language: e.target.value } })}><option>English</option><option>Telugu</option></Select>
+                <Select className="input" value={modal.data.preferred_language || 'English'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, preferred_language: e.target.value } })}><option value="English">{tr("English")}</option><option value="Telugu">{tr("Telugu")}</option></Select>
               </div>
               <div className="sm:col-span-2"><label className="label"><T>Notes</T></label>
                 <textarea rows={3} className="input" value={modal.data.notes || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, notes: e.target.value } })} /></div>
@@ -173,7 +174,7 @@ export default function Devotees() {
             {saveErr && <div className="mt-3 text-[0.75rem] text-red-600">{saveErr}</div>}
             <div className="flex justify-end gap-2 mt-5">
               <button type="button" onClick={() => { setSaveErr(''); setModal(null) }} className="btn-outline"><T>Cancel</T></button>
-              <button disabled={saving} className="btn-maroon disabled:opacity-60">{saving ? 'Saving…' : (modal.mode === 'create' ? 'Create Devotee' : 'Save Changes')}</button>
+              <button disabled={saving} className="btn-maroon disabled:opacity-60">{saving ? tr('Saving…') : (modal.mode === 'create' ? tr('Create Devotee') : tr('Save Changes'))}</button>
             </div>
           </form>
         </div>
@@ -219,7 +220,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-full bg-amber-50 grid place-items-center text-amber-700 text-xl font-bold shrink-0">{initials}</div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap"><span className="font-bold text-lg text-gray-800">{dev.name}</span>
+              <div className="flex items-center gap-2 flex-wrap"><span className="font-bold text-lg text-gray-800">{personName(dev, lang)}</span>
                 <Pill tone={dev.status === 'Active' ? 'green' : 'gray'}>{dev.status}</Pill></div>
               <div className="mt-1.5 space-y-1 text-[0.8125rem] text-gray-600">
                 <div className="flex items-center gap-2"><Phone size={13} className="text-maroon-500" /> {dev.mobile}</div>
@@ -230,12 +231,12 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
 
           {/* Meta grid */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-4 mt-5 pt-5 border-t border-gray-100">
-            <Meta label="Devotee ID" value={dev.code} />
-            <Meta label="City / Location" value={dev.city || '—'} />
-            <Meta label="Address" value={dev.address || '—'} wide />
-            <Meta label="Email" value={dev.email || '—'} />
-            <Meta label="Registered On" value={fmtDate(dev.registered_on)} />
-            <Meta label="Status" value={<Pill tone={dev.status === 'Active' ? 'green' : 'gray'}>{dev.status}</Pill>} />
+            <Meta label={tr("Devotee ID")} value={dev.code} />
+            <Meta label={tr("City / Location")} value={dev.city || '—'} />
+            <Meta label={tr("Address")} value={dev.address || '—'} wide />
+            <Meta label={tr("Email")} value={dev.email || '—'} />
+            <Meta label={tr("Registered On")} value={fmtDate(dev.registered_on)} />
+            <Meta label={tr("Status")} value={<Pill tone={dev.status === 'Active' ? 'green' : 'gray'}>{dev.status}</Pill>} />
           </div>
 
           {/* Tabs */}
@@ -284,7 +285,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
           )}
 
           {tab === 'Pooja History' && (
-            <DrawerTable cols={['Booking ID', 'Pooja', 'Plan', 'Date', 'Amount', 'Status']} empty="No pooja bookings.">
+            <DrawerTable cols={['Booking ID', 'Pooja', 'Plan', 'Date', 'Amount', 'Status']} empty={tr("No pooja bookings.")}>
               {d.bookings.map((b) => (
                 <tr key={b.booking_code} className="hover:bg-gray-50/60">
                   <td className="px-3 py-2.5 font-mono text-[0.71875rem] text-gray-500">{b.booking_code}</td>
@@ -299,7 +300,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
           )}
 
           {tab === 'Donation History' && (
-            <DrawerTable cols={['Receipt', 'Category', 'Type', 'Amount', 'Date']} empty="No donations.">
+            <DrawerTable cols={['Receipt', 'Category', 'Type', 'Amount', 'Date']} empty={tr("No donations.")}>
               {d.donations.map((x) => (
                 <tr key={x.receipt_no} className="hover:bg-gray-50/60">
                   <td className="px-3 py-2.5 font-mono text-[0.71875rem] text-maroon-600">{x.receipt_no}</td>
@@ -313,7 +314,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
           )}
 
           {tab === 'Other Activities' && (
-            <DrawerTable cols={['Type', 'Detail', 'Amount', 'Date']} empty="No other activities.">
+            <DrawerTable cols={['Type', 'Detail', 'Amount', 'Date']} empty={tr("No other activities.")}>
               {[...d.annadanam.map((a) => ({ k: 'an' + a.code, type: 'Annadanam', detail: `${a.plates} Beneficiaries · ${a.occasion || ''}`, amount: a.amount, date: a.date })),
                 ...d.auction.map((a) => ({ k: 'au' + a.code, type: 'Auction', detail: a.item, amount: a.amount, date: a.date }))].map((r) => (
                 <tr key={r.k} className="hover:bg-gray-50/60">
@@ -349,7 +350,7 @@ function DrawerTable({ cols, children, empty }) {
   return (
     <div className="mt-5 border border-gray-100 rounded-xl overflow-hidden">
       <table className="w-full text-sm">
-        <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-500">{cols.map((c) => <th key={c} className="px-3 py-2.5 font-semibold whitespace-nowrap">{c}</th>)}</tr></thead>
+        <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-500">{cols.map((c) => <th key={c} className="px-3 py-2.5 font-semibold whitespace-nowrap">{tr(c)}</th>)}</tr></thead>
         <tbody className="divide-y divide-gray-100">{body.length ? body : <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-gray-400">{empty}</td></tr>}</tbody>
       </table>
     </div>

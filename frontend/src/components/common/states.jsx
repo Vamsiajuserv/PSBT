@@ -10,13 +10,13 @@ export const LOAD_ERROR = "Couldn't load records — check your connection and r
 
 // Block-level states for full-page / detail screens.
 export function LoadingBlock({ label = 'Loading…' }) {
-  return <div className="py-20 text-center text-gray-400 text-sm">{label}</div>
+  return <div className="py-20 text-center text-gray-400 text-sm"><T>{label}</T></div>
 }
 
 export function ErrorBlock({ message = LOAD_ERROR, onRetry }) {
   return (
     <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
-      <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-3 max-w-md">{message}</div>
+      <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-3 max-w-md"><T>{message}</T></div>
       {onRetry && (
         <button onClick={onRetry} className="btn-outline !py-2"><RefreshCw size={15} />{' '}<T>Retry</T></button>
       )}
@@ -34,7 +34,7 @@ export function TableStates({ colSpan, loading, error, onRetry, empty = 'No reco
     return (
       <tr>
         <td colSpan={colSpan} className="px-4 py-12 text-center">
-          <div className="text-sm text-red-600 mb-3">{error}</div>
+          <div className="text-sm text-red-600 mb-3"><T>{error}</T></div>
           {onRetry && (
             <button onClick={onRetry} className="btn-outline !py-1.5 mx-auto"><RefreshCw size={14} />{' '}<T>Retry</T></button>
           )}

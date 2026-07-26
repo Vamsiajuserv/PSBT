@@ -2,6 +2,7 @@ import React from 'react'
 import { Truck, UserCheck, UserX } from 'lucide-react'
 import MasterScreen from '../../components/admin/MasterScreen.jsx'
 import { VendorsAPI } from '../../api/client.js'
+import { tr } from '../../i18n/LanguageContext.jsx'
 
 export default function VendorMaster() {
   return <MasterScreen config={{
@@ -13,16 +14,18 @@ export default function VendorMaster() {
       { key: 'inactive', icon: UserX, color: '#dc2626', bg: 'bg-red-50', title: 'Inactive', sub: 'Not active' },
     ],
     columns: [
-      { key: 'code', label: 'Vendor ID', mono: true },
-      { key: 'name', label: 'Name', strong: true },
-      { key: 'phone', label: 'Phone' },
-      { key: 'material_types', label: 'Material Types' },
+      { key: 'code', label: tr('Vendor ID'), mono: true },
+      { key: 'name', label: tr('Name'), strong: true },
+      { key: 'phone', label: tr('Phone') },
+      // A comma-separated list — translate each material, not the whole string.
+      { key: 'material_types', label: tr('Material Types'),
+        render: (r) => (r.material_types || '').split(',').map((x) => tr(x.trim())).filter(Boolean).join(', ') || '—' },
     ],
     fields: [
-      { k: 'name', label: 'Vendor Name', required: true },
-      { k: 'phone', label: 'Phone' },
-      { k: 'material_types', label: 'Material Types', placeholder: 'e.g. Flowers, Paper, Plastic' },
-      { k: 'active', label: 'Status', type: 'active' },
+      { k: 'name', label: tr('Vendor Name'), required: true },
+      { k: 'phone', label: tr('Phone') },
+      { k: 'material_types', label: tr('Material Types'), placeholder: 'e.g. Flowers, Paper, Plastic' },
+      { k: 'active', label: tr('Status'), type: 'active' },
     ],
   }} />
 }

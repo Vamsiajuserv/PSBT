@@ -3,6 +3,7 @@ import { Users, UserCog, ShieldCheck } from 'lucide-react'
 import MasterScreen from '../../components/admin/MasterScreen.jsx'
 import { Pill } from '../../components/admin/ui.jsx'
 import { CommitteeAPI } from '../../api/client.js'
+import { tr } from '../../i18n/LanguageContext.jsx'
 
 const DESIG_TONE = { Chairman: 'maroon', Secretary: 'blue', Treasurer: 'violet', Member: 'gray' }
 
@@ -16,18 +17,18 @@ export default function CommitteeMaster() {
       { key: 'inactive', icon: UserCog, color: '#dc2626', bg: 'bg-red-50', title: 'Inactive', sub: 'Not serving' },
     ],
     columns: [
-      { key: 'code', label: 'Member ID', mono: true },
-      { key: 'name', label: 'Name', strong: true },
-      { key: 'designation', label: 'Designation', render: (r) => (r.designation ? <Pill tone={DESIG_TONE[r.designation] || 'gray'}>{r.designation}</Pill> : '—') },
-      { key: 'phone', label: 'Phone' },
-      { key: 'email', label: 'Email' },
+      { key: 'code', label: tr('Member ID'), mono: true },
+      { key: 'name', label: tr('Name'), strong: true },
+      { key: 'designation', label: tr('Designation'), render: (r) => (r.designation ? <Pill tone={DESIG_TONE[r.designation] || 'gray'}>{r.designation}</Pill> : '—') },
+      { key: 'phone', label: tr('Phone') },
+      { key: 'email', label: tr('Email') },
     ],
     fields: [
-      { k: 'name', label: 'Full Name', required: true },
-      { k: 'designation', label: 'Designation', type: 'select', options: ['Chairman', 'Secretary', 'Treasurer', 'Member'] },
-      { k: 'phone', label: 'Phone' },
-      { k: 'email', label: 'Email' },
-      { k: 'active', label: 'Status', type: 'active' },
+      { k: 'name', label: tr('Full Name'), required: true },
+      { k: 'designation', label: tr('Designation'), type: 'select', options: ['Chairman', 'Secretary', 'Treasurer', 'Member'] },
+      { k: 'phone', label: tr('Phone') },
+      { k: 'email', label: tr('Email') },
+      { k: 'active', label: tr('Status'), type: 'active' },
     ],
   }} />
 }

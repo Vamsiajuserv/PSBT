@@ -5,12 +5,13 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { BookingsAPI, ApiError } from '../../api/client.js'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
 
 export default function VerifyTicket() {
+  const { lang } = useLang()
   const [ticket, setTicket] = useState('')
   const [result, setResult] = useState(null)      // lookup response
   const [error, setError] = useState('')
@@ -61,7 +62,7 @@ export default function VerifyTicket() {
 
   return (
     <div className="max-w-2xl">
-      <PageHeader title={tr("Verify Ticket")} subtitle="Scan or enter a devotee's ticket number to verify before performing the pooja" />
+      <PageHeader title={tr("Verify Ticket")} subtitle={tr("Scan or enter a devotee's ticket number to verify before performing the pooja")} />
 
       {/* Entry */}
       <form onSubmit={verify} className="card p-5">
@@ -95,32 +96,32 @@ export default function VerifyTicket() {
         <div className="mt-4 card overflow-hidden">
           {/* Verdict banner */}
           <div className={`px-5 py-3 flex items-center gap-2 font-semibold ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
-            {ok ? <CheckCircle2 size={20} /> : <XCircle size={20} />} {result.verdict}
+            {ok ? <CheckCircle2 size={20} /> : <XCircle size={20} />} {tr(result.verdict)}
           </div>
 
           <div className="p-5 space-y-4">
             <div>
-              <div className="text-lg font-bold text-gray-800">{result.pooja}{result.plan ? <span className="text-gray-400 font-normal"> · {result.plan}</span> : null}</div>
+              <div className="text-lg font-bold text-gray-800">{tr(result.pooja)}{result.plan ? <span className="text-gray-400 font-normal"> · {tr(result.plan)}</span> : null}</div>
               <div className="text-[0.75rem] text-gray-400 font-mono mt-0.5">#{result.ticket_no || result.booking_code}</div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-[0.8125rem]">
-              <Field icon={User} label="Devotee" value={result.devotee_name} />
-              {result.mobile && <Field icon={Phone} label="Mobile" value={result.mobile} />}
-              <Field icon={CalendarDays} label="Scheduled" value={fmtDate(result.scheduled_date)} />
-              <Field icon={Clock} label="Slot" value={result.time_slot || '—'} />
-              <Field label="Status" value={result.status} />
-              <Field label="Payment" value={result.payment_status} />
-              {result.gothram && <Field label="Gothram" value={result.gothram} />}
-              {result.nakshatram && <Field label="Nakshatram" value={result.nakshatram} />}
-              {result.beneficiary_name && <Field label="In the name of" value={result.beneficiary_name} />}
-              {result.vehicle_no && <Field label="Vehicle" value={result.vehicle_no} />}
-              {result.poojari_name && <Field label="Assigned Poojari" value={result.poojari_name} />}
-              <Field label="Amount" value={`₹ ${Number(result.amount || 0).toLocaleString('en-IN')}`} />
+              <Field icon={User} label={tr("Devotee")} value={personName({ name: result.devotee_name, name_te: result.devotee_name_te }, lang)} />
+              {result.mobile && <Field icon={Phone} label={tr("Mobile")} value={result.mobile} />}
+              <Field icon={CalendarDays} label={tr("Scheduled")} value={fmtDate(result.scheduled_date)} />
+              <Field icon={Clock} label={tr("Slot")} value={result.time_slot || '—'} />
+              <Field label={tr("Status")} value={tr(result.status)} />
+              <Field label={tr("Payment")} value={tr(result.payment_status)} />
+              {result.gothram && <Field label={tr("Gothram")} value={tr(result.gothram)} />}
+              {result.nakshatram && <Field label={tr("Nakshatram")} value={tr(result.nakshatram)} />}
+              {result.beneficiary_name && <Field label={tr("In the name of")} value={result.beneficiary_name} />}
+              {result.vehicle_no && <Field label={tr("Vehicle")} value={result.vehicle_no} />}
+              {result.poojari_name && <Field label={tr("Assigned Poojari")} value={result.poojari_name} />}
+              <Field label={tr("Amount")} value={`₹ ${Number(result.amount || 0).toLocaleString('en-IN')}`} />
               {result.performances_allowed != null
-                ? <Field label="Performances" value={`${result.performances_done} of ${result.performances_allowed} · ${result.remaining} left`} />
-                : <Field label="Validity" value="Life Long · ongoing" />}
-              {result.valid_until && <Field icon={CalendarDays} label="Valid until" value={fmtDate(result.valid_until)} />}
+                ? <Field label={tr("Performances")} value={`${result.performances_done} of ${result.performances_allowed} · ${result.remaining} left`} />
+                : <Field label={tr("Validity")} value="Life Long · ongoing" />}
+              {result.valid_until && <Field icon={CalendarDays} label={tr("Valid until")} value={fmtDate(result.valid_until)} />}
             </div>
 
             {result.repeat && (

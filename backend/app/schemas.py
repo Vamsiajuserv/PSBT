@@ -32,6 +32,7 @@ class UserOut(ORM):
     employee_id: str
     username: str
     name: str
+    name_te: Optional[str] = None
     email: str
     mobile: Optional[str] = None
     role: str
@@ -44,6 +45,7 @@ class UserOut(ORM):
 
 class UserCreate(BaseModel):
     name: str
+    name_te: Optional[str] = None
     username: Optional[str] = None
     email: EmailStr
     mobile: Optional[str] = None
@@ -57,6 +59,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
+    name_te: Optional[str] = None
     email: Optional[EmailStr] = None
     mobile: Optional[str] = None
     role: Optional[str] = None
@@ -84,6 +87,7 @@ class FamilyMemberOut(ORM):
 
 class DevoteeBase(BaseModel):
     name: str
+    name_te: Optional[str] = None
     mobile: str
     email: Optional[str] = None
     address: Optional[str] = None
@@ -102,6 +106,7 @@ class DevoteeCreate(DevoteeBase):
 
 class DevoteeUpdate(BaseModel):
     name: Optional[str] = None
+    name_te: Optional[str] = None
     mobile: Optional[str] = None
     email: Optional[str] = None
     address: Optional[str] = None
@@ -118,6 +123,7 @@ class DevoteeOut(ORM):
     id: int
     code: str
     name: str
+    name_te: Optional[str] = None
     mobile: str
     email: Optional[str] = None
     address: Optional[str] = None

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang, tr } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
 
 const MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=Shirdi+Sai+Baba+Temple+Dwarakapuri+Colony+Punjagutta+Hyderabad'
@@ -21,11 +21,12 @@ const SUBJECTS = ['General', 'Pooja Enquiry', 'Donation', 'Annadanam', 'Festival
 
 export default function Contact() {
   const { t } = useLang()
+  const address = useTempleAddress()
   const site = useSite()
   const TEMPLE = site?.temple || {}
 
   const items = [
-    { icon: MapPin, label: 'Address', value: TEMPLE.address, href: MAPS_URL },
+    { icon: MapPin, label: 'Address', value: address, href: MAPS_URL },
     { icon: Phone, label: 'Phone', value: TEMPLE.phone, href: TEMPLE.phone ? `tel:${String(TEMPLE.phone).replace(/\s+/g, '')}` : null },
     { icon: Mail, label: 'Email', value: TEMPLE.email, href: TEMPLE.email ? `mailto:${TEMPLE.email}` : null },
     { icon: Clock, label: 'Timings', value: `${TEMPLE.timings || ''} · ${t('Everyday')}` },

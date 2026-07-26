@@ -43,10 +43,10 @@ export default function Auction() {
               <button
                 onClick={() => a.status !== 'Closed' && setBidFor(a)}
                 disabled={a.status === 'Closed'}
-                title={a.status === 'Closed' ? 'This auction has closed' : 'Bids are placed with the temple'}
+                title={a.status === 'Closed' ? tr('This auction has closed') : tr('Bids are placed with the temple')}
                 className="btn-primary !py-2 text-xs disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                {a.status === 'Closed' ? 'Auction Closed' : 'How to Bid'}
+                {a.status === 'Closed' ? tr('Auction Closed') : tr('How to Bid')}
               </button>
             </div>
           </div>

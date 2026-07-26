@@ -23,18 +23,38 @@ router = APIRouter(prefix="/api/public", tags=["public"])
 # Settings keys safe to expose publicly (temple profile / contact / timings).
 PUBLIC_SETTING_KEYS = {
     "temple_name", "short_name", "established_year", "registration_number",
-    "trust_name", "about", "address_line", "city", "state", "pincode",
+    "trust_name", "about", "address_line", "city", "state", "pincode", "address_te",
     "phone", "email", "website", "timings_morning", "timings_evening",
     "social_facebook", "social_instagram", "social_youtube",
     "receipt_footer_note", "default_language",
 }
 
 
+def _merge_content(stored: dict) -> dict:
+    """Stored content wins, but keys *absent* from a stored item fall back to the
+    default item of the same name.
+
+    A plain shallow merge replaces whole lists, so a field added to a default
+    entry later — the Telugu twins ``nameTe``/``descTe``, say — would be masked
+    forever on any install whose ``site_content`` row predates it. Editing stays
+    authoritative; only missing keys are filled in.
+    """
+    out = {**DEFAULT_CONTENT, **stored}
+    for key, default_val in DEFAULT_CONTENT.items():
+        stored_val = stored.get(key)
+        if not (isinstance(default_val, list) and isinstance(stored_val, list)):
+            continue
+        by_name = {d["name"]: d for d in default_val if isinstance(d, dict) and d.get("name")}
+        out[key] = [{**by_name.get(item.get("name"), {}), **item} if isinstance(item, dict) else item
+                    for item in stored_val]
+    return out
+
+
 def _content(db: Session) -> dict:
     row = db.query(Setting).filter(Setting.skey == "site_content").first()
     if row and row.svalue:
         try:
-            return {**DEFAULT_CONTENT, **json.loads(row.svalue)}
+            return _merge_content(json.loads(row.svalue))
         except (ValueError, TypeError):
             pass
     return DEFAULT_CONTENT
@@ -58,6 +78,7 @@ def _temple(db: Session, content: dict) -> dict:
         "pan": content.get("pan") or TEMPLE_EXTRAS["pan"],
         "place": ", ".join([p for p in [cfg.get("city"), cfg.get("state")] if p]),
         "address": address,
+        "addressTe": cfg.get("address_te") or "",
         "phone": cfg.get("phone"),
         "email": cfg.get("email"),
         "website": cfg.get("website"),

@@ -8,7 +8,7 @@ import { DevoteesAPI } from '../../api/client.js'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -45,6 +45,7 @@ function Table({ cols, children }) {
 }
 
 export default function DevoteeDetails() {
+  const { lang } = useLang()
   const { id } = useParams()
   const nav = useNavigate()
   const [d, setD] = useState(null)
@@ -86,7 +87,7 @@ export default function DevoteeDetails() {
             <div className="w-20 h-20 rounded-full bg-gray-100 grid place-items-center text-gray-400 shrink-0"><User size={40} /></div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-xl text-gray-800">{dev.name}</span>
+                <span className="font-bold text-xl text-gray-800">{personName(dev, lang)}</span>
                 <span className="text-[0.6875rem] font-mono font-semibold text-blue-700 bg-blue-50 rounded px-2 py-0.5">{dev.code}</span>
               </div>
               <div className="mt-2 space-y-1 text-[0.8125rem] text-gray-600">
@@ -98,14 +99,14 @@ export default function DevoteeDetails() {
           </div>
           {/* meta */}
           <div className="space-y-3 lg:border-l lg:border-gray-100 lg:pl-6">
-            <Meta icon={Calendar} label="Registered On" value={fmtStamp(dev.registered_on)} />
-            <Meta icon={RotateCw} label="Last Activity" value={fmtDate(dev.last_visit)} badge="Pooja Booking" />
-            <Meta icon={Layers} label="Total Transactions" value={num(dev.total_transactions)} />
+            <Meta icon={Calendar} label={tr("Registered On")} value={fmtStamp(dev.registered_on)} />
+            <Meta icon={RotateCw} label={tr("Last Activity")} value={fmtDate(dev.last_visit)} badge="Pooja Booking" />
+            <Meta icon={Layers} label={tr("Total Transactions")} value={num(dev.total_transactions)} />
           </div>
           {/* address + language */}
           <div className="space-y-3 lg:border-l lg:border-gray-100 lg:pl-6">
-            <Meta icon={MapPin} label="Address" value={dev.address || '—'} multiline />
-            <Meta icon={Languages} label="Preferred Language" value={dev.preferred_language} />
+            <Meta icon={MapPin} label={tr("Address")} value={dev.address || '—'} multiline />
+            <Meta icon={Languages} label={tr("Preferred Language")} value={dev.preferred_language} />
           </div>
         </div>
       </div>
@@ -117,10 +118,10 @@ export default function DevoteeDetails() {
           <button onClick={async () => {
             const res = await promptDialog({
               title: 'Add family member',
-              confirmLabel: 'Add Member',
+              confirmLabel: tr('Add Member'),
               fields: [
-                { k: 'name', label: 'Name', required: true },
-                { k: 'relation', label: 'Relation', placeholder: 'e.g. Son, Daughter, Wife' },
+                { k: 'name', label: tr('Name'), required: true },
+                { k: 'relation', label: tr('Relation'), placeholder: 'e.g. Son, Daughter, Wife' },
               ],
             })
             if (!res) return
@@ -134,10 +135,10 @@ export default function DevoteeDetails() {
           <div className="flex flex-wrap gap-2">
             {dev.family.map((f) => (
               <span key={f.id} className="inline-flex items-center gap-2 border border-gray-200 rounded-full pl-3 pr-1.5 py-1 text-[0.8125rem] text-gray-700">
-                <span className="font-semibold">{f.name}</span>
+                <span className="font-semibold">{personName(f, lang)}</span>
                 {f.relation && <span className="text-gray-400 text-[0.6875rem]">{f.relation}</span>}
                 <button onClick={async () => {
-                  if (!(await confirmDialog({ title: `Remove ${f.name}?`, tone: 'danger', confirmLabel: 'Remove' }))) return
+                  if (!(await confirmDialog({ title: `Remove ${personName(f, lang)}?`, tone: 'danger', confirmLabel: tr('Remove') }))) return
                   try { await DevoteesAPI.removeFamily(dev.id, f.id); reload() }
                   catch (ex) { toast(ex?.detail || 'Could not remove.', 'error') }
                 }} className="w-5 h-5 grid place-items-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50">×</button>
@@ -158,11 +159,11 @@ export default function DevoteeDetails() {
               <div className="flex items-start gap-3">
                 <div className={`w-12 h-12 rounded-full grid place-items-center shrink-0 ${c.bg}`} style={{ color: c.c }}><Icon size={22} /></div>
                 <div>
-                  <div className="text-[0.8125rem] text-gray-500">{c.label}</div>
+                  <div className="text-[0.8125rem] text-gray-500">{tr(c.label)}</div>
                   <div className="text-2xl font-extrabold text-gray-800 leading-none mt-1">{c.main(s)}</div>
                 </div>
               </div>
-              <div className="mt-3 pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400">{c.key === 'annadanam' ? 'Total Persons Sponsored' : c.key === 'bookings' ? 'Total Bookings' : c.key === 'donations' ? 'Total Donations' : 'Total Purchases'} <span className="font-semibold text-gray-700">{c.foot(s)}</span></div>
+              <div className="mt-3 pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400">{c.key === 'annadanam' ? tr('Total Persons Sponsored') : c.key === 'bookings' ? tr('Total Bookings') : c.key === 'donations' ? 'Total Donations' : 'Total Purchases'} <span className="font-semibold text-gray-700">{c.foot(s)}</span></div>
             </div>
           )
         })}
@@ -299,16 +300,16 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
           ))}
           <div className="sm:col-span-2"><label className="label"><T>Address</T></label><input className="input" value={data.address || ''} onChange={(e) => onChange({ ...data, address: e.target.value })} /></div>
           <div><label className="label"><T>Preferred Language</T></label>
-            <Select className="input" value={data.preferred_language || 'English'} onChange={(e) => onChange({ ...data, preferred_language: e.target.value })}><option>English</option><option>Telugu</option></Select>
+            <Select className="input" value={data.preferred_language || 'English'} onChange={(e) => onChange({ ...data, preferred_language: e.target.value })}><option value="English">{tr("English")}</option><option value="Telugu">{tr("Telugu")}</option></Select>
           </div>
           <div><label className="label"><T>Status</T></label>
-            <Select className="input" value={data.status || 'Active'} onChange={(e) => onChange({ ...data, status: e.target.value })}><option>Active</option><option>Inactive</option></Select>
+            <Select className="input" value={data.status || 'Active'} onChange={(e) => onChange({ ...data, status: e.target.value })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
           </div>
         </div>
         {err && <p className="text-[0.8125rem] text-red-600 mt-3">{err}</p>}
         <div className="flex justify-end gap-2 mt-5">
           <button type="button" onClick={onClose} className="btn-outline"><T>Cancel</T></button>
-          <button disabled={busy} className="btn-maroon disabled:opacity-60">{busy ? 'Saving…' : 'Save Changes'}</button>
+          <button disabled={busy} className="btn-maroon disabled:opacity-60">{busy ? tr('Saving…') : tr('Save Changes')}</button>
         </div>
       </form>
     </div>

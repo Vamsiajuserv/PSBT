@@ -5,7 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam,
+from ..models import (User, Booking, Donation, HundiCollection, Auction, Annadanam,
                       WasteSale, Devotee, AuditLog, Festival)
 from ..schemas import AuditOut
 from ..security import get_current_user, RequireModule
@@ -156,22 +156,33 @@ def dashboard(start: str = "", end: str = "", day: str = "",
     pend_ver = db.query(func.count(HundiCollection.id)).filter(
         HundiCollection.verification_status == "Pending Verification").scalar() or 0
     if pend_ver:
-        alerts.append({"type": "hundi", "text": f"{pend_ver} hundi collection(s) awaiting committee verification"})
+        # `text` stays for any non-UI consumer; `key`/`params` let the client
+        # build the sentence in the reader's language. A sentence assembled
+        # here can only ever be English.
+        alerts.append({"type": "hundi", "key": "hundi_pending_verification",
+                       "params": {"count": pend_ver},
+                       "text": f"{pend_ver} hundi collection(s) awaiting committee verification"})
     pend_dep = db.query(func.count(HundiCollection.id)).filter(
         HundiCollection.verification_status == "Verified",
         HundiCollection.deposit_status != "Deposited").scalar() or 0
     if pend_dep:
-        alerts.append({"type": "hundi", "text": f"{pend_dep} verified collection(s) pending bank deposit"})
+        alerts.append({"type": "hundi", "key": "hundi_pending_deposit",
+                       "params": {"count": pend_dep},
+                       "text": f"{pend_dep} verified collection(s) pending bank deposit"})
     open_auc = db.query(func.count(Auction.id)).filter(
         Auction.status.in_(["Scheduled", "In Progress"])).scalar() or 0
     if open_auc:
-        alerts.append({"type": "auction", "text": f"{open_auc} auction(s) open — record the result when concluded"})
+        alerts.append({"type": "auction", "key": "auction_open",
+                       "params": {"count": open_auc},
+                       "text": f"{open_auc} auction(s) open — record the result when concluded"})
     next_fest = (db.query(Festival).filter(Festival.status == "Active",
                                            Festival.start_date.isnot(None),
                                            Festival.start_date >= real_today)
                  .order_by(Festival.start_date).first())
     if next_fest:
-        alerts.append({"type": "donation",
+        alerts.append({"type": "donation", "key": "festival_upcoming",
+                       "params": {"festival": next_fest.name,
+                                  "date": next_fest.start_date.strftime('%d %b %Y')},
                        "text": f"{next_fest.name} begins {next_fest.start_date.strftime('%d %b %Y')} — confirm committee prices in the Festival Master"})
 
     return {
@@ -259,6 +270,16 @@ def audit_search(q: str = "", action: str = "", entity: str = "", username: str 
     total = query.count()
     rows = query.order_by(AuditLog.id.desc()).offset((page - 1) * size).limit(size).all()
     entities = [e[0] for e in db.query(AuditLog.entity).distinct().all() if e[0]]
+    # Attach the actor's display name so the trail can be read in either
+    # language. `username` is still the authoritative identity and is returned
+    # unchanged — the name is presentation only.
+    names = {u.username: (u.name, u.name_te)
+             for u in db.query(User).filter(User.username.in_({r.username for r in rows if r.username})).all()}
+    items = []
+    for r in rows:
+        d = AuditOut.model_validate(r).model_dump()
+        nm = names.get(r.username)
+        d["actor_name"], d["actor_name_te"] = (nm[0], nm[1]) if nm else (None, None)
+        items.append(d)
     return {"total": total, "page": page, "size": size,
-            "items": [AuditOut.model_validate(r).model_dump() for r in rows],
-            "entities": sorted(entities)}
+            "items": items, "entities": sorted(entities)}

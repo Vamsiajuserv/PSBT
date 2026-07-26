@@ -11,7 +11,7 @@ import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, Checkbox, NumberField } from '../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
 const VER_TONE = { Verified: 'green', 'Pending Verification': 'blue' }
@@ -32,6 +32,7 @@ const emptyForm = () => ({
 
 export default function Hundi() {
   const { user } = useAuth()
+  const { lang } = useLang()
   const canWrite = user?.role !== 'Accountant'
   const canVerify = ['Committee', 'Administrator', 'Admin'].includes(user?.role)
   const SIZE = 15
@@ -62,7 +63,7 @@ export default function Hundi() {
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
     } catch (ex) {
-      setLoadErr(ex?.detail || "Couldn't load collections — check your connection and retry.")
+      setLoadErr(ex?.detail || tr("Couldn't load collections — check your connection and retry."))
       setRows([])
     } finally {
       setLoading(false)
@@ -99,32 +100,32 @@ export default function Hundi() {
 
   async function depositCollection(h) {
     const res = await promptDialog({
-      title: `Record bank deposit — ${h.code}`,
+      title: `${tr('Record bank deposit')} — ${h.code}`,
       message: `Counted amount: ₹${h.counted_amount}`,
-      confirmLabel: 'Record Deposit',
+      confirmLabel: tr('Record Deposit'),
       fields: [
-        { k: 'bank_name', label: 'Bank name', defaultValue: h.bank_name || '', placeholder: 'e.g. SBI Punjagutta' },
-        { k: 'bank_ref', label: 'Bank reference / challan no.', note: 'Optional' },
+        { k: 'bank_name', label: tr('Bank name'), defaultValue: h.bank_name || '', placeholder: tr('e.g. SBI Punjagutta') },
+        { k: 'bank_ref', label: tr('Bank reference / challan no.'), note: tr('Optional') },
       ],
     })
     if (!res) return
-    try { await HundiAPI.deposit(h.id, { bank_name: res.bank_name.trim() || null, bank_ref: res.bank_ref.trim() || null, deposited_on: today() }); toast('Deposit recorded.'); load() }
-    catch (ex) { toast(ex.detail || 'Could not record the deposit.', 'error') }
+    try { await HundiAPI.deposit(h.id, { bank_name: res.bank_name.trim() || null, bank_ref: res.bank_ref.trim() || null, deposited_on: today() }); toast(tr('Deposit recorded.')); load() }
+    catch (ex) { toast(ex.detail || tr('Could not record the deposit.'), 'error') }
   }
   async function rejectCollection(h) {
     const res = await promptDialog({
-      title: `Flag a discrepancy — ${h.code}`,
+      title: `${tr('Flag a discrepancy')} — ${h.code}`,
       message: `Counted amount: ₹${h.counted_amount}. The collection will be marked Rejected.`,
-      tone: 'danger', confirmLabel: 'Reject Collection',
-      fields: [{ k: 'reason', label: 'Reason', required: true, placeholder: 'What is wrong with this count?' }],
+      tone: 'danger', confirmLabel: tr('Reject Collection'),
+      fields: [{ k: 'reason', label: tr('Reason'), required: true, placeholder: tr('What is wrong with this count?') }],
     })
     if (!res) return
-    try { await HundiAPI.reject(h.id, { reason: res.reason.trim() }); toast('Collection rejected.'); load() }
-    catch (ex) { toast(ex.detail || 'Could not reject this collection.', 'error') }
+    try { await HundiAPI.reject(h.id, { reason: res.reason.trim() }); toast(tr('Collection rejected.')); load() }
+    catch (ex) { toast(ex.detail || tr('Could not reject this collection.'), 'error') }
   }
   async function verify(h) {
-    try { await HundiAPI.verify(h.id); toast('Collection verified.'); load() }
-    catch (ex) { toast(ex.detail || 'Could not verify this collection.', 'error') }
+    try { await HundiAPI.verify(h.id); toast(tr('Collection verified.')); load() }
+    catch (ex) { toast(ex.detail || tr('Could not verify this collection.'), 'error') }
   }
 
   async function save(e) {
@@ -141,7 +142,7 @@ export default function Hundi() {
         value: Number(l.value || 0),
         remarks: l.remarks || null,
       }))
-    if (items.length === 0) { toast('Add at least one counted item line with a value.', 'error'); return }
+    if (items.length === 0) { toast(tr('Add at least one counted item line with a value.'), 'error'); return }
     try {
       // Verification/deposit fields are server-controlled (always born Pending) —
       // only the actual collection data is sent.
@@ -155,30 +156,30 @@ export default function Hundi() {
         committee_members: m.members.map((x) => x.trim()).filter(Boolean),
       })
       setDrawer(null); load()
-    } catch (ex) { toast(ex.detail || 'Could not save this collection.', 'error') }
+    } catch (ex) { toast(ex.detail || tr('Could not save this collection.'), 'error') }
   }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
 
-  const EXPORT_COLS = [{ key: 'code', label: 'Hundi ID' }, { key: 'collected_on', label: 'Collection Date' },
-    { key: 'counted_amount', label: 'Amount (₹)', type: 'money' }, { key: 'committee_members', label: 'Committee Members' },
-    { key: 'verification_status', label: 'Verification' }, { key: 'deposit_status', label: 'Deposit' },
-    { key: 'deposited_on', label: 'Deposit Date' }, { key: 'bank_name', label: 'Bank' }]
+  const EXPORT_COLS = [{ key: 'code', label: tr('Hundi ID') }, { key: 'collected_on', label: tr('Collection Date') },
+    { key: 'counted_amount', label: tr('Amount (₹)'), type: 'money' }, { key: 'committee_members', label: tr('Committee Members') },
+    { key: 'verification_status', label: tr('Verification') }, { key: 'deposit_status', label: tr('Deposit') },
+    { key: 'deposited_on', label: tr('Deposit Date') }, { key: 'bank_name', label: tr('Bank') }]
   const exportRows = rows
   const exportTotal = { code: 'Total', counted_amount: rows.reduce((s, h) => s + Number(h.counted_amount || 0), 0) }
   return (
     <div>
-      <PageTitle title={tr("Hundi Management")} subtitle="Manage physical hundi collections from the temple, counting, verification and bank deposits."
+      <PageTitle title={tr("Hundi Management")} subtitle={tr("Manage physical hundi collections from the temple, counting, verification and bank deposits.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Hundi Collection Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record New Collection</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={HandCoins} color="#059669" bg="bg-emerald-50" title={tr("Latest Collection")}
           value={stats ? inr(stats.latest_amount) : '—'} sub={stats?.latest_date ? fmtDate(stats.latest_date) : '—'} />
         <StatTile icon={IndianRupee} color="#7c3aed" bg="bg-violet-50" title={tr("This Month Collections")}
-          value={stats ? inr(stats.month_amount) : '—'} sub={stats ? `${num(stats.month_count)} Collections` : ''} />
+          value={stats ? inr(stats.month_amount) : '—'} sub={stats ? `${num(stats.month_count)} ${tr("Collections")}` : ''} />
         <StatTile icon={Landmark} color="#d97706" bg="bg-amber-50" title={tr("Deposited This Month")}
-          value={stats ? inr(stats.deposited_month_amount) : '—'} sub={stats ? `${num(stats.deposited_month_count)} Deposits` : ''} />
+          value={stats ? inr(stats.deposited_month_amount) : '—'} sub={stats ? `${num(stats.deposited_month_count)} ${tr("Deposits")}` : ''} />
         <StatTile icon={CalendarClock} color="#2563eb" bg="bg-blue-50" title={tr("Pending Deposit")}
-          value={stats ? inr(stats.pending_amount) : '—'} sub={stats ? `${num(stats.pending_count)} Collections` : ''} />
+          value={stats ? inr(stats.pending_amount) : '—'} sub={stats ? `${num(stats.pending_count)} ${tr("Collections")}` : ''} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -193,11 +194,11 @@ export default function Hundi() {
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Verification Status</T></label>
-            <Select value={verification} onChange={(e) => setVerification(e.target.value)} className="input"><option value="">All</option><option>Verified</option><option>Pending Verification</option></Select>
+            <Select value={verification} onChange={(e) => setVerification(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Verified">{tr("Verified")}</option><option value="Pending Verification">{tr("Pending Verification")}</option></Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Deposit Status</T></label>
-            <Select value={deposit} onChange={(e) => setDeposit(e.target.value)} className="input"><option value="">All</option><option>Deposited</option><option>Pending Deposit</option></Select>
+            <Select value={deposit} onChange={(e) => setDeposit(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Deposited">{tr("Deposited")}</option><option value="Pending Deposit">{tr("Pending Deposit")}</option></Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Reference No.</T></label>
@@ -213,7 +214,7 @@ export default function Hundi() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Hundi ID', 'Collection Date', 'Total Amount (₹)', 'Committee Members', 'Verification Status', 'Deposit Status', 'Deposit Date', 'Bank Name', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['Hundi ID', 'Collection Date', 'Total Amount (₹)', 'Committee Members', 'Verification Status', 'Deposit Status', 'Deposit Date', 'Bank Name', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((h) => (
@@ -221,11 +222,11 @@ export default function Hundi() {
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{h.code}</td>
                   <td className="px-4 py-3 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDate(h.collected_on)}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{inr(h.counted_amount)}</td>
-                  <td className="px-4 py-3 text-gray-600">{memberCount(h.committee_members)} Members</td>
+                  <td className="px-4 py-3 text-gray-600">{memberCount(h.committee_members)} {tr("Members")}</td>
                   <td className="px-4 py-3"><Pill tone={VER_TONE[h.verification_status] || 'gray'}>{h.verification_status}</Pill></td>
                   <td className="px-4 py-3"><Pill tone={DEP_TONE[h.deposit_status] || 'gray'}>{h.deposit_status}</Pill></td>
                   <td className="px-4 py-3 text-gray-600 text-[0.8125rem]">{h.deposited_on ? fmtDate(h.deposited_on) : <span className="text-gray-300">-</span>}</td>
-                  <td className="px-4 py-3 text-gray-600 text-[0.8125rem]">{h.bank_name || <span className="text-gray-300">-</span>}</td>
+                  <td className="px-4 py-3 text-gray-600 text-[0.8125rem]">{h.bank_name ? tr(h.bank_name) : <span className="text-gray-300">-</span>}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setView(h)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
@@ -242,12 +243,12 @@ export default function Hundi() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty="No collections recorded." />}
+              {rows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty={tr("No collections recorded.")} />}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit="collections" />
+          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit={tr("collections")} />
         </div>
       </div>
 
@@ -264,7 +265,7 @@ export default function Hundi() {
             <div className="px-6 py-5 space-y-6 flex-1">
               <DSection n="1" icon={FileText} title={tr("Collection Details")}>
                 <div><label className="label"><T>Collection Date *</T></label><DateField required className="input" value={drawer.collected_on} onChange={(e) => setM({ collected_on: e.target.value })} /></div>
-                <div><label className="label"><T>Reference No.</T></label><input disabled className="input bg-gray-50" value="Auto-generated on save" /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Auto generated</T></div></div>
+                <div><label className="label"><T>Reference No.</T></label><input disabled className="input bg-gray-50" value={tr("Auto-generated on save")} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Auto generated</T></div></div>
               </DSection>
 
               <DSection n="2" icon={Calculator} title={tr("Counting Details")}>
@@ -278,7 +279,7 @@ export default function Hundi() {
                       <div key={i} className="border border-gray-200 rounded-lg p-2.5 space-y-2 bg-gray-50/40">
                         <div className="flex items-center gap-2">
                           <Select className="input !py-1.5 text-[0.78125rem] flex-1" value={l.hundi_item_id} onChange={(e) => pickItem(i, e.target.value)}>
-                            <option value="">Select item…</option>
+                            <option value="">{tr("Select item…")}</option>
                             {itemMaster.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}
                           </Select>
                           <button type="button" onClick={() => removeLine(i)} disabled={drawer.lines.length <= 1} title={tr("Remove line")}
@@ -301,10 +302,10 @@ export default function Hundi() {
                 </div>
                 <div><label className="label"><T>Counting Completed On *</T></label><DateTimeField required value={drawer.counting_completed_on} onChange={(e) => setM({ counting_completed_on: e.target.value })} /></div>
                 <div><label className="label"><T>Denomination *</T></label>
-                  <Select className="input" value={drawer.denomination} onChange={(e) => setM({ denomination: e.target.value })}>{DENOMINATIONS.map((d) => <option key={d}>{d}</option>)}</Select></div>
+                  <Select className="input" value={drawer.denomination} onChange={(e) => setM({ denomination: e.target.value })}>{DENOMINATIONS.map((d) => <option key={d} value={d}>{tr(d)}</option>)}</Select></div>
                 <div className="col-span-2"><label className="label"><T>Officer</T></label>
                   <Select className="input" value={drawer.officer} onChange={(e) => setM({ officer: e.target.value })}>
-                    <option value="">Select…</option>{committeeNames.map((n) => <option key={n}>{n}</option>)}
+                    <option value="">{tr('Select…')}</option>{committeeNames.map((n) => <option key={n}>{n}</option>)}
                   </Select></div>
               </DSection>
 
@@ -318,12 +319,12 @@ export default function Hundi() {
                   {committee.map((c) => (
                     <label key={c.id} className="flex items-center gap-2.5 px-3 py-2 text-[0.8125rem] text-gray-700 hover:bg-gray-50 cursor-pointer">
                       <Checkbox checked={drawer.members.includes(c.name)} onChange={() => toggleMember(c.name)} />
-                      <span className="flex-1">{c.name}</span>
-                      {c.designation && <span className="text-[0.6875rem] text-gray-400">{c.designation}</span>}
+                      <span className="flex-1">{personName(c, lang)}</span>
+                      {c.designation && <span className="text-[0.6875rem] text-gray-400">{tr(c.designation)}</span>}
                     </label>
                   ))}
                 </div>
-                <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2 mt-3"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" /> Select committee members who were present during counting. {drawer.members.length} selected.</div>
+                <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2 mt-3"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Select committee members who were present during counting.</T>{' '}{drawer.members.length} {tr('selected.')}</div>
               </div>
 
               {/* Verification & deposit are deliberately NOT set here: the server records
@@ -331,8 +332,11 @@ export default function Hundi() {
                   verifies it from the list, and the bank deposit is recorded after
                   verification via the Deposit action. */}
               <div className="bg-amber-50/70 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2">
-                <Info size={15} className="text-amber-600 shrink-0 mt-0.5" /><T>New collections are recorded as</T>{' '}<b>&nbsp;Pending Verification&nbsp;</b>. A different committee
-                member verifies from the list; the bank deposit is recorded after verification (Deposit action).
+                <Info size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  <T>New collections are recorded as</T>{' '}<b>&nbsp;{tr('Pending Verification')}&nbsp;</b>.{' '}
+                  <T>A different committee member verifies from the list; the bank deposit is recorded after verification (Deposit action).</T>
+                </span>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
@@ -355,11 +359,11 @@ export default function Hundi() {
             </div>
             <div className="px-6 py-5 space-y-6 flex-1">
               <DSection n="1" icon={FileText} title={tr("Collection Details")}>
-                <VField label="Collection Date" value={fmtDate(view.collected_on)} />
-                <VField label="Counting Completed" value={fmtStamp(view.counting_completed_on)} />
-                <VField label="Total Amount Counted" value={inr(view.counted_amount)} />
-                <VField label="Committee Members" value={`${memberCount(view.committee_members)} Members`} />
-                <VField label="Members" value={view.committee_members || '—'} wide />
+                <VField label={tr("Collection Date")} value={fmtDate(view.collected_on)} />
+                <VField label={tr("Counting Completed")} value={fmtStamp(view.counting_completed_on)} />
+                <VField label={tr("Total Amount Counted")} value={inr(view.counted_amount)} />
+                <VField label={tr("Committee Members")} value={`${memberCount(view.committee_members)} ${tr("Members")}`} />
+                <VField label={tr("Members")} value={view.committee_members || '—'} wide />
               </DSection>
               {Array.isArray(view.items) && view.items.length > 0 && (
                 <div>
@@ -388,16 +392,16 @@ export default function Hundi() {
                 </div>
               )}
               <DSection n="2" icon={ShieldCheck} title={tr("Verification")}>
-                <VField label="Status" value={<Pill tone={VER_TONE[view.verification_status]}>{view.verification_status}</Pill>} />
-                <VField label="Verified By" value={view.verified_by || '—'} />
-                <VField label="Verified On" value={view.verified_on ? fmtStamp(view.verified_on) : '—'} wide />
+                <VField label={tr("Status")} value={<Pill tone={VER_TONE[view.verification_status]}>{tr(view.verification_status)}</Pill>} />
+                <VField label={tr("Verified By")} value={view.verified_by ? personName({ name: view.verified_by }, lang) : '—'} />
+                <VField label={tr("Verified On")} value={view.verified_on ? fmtStamp(view.verified_on) : '—'} wide />
               </DSection>
               <DSection n="3" icon={Building2} title={tr("Deposit")}>
-                <VField label="Status" value={<Pill tone={DEP_TONE[view.deposit_status]}>{view.deposit_status}</Pill>} />
-                <VField label="Deposit Date" value={view.deposited_on ? fmtDate(view.deposited_on) : '—'} />
-                <VField label="Bank Name" value={view.bank_name || '—'} wide />
-                <VField label="Challan / Reference" value={view.bank_ref || '—'} wide />
-                <VField label="Attachment" value={view.attachment || '—'} wide />
+                <VField label={tr("Status")} value={<Pill tone={DEP_TONE[view.deposit_status]}>{tr(view.deposit_status)}</Pill>} />
+                <VField label={tr("Deposit Date")} value={view.deposited_on ? fmtDate(view.deposited_on) : '—'} />
+                <VField label={tr("Bank Name")} value={view.bank_name ? tr(view.bank_name) : '—'} wide />
+                <VField label={tr("Challan / Reference")} value={view.bank_ref || '—'} wide />
+                <VField label={tr("Attachment")} value={view.attachment || '—'} wide />
               </DSection>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">

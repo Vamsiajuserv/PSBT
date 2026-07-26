@@ -15,7 +15,7 @@ export default function AuditLog() {
 
   return (
     <div>
-      <PageHeader title={tr("Audit Log")} subtitle="Immutable trail of all staff actions — who, what, when"
+      <PageHeader title={tr("Audit Log")} subtitle={tr("Immutable trail of all staff actions — who, what, when")}
         action={<button onClick={load} className="btn-outline"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />{' '}<T>Refresh</T></button>} />
       <Table columns={['Timestamp', 'User', 'Action', 'Entity', 'Detail', 'Status', 'IP']}>
         {rows.map((a) => (

@@ -88,7 +88,7 @@ def devotee_history(did: int, db: Session = Depends(get_db), user=Depends(read))
     bookings = db.query(Booking).filter(Booking.devotee_id == did).order_by(Booking.id.desc()).all()
     donations = db.query(Donation).filter(Donation.devotee_id == did, Donation.voided.isnot(True)).order_by(Donation.id.desc()).all()
     return {
-        "devotee": {"id": d.id, "code": d.code, "name": d.name, "mobile": d.mobile},
+        "devotee": {"id": d.id, "code": d.code, "name": d.name, "name_te": d.name_te, "mobile": d.mobile},
         "bookings": [{"booking_code": b.booking_code, "pooja": b.seva_name, "plan": b.plan_name,
                       "amount": float(b.amount), "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
                       "status": b.status, "receipt_no": b.receipt_no} for b in bookings],
@@ -125,7 +125,7 @@ def devotee_detail(did: int, db: Session = Depends(get_db), user=Depends(read)):
 
     return {
         "devotee": {
-            "id": d.id, "code": d.code, "name": d.name, "mobile": d.mobile, "email": d.email,
+            "id": d.id, "code": d.code, "name": d.name, "name_te": d.name_te, "mobile": d.mobile, "email": d.email,
             "address": d.address, "city": d.city, "gothram": d.gothram, "nakshatram": d.nakshatram,
             "preferred_language": d.preferred_language, "status": d.status,
             "registered_on": str(d.registered_on) if d.registered_on else None,

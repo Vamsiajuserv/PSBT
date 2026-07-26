@@ -10,7 +10,7 @@
 // empty form submit via an invisible proxy input that focuses open the widget.
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr } from '../../i18n/LanguageContext.jsx'
 import {
   ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Calendar as CalendarIcon, Check, Clock, Search, X,
@@ -242,14 +242,16 @@ const fmt = (s) => {
   if (!s) return ''
   const [y, m, d] = s.split('-').map(Number)
   if (!y || !m || !d) return s
+  // The month is a word and translates; the numerals are data.
   return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    .replace(/[A-Za-z]{3,}/g, (w) => tr(w))
 }
 const fmt12 = (t) => {
   if (!t) return ''
   const [h, m] = t.split(':').map(Number)
   if (Number.isNaN(h)) return t
   const ap = h >= 12 ? 'PM' : 'AM'
-  return `${String(h % 12 || 12).padStart(2, '0')}:${String(m || 0).padStart(2, '0')} ${ap}`
+  return `${String(h % 12 || 12).padStart(2, '0')}:${String(m || 0).padStart(2, '0')} ${tr(ap)}`
 }
 const nowHHMM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -285,20 +287,20 @@ function CalendarPanel({ value, min, max, onPick }) {
     <div style={{ minWidth: 232 }}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex">
-          <NavBtn onClick={() => (mode === 'years' ? setView((v) => ({ ...v, y: v.y - 12 })) : nav(-1, 0))} label="Previous year"><ChevronsLeft size={15} /></NavBtn>
-          {mode === 'days' && <NavBtn onClick={() => nav(0, -1)} label="Previous month"><ChevronLeft size={15} /></NavBtn>}
+          <NavBtn onClick={() => (mode === 'years' ? setView((v) => ({ ...v, y: v.y - 12 })) : nav(-1, 0))} label={tr("Previous year")}><ChevronsLeft size={15} /></NavBtn>
+          {mode === 'days' && <NavBtn onClick={() => nav(0, -1)} label={tr("Previous month")}><ChevronLeft size={15} /></NavBtn>}
         </div>
         <button
           type="button"
           onClick={() => setMode((m) => (m === 'days' ? 'years' : 'days'))}
-          title="Jump to a year"
+          title={tr("Jump to a year")}
           className="text-[0.8125rem] font-bold text-maroon-800 rounded-lg px-2 py-0.5 hover:bg-gold-100 transition-colors"
         >
-          {mode === 'days' ? `${MONTHS[view.m]} ${view.y}` : `${view.y - 5} – ${view.y + 6}`}
+          {mode === 'days' ? `${tr(MONTHS[view.m])} ${view.y}` : `${view.y - 5} – ${view.y + 6}`}
         </button>
         <div className="flex">
-          {mode === 'days' && <NavBtn onClick={() => nav(0, 1)} label="Next month"><ChevronRight size={15} /></NavBtn>}
-          <NavBtn onClick={() => (mode === 'years' ? setView((v) => ({ ...v, y: v.y + 12 })) : nav(1, 0))} label="Next year"><ChevronsRight size={15} /></NavBtn>
+          {mode === 'days' && <NavBtn onClick={() => nav(0, 1)} label={tr("Next month")}><ChevronRight size={15} /></NavBtn>}
+          <NavBtn onClick={() => (mode === 'years' ? setView((v) => ({ ...v, y: v.y + 12 })) : nav(1, 0))} label={tr("Next year")}><ChevronsRight size={15} /></NavBtn>
         </div>
       </div>
       {mode === 'years' && (
@@ -319,7 +321,7 @@ function CalendarPanel({ value, min, max, onPick }) {
       )}
       {mode === 'days' && (<>
         <div className="grid grid-cols-7 mb-1">
-          {DOW.map((d) => <div key={d} className="h-7 grid place-items-center text-[0.625rem] font-bold uppercase text-maroon-700/50">{d}</div>)}
+          {DOW.map((d) => <div key={d} className="h-7 grid place-items-center text-[0.625rem] font-bold uppercase text-maroon-700/50">{tr(d)}</div>)}
         </div>
         <div className="grid grid-cols-7 gap-y-0.5">
           {cells.map((d, i) => {
@@ -427,7 +429,7 @@ function FieldTrigger({ triggerRef, open, setOpen, disabled, title, className, l
   )
 }
 
-export function DateField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder = 'Select date', title }) {
+export function DateField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder = tr('Select date'), title }) {
   const { t } = useLang()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
@@ -469,7 +471,7 @@ export function DateField({ value, onChange, min, max, required = false, disable
 }
 
 // Time-only field — value is 24h "HH:MM" like a native <input type="time">.
-export function TimeField({ value, onChange, required = false, disabled = false, className = '', placeholder = 'Select time', title }) {
+export function TimeField({ value, onChange, required = false, disabled = false, className = '', placeholder = tr('Select time'), title }) {
   const { t } = useLang()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
@@ -507,7 +509,7 @@ export function TimeField({ value, onChange, required = false, disabled = false,
 // Combined date + time — value is "YYYY-MM-DDTHH:MM" like a native
 // <input type="datetime-local">. Picking either part fills the other with a
 // sensible default (today / the current time) so the value is always complete.
-export function DateTimeField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder = 'Select date & time', title }) {
+export function DateTimeField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder = tr('Select date & time'), title }) {
   const { t } = useLang()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)

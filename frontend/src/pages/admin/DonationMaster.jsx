@@ -56,43 +56,43 @@ export default function DonationMaster() {
     else await DonationCategoriesAPI.update(d.id, d)
     setDrawer(null); load()
   }
-  async function remove(c) { if (await confirmDialog({ title: `Delete category "${c.name}"?`, message: 'This cannot be undone.', tone: 'danger', confirmLabel: 'Delete' })) { await DonationCategoriesAPI.remove(c.id); toast('Category deleted.'); load() } }
+  async function remove(c) { if (await confirmDialog({ title: `Delete category "${c.name}"?`, message: 'This cannot be undone.', tone: 'danger', confirmLabel: tr('Delete') })) { await DonationCategoriesAPI.remove(c.id); toast('Category deleted.'); load() } }
 
   const dtype = drawer?.data.type
 
   return (
     <div>
-      <PageTitle title={tr("Donation Master")} subtitle="Maintain and configure donation categories used for cash donations, material donations and sponsorships."
+      <PageTitle title={tr("Donation Master")} subtitle={tr("Maintain and configure donation categories used for cash donations, material donations and sponsorships.")}
         actions={canWrite && <button onClick={() => setDrawer({ mode: 'create', data: emptyCat() })} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Category</T></button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={HandHeart} color="#059669" bg="bg-emerald-50" title={tr("Total Categories")} value={stats ? num(stats.total) : '—'} sub="Active Donation Categories" />
-        <StatTile icon={Coins} color="#d97706" bg="bg-amber-50" title={tr("Cash Categories")} value={stats ? num(stats.cash) : '—'} sub="Cash Donation Categories" />
-        <StatTile icon={Package} color="#2563eb" bg="bg-blue-50" title={tr("Material Categories")} value={stats ? num(stats.material) : '—'} sub="Material Donation Categories" />
-        <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("Sponsorship Categories")} value={stats ? num(stats.sponsorship) : '—'} sub="Sponsorship Categories" />
+        <StatTile icon={HandHeart} color="#059669" bg="bg-emerald-50" title={tr("Total Categories")} value={stats ? num(stats.total) : '—'} sub={tr("Active Donation Categories")} />
+        <StatTile icon={Coins} color="#d97706" bg="bg-amber-50" title={tr("Cash Categories")} value={stats ? num(stats.cash) : '—'} sub={tr("Cash Donation Categories")} />
+        <StatTile icon={Package} color="#2563eb" bg="bg-blue-50" title={tr("Material Categories")} value={stats ? num(stats.material) : '—'} sub={tr("Material Donation Categories")} />
+        <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("Sponsorship Categories")} value={stats ? num(stats.sponsorship) : '—'} sub={tr("Sponsorship Categories")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 flex flex-col lg:flex-row lg:items-end gap-4">
           <div className="flex-1 max-w-xs relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search by Category Name…")} className="input !pl-9" /></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Type</T></label><Select value={type} onChange={(e) => setType(e.target.value)} className="input !w-40"><option value="">All</option><option>Cash</option><option>Material</option><option>Sponsorship</option></Select></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label><Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">All</option><option>Active</option><option>Inactive</option></Select></div>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Type</T></label><Select value={type} onChange={(e) => setType(e.target.value)} className="input !w-40"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="Material">{tr("Material")}</option><option value="Sponsorship">{tr("Sponsorship")}</option></Select></div>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label><Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">{tr("All")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
           <div className="flex gap-2 lg:ml-auto"><button onClick={() => { setQ(''); setType(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button><button className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button></div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Category ID', 'Category Name', 'Type', 'Unit / Measurement', 'Quantity Required', 'Status', 'Actions'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['Category ID', 'Category Name', 'Type', 'Unit / Measurement', 'Quantity Required', 'Status', 'Actions'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50/60">
                   <td className="px-5 py-3.5 font-mono text-[0.75rem] text-gray-500">{c.code}</td>
-                  <td className="px-5 py-3.5 font-semibold text-gray-800">{c.name}</td>
+                  <td className="px-5 py-3.5 font-semibold text-gray-800">{tr(c.name)}</td>
                   <td className="px-5 py-3.5"><Pill tone={TYPE_TONE[c.type]}>{c.type}</Pill></td>
-                  <td className="px-5 py-3.5 text-gray-600">{c.unit || '-'}</td>
-                  <td className="px-5 py-3.5"><Pill tone={c.quantity_required ? 'green' : 'red'}>{c.quantity_required ? 'Yes' : 'No'}</Pill></td>
-                  <td className="px-5 py-3.5"><Pill tone={c.active ? 'green' : 'gray'}>{c.active ? 'Active' : 'Inactive'}</Pill></td>
+                  <td className="px-5 py-3.5 text-gray-600">{c.unit ? tr(c.unit) : '-'}</td>
+                  <td className="px-5 py-3.5"><Pill tone={c.quantity_required ? 'green' : 'red'}>{c.quantity_required ? tr('Yes') : tr('No')}</Pill></td>
+                  <td className="px-5 py-3.5"><Pill tone={c.active ? 'green' : 'gray'}>{c.active ? tr('Active') : tr('Inactive')}</Pill></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
                       {canWrite && <button onClick={() => setDrawer({ mode: 'edit', data: { ...c } })} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Pencil size={15} /></button>}
@@ -116,7 +116,7 @@ export default function DonationMaster() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <div><h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.mode === 'create' ? 'Add New Category' : 'Edit Category'}</h3>
+              <div><h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.mode === 'create' ? tr('Add New Category') : tr('Edit Category')}</h3>
                 <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Create a new donation category.</T></p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
@@ -136,8 +136,8 @@ export default function DonationMaster() {
               )}
               <div><label className="label"><T>Unit / Measurement</T></label>
                 {dtype === 'Material'
-                  ? <Select className="input" value={drawer.data.unit || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, unit: e.target.value } })}><option value="">Select…</option>{MATERIAL_UNITS.map((u) => <option key={u}>{u}</option>)}</Select>
-                  : <input disabled className="input bg-gray-50" value={dtype === 'Cash' ? 'Not applicable for Cash Donation' : 'Not applicable for Sponsorship'} />}
+                  ? <Select className="input" value={drawer.data.unit || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, unit: e.target.value } })}><option value="">{tr("Select…")}</option>{MATERIAL_UNITS.map((u) => <option key={u}>{u}</option>)}</Select>
+                  : <input disabled className="input bg-gray-50" value={dtype === 'Cash' ? tr('Not applicable for Cash Donation') : 'Not applicable for Sponsorship'} />}
               </div>
               <div><label className="label"><T>Quantity Required</T></label>
                 <div className="flex gap-5 mt-1">{['Yes', 'No'].map((y) => (
@@ -145,7 +145,7 @@ export default function DonationMaster() {
                 ))}</div>
                 {dtype !== 'Material' && <div className="text-[0.6875rem] text-gray-400 mt-1">Quantity is not required for {dtype.toLowerCase()} donation categories.</div>}
               </div>
-              <div><label className="label"><T>Status *</T></label><Select className="input" value={drawer.data.active ? 'Active' : 'Inactive'} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, active: e.target.value === 'Active' } })}><option>Active</option><option>Inactive</option></Select></div>
+              <div><label className="label"><T>Status *</T></label><Select className="input" value={drawer.data.active ? tr('Active') : tr('Inactive')} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, active: e.target.value === 'Active' } })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>

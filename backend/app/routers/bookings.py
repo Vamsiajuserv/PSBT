@@ -29,6 +29,15 @@ def _booking_notify(db, b, event, user):
         entity="Booking", entity_id=b.id, created_by=getattr(user, "username", None))
 
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
+
+def devotee_name_te(db, devotee_id):
+    """Telugu spelling from the devotee record, or None. Bookings store the name
+    as text at booking time, so the twin has to be looked up."""
+    if not devotee_id:
+        return None
+    d = db.query(Devotee.name_te).filter(Devotee.id == devotee_id).first()
+    return d[0] if d else None
+
 read = RequireModule("Bookings")
 bill = RequireModule("Counter", write=True)   # billing counter
 
@@ -114,8 +123,16 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
         query = query.filter(func.date(Booking.created_at) <= end)
     total = query.count()
     rows = query.order_by(*order).offset((page - 1) * size).limit(size).all()
-    return {"total": total, "page": page, "size": size,
-            "items": [BookingOut.model_validate(r).model_dump() for r in rows]}
+    # The booking stores the devotee's name as text at booking time; the Telugu
+    # spelling lives on the devotee record, so attach it for display.
+    te = {d.id: d.name_te for d in db.query(Devotee)
+          .filter(Devotee.id.in_({r.devotee_id for r in rows if r.devotee_id})).all()}
+    items = []
+    for r in rows:
+        d = BookingOut.model_validate(r).model_dump()
+        d["devotee_name_te"] = te.get(r.devotee_id)
+        items.append(d)
+    return {"total": total, "page": page, "size": size, "items": items}
 
 
 @router.post("", response_model=BookingOut, status_code=201)
@@ -275,7 +292,8 @@ def lookup_ticket(ticket: str, db: Session = Depends(get_db), user=Depends(read)
         visits, last_visit = (cnt or 0), (str(last) if last else None)
     return {
         "id": b.id, "booking_code": b.booking_code, "ticket_no": b.ticket_no or b.receipt_no,
-        "devotee_name": b.devotee_name, "mobile": b.mobile,
+        "devotee_name": b.devotee_name,
+        "devotee_name_te": devotee_name_te(db, b.devotee_id), "mobile": b.mobile,
         "pooja": b.seva_name, "plan": b.plan_name, "category": b.category,
         "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
         "time_slot": b.time_slot, "status": b.status, "payment_status": b.payment_status,

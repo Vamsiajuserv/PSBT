@@ -27,14 +27,15 @@ function catsOf(p) {
 }
 function validityDisplay(p) {
   const types = [...new Set(p.plans.map((pl) => pl.validity_type).filter(Boolean))]
-  const label = types.join(', ')
-  return p.plans.length > 1 ? `${label} (Plan Based)` : label
+  // Each validity type is a word of its own; the "(Plan Based)" suffix is too.
+  const label = types.map((x) => tr(x)).join(', ')
+  return p.plans.length > 1 ? `${label} (${tr('Plan Based')})` : label
 }
 function rateLines(p) {
   if (p.plans.length === 0) return ['—']
-  if (p.plans.every((pl) => pl.committee_decided)) return ['Committee Decided']
-  if (p.plans.length === 1) return [p.plans[0].committee_decided ? 'Committee Decided' : `₹${num(p.plans[0].fee)}`]
-  return p.plans.map((pl) => `${pl.plan_name} ${pl.committee_decided ? '—' : '₹' + num(pl.fee)}`)
+  if (p.plans.every((pl) => pl.committee_decided)) return [tr('Committee Decided')]
+  if (p.plans.length === 1) return [p.plans[0].committee_decided ? tr('Committee Decided') : `₹${num(p.plans[0].fee)}`]
+  return p.plans.map((pl) => `${tr(pl.plan_name)} ${pl.committee_decided ? '—' : '₹' + num(pl.fee)}`)
 }
 const emptyPlan = () => ({ plan_name: '', frequency: '', rate_type: 'Fixed', fee: '', validity_type: '', validity_value: '', validity_unit: '', active: true })
 
@@ -86,7 +87,7 @@ export default function PoojaMaster() {
     } })
   }
   async function remove(p) {
-    if (!(await confirmDialog({ title: `Delete pooja "${p.name}"?`, message: 'This cannot be undone. Poojas with bookings must be marked Inactive instead.', tone: 'danger', confirmLabel: 'Delete' }))) return
+    if (!(await confirmDialog({ title: `Delete pooja "${p.name}"?`, message: 'This cannot be undone. Poojas with bookings must be marked Inactive instead.', tone: 'danger', confirmLabel: tr('Delete') }))) return
     try { await PoojasAPI.remove(p.id); toast('Pooja deleted.'); load() }
     catch (ex) { toast(ex?.detail || 'Could not delete this pooja.', 'error') }
   }
@@ -118,7 +119,7 @@ export default function PoojaMaster() {
 
   return (
     <div>
-      <PageTitle title={tr("Pooja Master")} subtitle="Configure and manage temple poojas, available plans, rates, and validity"
+      <PageTitle title={tr("Pooja Master")} subtitle={tr("Configure and manage temple poojas, available plans, rates, and validity")}
         actions={canWrite && <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Pooja</T></button>} />
 
       <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-4 py-2.5 mb-5 text-[0.8125rem] text-gray-600 flex items-center gap-2">
@@ -126,11 +127,11 @@ export default function PoojaMaster() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
-        <StatTile icon={Flame} color="#ea580c" bg="bg-orange-50" title={tr("Total Poojas")} value={stats ? num(stats.total_poojas) : '—'} sub="Configured poojas" />
-        <StatTile icon={Layers} color="#059669" bg="bg-emerald-50" title={tr("Total Plans")} value={stats ? num(stats.total_plans) : '—'} sub="Across all poojas" />
-        <StatTile icon={CalendarCheck} color="#d97706" bg="bg-amber-50" title={tr("Active Plans")} value={stats ? num(stats.active_plans) : '—'} sub="Currently available" />
-        <StatTile icon={Clock} color="#7c3aed" bg="bg-violet-50" title={tr("Life Long Plans")} value={stats ? num(stats.life_long_plans) : '—'} sub="Long-term poojas" />
-        <StatTile icon={LayoutGrid} color="#2563eb" bg="bg-blue-50" title={tr("Pooja Categories")} value={stats ? num(stats.categories) : '—'} sub="Official categories" />
+        <StatTile icon={Flame} color="#ea580c" bg="bg-orange-50" title={tr("Total Poojas")} value={stats ? num(stats.total_poojas) : '—'} sub={tr("Configured poojas")} />
+        <StatTile icon={Layers} color="#059669" bg="bg-emerald-50" title={tr("Total Plans")} value={stats ? num(stats.total_plans) : '—'} sub={tr("Across all poojas")} />
+        <StatTile icon={CalendarCheck} color="#d97706" bg="bg-amber-50" title={tr("Active Plans")} value={stats ? num(stats.active_plans) : '—'} sub={tr("Currently available")} />
+        <StatTile icon={Clock} color="#7c3aed" bg="bg-violet-50" title={tr("Life Long Plans")} value={stats ? num(stats.life_long_plans) : '—'} sub={tr("Long-term poojas")} />
+        <StatTile icon={LayoutGrid} color="#2563eb" bg="bg-blue-50" title={tr("Pooja Categories")} value={stats ? num(stats.categories) : '—'} sub={tr("Official categories")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -140,29 +141,29 @@ export default function PoojaMaster() {
           <div className="flex flex-col lg:flex-row lg:items-end gap-3 mt-4 mb-4">
             <div className="flex-1 max-w-xs"><SearchInput value={q} onChange={(v) => { setQ(v); setPage(1) }} placeholder={tr("Search by Pooja Name")} /></div>
             <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Category</T></label>
-              <Select value={cat} onChange={(e) => { setCat(e.target.value); setPage(1) }} className="input !w-48"><option value="">All Categories</option>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.label}>{c.label}</option>)}</Select></div>
+              <Select value={cat} onChange={(e) => { setCat(e.target.value); setPage(1) }} className="input !w-48"><option value="">{tr("All Categories")}</option>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.label}>{c.label}</option>)}</Select></div>
             <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-              <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }} className="input !w-40"><option value="">All Status</option><option>Active</option><option>Inactive</option></Select></div>
+              <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }} className="input !w-40"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
             <button onClick={() => { setQ(''); setCat(''); setStatus(''); setPage(1) }} className="text-[0.8125rem] font-semibold text-maroon-600 flex items-center gap-1.5 lg:ml-auto pb-2.5"><RotateCcw size={14} />{' '}<T>Reset Filters</T></button>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Pooja Name', 'Category', 'Available Plans', 'Rate', 'Validity Type', 'Status', 'Actions'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['Pooja Name', 'Category', 'Available Plans', 'Rate', 'Validity Type', 'Status', 'Actions'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50/60 align-top">
-                  <td className="px-5 py-3.5"><div className="font-semibold text-gray-800">{p.name}</div><div className="text-[0.6875rem] font-mono text-gray-400">{p.code}</div></td>
-                  <td className="px-5 py-3.5"><div className="flex flex-wrap gap-1">{catsOf(p).map((c) => <span key={c} className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-maroon-50 text-maroon-700">{c}</span>)}</div></td>
+                  <td className="px-5 py-3.5"><div className="font-semibold text-gray-800">{tr(p.name)}</div><div className="text-[0.6875rem] font-mono text-gray-400">{p.code}</div></td>
+                  <td className="px-5 py-3.5"><div className="flex flex-wrap gap-1">{catsOf(p).map((c) => <span key={c} className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-maroon-50 text-maroon-700">{tr(c)}</span>)}</div></td>
                   <td className="px-5 py-3.5"><div className="flex flex-wrap gap-1">
-                    {p.plans.slice(0, 3).map((pl) => <span key={pl.id ?? pl.plan_name} className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-blue-50 text-blue-700">{pl.plan_name}</span>)}
-                    {p.plans.length > 3 && <span className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-gray-100 text-gray-500">+{p.plans.length - 3} More</span>}
+                    {p.plans.slice(0, 3).map((pl) => <span key={pl.id ?? pl.plan_name} className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-blue-50 text-blue-700">{tr(pl.plan_name)}</span>)}
+                    {p.plans.length > 3 && <span className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-gray-100 text-gray-500">+{p.plans.length - 3} {tr('More')}</span>}
                   </div></td>
-                  <td className="px-5 py-3.5 text-[0.8125rem]">{rateLines(p).map((r, i) => <div key={i} className={r === 'Committee Decided' ? 'text-amber-600 text-[0.75rem]' : 'text-gray-700'}>{r}</div>)}</td>
+                  <td className="px-5 py-3.5 text-[0.8125rem]">{rateLines(p).map((r, i) => <div key={i} className={r === tr('Committee Decided') ? 'text-amber-600 text-[0.75rem]' : 'text-gray-700'}>{r}</div>)}</td>
                   <td className="px-5 py-3.5 text-gray-500 text-[0.8125rem]">{validityDisplay(p)}</td>
-                  <td className="px-5 py-3.5"><Pill tone={p.active ? 'green' : 'gray'}>{p.active ? 'Active' : 'Inactive'}</Pill></td>
+                  <td className="px-5 py-3.5"><Pill tone={p.active ? 'green' : 'gray'}>{p.active ? tr('Active') : tr('Inactive')}</Pill></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
                       {canWrite && <button onClick={() => openEdit(p)} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
@@ -176,7 +177,7 @@ export default function PoojaMaster() {
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <span className="text-[0.8125rem] text-gray-500">Showing {rows.length === 0 ? 0 : (page - 1) * SIZE + 1} to {Math.min(page * SIZE, filtered.length)} of {filtered.length} poojas</span>
+          <span className="text-[0.8125rem] text-gray-500">{tr('Showing')} {rows.length === 0 ? 0 : (page - 1) * SIZE + 1} {tr('to')} {Math.min(page * SIZE, filtered.length)} {tr('of')} {filtered.length} {tr('poojas')}</span>
           <div className="flex items-center gap-1.5">
             <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-500 disabled:opacity-40"><T>Previous</T></button>
             <span className="w-8 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.8125rem] font-semibold">{page}</span>
@@ -190,7 +191,7 @@ export default function PoojaMaster() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <div><h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.mode === 'create' ? 'Add New Pooja' : 'Edit Pooja'}</h3>
+              <div><h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.mode === 'create' ? tr('Add New Pooja') : tr('Edit Pooja')}</h3>
                 <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Configure pooja details and available booking plans</T></p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
@@ -225,9 +226,9 @@ export default function PoojaMaster() {
                       <div className="grid grid-cols-2 gap-3">
                         <div><label className="label"><T>Plan Name *</T></label><input required className="input" placeholder={tr("Daily / Monthly…")} value={pl.plan_name} onChange={(e) => setPlan(i, { plan_name: e.target.value })} /></div>
                         <div><label className="label"><T>Frequency / Type *</T></label><input className="input" placeholder={tr("Per Day…")} value={pl.frequency} onChange={(e) => setPlan(i, { frequency: e.target.value })} /></div>
-                        <div><label className="label"><T>Rate Type *</T></label><Select className="input" value={pl.rate_type} onChange={(e) => setPlan(i, { rate_type: e.target.value })}><option value="Fixed">Fixed Rate</option><option value="Committee">Committee Decided</option></Select></div>
+                        <div><label className="label"><T>Rate Type *</T></label><Select className="input" value={pl.rate_type} onChange={(e) => setPlan(i, { rate_type: e.target.value })}><option value="Fixed">{tr("Fixed Rate")}</option><option value="Committee">{tr("Committee Decided")}</option></Select></div>
                         <div><label className="label"><T>Rate Amount (₹)</T></label><NumberField prefix="₹" disabled={pl.rate_type === 'Committee'} placeholder={pl.rate_type === 'Committee' ? '—' : 'Amount'} value={pl.fee} onChange={(e) => setPlan(i, { fee: e.target.value })} /></div>
-                        <div><label className="label"><T>Validity Type *</T></label><Select className="input" value={pl.validity_type} onChange={(e) => setPlan(i, { validity_type: e.target.value })}><option value="">Select</option>{VALIDITY_TYPES.map((v) => <option key={v}>{v}</option>)}</Select></div>
+                        <div><label className="label"><T>Validity Type *</T></label><Select className="input" value={pl.validity_type} onChange={(e) => setPlan(i, { validity_type: e.target.value })}><option value="">{tr("Select")}</option>{VALIDITY_TYPES.map((v) => <option key={v}>{v}</option>)}</Select></div>
                         <div className="grid grid-cols-2 gap-2">
                           <div><label className="label"><T>Value</T></label><NumberField value={pl.validity_value} onChange={(e) => setPlan(i, { validity_value: e.target.value })} /></div>
                           <div><label className="label"><T>Unit</T></label><Select className="input !px-1" value={pl.validity_unit} onChange={(e) => setPlan(i, { validity_unit: e.target.value })}><option value="">—</option>{UNITS.map((u) => <option key={u}>{u}</option>)}</Select></div>

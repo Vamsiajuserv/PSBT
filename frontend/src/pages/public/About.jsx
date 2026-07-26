@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { SectionTitle, Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
 
 const PRINCIPLES = [
   { icon: Sparkles, title: 'Faith', desc: 'Strengthening faith in Sai Baba and His teachings.' },
@@ -18,14 +18,15 @@ const PRINCIPLES = [
 ]
 
 export default function About() {
+  const address = useTempleAddress()
   const site = useSite()
   const TEMPLE = site?.temple || {}
   const ABOUT = site?.about || {}
   const IMG = site?.images || {}
 
   const INFO = [
-    { icon: Landmark, label: 'Temple Name', value: TEMPLE.name },
-    { icon: MapPin, label: 'Location', value: TEMPLE.address },
+    { icon: Landmark, label: 'Temple Name', value: tr(TEMPLE.name) },
+    { icon: MapPin, label: 'Location', value: address },
     { icon: CalendarDays, label: 'Established', value: String(TEMPLE.established) },
     { icon: Clock, label: 'Timings', value: TEMPLE.timings },
     { icon: Phone, label: 'Phone', value: TEMPLE.phone },
@@ -39,8 +40,8 @@ export default function About() {
       <div className="max-w-7xl mx-auto px-4 py-12 grid lg:grid-cols-[300px_1fr_300px] gap-8">
         {/* Image */}
         <div className="card overflow-hidden h-fit">
-          <div className="aspect-[3/4] overflow-hidden"><img src={IMG.about} alt={TEMPLE.name} className="w-full h-full object-cover" loading="lazy" /></div>
-          <p className="text-xs font-semibold text-center text-maroon-700 py-3">{TEMPLE.name}</p>
+          <div className="aspect-[3/4] overflow-hidden"><img src={IMG.about} alt={tr(TEMPLE.name)} className="w-full h-full object-cover" loading="lazy" /></div>
+          <p className="text-xs font-semibold text-center text-maroon-700 py-3">{tr(TEMPLE.name)}</p>
         </div>
 
         {/* Narrative */}
@@ -85,7 +86,7 @@ export default function About() {
 
       {/* Guiding principles */}
       <section className="max-w-7xl mx-auto px-4 pb-16">
-        <SectionTitle eyebrow="Our Values" title={tr("Our Guiding Principles")} />
+        <SectionTitle eyebrow={tr("Our Values")} title={tr("Our Guiding Principles")} />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-10">
           {PRINCIPLES.map((p) => {
             const Icon = p.icon

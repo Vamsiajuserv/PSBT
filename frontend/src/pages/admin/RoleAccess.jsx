@@ -72,14 +72,14 @@ export default function RoleAccess() {
 
   return (
     <div>
-      <div className="mb-1 text-[0.75rem] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600"><T>Settings</T></Link> › <span className="text-gray-500">Role &amp; Access Management</span></div>
-      <PageTitle title={tr("Role & Access Management")} subtitle="Manage roles and configure module-level permissions." />
+      <div className="mb-1 text-[0.75rem] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600"><T>Settings</T></Link> › <span className="text-gray-500">{tr('Role & Access Management')}</span></div>
+      <PageTitle title={tr("Role & Access Management")} subtitle={tr("Manage roles and configure module-level permissions.")} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={UsersIcon} color="#7c3aed" bg="bg-violet-50" title={tr("Total Roles")} value={stats ? num(stats.total) : '—'} sub="All defined roles" />
-        <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Active Roles")} value={stats ? num(stats.active) : '—'} sub="Currently active roles" />
-        <StatTile icon={UserCog} color="#d97706" bg="bg-amber-50" title={tr("Assigned Users")} value={stats ? num(stats.assigned_users) : '—'} sub="Users mapped to roles" />
-        <StatTile icon={Lock} color="#2563eb" bg="bg-blue-50" title={tr("Inactive Roles")} value={stats ? num(stats.inactive) : '—'} sub="Currently inactive roles" />
+        <StatTile icon={UsersIcon} color="#7c3aed" bg="bg-violet-50" title={tr("Total Roles")} value={stats ? num(stats.total) : '—'} sub={tr("All defined roles")} />
+        <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Active Roles")} value={stats ? num(stats.active) : '—'} sub={tr("Currently active roles")} />
+        <StatTile icon={UserCog} color="#d97706" bg="bg-amber-50" title={tr("Assigned Users")} value={stats ? num(stats.assigned_users) : '—'} sub={tr("Users mapped to roles")} />
+        <StatTile icon={Lock} color="#2563eb" bg="bg-blue-50" title={tr("Inactive Roles")} value={stats ? num(stats.inactive) : '—'} sub={tr("Currently inactive roles")} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,1fr)_minmax(300px,1fr)_minmax(380px,1.3fr)] gap-5">
@@ -91,7 +91,7 @@ export default function RoleAccess() {
           </div>
           <div className="flex gap-2 mb-3">
             <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search roles by name…")} className="input !pl-9 text-[0.8125rem]" /></div>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-28 text-[0.8125rem]"><option value="">All Status</option><option>Active</option><option>Inactive</option></Select>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-28 text-[0.8125rem]"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
           </div>
           <div className="space-y-2">
             {loading && <div className="py-8 text-center text-gray-400 text-sm"><T>Loading…</T></div>}
@@ -107,14 +107,14 @@ export default function RoleAccess() {
               return (
                 <button key={r.id} onClick={() => pick(r.id)} className={`w-full flex items-center gap-3 text-left px-3 py-3 rounded-xl border transition-colors ${on ? 'border-maroon-300 bg-amber-50/60 ring-1 ring-maroon-100' : 'border-gray-100 hover:border-maroon-200'}`}>
                   <div className={`w-9 h-9 rounded-full grid place-items-center shrink-0 ${r.code === 'ADMINISTRATOR' ? 'bg-amber-100 text-amber-700' : 'bg-violet-50 text-violet-600'}`}><Icon size={17} /></div>
-                  <div className="flex-1 min-w-0"><div className="font-semibold text-gray-800 text-[0.84375rem]">{r.name}</div><div className="text-[0.71875rem] text-gray-400 truncate">{r.description}</div></div>
-                  <Pill tone={r.active ? 'green' : 'red'}>{r.active ? 'Active' : 'Inactive'}</Pill>
+                  <div className="flex-1 min-w-0"><div className="font-semibold text-gray-800 text-[0.84375rem]">{tr(r.name)}</div><div className="text-[0.71875rem] text-gray-400 truncate">{tr(r.description)}</div></div>
+                  <Pill tone={r.active ? 'green' : 'red'}>{r.active ? tr('Active') : tr('Inactive')}</Pill>
                   <ChevronRight size={15} className="text-gray-300 shrink-0" />
                 </button>
               )
             })}
           </div>
-          <div className="text-[0.75rem] text-gray-400 mt-3">Showing 1 to {filtered.length} of {roles.length} roles</div>
+          <div className="text-[0.75rem] text-gray-400 mt-3">{tr('Showing')} 1 {tr('to')} {filtered.length} {tr('of')} {roles.length} {tr('roles')}</div>
         </div>
 
         {/* Role Details */}
@@ -124,23 +124,23 @@ export default function RoleAccess() {
             <>
               <div className="bg-amber-50/60 border border-amber-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-700 grid place-items-center shrink-0">{sel.code === 'ADMINISTRATOR' ? <Crown size={20} /> : <UsersIcon size={20} />}</div>
-                <div className="flex-1"><div className="flex items-center gap-2"><span className="font-bold text-gray-800">{sel.name}</span><Pill tone={sel.active ? 'green' : 'red'}>{sel.active ? 'Active' : 'Inactive'}</Pill></div>
+                <div className="flex-1"><div className="flex items-center gap-2"><span className="font-bold text-gray-800">{tr(sel.name)}</span><Pill tone={sel.active ? 'green' : 'red'}>{sel.active ? tr('Active') : tr('Inactive')}</Pill></div>
                   <div className="text-[0.75rem] text-gray-500">{sel.description}</div></div>
               </div>
               <dl className="mt-4 space-y-3 text-[0.8125rem]">
-                <Row label="Role Code" value={<span className="font-mono text-gray-700">{sel.code}</span>} />
-                <div className="grid grid-cols-2 gap-3"><Row label="Created On" value={sel.created_at} /><Row label="Created By" value={sel.created_by} /></div>
-                <div className="grid grid-cols-2 gap-3"><Row label="Last Updated On" value={sel.updated_at} /><Row label="Last Updated By" value={sel.updated_by} /></div>
+                <Row label={tr("Role Code")} value={<span className="font-mono text-gray-700">{sel.code}</span>} />
+                <div className="grid grid-cols-2 gap-3"><Row label={tr("Created On")} value={sel.created_at} /><Row label={tr("Created By")} value={sel.created_by} /></div>
+                <div className="grid grid-cols-2 gap-3"><Row label={tr("Last Updated On")} value={sel.updated_at} /><Row label={tr("Last Updated By")} value={sel.updated_by} /></div>
               </dl>
               <div className="mt-4"><div className="text-[0.6875rem] text-gray-400 mb-1"><T>Role Description</T></div><div className="text-[0.8125rem] text-gray-600 leading-relaxed">{sel.description}</div></div>
 
               <div className="mt-5 pt-4 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-2"><span className="font-bold text-gray-700 text-[0.84375rem]">Assigned Users ({sel.users?.length || 0})</span><Link to="/admin/users" className="text-[0.75rem] font-semibold text-maroon-600 underline"><T>View All</T></Link></div>
+                <div className="flex items-center justify-between mb-2"><span className="font-bold text-gray-700 text-[0.84375rem]">{tr('Assigned Users')} ({sel.users?.length || 0})</span><Link to="/admin/users" className="text-[0.75rem] font-semibold text-maroon-600 underline"><T>View All</T></Link></div>
                 <table className="w-full text-sm">
                   <thead><tr className="text-left text-[0.65625rem] uppercase tracking-wide text-gray-400"><th className="py-1.5 pr-2">#</th><th className="py-1.5 pr-2"><T>User Name</T></th><th className="py-1.5 pr-2"><T>Email / Mobile</T></th><th className="py-1.5"><T>Status</T></th></tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {(sel.users || []).slice(0, 6).map((u, i) => (
-                      <tr key={u.id}><td className="py-2 pr-2 text-gray-400">{i + 1}</td><td className="py-2 pr-2 font-medium text-gray-800">{u.name}</td><td className="py-2 pr-2 text-gray-500 text-[0.75rem]">{u.email}</td><td className="py-2"><span className={`text-[0.75rem] font-semibold ${u.status === 'Active' ? 'text-emerald-600' : 'text-red-500'}`}>{u.status}</span></td></tr>
+                      <tr key={u.id}><td className="py-2 pr-2 text-gray-400">{i + 1}</td><td className="py-2 pr-2 font-medium text-gray-800">{u.name}</td><td className="py-2 pr-2 text-gray-500 text-[0.75rem]">{u.email}</td><td className="py-2"><span className={`text-[0.75rem] font-semibold ${u.status === 'Active' ? 'text-emerald-600' : 'text-red-500'}`}>{tr(u.status)}</span></td></tr>
                     ))}
                     {(!sel.users || sel.users.length === 0) && <tr><td colSpan={4} className="py-4 text-center text-gray-400 text-[0.8125rem]"><T>No users assigned.</T></td></tr>}
                   </tbody>
@@ -164,13 +164,13 @@ export default function RoleAccess() {
                   const Icon = MOD_ICON[m.key] || LayoutDashboard; const allowed = mods.includes(m.key)
                   return (
                     <tr key={m.key}>
-                      <td className="py-2.5 pr-2"><span className="flex items-center gap-2 text-[0.8125rem] font-medium text-gray-700"><Icon size={16} className="text-gray-400" /> {m.label}</span></td>
+                      <td className="py-2.5 pr-2"><span className="flex items-center gap-2 text-[0.8125rem] font-medium text-gray-700"><Icon size={16} className="text-gray-400" /> {tr(m.label)}</span></td>
                       <td className="py-2.5 px-2 text-center">
                         <button type="button" disabled={!isAdmin} onClick={() => toggle(m.key)} className={`relative w-10 h-5.5 rounded-full transition-colors inline-flex items-center ${allowed ? 'bg-emerald-500' : 'bg-gray-300'} ${!isAdmin ? 'opacity-60' : ''}`} style={{ height: 22 }}>
                           <span className={`absolute top-0.5 w-[1.125rem] h-[1.125rem] rounded-full bg-white shadow transition-all ${allowed ? 'left-[1.25rem]' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="py-2.5 pl-2 text-[0.75rem] text-gray-500">{m.description}</td>
+                      <td className="py-2.5 pl-2 text-[0.75rem] text-gray-500">{tr(m.description)}</td>
                     </tr>
                   )
                 })}

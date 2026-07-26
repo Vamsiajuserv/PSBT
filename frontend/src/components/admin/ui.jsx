@@ -1,5 +1,5 @@
 import React from 'react'
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr } from '../../i18n/LanguageContext.jsx'
 import { Search } from 'lucide-react'
 
 // Shared admin design-system primitives — matches the Dashboard / Bookings /
@@ -12,8 +12,11 @@ export const inr = (n) => {
   return '₹ ' + v.toLocaleString('en-IN', Number.isInteger(v) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 export const num = (n) => Number(n || 0).toLocaleString('en-IN')
-export const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
-export const fmtStamp = (s) => (s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
+// Dates keep their numerals — only the month token is language-dependent, so
+// translate that and leave the digits alone.
+const localiseMonth = (out) => out.replace(/[A-Za-z]{3,}/g, (mon) => tr(mon))
+export const fmtDate = (s) => (s ? localiseMonth(new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : '—')
+export const fmtStamp = (s) => (s ? localiseMonth(new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })) : '—')
 
 const PILL_TONES = {
   green: 'bg-emerald-50 text-emerald-700', amber: 'bg-amber-50 text-amber-700',
@@ -123,7 +126,7 @@ export function DataTable({ columns, children, footer }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {columns.map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {columns.map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">{children}</tbody>

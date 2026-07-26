@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { SectionTitle, CountUp } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
 
 // ── Services & offerings (informational — no online booking) ─────────────────
 const SERVICES = [
@@ -24,6 +24,7 @@ const HIGHLIGHTS = [
 
 export default function Home() {
   const { t } = useLang()
+  const address = useTempleAddress()
   const site = useSite()
   const TEMPLE = site?.temple || {}
   const IMG = site?.images || {}
@@ -35,7 +36,9 @@ export default function Home() {
   // ── Info strip below the hero ──
   const INFO = [
     { icon: Clock, title: 'Temple Timings', lines: [TEMPLE.timings, 'Everyday'] },
-    { icon: MapPin, title: 'Temple Location', lines: ['Dwarakapuri Colony,', 'Punjagutta, Hyderabad'] },
+    // Address comes from Settings (English + Telugu) — it wraps instead of
+    // truncating, since a full address is longer than the other three cards.
+    { icon: MapPin, title: 'Temple Location', lines: [address], wrap: true },
     { icon: Phone, title: 'Contact', lines: [TEMPLE.phone] },
     { icon: Mail, title: 'Email', lines: [TEMPLE.email] },
   ]
@@ -44,7 +47,7 @@ export default function Home() {
     <div>
       {/* ── Hero ── */}
       <section className="relative bg-maroon-900 text-cream overflow-hidden">
-        <img src={IMG.hero} alt="Sri Shirdi Sai Baba Temple" className="absolute inset-0 w-full h-full object-cover object-center" />
+        <img src={IMG.hero} alt={tr("Sri Shirdi Sai Baba Temple")} className="absolute inset-0 w-full h-full object-cover object-center" />
         {/* Left-anchored scrim: dark enough behind the text (which sits over a
             light wall), then clears fast so Baba — center-right — stays bright. */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(56,10,10,0.90)_0%,rgba(56,10,10,0.64)_34%,rgba(56,10,10,0.14)_58%,transparent_78%)]" />
@@ -52,7 +55,7 @@ export default function Home() {
 
         <div className="relative max-w-7xl mx-auto px-4 py-20 lg:py-28">
           <div className="max-w-xl">
-            <div className="font-script text-3xl text-gold-300 leading-none">|| {'Om Sri Sai Ram'} ||</div>
+            <div className="font-script text-3xl text-gold-300 leading-none">|| {t('Om Sri Sai Ram')} ||</div>
             <div className="font-serif text-4xl md:text-5xl font-bold mt-4 leading-tight">{t('Welcome to')}</div>
             <h1 className="font-serif text-4xl md:text-6xl font-bold mt-1 leading-tight text-gold-200">{t('Sri Shirdi Sai Baba Temple')}</h1>
             <div className="mt-5 flex items-center gap-2 text-gold-400"><span className="h-px w-16 bg-gold-400/70" /><span>❖</span><span className="h-px w-16 bg-gold-400/70" /></div>
@@ -72,7 +75,7 @@ export default function Home() {
                 <div className="min-w-0">
                   <div className="font-bold text-sm text-maroon-700">{t(it.title)}</div>
                   {it.lines.map((l) => (
-                    <div key={l} className="text-[0.75rem] text-black leading-snug truncate">{t(l)}</div>
+                    <div key={l} className={`text-[0.75rem] text-black leading-snug ${it.wrap ? '' : 'truncate'}`}>{t(l)}</div>
                   ))}
                 </div>
               </div>
@@ -104,7 +107,7 @@ export default function Home() {
       <section className="bg-ivory border-y border-gold-200/60">
         <div className="max-w-7xl mx-auto px-4 py-16 grid lg:grid-cols-2 gap-12 items-center">
           <div className="rounded-2xl overflow-hidden border-4 border-gold-300 shadow-card">
-            <img src={IMG.about} alt="Sri Sai Baba shrine" className="w-full h-full object-cover aspect-[4/3]" loading="lazy" />
+            <img src={IMG.about} alt={tr("Sri Sai Baba shrine")} className="w-full h-full object-cover aspect-[4/3]" loading="lazy" />
           </div>
           <div>
             <div className="font-display text-xs uppercase tracking-[0.2em] text-gold-600 flex items-center gap-2">{t('About Our Temple')} <span className="h-px w-10 bg-gold-400" /></div>
@@ -165,7 +168,7 @@ export default function Home() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-10">
           {GALLERY.slice(0, 5).map((g) => (
             <div key={g.id} className="rounded-xl overflow-hidden border border-gold-200 shadow-card group aspect-[4/5]">
-              <img src={g.img} alt={g.caption || ''} className="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+              <img src={g.img} alt={tr(g.caption || '')} className="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
             </div>
           ))}
         </div>

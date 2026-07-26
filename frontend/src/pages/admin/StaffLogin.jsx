@@ -49,7 +49,7 @@ export default function StaffLogin() {
         nav('/admin')
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Login failed. Please try again.')
+      setError(err instanceof ApiError ? err.detail : tr('Login failed. Please try again.'))
     } finally {
       setBusy(false)
     }
@@ -64,7 +64,7 @@ export default function StaffLogin() {
       if (res.twofa_required) setChallenge(res.access_token)
       else { completeLogin(res); nav('/admin') }
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Login failed. Please try again.')
+      setError(err instanceof ApiError ? err.detail : tr('Login failed. Please try again.'))
     } finally {
       setBusy(false)
     }
@@ -78,7 +78,7 @@ export default function StaffLogin() {
       completeLogin(res)
       nav('/admin')
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Verification failed.')
+      setError(err instanceof ApiError ? err.detail : tr('Verification failed.'))
     } finally {
       setBusy(false)
     }
@@ -93,8 +93,8 @@ export default function StaffLogin() {
           <div className="absolute inset-0 bg-gradient-to-t from-maroon-900 via-maroon-900/70 to-maroon-900/40" />
           <div className="relative text-cream">
             <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-24 h-24 mx-auto drop-shadow-lg" />
-            <h1 className="font-serif text-3xl font-bold text-gold-200 mt-5 tracking-wide">{temple?.name || 'Sri Shirdi Sai Baba Temple'}</h1>
-            <p className="text-cream/70 text-sm mt-2">{temple?.place || temple?.address || 'Dwarakapuri Colony, Punjagutta, Hyderabad'}</p>
+            <h1 className="font-serif text-3xl font-bold text-gold-200 mt-5 tracking-wide">{tr(temple?.name || 'Sri Shirdi Sai Baba Temple')}</h1>
+            <p className="text-cream/70 text-sm mt-2">{tr(temple?.place || temple?.address || '')}</p>
             <Flourish className="mt-4" width="w-14" />
             <h2 className="font-serif text-xl font-bold text-gold-300 mt-4"><T>Temple Staff Portal</T></h2>
             <p className="text-cream/70 text-sm mt-2 max-w-xs mx-auto"><T>Secure access for authorized temple staff to manage temple operations</T></p>
@@ -138,7 +138,7 @@ export default function StaffLogin() {
                   {forgot && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-[0.71875rem] text-gray-600"><T>Password resets are handled by an Administrator. Please contact your temple administrator to reset your staff account password.</T>{' '}</div>
                   )}
-                  <button disabled={busy} className="btn-maroon w-full !py-3 disabled:opacity-60"><LogIn size={16} /> {busy ? 'Signing in…' : 'Login'}</button>
+                  <button disabled={busy} className="btn-maroon w-full !py-3 disabled:opacity-60"><LogIn size={16} /> {busy ? tr('Signing in…') : tr('Login')}</button>
                   <div className="bg-gold-50 border border-gold-200 rounded-lg px-3 py-2.5 flex items-start gap-2 text-[0.6875rem] text-gray-500">
                     <ShieldCheck size={16} className="text-gold-500 shrink-0 mt-0.5" />
                     <T>Two-Factor Authentication will be requested after successful login (if enabled for your account).</T>
@@ -154,8 +154,8 @@ export default function StaffLogin() {
                         <button type="button" key={a.username} disabled={busy} onClick={() => quickLogin(a)}
                           className={`w-full flex items-center justify-between border rounded-lg px-3 py-2 text-left transition hover:brightness-95 disabled:opacity-60 ${a.tone}`}>
                           <span>
-                            <span className="block text-sm font-bold leading-tight">{a.role}</span>
-                            <span className="block text-[0.6875rem] opacity-80">{a.desc}</span>
+                            <span className="block text-sm font-bold leading-tight">{tr(a.role)}</span>
+                            <span className="block text-[0.6875rem] opacity-80">{tr(a.desc)}</span>
                           </span>
                           <span className="text-right shrink-0 pl-2">
                             <span className="block text-[0.6875rem] font-mono font-semibold">{a.username}</span>
@@ -170,8 +170,8 @@ export default function StaffLogin() {
                 <form onSubmit={verify} className="mt-6 space-y-4">
                   <p className="text-sm text-gray-600 text-center"><T>Enter the 6-digit code from your authenticator app.</T></p>
                   <input required autoFocus inputMode="numeric" maxLength={6} className="input text-center tracking-[0.5em] text-lg"
-                    placeholder="••••••" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} />
-                  <button disabled={busy} className="btn-maroon w-full !py-3 disabled:opacity-60"><KeyRound size={16} /> {busy ? 'Verifying…' : 'Verify & Continue'}</button>
+                    placeholder={tr("••••••")} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} />
+                  <button disabled={busy} className="btn-maroon w-full !py-3 disabled:opacity-60"><KeyRound size={16} /> {busy ? tr('Verifying…') : tr('Verify & Continue')}</button>
                   <button type="button" onClick={() => { setChallenge(null); setOtp('') }} className="btn-ghost w-full text-xs"><T>← Back to login</T></button>
                 </form>
               )}
@@ -185,12 +185,12 @@ export default function StaffLogin() {
       {/* Trust strip */}
       <div className="bg-maroon-900 text-cream">
         <div className="max-w-5xl mx-auto px-4 py-6 grid sm:grid-cols-3 gap-6">
-          {TRUST.map((t) => {
-            const Icon = t.icon
+          {TRUST.map((item) => {
+            const Icon = item.icon
             return (
-              <div key={t.title} className="flex items-start gap-3">
+              <div key={item.title} className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full border border-gold-400/50 text-gold-300 grid place-items-center shrink-0"><Icon size={18} /></div>
-                <div><div className="text-sm font-bold text-gold-200">{t.title}</div><div className="text-[0.6875rem] text-cream/60 leading-snug">{t.desc}</div></div>
+                <div><div className="text-sm font-bold text-gold-200">{tr(item.title)}</div><div className="text-[0.6875rem] text-cream/60 leading-snug">{tr(item.desc)}</div></div>
               </div>
             )
           })}

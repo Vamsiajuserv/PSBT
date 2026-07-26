@@ -9,7 +9,7 @@ import { DailyClosingAPI, RefundsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { DateField, NumberField } from '../../components/common/Field.jsx'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const dash = (n) => (n ? inr(n) : '-')
@@ -64,6 +64,7 @@ function CardHead({ icon: Icon, title }) {
 }
 
 export default function DailyClosing() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const canClose = user?.role !== 'Accountant' && user?.role !== 'Committee'
   const [day, setDay] = useState(today())
@@ -92,7 +93,7 @@ export default function DailyClosing() {
   useEffect(() => { load() }, [load])
 
   async function closeDay() {
-    if (!(await confirmDialog({ title: `Close ${sum?.date}?`, message: 'Once finalised, no further transactions can be recorded for this date.', tone: 'danger', confirmLabel: 'Close the Day' }))) return
+    if (!(await confirmDialog({ title: `${tr('Close the day')} — ${sum?.date}?`, message: tr('Once finalised, no further transactions can be recorded for this date.'), tone: 'danger', confirmLabel: tr('Close the Day') }))) return
     setBusy(true); setMsg('')
     try {
       await DailyClosingAPI.close({ date: day, actual_cash: Number(actual) || 0, notes })
@@ -131,10 +132,10 @@ export default function DailyClosing() {
         <KpiCard icon={IndianRupee} title={tr("Total Collections (₹)")} value={inr(t.total)} sub={`From ${modules.length} Modules`} valueClass="text-maroon-800" />
         <KpiCard icon={Wallet} title={tr("Cash Collections (₹)")} value={inr(t.cash)} sub={`${sum.cash_pct}% of Total`} />
         <KpiCard icon={CreditCard} title={tr("UPI / QR Collections (₹)")} value={inr(t.upi)} sub={`${sum.upi_pct}% of Total`} />
-        <KpiCard icon={ListChecks} title={tr("Total Transactions")} value={num(t.count)} sub="All Payment Modes" />
+        <KpiCard icon={ListChecks} title={tr("Total Transactions")} value={num(t.count)} sub={tr("All Payment Modes")} />
         <KpiCard icon={ClipboardCheck} title={tr("Closing Status")}
-          value={closed ? 'Closed' : 'Open'} valueClass={closed ? 'text-rose-600' : 'text-emerald-600'}
-          sub={closed ? `By ${sum.closed_by}` : 'Not Closed For The Day'} />
+          value={closed ? tr('Closed') : tr('Open')} valueClass={closed ? 'text-rose-600' : 'text-emerald-600'}
+          sub={closed ? `${tr('By')} ${sum.closed_by}` : tr('Not Closed For The Day')} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -159,7 +160,7 @@ export default function DailyClosing() {
                   {modules.map((m, i) => (
                     <tr key={m.name} className="hover:bg-gray-50/50">
                       <td className="px-4 py-3 text-gray-400 tabular-nums">{i + 1}</td>
-                      <td className="px-2 py-3 font-medium text-gray-800">{m.name}</td>
+                      <td className="px-2 py-3 font-medium text-gray-800">{tr(m.name)}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dash(m.cash)}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dash(m.upi)}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{dash(m.total)}</td>
@@ -211,12 +212,12 @@ export default function DailyClosing() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <CardHead icon={Scale} title={tr("Cash Reconciliation")} />
               <div className="p-5 text-[0.84375rem] space-y-3">
-                <Row label="Opening Cash (₹)" value={inr(sum.opening_cash)} />
-                <Row label="(+) Cash Collections (₹)" value={inr(t.cash)} />
-                <Row label="(-) Cash Refunds (₹)" value={inr(sum.cash_refunds)} />
+                <Row label={tr("Opening Cash (₹)")} value={inr(sum.opening_cash)} />
+                <Row label={tr("(+) Cash Collections (₹)")} value={inr(t.cash)} />
+                <Row label={tr("(-) Cash Refunds (₹)")} value={inr(sum.cash_refunds)} />
                 <div className="border-t border-gray-100 pt-3 space-y-3">
-                  <Row label="Expected Cash in Hand (₹)" value={inr(sum.expected_cash)} bold />
-                  <Row label="Actual Cash in Hand (₹)" value={inr(actualNum)} />
+                  <Row label={tr("Expected Cash in Hand (₹)")} value={inr(sum.expected_cash)} bold />
+                  <Row label={tr("Actual Cash in Hand (₹)")} value={inr(actualNum)} />
                 </div>
                 <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 mt-1 font-bold ${closingDiff === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
                   <span><T>Difference (₹)</T></span><span className="tabular-nums">{inr(closingDiff)}</span>
@@ -231,24 +232,24 @@ export default function DailyClosing() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <CardHead icon={ClipboardCheck} title={tr("Closing Summary")} />
             <div className="p-5 text-[0.84375rem] space-y-3">
-              <Row label="Total Collections (₹)" value={inr(t.total)} valueClass="text-maroon-800 font-bold text-[0.9375rem]" />
-              <Row label="(-) Refunds (₹)" value={inr(sum.refunds)} />
-              <Row label="Net Collections (₹)" value={inr(sum.net_collections)} valueClass="text-emerald-600 font-bold text-[0.9375rem]" />
+              <Row label={tr("Total Collections (₹)")} value={inr(t.total)} valueClass="text-maroon-800 font-bold text-[0.9375rem]" />
+              <Row label={tr("(-) Refunds (₹)")} value={inr(sum.refunds)} />
+              <Row label={tr("Net Collections (₹)")} value={inr(sum.net_collections)} valueClass="text-emerald-600 font-bold text-[0.9375rem]" />
               <div className="border-t border-gray-100 pt-3 space-y-3">
-                <Row label="Total Transactions" value={num(t.count)} />
-                <Row label="Cash Transactions" value={num(sum.cash_txns)} />
-                <Row label="UPI / QR Transactions" value={num(sum.upi_txns)} />
+                <Row label={tr("Total Transactions")} value={num(t.count)} />
+                <Row label={tr("Cash Transactions")} value={num(sum.cash_txns)} />
+                <Row label={tr("UPI / QR Transactions")} value={num(sum.upi_txns)} />
               </div>
               <div className="border-t border-gray-100 pt-3 space-y-3">
-                <Row label="Cash in Hand (Expected) (₹)" value={inr(sum.expected_cash)} />
+                <Row label={tr("Cash in Hand (Expected) (₹)")} value={inr(sum.expected_cash)} />
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600"><T>Cash in Hand (Actual) (₹)</T></span>
                   <NumberField prefix="₹" value={actual} disabled={closed || !canClose}
-                    title={!canClose ? 'Only the closing role enters the counted cash' : undefined}
+                    title={!canClose ? tr('Only the closing role enters the counted cash') : undefined}
                     onChange={(e) => setActual(e.target.value)}
                     className="!w-36 !py-1.5" inputClass="text-right tabular-nums" />
                 </div>
-                <Row label="Difference (₹)" value={inr(closingDiff)}
+                <Row label={tr("Difference (₹)")} value={inr(closingDiff)}
                   valueClass={`font-bold ${closingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`} />
               </div>
             </div>
@@ -261,7 +262,7 @@ export default function DailyClosing() {
               <div className="overflow-x-auto">
                 <table className="w-full text-[0.8125rem]">
                   <thead><tr className="text-left text-[0.6875rem] uppercase tracking-wide text-gray-500 bg-gray-50/70">
-                    {['Refund No.', 'Against', 'Reason', 'Mode', 'By', 'Amount (₹)'].map((c) => <th key={c} className="px-3 py-2 font-semibold whitespace-nowrap">{c}</th>)}
+                    {['Refund No.', 'Against', 'Reason', 'Mode', 'By', 'Amount (₹)'].map((c) => <th key={c} className="px-3 py-2 font-semibold whitespace-nowrap">{tr(c)}</th>)}
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {refunds.map((r) => (
@@ -269,8 +270,8 @@ export default function DailyClosing() {
                         <td className="px-3 py-2 font-mono text-[0.75rem] text-gray-500">{r.refund_code}</td>
                         <td className="px-3 py-2 text-gray-700">{r.entity_type} {r.entity_code || `#${r.entity_id || ''}`}</td>
                         <td className="px-3 py-2 text-gray-500">{r.reason || '—'}</td>
-                        <td className="px-3 py-2 text-gray-600">{r.mode || 'Cash'}</td>
-                        <td className="px-3 py-2 text-gray-500">{r.created_by || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600">{tr(r.mode || 'Cash')}</td>
+                        <td className="px-3 py-2 text-gray-500">{r.created_by ? personName({ name: r.created_by }, lang) : '—'}</td>
                         <td className="px-3 py-2 text-right font-semibold text-rose-700">{inr(r.amount)}</td>
                       </tr>
                     ))}

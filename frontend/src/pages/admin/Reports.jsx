@@ -71,16 +71,21 @@ export default function Reports() {
     try { await exportReportToExcel(result) } finally { setExporting(false) }
   }
 
+  // Server-formatted dates ('01 Jul 2026') carry an English month; the word
+  // translates, the numerals stay.
+  const localiseDate = (v) => (typeof v === 'string' ? v.replace(/\b[A-Za-z]{3,}\b/g, (w) => tr(w)) : v)
   const cell = (col, row, isTotal) => {
+    if (isTotal && row?.[col.key] === 'Total') return tr('Total')
     const v = row[col.key]
     if (col.type === 'money') return (isTotal ? '₹ ' : '') + money2(v)
+    if (col.type === 'text') return localiseDate(v)
     if (col.type === 'num') return v === '' || v == null ? '' : num(v)
     return v
   }
 
   return (
     <div>
-      <PageTitle title={tr("Reports")} subtitle="Generate, view and export reports for all temple activities." />
+      <PageTitle title={tr("Reports")} subtitle={tr("Generate, view and export reports for all temple activities.")} />
 
       {/* Report Categories */}
       <div className="text-[0.9375rem] font-bold text-maroon-800 mb-3"><T>Report Categories</T></div>
@@ -91,7 +96,7 @@ export default function Reports() {
             <button key={c.key} onClick={() => pickReport(c.reports[0], c.key)}
               className={`bg-white rounded-xl border p-4 text-center transition-colors ${on ? 'border-maroon-400 ring-1 ring-maroon-200' : 'border-gray-100 hover:border-maroon-200'}`}>
               <div className={`w-12 h-12 rounded-full grid place-items-center mx-auto ${cfg.bg}`} style={{ color: cfg.color }}><Icon size={22} /></div>
-              <div className="text-[0.78125rem] font-semibold text-gray-700 mt-2 leading-tight">{c.label}</div>
+              <div className="text-[0.78125rem] font-semibold text-gray-700 mt-2 leading-tight">{tr(c.label)}</div>
             </button>
           )
         })}
@@ -110,7 +115,7 @@ export default function Reports() {
         <div>
           <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Report Category</T></label>
           <Select value={category} onChange={(e) => { const k = e.target.value; setCategory(k); const rp = cats.find((c) => c.key === k)?.reports[0]; if (rp) setReport(rp) }} className="input">
-            {cats.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            {cats.map((c) => <option key={c.key} value={c.key}>{tr(c.label)}</option>)}
           </Select>
         </div>
         <div>
@@ -135,7 +140,7 @@ export default function Reports() {
             {filteredList.map((r) => (
               <button key={r.name} onClick={() => pickReport(r.name, r.category)}
                 className={`w-full text-left px-3 py-2 rounded-lg text-[0.8125rem] transition-colors ${report === r.name ? 'bg-maroon-50 text-maroon-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}>
-                {r.name}
+                {tr(r.name)}
               </button>
             ))}
           </div>
@@ -144,18 +149,18 @@ export default function Reports() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" id="print-area">
           <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100">
             <div>
-              <h3 className="font-serif text-lg font-bold text-maroon-800">{result?.title || 'Select a report'}</h3>
-              {result?.subtitle && <p className="text-[0.8125rem] text-gray-500 mt-0.5">{result.subtitle}</p>}
+              <h3 className="font-serif text-lg font-bold text-maroon-800">{result?.title ? tr(result.title) : tr('Select a report')}</h3>
+              {result?.subtitle && <p className="text-[0.8125rem] text-gray-500 mt-0.5">{tr(result.subtitle)}</p>}
             </div>
             <div className="flex gap-2 no-print">
               <button onClick={() => exportReportToPdf(result)} disabled={!result?.rows?.length} className="btn-outline !py-2 text-red-600 border-red-200 disabled:opacity-60"><FileText size={15} />{' '}<T>Export PDF</T></button>
-              <button onClick={exportExcel} disabled={exporting} className="btn-outline !py-2 text-emerald-700 border-emerald-200 disabled:opacity-60"><FileSpreadsheet size={15} /> {exporting ? 'Exporting…' : 'Export Excel'}</button>
+              <button onClick={exportExcel} disabled={exporting} className="btn-outline !py-2 text-emerald-700 border-emerald-200 disabled:opacity-60"><FileSpreadsheet size={15} /> {exporting ? tr('Exporting…') : tr('Export Excel')}</button>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-                {(result?.columns || []).map((c) => <th key={c.key} className={`px-5 py-3 font-semibold whitespace-nowrap ${c.type !== 'text' ? 'text-right' : ''}`}>{c.label}</th>)}
+                {(result?.columns || []).map((c) => <th key={c.key} className={`px-5 py-3 font-semibold whitespace-nowrap ${c.type !== 'text' ? 'text-right' : ''}`}>{tr(c.label)}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {loading && <tr><td colSpan={(result?.columns.length) || 1} className="px-5 py-12 text-center text-gray-400 text-sm"><T>Loading…</T></td></tr>}
@@ -180,7 +185,7 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
-          {result && <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">Showing 1 to {result.rows.length} of {result.rows.length} records</div>}
+          {result && <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">{tr('Showing')} 1 {tr('to')} {result.rows.length} {tr('of')} {result.rows.length} {tr('records')}</div>}
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@ import { te } from '../../lib/telugu.js'
 import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const TYPE_LABEL = { Cash: 'Cash Donation', Material: 'Material Donation', Sponsorship: 'Sponsorship' }
 const MODES = ['Cash', 'UPI/QR Code']
@@ -19,7 +19,8 @@ const todayStamp = () => {
   const d = new Date()
   return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
-const fmtTime = (s) => (s ? new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '')
+const fmtTime = (s) => (s ? new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  .replace(/\b(AM|PM)\b/, (w) => tr(w)) : '')
 
 const newDonation = () => ({
   donation_type: 'Cash', devotee_id: '', donor_name: '', mobile: '', pan: '', fund: '', amount: '',
@@ -27,6 +28,7 @@ const newDonation = () => ({
 })
 
 export default function Donations() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const canWrite = user?.role !== 'Accountant'
 
@@ -124,7 +126,7 @@ export default function Donations() {
     const payload = {
       donation_type: m.donation_type,
       devotee_id: m.devotee_id ? Number(m.devotee_id) : null,
-      donor_name: (m.donor_name || '').trim() || 'Anonymous',
+      donor_name: (m.donor_name || '').trim() || tr('Anonymous'),
       fund: m.fund, mode: m.donation_type === 'Material' ? '-' : m.mode,
       txn_ref: m.mode === 'UPI/QR Code' ? (m.txn_ref || null) : null,
       amount: m.donation_type === 'Material' ? 0 : Number(m.amount || 0),
@@ -145,13 +147,13 @@ export default function Donations() {
   }
 
   const amountCell = (d) => d.donation_type === 'Material'
-    ? (d.quantity ? `${num(d.quantity)} ${d.unit || ''}`.trim() : (Number(d.amount) > 0 ? inr(d.amount) : '—'))
+    ? (d.quantity ? `${num(d.quantity)} ${tr(d.unit || '')}`.trim() : (Number(d.amount) > 0 ? inr(d.amount) : '—'))
     : inr(d.amount)
 
-  const EXPORT_COLS = [{ key: 'receipt_no', label: 'Receipt No.' }, { key: 'donated_on', label: 'Date' },
-    { key: 'donor_name', label: 'Donor' }, { key: 'donation_type', label: 'Type' },
-    { key: 'fund', label: 'Category' }, { key: 'amount', label: 'Amount (₹)', type: 'money' },
-    { key: 'mode', label: 'Mode' }, { key: 'txn_ref', label: 'UTR' }, { key: 'g80x', label: '80G' }]
+  const EXPORT_COLS = [{ key: 'receipt_no', label: tr('Receipt No.') }, { key: 'donated_on', label: tr('Date') },
+    { key: 'donor_name', label: tr('Donor') }, { key: 'donation_type', label: tr('Type') },
+    { key: 'fund', label: tr('Category') }, { key: 'amount', label: tr('Amount (₹)'), type: 'money' },
+    { key: 'mode', label: tr('Mode') }, { key: 'txn_ref', label: tr('UTR') }, { key: 'g80x', label: tr('80G') }]
   // Material donations are goods: qty+unit instead of ₹0, and no payment mode.
   const exportRows = rows.map((d) => ({
     ...d, g80x: d.g80 ? 'Yes' : 'No',
@@ -161,7 +163,7 @@ export default function Donations() {
   const exportTotal = { receipt_no: 'Total', amount: rows.reduce((s, d) => s + Number(d.amount || 0), 0) }
   return (
     <div>
-      <PageTitle title={tr("Donation Management")} subtitle="Record, manage and view all donations."
+      <PageTitle title={tr("Donation Management")} subtitle={tr("Record, manage and view all donations.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Donation Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(newDonation()); setDq(''); setDevResults([]); setPanErr('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Donation</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -170,9 +172,9 @@ export default function Donations() {
         <StatTile icon={CalendarDays} color="#7c3aed" bg="bg-violet-50" title={tr("This Month Donations")}
           value={stats ? inr(stats.month.amount) : '—'} sub={stats ? `${num(stats.month.count)} Transactions` : ''} />
         <StatTile icon={Package} color="#d97706" bg="bg-amber-50" title={tr("Material Donations")}
-          value={stats ? num(stats.material) : '—'} sub="Material Donations" />
+          value={stats ? num(stats.material) : '—'} sub={tr("Material Donations")} />
         <StatTile icon={HandHeart} color="#2563eb" bg="bg-blue-50" title={tr("Sponsorships")}
-          value={stats ? num(stats.sponsorship) : '—'} sub="Recorded Sponsorships" />
+          value={stats ? num(stats.sponsorship) : '—'} sub={tr("Recorded Sponsorships")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -192,15 +194,15 @@ export default function Donations() {
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Donation Type</T></label>
-            <Select value={type} onChange={(e) => setType(e.target.value)} className="input"><option value="">All</option><option value="Cash">Cash Donation</option><option value="Material">Material Donation</option><option value="Sponsorship">Sponsorship</option></Select>
+            <Select value={type} onChange={(e) => setType(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash Donation")}</option><option value="Material">{tr("Material Donation")}</option><option value="Sponsorship">{tr("Sponsorship")}</option></Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Category</T></label>
-            <Select value={category} onChange={(e) => setCategory(e.target.value)} className="input"><option value="">All</option>{cats.map((c) => <option key={c.id}>{c.name}</option>)}</Select>
+            <Select value={category} onChange={(e) => setCategory(e.target.value)} className="input"><option value="">{tr("All")}</option>{cats.map((c) => <option key={c.id}>{c.name}</option>)}</Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
-            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">All</option>{MODES.map((m) => <option key={m}>{m}</option>)}</Select>
+            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option>{MODES.map((m) => <option key={m}>{m}</option>)}</Select>
           </div>
           <div className="xl:col-span-4 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setType(''); setCategory(''); setMode(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
@@ -211,17 +213,17 @@ export default function Donations() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Donation ID', 'Devotee', 'Donation Type', 'Category', 'Amount / Material', 'Payment Mode', 'Donated On', 'Receipt No.', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['Donation ID', 'Devotee', 'Donation Type', 'Category', 'Amount / Material', 'Payment Mode', 'Donated On', 'Receipt No.', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-maroon-600">{d.donation_code || d.receipt_no}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{d.donor_name}</td>
-                  <td className="px-4 py-3 text-gray-600">{TYPE_LABEL[d.donation_type] || d.donation_type}</td>
-                  <td className="px-4 py-3 text-gray-600">{d.fund}{d.g80 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-bold bg-emerald-50 text-emerald-700 align-middle">80G</span>}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: d.donor_name, name_te: d.donor_name_te }, lang)}</td>
+                  <td className="px-4 py-3 text-gray-600">{tr(TYPE_LABEL[d.donation_type] || d.donation_type)}</td>
+                  <td className="px-4 py-3 text-gray-600">{tr(d.fund)}{d.g80 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-bold bg-emerald-50 text-emerald-700 align-middle">80G</span>}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{amountCell(d)}</td>
-                  <td className="px-4 py-3 text-gray-600">{d.donation_type !== 'Material' && d.mode && d.mode !== '-' ? d.mode : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3 text-gray-600">{d.donation_type !== 'Material' && d.mode && d.mode !== '-' ? tr(d.mode) : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(d.donated_on)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(d.created_at)}</div></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{d.receipt_no}</td>
                   <td className="px-4 py-3">
@@ -232,12 +234,12 @@ export default function Donations() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty="No donations found." />}
+              {rows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty={tr("No donations found.")} />}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit="transactions" />
+          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit={tr("transactions")} />
         </div>
       </div>
 
@@ -254,7 +256,7 @@ export default function Donations() {
             <div className="px-6 py-5 space-y-5 flex-1">
               <div className="grid grid-cols-3 gap-2">
                 {['Cash', 'Material', 'Sponsorship'].map((t) => (
-                  <button type="button" key={t} onClick={() => setDType(t)} className={`border rounded-lg py-2 text-[0.78125rem] font-semibold ${drawer.donation_type === t ? 'border-maroon-500 bg-maroon-700 text-cream' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>{TYPE_LABEL[t]}</button>
+                  <button type="button" key={t} onClick={() => setDType(t)} className={`border rounded-lg py-2 text-[0.78125rem] font-semibold ${drawer.donation_type === t ? 'border-maroon-500 bg-maroon-700 text-cream' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>{tr(TYPE_LABEL[t])}</button>
                 ))}
               </div>
 
@@ -264,7 +266,7 @@ export default function Donations() {
                   <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-3.5 py-3 bg-gray-50/50">
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{drawer.donor_name}</span><Pill tone="green"><T>Registered</T></Pill></div>
+                      <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{personName({ name: drawer.donor_name }, lang)}</span><Pill tone="green"><T>Registered</T></Pill></div>
                       {drawer.mobile && <div className="text-[0.75rem] text-gray-500">Mobile: {drawer.mobile}</div>}
                     </div>
                     <button type="button" onClick={clearDevotee} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
@@ -278,7 +280,7 @@ export default function Donations() {
                         {devResults.map((d) => (
                           <button type="button" key={d.id} onClick={() => pickDevotee(d)} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
                             <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name?.[0]}</span>
-                            <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{d.name}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
+                            <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
                           </button>
                         ))}
                       </div>
@@ -289,13 +291,13 @@ export default function Donations() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label"><T>Donor Name *</T></label>
-                  <input required className="input" placeholder={tr("Walk-in / donor name")} value={drawer.donor_name} onChange={(e) => setDrawer({ ...drawer, donor_name: e.target.value })} /></div>
+                  <input required className="input" placeholder={tr("Walk-in / donor name")} value={personName({ name: drawer.donor_name }, lang)} onChange={(e) => setDrawer({ ...drawer, donor_name: e.target.value })} /></div>
                 <div><label className="label"><T>Mobile (Optional)</T></label>
                   <input className="input" placeholder={tr("Mobile number")} value={drawer.mobile} onChange={(e) => setDrawer({ ...drawer, mobile: e.target.value })} /></div>
               </div>
 
               <div><label className="label"><T>Donation Category *</T></label>
-                <Select required value={drawer.fund} onChange={(e) => setFund(e.target.value)} className="input"><option value="">Select category…</option>{drawerCats.map((c) => <option key={c.id}>{c.name}</option>)}</Select></div>
+                <Select required value={drawer.fund} onChange={(e) => setFund(e.target.value)} className="input"><option value="">{tr("Select category…")}</option>{drawerCats.map((c) => <option key={c.id}>{c.name}</option>)}</Select></div>
 
               {drawer.donation_type === 'Material' ? (
                 <div className="grid grid-cols-2 gap-3">
@@ -323,9 +325,9 @@ export default function Donations() {
                 <div className="relative"><input className="input bg-gray-50 pr-9" value={todayStamp()} readOnly /><Calendar size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
 
               <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Tax exemption is applicable only for Medical Donations.</T></div>
-              <label className="flex items-center gap-2 text-sm text-gray-700"><Checkbox checked={drawer.g80} disabled={drawer.donation_type !== 'Cash'} onChange={(e) => { setDrawer({ ...drawer, g80: e.target.checked }); if (!e.target.checked) setPanErr('') }} /> Eligible for Tax Exemption (Medical Donation)</label>
+              <label className="flex items-center gap-2 text-sm text-gray-700"><Checkbox checked={drawer.g80} disabled={drawer.donation_type !== 'Cash'} onChange={(e) => { setDrawer({ ...drawer, g80: e.target.checked }); if (!e.target.checked) setPanErr('') }} /> {tr('Eligible for Tax Exemption (Medical Donation)')}</label>
 
-              <div><label className="label">PAN {drawer.g80 && <span className="text-red-500">*</span>}{drawer.g80 && <span className="text-[0.6875rem] text-gray-400 font-normal"> <T>(required for 80G)</T></span>}</label>
+              <div><label className="label">{tr("PAN")} {drawer.g80 && <span className="text-red-500">*</span>}{drawer.g80 && <span className="text-[0.6875rem] text-gray-400 font-normal"> <T>(required for 80G)</T></span>}</label>
                 <input className={`input uppercase ${panErr ? 'border-red-400' : ''}`} placeholder={tr("ABCDE1234F")}
                   value={drawer.pan} onChange={(e) => { setDrawer({ ...drawer, pan: e.target.value.toUpperCase() }); if (panErr) setPanErr('') }} />
                 {panErr && <div className="text-[0.71875rem] text-red-600 mt-1">{panErr}</div>}</div>
@@ -336,7 +338,7 @@ export default function Donations() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" disabled={saving} onClick={(e) => save(e, false)} className="btn-outline flex-1 justify-center disabled:opacity-50"><T>Save</T></button>
-              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? 'Saving…' : <>Save &amp; Print Receipt <Printer size={14} /></>}</button>
+              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{tr('Save & Print Receipt')} <Printer size={14} /></>}</button>
             </div>
           </form>
         </div>
@@ -353,9 +355,9 @@ export default function Donations() {
                   { en: 'Type', value: TYPE_LABEL[printDoc.donation_type], valueTe: te(printDoc.donation_type) },
                   ...(printDoc.donation_type === 'Material' && printDoc.quantity ? [{ en: 'Quantity', value: `${num(printDoc.quantity)} ${printDoc.unit || ''}` }] : [{ en: 'Payment Mode', value: printDoc.mode }]),
                   ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref }] : []),
-                  { en: 'Tax Exemption', value: printDoc.g80 ? 'Eligible (80G)' : '—' },
+                  { en: 'Tax Exemption', value: printDoc.g80 ? tr('Eligible (80G)') : '—' },
                 ]}
-                footerNote={printDoc.g80 ? 'Eligible for 80G tax exemption.' : undefined} />
+                footerNote={printDoc.g80 ? tr('Eligible for 80G tax exemption.') : undefined} />
             </div>
             <div className="flex gap-2 justify-center mt-4 no-print">
               <button onClick={() => window.print()} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>

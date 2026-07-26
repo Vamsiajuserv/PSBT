@@ -23,7 +23,9 @@ const CATS = [
           { k: 'about', label: 'About Temple', type: 'textarea', full: true, max: 250 },
         ] },
       { key: 'address', label: 'Address Details', subtitle: 'Manage the temple address.',
-        fields: [{ k: 'address_line', label: 'Address', full: true }, { k: 'city', label: 'City' }, { k: 'state', label: 'State' }, { k: 'pincode', label: 'Pincode' }] },
+        fields: [{ k: 'address_line', label: 'Address', full: true }, { k: 'city', label: 'City' }, { k: 'state', label: 'State' }, { k: 'pincode', label: 'Pincode' },
+          { k: 'address_te', label: 'Address (Telugu)', full: true, telugu: true,
+            hint: 'Shown on the public site when a visitor selects తెలుగు. Leave blank to fall back to the English address.' }] },
       { key: 'contact', label: 'Contact Details', subtitle: 'Manage contact information.',
         fields: [{ k: 'phone', label: 'Phone' }, { k: 'email', label: 'Email' }, { k: 'website', label: 'Website' }] },
       { key: 'bank', label: 'Bank Details', subtitle: 'Manage bank account for deposits.',
@@ -97,7 +99,7 @@ export default function Settings() {
 
   return (
     <div>
-      <PageTitle title={tr("Settings")} subtitle="Manage temple system settings and configurations." />
+      <PageTitle title={tr("Settings")} subtitle={tr("Manage temple system settings and configurations.")} />
 
       {/* Settings Categories */}
       <div className="text-[0.9375rem] font-bold text-maroon-800 mb-3"><T>Settings Categories</T></div>
@@ -109,8 +111,8 @@ export default function Settings() {
               className={`relative bg-white rounded-xl border p-4 text-left transition-colors ${on ? 'border-maroon-400 ring-1 ring-maroon-200' : 'border-gray-100 hover:border-maroon-200'}`}>
               {on && <CheckCircle2 size={16} className="absolute top-3 right-3 text-maroon-600" />}
               <div className={`w-11 h-11 rounded-full grid place-items-center ${c.bg}`} style={{ color: c.color }}><Icon size={20} /></div>
-              <div className="text-[0.8125rem] font-bold text-gray-800 mt-2.5">{c.title}</div>
-              <div className="text-[0.71875rem] text-gray-400 mt-1 leading-snug">{c.desc}</div>
+              <div className="text-[0.8125rem] font-bold text-gray-800 mt-2.5">{tr(c.title)}</div>
+              <div className="text-[0.71875rem] text-gray-400 mt-1 leading-snug">{tr(c.desc)}</div>
             </button>
           )
         })}
@@ -125,7 +127,7 @@ export default function Settings() {
               <div key={c.key}>
                 <button onClick={() => { setOpen((o) => ({ ...o, [c.key]: !isOpen })); if (!isOpen) selectCat(c) }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[0.84375rem] font-semibold ${cat === c.key ? 'text-maroon-700' : 'text-gray-600 hover:bg-gray-50'}`}>
-                  <Icon size={17} style={{ color: c.color }} /> <span className="flex-1 text-left">{c.title}</span>
+                  <Icon size={17} style={{ color: c.color }} /> <span className="flex-1 text-left">{tr(c.title)}</span>
                   {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 </button>
                 {isOpen && (
@@ -133,7 +135,7 @@ export default function Settings() {
                     {c.subs.map((s) => (
                       <button key={s.key} onClick={() => { setCat(c.key); setSub(s.key) }}
                         className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-[0.8125rem] transition-colors ${cat === c.key && sub === s.key ? 'bg-maroon-50 text-maroon-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}>
-                        <span className="w-1 h-1 rounded-full bg-current opacity-60" /> {s.label}
+                        <span className="w-1 h-1 rounded-full bg-current opacity-60" /> {tr(s.label)}
                       </button>
                     ))}
                   </div>
@@ -148,8 +150,8 @@ export default function Settings() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-start justify-between mb-5">
               <div>
-                <h3 className="font-serif text-lg font-bold text-maroon-800">{section.label}</h3>
-                <p className="text-[0.8125rem] text-gray-500 mt-0.5">{section.subtitle}</p>
+                <h3 className="font-serif text-lg font-bold text-maroon-800">{tr(section.label)}</h3>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5">{tr(section.subtitle)}</p>
               </div>
               {isAdmin && <button onClick={save} className="btn-maroon !py-2.5"><Save size={15} />{' '}<T>Save Changes</T></button>}
             </div>
@@ -157,17 +159,18 @@ export default function Settings() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
               {section.fields.map((f) => (
                 <div key={f.k} className={f.full || f.type === 'textarea' ? 'sm:col-span-2 lg:col-span-3' : ''}>
-                  <label className="block text-[0.78125rem] font-medium text-gray-600 mb-1.5">{f.label} {f.req && <span className="text-red-500">*</span>}</label>
+                  <label className="block text-[0.78125rem] font-medium text-gray-600 mb-1.5">{tr(f.label)} {f.req && <span className="text-red-500">*</span>}</label>
                   {f.type === 'textarea' ? (
                     <>
                       <textarea className="input min-h-[5rem]" maxLength={f.max} value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)} />
                       {f.max && <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{(data[f.k] || '').length} / {f.max}</div>}
                     </>
                   ) : f.type === 'select' ? (
-                    <Select className="input" value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)}>{f.options.map((o) => <option key={o}>{o}</option>)}</Select>
+                    <Select className="input" value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)}>{f.options.map((o) => <option key={o} value={o}>{tr(o)}</option>)}</Select>
                   ) : (
-                    <input className="input" value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)} />
+                    <input className={`input ${f.telugu ? 'font-telugu' : ''}`} value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)} />
                   )}
+                  {f.hint && <div className="text-[0.6875rem] text-gray-400 mt-1"><T>{f.hint}</T></div>}
                 </div>
               ))}
             </div>
@@ -180,10 +183,10 @@ export default function Settings() {
           <div className="bg-gray-50/70 rounded-xl border border-gray-100 px-5 py-4">
             <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.84375rem] mb-3"><Info size={15} />{' '}<T>Audit Information</T></div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[0.8125rem]">
-              <Meta label="Created By" value={data.created_by} />
-              <Meta label="Created On" value={data.created_on} />
-              <Meta label="Last Updated By" value={data.updated_by} />
-              <Meta label="Last Updated On" value={data.updated_at || '—'} />
+              <Meta label={tr("Created By")} value={data.created_by} />
+              <Meta label={tr("Created On")} value={data.created_on} />
+              <Meta label={tr("Last Updated By")} value={data.updated_by} />
+              <Meta label={tr("Last Updated On")} value={data.updated_at || '—'} />
             </div>
           </div>
           <div className="flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5">

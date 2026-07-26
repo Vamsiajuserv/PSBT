@@ -3,6 +3,7 @@ import { Landmark, CheckCircle2, XCircle } from 'lucide-react'
 import MasterScreen from '../../components/admin/MasterScreen.jsx'
 import { Pill } from '../../components/admin/ui.jsx'
 import { HundiItemsAPI } from '../../api/client.js'
+import { tr } from '../../i18n/LanguageContext.jsx'
 
 const TYPE_TONE = { Cash: 'green', Coins: 'amber', 'Foreign Currency': 'blue', Gold: 'amber', Silver: 'gray', Jewellery: 'violet', Valuables: 'orange' }
 
@@ -16,17 +17,17 @@ export default function HundiItemMaster() {
       { key: 'inactive', icon: XCircle, color: '#dc2626', bg: 'bg-red-50', title: 'Inactive', sub: 'Not in use' },
     ],
     columns: [
-      { key: 'code', label: 'Item ID', mono: true },
-      { key: 'name', label: 'Item Name', strong: true },
-      { key: 'item_type', label: 'Type', render: (r) => (r.item_type ? <Pill tone={TYPE_TONE[r.item_type] || 'gray'}>{r.item_type}</Pill> : '—') },
-      { key: 'unit', label: 'Unit / Measurement' },
+      { key: 'code', label: tr('Item ID'), mono: true },
+      { key: 'name', label: tr('Item Name'), strong: true },
+      { key: 'item_type', label: tr('Type'), render: (r) => (r.item_type ? <Pill tone={TYPE_TONE[r.item_type] || 'gray'}>{r.item_type}</Pill> : '—') },
+      { key: 'unit', label: tr('Unit / Measurement') },
     ],
     fields: [
-      { k: 'name', label: 'Item Name', required: true },
-      { k: 'item_type', label: 'Item Type', type: 'select', options: ['Cash', 'Coins', 'Foreign Currency', 'Gold', 'Silver', 'Jewellery', 'Valuables'] },
-      { k: 'unit', label: 'Unit / Measurement', type: 'select', options: ['Amount', 'Count', 'Grams'] },
-      { k: 'description', label: 'Description', type: 'textarea' },
-      { k: 'active', label: 'Status', type: 'active' },
+      { k: 'name', label: tr('Item Name'), required: true },
+      { k: 'item_type', label: tr('Item Type'), type: 'select', options: ['Cash', 'Coins', 'Foreign Currency', 'Gold', 'Silver', 'Jewellery', 'Valuables'] },
+      { k: 'unit', label: tr('Unit / Measurement'), type: 'select', options: ['Amount', 'Count', 'Grams'] },
+      { k: 'description', label: tr('Description'), type: 'textarea' },
+      { k: 'active', label: tr('Status'), type: 'active' },
     ],
   }} />
 }

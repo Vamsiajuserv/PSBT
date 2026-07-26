@@ -11,35 +11,37 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, NumberField } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const RATE = 50
 const OCCASIONS = ['General', 'Birthday', 'Wedding Anniversary', 'Thanksgiving', 'In Memory', 'Festival Offering']
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
-const fmtTime = (s) => (s ? new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '')
-const modeLabel = (m) => (m === 'UPI/QR Code' ? 'UPI (QR)' : m)
+const fmtTime = (s) => (s ? new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  .replace(/\b(AM|PM)\b/, (w) => tr(w)) : '')
+const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI (QR)' : m)
 
 function toWords(n) {
   n = Math.round(Number(n) || 0)
-  if (n === 0) return 'Zero Rupees Only'
-  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen']
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+  if (n === 0) return tr('Zero Rupees Only')
+  const a = ['', tr('One'), tr('Two'), tr('Three'), tr('Four'), tr('Five'), tr('Six'), tr('Seven'), tr('Eight'), tr('Nine'), tr('Ten'), tr('Eleven'), tr('Twelve'), tr('Thirteen'), tr('Fourteen'), tr('Fifteen'), tr('Sixteen'), tr('Seventeen'), tr('Eighteen'), tr('Nineteen')]
+  const b = ['', '', tr('Twenty'), tr('Thirty'), tr('Forty'), tr('Fifty'), tr('Sixty'), tr('Seventy'), tr('Eighty'), tr('Ninety')]
   const two = (x) => (x < 20 ? a[x] : b[Math.floor(x / 10)] + (x % 10 ? ' ' + a[x % 10] : ''))
-  const three = (x) => (x >= 100 ? a[Math.floor(x / 100)] + ' Hundred' + (x % 100 ? ' ' + two(x % 100) : '') : two(x))
+  const three = (x) => (x >= 100 ? a[Math.floor(x / 100)] + ' ' + tr('Hundred') + (x % 100 ? ' ' + two(x % 100) : '') : two(x))
   let out = ''
   const crore = Math.floor(n / 10000000); n %= 10000000
   const lakh = Math.floor(n / 100000); n %= 100000
   const thou = Math.floor(n / 1000); n %= 1000
-  if (crore) out += three(crore) + ' Crore '
-  if (lakh) out += two(lakh) + ' Lakh '
-  if (thou) out += two(thou) + ' Thousand '
+  if (crore) out += three(crore) + ' ' + tr('Crore') + ' '
+  if (lakh) out += two(lakh) + ' ' + tr('Lakh') + ' '
+  if (thou) out += two(thou) + ' ' + tr('Thousand') + ' '
   if (n) out += three(n) + ' '
-  return out.trim() + ' Rupees Only'
+  return out.trim() + ' ' + tr('Rupees Only')
 }
 
 const emptyForm = (rate = RATE) => ({ devotee: null, persons: 1, rate, occasionChoice: 'General', occasion: 'General', scheduled_on: '', mode: 'Cash', txn_ref: '', paid_at: nowLocal() })
 
 export default function Annadanam() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const canWrite = user?.role !== 'Accountant'
   const SIZE = 15
@@ -131,21 +133,21 @@ export default function Annadanam() {
     }
   }
 
-  const EXPORT_COLS = [{ key: 'code', label: 'Receipt' }, { key: 'donor', label: 'Donor' }, { key: 'plates', label: 'Persons' },
-    { key: 'amount', label: 'Amount (₹)', type: 'money' }, { key: 'mode', label: 'Mode' },
-    { key: 'scheduled_on', label: 'Scheduled On' }, { key: 'occasion', label: 'Occasion' }]
+  const EXPORT_COLS = [{ key: 'code', label: tr('Receipt') }, { key: 'donor', label: tr('Donor') }, { key: 'plates', label: tr('Persons') },
+    { key: 'amount', label: tr('Amount (₹)'), type: 'money' }, { key: 'mode', label: tr('Mode') },
+    { key: 'scheduled_on', label: tr('Scheduled On') }, { key: 'occasion', label: tr('Occasion') }]
   const exportRows = rows
   const exportTotal = { code: 'Total', amount: rows.reduce((s, r) => s + Number(r.amount || 0), 0) }
   return (
     <div>
-      <PageTitle title={tr("Annadanam Management")} subtitle="Record annadanam donations, accept payments and generate receipt for devotees."
+      <PageTitle title={tr("Annadanam Management")} subtitle={tr("Record annadanam donations, accept payments and generate receipt for devotees.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Annadanam Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(emptyForm(defaultRate)); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Annadanam Donation</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={UtensilsCrossed} color="#ea580c" bg="bg-orange-50" title={tr("Total Annadanam Records")} value={stats ? num(stats.total_records) : '—'} sub="All Time" />
+        <StatTile icon={UtensilsCrossed} color="#ea580c" bg="bg-orange-50" title={tr("Total Annadanam Records")} value={stats ? num(stats.total_records) : '—'} sub={tr("All Time")} />
         <StatTile icon={Users} color="#059669" bg="bg-emerald-50" title={tr("Today's Sponsorships")} value={stats ? num(stats.today_sponsorships) : '—'} sub={`Today (${fmtDate(new Date().toISOString())})`} />
         <StatTile icon={IndianRupee} color="#7c3aed" bg="bg-violet-50" title={tr("Today's Collection")} value={stats ? inr(stats.today_collection) : '—'} sub={`Today (${fmtDate(new Date().toISOString())})`} />
-        <StatTile icon={HeartHandshake} color="#d97706" bg="bg-amber-50" title={tr("Total Persons Sponsored")} value={stats ? num(stats.total_persons) : '—'} sub="Across all Annadanam records" />
+        <StatTile icon={HeartHandshake} color="#d97706" bg="bg-amber-50" title={tr("Total Persons Sponsored")} value={stats ? num(stats.total_persons) : '—'} sub={tr("Across all Annadanam records")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -165,7 +167,7 @@ export default function Annadanam() {
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
-            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">All</option><option value="Cash">Cash</option><option value="UPI/QR Code">UPI / QR Code</option></Select>
+            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("UPI / QR Code")}</option></Select>
           </div>
           <div className="md:col-span-3 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setMode(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
@@ -176,7 +178,7 @@ export default function Annadanam() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Receipt No.', 'Date & Time', 'Devotee Name', 'Mobile Number', 'No. of Persons', 'Donation Amount (₹)', 'Payment Mode', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['Receipt No.', 'Date & Time', 'Devotee Name', 'Mobile Number', 'No. of Persons', 'Donation Amount (₹)', 'Payment Mode', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((a) => (
@@ -196,12 +198,12 @@ export default function Annadanam() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty="No annadanam records found." />}
+              {rows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty={tr("No annadanam records found.")} />}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit="records" />
+          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit={tr("records")} />
         </div>
       </div>
 
@@ -231,7 +233,7 @@ export default function Annadanam() {
                       {results.map((d) => (
                         <button type="button" key={d.id} onClick={() => { setM({ devotee: d }); setResults([]) }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
                           <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
-                          <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{d.name}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
+                          <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
                         </button>
                       ))}
                     </div>
@@ -270,8 +272,8 @@ export default function Annadanam() {
                   <label className="label"><T>Occasion *</T></label>
                   <Select className="input" value={drawer.occasionChoice} onChange={(e) => onOccasionSelect(e.target.value)}>
                     {OCCASIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                    {festivals.length > 0 && <optgroup label="Festivals">{festivals.map((f) => <option key={f.id ?? f.name} value={f.name}>{f.name}</option>)}</optgroup>}
-                    <option value="__other__">Other (enter manually)</option>
+                    {festivals.length > 0 && <optgroup label={tr("Festivals")}>{festivals.map((f) => <option key={f.id ?? f.name} value={f.name}>{f.name}</option>)}</optgroup>}
+                    <option value="__other__">{tr("Other (enter manually)")}</option>
                   </Select>
                   {drawer.occasionChoice === '__other__' && (
                     <input required className="input mt-2" placeholder={tr("Enter occasion")} value={drawer.occasion} onChange={(e) => setM({ occasion: e.target.value })} />
@@ -297,7 +299,7 @@ export default function Annadanam() {
                 <label className="label"><T>Payment Mode *</T></label>
                 <div className="flex gap-6 mt-1 mb-4">
                   {['Cash', 'UPI/QR Code'].map((mo) => (
-                    <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setM({ mode: mo })} /> {mo === 'UPI/QR Code' ? 'UPI / QR Code' : mo}</label>
+                    <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setM({ mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'UPI / QR Code' : mo)}</label>
                   ))}
                 </div>
                 {drawer.mode === 'UPI/QR Code' && (
@@ -324,7 +326,7 @@ export default function Annadanam() {
             {saveErr && <div className="px-6 pt-3 text-[0.75rem] text-red-600">{saveErr}</div>}
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button disabled={!drawer.devotee || saving} className="btn-maroon flex-1 justify-center disabled:opacity-50">{saving ? 'Saving…' : <>Save Payment &amp; Generate Receipt <Printer size={15} /></>}</button>
+              <button disabled={!drawer.devotee || saving} className="btn-maroon flex-1 justify-center disabled:opacity-50">{saving ? tr('Saving…') : <>{tr('Save Payment & Generate Receipt')} <Printer size={15} /></>}</button>
             </div>
           </form>
         </div>

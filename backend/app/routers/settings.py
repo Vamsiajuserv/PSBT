@@ -30,6 +30,10 @@ DEFAULTS = {
     "city": "Hyderabad",
     "state": "Telangana",
     "pincode": "500082",
+    # Telugu address, written by temple staff. Place names are proper nouns that
+    # no engine renders reliably, so when this is filled it is authoritative for
+    # the Telugu site; blank falls back to translating the English address.
+    "address_te": "ద్వారకాపురి కాలనీ, పంజాగుట్ట, హైదరాబాద్, తెలంగాణ 500082",
     # Contact Details
     "phone": "+91 040 2335 3589",
     "email": "info@saibabatemple.org",

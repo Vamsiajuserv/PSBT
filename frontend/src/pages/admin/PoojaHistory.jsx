@@ -22,6 +22,7 @@ function StatusPill({ completion }) {
   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_CLS[COMPLETION_TONE[completion]]}`}><I size={11} /> {COMPLETION_LABEL[completion]}</span>
 }
 const monthLabel = () => new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+  .replace(/[A-Za-z]{3,}/g, (w) => tr(w))
 const startOf = (slot) => (slot ? slot.split('-')[0].trim() : '')
 const endOf = (slot) => (slot && slot.includes('-') ? slot.split('-')[1].trim() : '')
 
@@ -60,17 +61,17 @@ export default function PoojaHistory() {
 
   return (
     <div>
-      <PageTitle title={tr("Pooja History")} subtitle="View completed and historical pooja records." />
+      <PageTitle title={tr("Pooja History")} subtitle={tr("View completed and historical pooja records.")} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={Flame} color="#ea580c" bg="bg-orange-50" title={tr("Total Completed Poojas")}
-          value={stats ? num(stats.total_completed) : '—'} sub="All time completed poojas" />
+          value={stats ? num(stats.total_completed) : '—'} sub={tr("All time completed poojas")} />
         <StatTile icon={CalendarCheck} color="#059669" bg="bg-emerald-50" title={tr("Completed This Month")}
-          value={stats ? num(stats.completed_this_month) : '—'} sub={`Poojas completed in ${monthLabel()}`} />
+          value={stats ? num(stats.completed_this_month) : '—'} sub={`${tr('Poojas completed in')} ${monthLabel()}`} />
         <StatTile icon={Users} color="#d97706" bg="bg-amber-50" title={tr("Devotees Served")}
-          value={stats ? num(stats.devotees_served) : '—'} sub="Unique devotees served" />
+          value={stats ? num(stats.devotees_served) : '—'} sub={tr("Unique devotees served")} />
         <StatTile icon={InfinityIcon} color="#7c3aed" bg="bg-violet-50" title={tr("Active Long-Term Poojas")}
-          value={stats ? num(stats.active_long_term) : '—'} sub="Life Long & Monthly poojas" />
+          value={stats ? num(stats.active_long_term) : '—'} sub={tr("Life Long & Monthly poojas")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -90,15 +91,15 @@ export default function PoojaHistory() {
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
-            <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">All Poojas</option>{poojas.map((p) => <option key={p.id}>{p.name}</option>)}</Select>
+            <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">{tr("All Poojas")}</option>{poojas.map((p) => <option key={p.id} value={p.name}>{tr(p.name)}</option>)}</Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Plan</T></label>
-            <Select value={plan} onChange={(e) => setPlan(e.target.value)} className="input"><option value="">All Plans</option>{planNames.map((p) => <option key={p}>{p}</option>)}</Select>
+            <Select value={plan} onChange={(e) => setPlan(e.target.value)} className="input"><option value="">{tr("All Plans")}</option>{planNames.map((p) => <option key={p} value={p}>{tr(p)}</option>)}</Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Completion Status</T></label>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">All Status</option><option>Completed</option><option>Ongoing</option><option value="Cancelled">Cancelled</option></Select>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Completed">{tr("Completed")}</option><option value="Ongoing">{tr("Ongoing")}</option><option value="Cancelled">{tr("Cancelled")}</option></Select>
           </div>
           <div className="xl:col-span-4 flex gap-2 justify-end">
             <button onClick={() => { setQ(''); setPooja(''); setPlan(''); setStatus(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
@@ -109,14 +110,14 @@ export default function PoojaHistory() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Booking ID', 'Devotee Name', 'Pooja Name', 'Plan', 'Poojari Name', 'Performed On', 'Ticket No.', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['Booking ID', 'Devotee Name', 'Pooja Name', 'Plan', 'Poojari Name', 'Performed On', 'Ticket No.', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{b.devotee_name}</td>
-                  <td className="px-4 py-3 text-gray-700">{b.pooja_name}</td>
+                  <td className="px-4 py-3 text-gray-700">{tr(b.pooja_name)}</td>
                   <td className="px-4 py-3">{b.plan_name ? <Pill tone={PLAN_TONE[b.plan_name] || 'gray'}>{b.plan_name}</Pill> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 text-gray-600">{b.poojari_name || '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(b.scheduled_date)}</div><div className="text-[0.6875rem] text-gray-400">{startOf(b.time_slot)}</div></td>
@@ -132,7 +133,7 @@ export default function PoojaHistory() {
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit="records" />
+          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit={tr("records")} />
         </div>
       </div>
 
@@ -148,44 +149,44 @@ export default function PoojaHistory() {
             </div>
             <div className="px-6 py-5 space-y-6 flex-1">
               <DSection icon={FileText} n="1" title={tr("Booking Information")}>
-                <Field label="Booking ID" value={drawer.booking_code} />
-                <Field label="Ticket No." value={drawer.ticket_no} />
-                <Field label="Booking Date" value={fmtStamp(drawer.created_at)} />
-                <Field label="Booking Mode" value={drawer.source} />
-                <Field label="Payment Status" value={<Pill tone={drawer.payment_status === 'Paid' ? 'green' : 'amber'}>{drawer.payment_status}</Pill>} />
-                <Field label="Amount Paid" value={inr(drawer.amount)} />
+                <Field label={tr("Booking ID")} value={drawer.booking_code} />
+                <Field label={tr("Ticket No.")} value={drawer.ticket_no} />
+                <Field label={tr("Booking Date")} value={fmtStamp(drawer.created_at)} />
+                <Field label={tr("Booking Mode")} value={drawer.source} />
+                <Field label={tr("Payment Status")} value={<Pill tone={drawer.payment_status === 'Paid' ? 'green' : 'amber'}>{tr(drawer.payment_status)}</Pill>} />
+                <Field label={tr("Amount Paid")} value={inr(drawer.amount)} />
               </DSection>
 
               <DSection icon={User} n="2" title={tr("Devotee Information")}>
-                <Field label="Devotee Name" value={drawer.devotee?.name} />
-                <Field label="Mobile Number" value={drawer.devotee?.mobile} />
-                <Field label="Email ID" value={drawer.devotee?.email || '—'} />
-                <Field label="Address" value={drawer.devotee?.address || '—'} wide />
+                <Field label={tr("Devotee Name")} value={drawer.devotee?.name} />
+                <Field label={tr("Mobile Number")} value={drawer.devotee?.mobile} />
+                <Field label={tr("Email ID")} value={drawer.devotee?.email || '—'} />
+                <Field label={tr("Address")} value={drawer.devotee?.address || '—'} wide />
               </DSection>
 
               <DSection icon={Sparkles} n="3" title={tr("Pooja & Plan Details")}>
-                <Field label="Pooja Name" value={drawer.pooja_name} />
-                <Field label="Plan" value={drawer.plan?.plan_name} />
-                <Field label="Rate Type" value={drawer.plan?.rate_type} />
-                <Field label="Rate Amount" value={inr(drawer.plan?.rate_amount)} />
-                <Field label="Validity" value={drawer.plan?.frequency || drawer.plan?.validity_type || '—'} />
-                <Field label="Valid From" value={fmtDate(drawer.scheduled_date)} />
-                <Field label="Valid To" value={drawer.valid_until ? fmtDate(drawer.valid_until) : fmtDate(drawer.scheduled_date)} />
+                <Field label={tr("Pooja Name")} value={drawer.pooja_name} />
+                <Field label={tr("Plan")} value={drawer.plan?.plan_name} />
+                <Field label={tr("Rate Type")} value={drawer.plan?.rate_type} />
+                <Field label={tr("Rate Amount")} value={inr(drawer.plan?.rate_amount)} />
+                <Field label={tr("Validity")} value={drawer.plan?.frequency || drawer.plan?.validity_type || '—'} />
+                <Field label={tr("Valid From")} value={fmtDate(drawer.scheduled_date)} />
+                <Field label={tr("Valid To")} value={drawer.valid_until ? fmtDate(drawer.valid_until) : fmtDate(drawer.scheduled_date)} />
               </DSection>
 
               <DSection icon={ClipboardList} n="4" title={tr("Poojari & Execution Details")}>
-                <Field label="Poojari Name" value={drawer.poojari_name || '—'} />
-                <Field label="Performed On" value={fmtDate(drawer.scheduled_date)} />
-                <Field label="Start Time" value={startOf(drawer.time_slot) || '—'} />
-                <Field label="End Time" value={endOf(drawer.time_slot) || '—'} />
-                <Field label="Execution Status" value={<StatusPill completion={drawer.completion} />} />
+                <Field label={tr("Poojari Name")} value={drawer.poojari_name || '—'} />
+                <Field label={tr("Performed On")} value={fmtDate(drawer.scheduled_date)} />
+                <Field label={tr("Start Time")} value={startOf(drawer.time_slot) || '—'} />
+                <Field label={tr("End Time")} value={endOf(drawer.time_slot) || '—'} />
+                <Field label={tr("Execution Status")} value={<StatusPill completion={drawer.completion} />} />
               </DSection>
 
               <DSection icon={StickyNote} n="5" title={tr("Additional Information")}>
                 <div className="col-span-2">
                   <div className="text-[0.6875rem] text-gray-400 mb-1"><T>Notes</T></div>
                   <div className="text-[0.8125rem] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5 min-h-[2.75rem]">
-                    {drawer.completion === 'Completed' ? 'Pooja completed successfully.' : drawer.completion === 'Cancelled' ? 'Booking was cancelled.' : 'Pooja is scheduled / ongoing.'}
+                    {drawer.completion === 'Completed' ? tr('Pooja completed successfully.') : drawer.completion === 'Cancelled' ? tr('Booking was cancelled.') : tr('Pooja is scheduled / ongoing.')}
                   </div>
                 </div>
               </DSection>

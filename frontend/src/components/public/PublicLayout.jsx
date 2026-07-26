@@ -3,7 +3,7 @@ import { Outlet, NavLink, Link } from 'react-router-dom'
 import {
   Menu, X, Phone, Mail, MapPin, ChevronDown, Facebook, Instagram, Youtube, ShieldCheck, Clock, Languages,
 } from 'lucide-react'
-import { useLang, T } from '../../i18n/LanguageContext.jsx'
+import { useLang, T, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
 import { useSiteContext, useTemple } from '../../lib/SiteContext.jsx'
 import { getFontScale, setFontScale } from '../../lib/fontScale.js'
 import TempleLoader from './TempleLoader.jsx'
@@ -71,6 +71,7 @@ const QUICK_LINKS = [
 
 function Logo({ light = false }) {
   const temple = useTemple()
+  const address = useTempleAddress()
   return (
     <Link to="/" className="flex items-center gap-3">
       {/* Official temple seal — the badge carries its own ring, so it sits
@@ -78,10 +79,10 @@ function Logo({ light = false }) {
       <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-16 h-16 shrink-0 drop-shadow-sm" />
       <div className="leading-tight">
         <div className={`font-display font-bold text-[0.9375rem] sm:text-lg tracking-wide uppercase ${light ? 'text-gold-200' : 'text-maroon-700'}`}>
-          {temple?.name || 'Sri Shirdi Sai Baba Temple'}
+          {tr(temple?.name || 'Sri Shirdi Sai Baba Temple')}
         </div>
         <div className={`text-[0.625rem] sm:text-[0.6875rem] ${light ? 'text-cream/70' : 'text-black'}`}>
-          {temple?.address || ''}
+          {address}
         </div>
       </div>
     </Link>
@@ -92,6 +93,7 @@ export default function PublicLayout() {
   const [open, setOpen] = useState(false)
   const { t, lang } = useLang()
   const { site, loading, error } = useSiteContext()
+  const address = useTempleAddress()
 
   const flatMobile = NAV.flatMap((n) => (n.children ? n.children : [n]))
 
@@ -102,7 +104,7 @@ export default function PublicLayout() {
     return (
       <div className="temple-loader min-h-screen grid place-items-center px-6 text-center">
         <div className="animate-fade-in">
-          <div className="font-script text-3xl text-gold-300 mb-3">|| Om Sri Sai Ram ||</div>
+          <div className="font-script text-3xl text-gold-300 mb-3">|| {t('Om Sri Sai Ram')} ||</div>
           <p className="text-cream/80 text-sm max-w-sm mx-auto">{error || t('Could not load temple information. Please try again.')}</p>
           <button onClick={() => window.location.reload()} className="btn-primary mt-5 !py-2 text-xs">{t('Retry')}</button>
         </div>
@@ -217,9 +219,9 @@ export default function PublicLayout() {
         <div className="max-w-7xl mx-auto px-4 py-12 grid md:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Brand */}
           <div>
-            <div className="font-display font-bold text-lg tracking-wide text-gold-200 uppercase">{TEMPLE.name}</div>
+            <div className="font-display font-bold text-lg tracking-wide text-gold-200 uppercase">{t(TEMPLE.name)}</div>
             <p className="text-xs leading-relaxed text-cream/60 mt-3">
-              {TEMPLE.tagline || t('A sacred place dedicated to Sri Shirdi Sai Baba, spreading love, faith and seva.')}
+              {t(TEMPLE.tagline || 'A sacred place dedicated to Sri Shirdi Sai Baba, spreading love, faith and seva.')}
             </p>
             <div className="flex gap-2 mt-4">
               {[[Facebook, 'facebook'], [Instagram, 'instagram'], [Youtube, 'youtube']]
@@ -246,10 +248,12 @@ export default function PublicLayout() {
             <div className="font-display text-xs uppercase tracking-widest text-gold-300 mb-3">{t('Temple Information')}</div>
             <ul className="space-y-2 text-xs">
               {[
+                // Reg. No is an identifier — it stays in Latin script, like the
+                // email address and phone number below.
                 [t('Established'), TEMPLE.established],
-                [t('Managed By'), TEMPLE.managedBy],
+                [t('Managed By'), t(TEMPLE.managedBy)],
                 [t('Trust Reg. No'), TEMPLE.regNo],
-                [t('Pan No.'), TEMPLE.pan],
+                [t('Pan No.'), t(TEMPLE.pan)],
               ].map(([label, value]) => (
                 <li key={label} className="flex gap-1.5">
                   <span className="text-cream/50 w-24 shrink-0">{label}</span>
@@ -264,7 +268,7 @@ export default function PublicLayout() {
           <div>
             <div className="font-display text-xs uppercase tracking-widest text-gold-300 mb-3">{t('Contact Us')}</div>
             <ul className="space-y-2 text-xs">
-              <li className="flex gap-2"><MapPin size={14} className="text-gold-400 shrink-0 mt-0.5" /> {TEMPLE.address}</li>
+              <li className="flex gap-2"><MapPin size={14} className="text-gold-400 shrink-0 mt-0.5" /> {address}</li>
               <li className="flex gap-2"><Phone size={14} className="text-gold-400 shrink-0" /> {TEMPLE.phone}</li>
               <li className="flex gap-2"><Mail size={14} className="text-gold-400 shrink-0" /> {TEMPLE.email}</li>
             </ul>
@@ -281,7 +285,7 @@ export default function PublicLayout() {
               </div>
             </div>
             <div className="mt-4 bg-gold-500/15 border border-gold-500/25 rounded-lg px-3 py-2.5 text-[0.6875rem] text-gold-100/90 leading-relaxed">
-              {TEMPLE.timingsNote}
+              {t(TEMPLE.timingsNote)}
             </div>
           </div>
         </div>

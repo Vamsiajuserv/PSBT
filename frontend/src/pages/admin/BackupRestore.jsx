@@ -57,23 +57,23 @@ export default function BackupRestore() {
 
   if (!isAdmin) return (
     <div>
-      <PageTitle title={tr("Backup & Restore")} subtitle="Configuration backup and controlled restore." />
+      <PageTitle title={tr("Backup & Restore")} subtitle={tr("Configuration backup and controlled restore.")} />
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center text-gray-400">
-        <ShieldCheck size={36} className="mx-auto mb-3 opacity-40" /> Backup &amp; Restore is restricted to the Administrator role.
+        <ShieldCheck size={36} className="mx-auto mb-3 opacity-40" /> {tr('Backup & Restore is restricted to the Administrator role.')}
       </div>
     </div>
   )
 
   return (
     <div>
-      <PageTitle title={tr("Backup & Restore")} subtitle="Back up temple configuration and restore it through a validated, controlled workflow."
-        actions={<button onClick={createBackup} disabled={busy} className="btn-maroon !py-2.5 disabled:opacity-50">{busy ? <Loader2 size={16} className="animate-spin" /> : <HardDriveDownload size={16} />} Create Backup</button>} />
+      <PageTitle title={tr("Backup & Restore")} subtitle={tr("Back up temple configuration and restore it through a validated, controlled workflow.")}
+        actions={<button onClick={createBackup} disabled={busy} className="btn-maroon !py-2.5 disabled:opacity-50">{busy ? <Loader2 size={16} className="animate-spin" /> : <HardDriveDownload size={16} />} {tr('Create Backup')}</button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={Database} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Backups")} value={stats ? num(stats.total_backups) : '—'} sub="Snapshots taken" />
-        <StatTile icon={RotateCcw} color="#2563eb" bg="bg-blue-50" title={tr("Restores")} value={stats ? num(stats.restores) : '—'} sub="Restore operations" />
-        <StatTile icon={Table2} color="#7c3aed" bg="bg-violet-50" title={tr("Tables")} value={stats ? num(stats.tables) : '—'} sub="Full backup (config + records)" />
-        <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Last Backup")} value={stats?.last_backup ? fmtStamp(stats.last_backup).split(', ')[0] : '—'} sub="Most recent" />
+        <StatTile icon={Database} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Backups")} value={stats ? num(stats.total_backups) : '—'} sub={tr("Snapshots taken")} />
+        <StatTile icon={RotateCcw} color="#2563eb" bg="bg-blue-50" title={tr("Restores")} value={stats ? num(stats.restores) : '—'} sub={tr("Restore operations")} />
+        <StatTile icon={Table2} color="#7c3aed" bg="bg-violet-50" title={tr("Tables")} value={stats ? num(stats.tables) : '—'} sub={tr("Full backup (config + records)")} />
+        <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Last Backup")} value={stats?.last_backup ? fmtStamp(stats.last_backup).split(', ')[0] : '—'} sub={tr("Most recent")} />
       </div>
 
       {msg && <div className="mb-4 text-[0.8125rem] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2.5">{msg}</div>}
@@ -91,13 +91,13 @@ export default function BackupRestore() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['File Name', 'Type', 'Records', 'Size', 'Created By', 'Date', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{c}</th>)}
+              {['File Name', 'Type', 'Records', 'Size', 'Created By', 'Date', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {items.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-600">{b.filename}</td>
-                  <td className="px-4 py-3"><Pill tone={b.kind === 'Backup' ? 'blue' : 'violet'}>{b.kind}</Pill></td>
+                  <td className="px-4 py-3"><Pill tone={b.kind === 'Backup' ? 'blue' : 'violet'}>{tr(b.kind)}</Pill></td>
                   <td className="px-4 py-3 text-gray-700">{num(b.total_records)}</td>
                   <td className="px-4 py-3 text-gray-600">{b.size_kb ? `${b.size_kb} KB` : '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{b.created_by}</td>

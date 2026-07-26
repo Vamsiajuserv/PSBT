@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey, keyOf } from '../../auth/access.js'
-import { useLang, T, tr } from '../../i18n/LanguageContext.jsx'
+import { useLang, T, tr, personName } from '../../i18n/LanguageContext.jsx'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -74,8 +74,14 @@ const NAV = [
   },
 ]
 
-const todayLabel = () => new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', weekday: 'short' })
-const timeLabel = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+// Weekday and month are words, so they translate; the digits stay as they are.
+// AM/PM is a word too — a Telugu reader expects ఉదయం / సాయంత్రం.
+const todayLabel = () =>
+  new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', weekday: 'short' })
+    .replace(/[A-Za-z]{3,}/g, (w) => tr(w))
+const timeLabel = () =>
+  new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    .replace(/\b(AM|PM)\b/, (w) => tr(w))
 
 function SidebarNav({ onNavigate }) {
   const location = useLocation()
@@ -154,9 +160,9 @@ export default function AdminLayout() {
   const { user, logout } = useAuth()
   const { t, lang, toggle: toggleLang } = useLang()
   const navigate = useNavigate()
-  const name = user?.name || 'Administrator'
+  const name = personName(user, lang) || tr('Administrator')
   const role = user?.role || 'Admin'
-  const roleLabel = role === 'Admin' ? 'Administrator' : role
+  const roleLabel = tr(role === 'Admin' ? 'Administrator' : role)
   const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
 
   const signOut = () => { logout(); navigate('/staff-login') }
@@ -188,7 +194,7 @@ export default function AdminLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <button className="text-gray-500 hover:text-maroon-700" title={tr("Toggle sidebar")} aria-label="Toggle sidebar"
+            <button className="text-gray-500 hover:text-maroon-700" title={tr("Toggle sidebar")} aria-label={tr("Toggle sidebar")}
               onClick={() => { setOpen((o) => !o); setCollapsed((c) => !c) }}><Menu size={22} /></button>
             <span className="font-serif font-bold text-maroon-800 text-lg hidden sm:block"><T>Sri Shirdi Sai Baba Temple</T></span>
           </div>
@@ -198,9 +204,9 @@ export default function AdminLayout() {
             <span className="hidden md:flex items-center gap-2 text-[0.8125rem] text-gray-600"><Clock size={15} className="text-gray-400" /> {timeLabel()}</span>
             <button onClick={toggleLang} title={tr("Switch language / భాష మార్చండి")}
               className="px-2.5 py-1 rounded-full border border-gold-300 text-[0.71875rem] font-bold text-maroon-700 hover:bg-gold-50">
-              {lang === 'en' ? 'తెలుగు' : 'English'}
+              {lang === 'en' ? 'తెలుగు' : tr('English')}
             </button>
-            <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label="Notifications" className="relative text-gray-500 hover:text-maroon-700">
+            <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label={tr("Notifications")} className="relative text-gray-500 hover:text-maroon-700">
               <Bell size={20} />
             </button>
             <div className="flex items-center gap-2.5 pl-4 border-l border-gray-200">

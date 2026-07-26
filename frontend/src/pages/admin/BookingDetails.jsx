@@ -10,12 +10,12 @@ import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI, BookingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
-const modeLabel = (m) => (m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'UPI / QR Code' : (m || 'Cash'))
+const modeLabel = (m) => tr(m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'UPI / QR Code' : (m || 'Cash'))
 function durDays(pl) {
   const n = (pl?.plan_name || '').toLowerCase()
   if (n.includes('life')) return null
@@ -29,6 +29,7 @@ function validityRange(pl, from) { const d = durDays(pl); if (d === null || !fro
 const bookedBy = (u) => (u === 'admin' ? { name: 'Administrator', sub: 'Super Admin' } : { name: u || '—', sub: 'Staff' })
 
 export default function BookingDetails() {
+  const { lang } = useLang()
   const { id } = useParams()
   const nav = useNavigate()
   const { user } = useAuth()
@@ -66,11 +67,11 @@ export default function BookingDetails() {
 
       {/* Summary strip */}
       <div className="bg-amber-50/40 border border-amber-100 rounded-xl px-5 py-4 mb-5 flex flex-wrap items-center gap-x-8 gap-y-4">
-        <Meta icon={ClipboardList} label="Booking ID" value={<span className="font-mono">{d.booking_code}</span>} />
-        <Meta icon={Ticket} label="Ticket Number" value={<span className="font-mono">{ticketNo}</span>} />
-        <Meta icon={Calendar} label="Booking Date" value={fmtStamp(d.created_at)} />
-        <Meta icon={UserCheck} label="Booked By" value={bb.name} sub={`(${bb.sub})`} />
-        <Meta icon={Building2} label="Booking Source" value={d.source === 'Counter' ? 'Counter Booking' : 'Online Booking'} />
+        <Meta icon={ClipboardList} label={tr("Booking ID")} value={<span className="font-mono">{d.booking_code}</span>} />
+        <Meta icon={Ticket} label={tr("Ticket Number")} value={<span className="font-mono">{ticketNo}</span>} />
+        <Meta icon={Calendar} label={tr("Booking Date")} value={fmtStamp(d.created_at)} />
+        <Meta icon={UserCheck} label={tr("Booked By")} value={bb.name} sub={`(${bb.sub})`} />
+        <Meta icon={Building2} label={tr("Booking Source")} value={d.source === 'Counter' ? tr('Counter Booking') : tr('Online Booking')} />
         <div className="ml-auto"><span className="inline-flex items-center gap-1.5 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5"><CheckCircle2 size={15} /> {(d.status || 'Confirmed').toUpperCase()}</span></div>
       </div>
 
@@ -78,30 +79,30 @@ export default function BookingDetails() {
         {/* Left column */}
         <div className="space-y-5">
           <Section n="1" icon={User} title={tr("Devotee Details")}>
-            <Row label="Devotee Name" value={dev.name} />
-            <Row label="Mobile Number" value={dev.mobile} />
-            <Row label="Email (if any)" value={dev.email || '—'} />
+            <Row label={tr("Devotee Name")} value={personName(dev, lang)} />
+            <Row label={tr("Mobile Number")} value={dev.mobile} />
+            <Row label={tr("Email (if any)")} value={dev.email || '—'} />
           </Section>
 
           <Section n="2" icon={Landmark} title={tr("Pooja & Plan Details")}>
-            <Row label="Pooja Name" value={d.pooja_name} />
-            <Row label="Plan" value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
-            <Row label="Plan Type" value={plan.plan_name} />
-            <Row label="Rate Type" value={plan.rate_type} />
-            <Row label="Validity" value={validRange} />
-            <Row label="Plan Description" value={`${plan.description || ''} for ${validityShort(plan)}`.trim()} />
+            <Row label={tr("Pooja Name")} value={d.pooja_name} />
+            <Row label={tr("Plan")} value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
+            <Row label={tr("Plan Type")} value={plan.plan_name} />
+            <Row label={tr("Rate Type")} value={plan.rate_type} />
+            <Row label={tr("Validity")} value={validRange} />
+            <Row label={tr("Plan Description")} value={`${plan.description || ''} for ${validityShort(plan)}`.trim()} />
           </Section>
 
           <Section n="3" icon={IndianRupee} title={tr("Amount Details")}>
-            <Row label="Rate (₹)" value={money2(plan.rate_amount)} />
+            <Row label={tr("Rate (₹)")} value={money2(plan.rate_amount)} />
             <div className="flex text-[0.84375rem] pt-1"><span className="text-maroon-700 font-bold w-44 shrink-0"><T>Total Amount Paid (₹)</T></span><span className="text-gray-400 mr-3">:</span><span className="text-maroon-700 font-extrabold">{money2(d.amount)}</span></div>
           </Section>
 
           <Section n="4" icon={CreditCard} title={tr("Payment Details")}>
-            <Row label="Payment Mode" value={mode} />
-            {isUpi && <Row label="UTR / Transaction ID" value={<span className="text-emerald-700 font-mono">{d.payment_ref}</span>} />}
-            <Row label="Payment Date & Time" value={fmtStamp(d.created_at)} />
-            <Row label="Payment Status" value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} />{' '}<T>Payment Successful</T></span>} />
+            <Row label={tr("Payment Mode")} value={mode} />
+            {isUpi && <Row label={tr("UTR / Transaction ID")} value={<span className="text-emerald-700 font-mono">{d.payment_ref}</span>} />}
+            <Row label={tr("Payment Date & Time")} value={fmtStamp(d.created_at)} />
+            <Row label={tr("Payment Status")} value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} />{' '}<T>Payment Successful</T></span>} />
             <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" />{' '}<T>Payment has been received successfully.</T></div>
           </Section>
         </div>
@@ -109,20 +110,20 @@ export default function BookingDetails() {
         {/* Right — ticket */}
         <div id="print-area">
           <TicketShell code={d.booking_code}>
-            <TF icon={ClipboardList} label="Booking ID" value={d.booking_code} mono />
-            <TF icon={Ticket} label="Ticket Number" value={ticketNo} mono />
-            <TF icon={User} label="Devotee" value={dev.name} sub={dev.mobile} />
-            <TF icon={Landmark} label="Pooja" value={d.pooja_name} />
-            <TF icon={CalendarDays} label="Plan" value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
-            <TF icon={Tag} label="Plan Type" value={plan.plan_name} />
-            <TF icon={Calendar} label="Booking Date" value={fmtDate(d.created_at)} sub={fmtStamp(d.created_at).split(', ')[1]} />
-            <TF icon={ShieldCheck} label="Validity" value={validityShort(plan)} sub={validRange.includes('(') ? validRange.slice(validRange.indexOf('(')) : ''} />
-            <TF icon={IndianRupee} label="Rate Type" value={plan.rate_type} />
-            <TF icon={IndianRupee} label="Amount Paid (₹)" value={money2(d.amount)} />
-            <TF icon={CreditCard} label="Payment Mode" value={mode} />
-            <TF icon={Ticket} label="UTR / Transaction ID" value={isUpi ? <span className="text-emerald-700 font-mono text-[0.75rem]">{d.payment_ref}</span> : '—'} />
-            <TF icon={Calendar} label="Payment Date & Time" value={fmtStamp(d.created_at)} />
-            <TF icon={CheckCircle2} label="Payment Status" value={<span className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-emerald-700"><CheckCircle2 size={12} />{' '}<T>Payment Successful</T></span>} />
+            <TF icon={ClipboardList} label={tr("Booking ID")} value={d.booking_code} mono />
+            <TF icon={Ticket} label={tr("Ticket Number")} value={ticketNo} mono />
+            <TF icon={User} label={tr("Devotee")} value={personName(dev, lang)} sub={dev.mobile} />
+            <TF icon={Landmark} label={tr("Pooja")} value={d.pooja_name} />
+            <TF icon={CalendarDays} label={tr("Plan")} value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
+            <TF icon={Tag} label={tr("Plan Type")} value={plan.plan_name} />
+            <TF icon={Calendar} label={tr("Booking Date")} value={fmtDate(d.created_at)} sub={fmtStamp(d.created_at).split(', ')[1]} />
+            <TF icon={ShieldCheck} label={tr("Validity")} value={validityShort(plan)} sub={validRange.includes('(') ? validRange.slice(validRange.indexOf('(')) : ''} />
+            <TF icon={IndianRupee} label={tr("Rate Type")} value={plan.rate_type} />
+            <TF icon={IndianRupee} label={tr("Amount Paid (₹)")} value={money2(d.amount)} />
+            <TF icon={CreditCard} label={tr("Payment Mode")} value={mode} />
+            <TF icon={Ticket} label={tr("UTR / Transaction ID")} value={isUpi ? <span className="text-emerald-700 font-mono text-[0.75rem]">{d.payment_ref}</span> : '—'} />
+            <TF icon={Calendar} label={tr("Payment Date & Time")} value={fmtStamp(d.created_at)} />
+            <TF icon={CheckCircle2} label={tr("Payment Status")} value={<span className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-emerald-700"><CheckCircle2 size={12} />{' '}<T>Payment Successful</T></span>} />
           </TicketShell>
         </div>
       </div>

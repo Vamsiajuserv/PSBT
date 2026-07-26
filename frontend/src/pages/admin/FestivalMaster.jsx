@@ -26,17 +26,17 @@ export default function FestivalMaster() {
       { key: 'upcoming', icon: CalendarClock, color: '#d97706', bg: 'bg-amber-50', title: 'Upcoming', sub: 'Yet to start' },
     ],
     columns: [
-      { key: 'code', label: 'Festival ID', mono: true },
-      { key: 'name', label: 'Festival Name', strong: true },
-      { key: 'start_date', label: 'Start Date', render: (r) => fmtDate(r.start_date) },
-      { key: 'end_date', label: 'End Date', render: (r) => fmtDate(r.end_date) },
-      { key: 'poojas', label: 'Associated Poojas', render: (r) => (r.poojas?.length ? <div className="flex flex-wrap gap-1">{r.poojas.slice(0, 3).map((p) => <Pill key={p.id} tone="maroon">{p.name}</Pill>)}{r.poojas.length > 3 && <span className="text-[0.6875rem] text-gray-400">+{r.poojas.length - 3}</span>}</div> : '—') },
+      { key: 'code', label: tr('Festival ID'), mono: true },
+      { key: 'name', label: tr('Festival Name'), strong: true },
+      { key: 'start_date', label: tr('Start Date'), render: (r) => fmtDate(r.start_date) },
+      { key: 'end_date', label: tr('End Date'), render: (r) => fmtDate(r.end_date) },
+      { key: 'poojas', label: tr('Associated Poojas'), render: (r) => (r.poojas?.length ? <div className="flex flex-wrap gap-1">{r.poojas.slice(0, 3).map((p) => <Pill key={p.id} tone="maroon">{p.name}</Pill>)}{r.poojas.length > 3 && <span className="text-[0.6875rem] text-gray-400">+{r.poojas.length - 3}</span>}</div> : '—') },
     ],
     fields: [
-      { k: 'name', label: 'Festival Name', required: true },
-      { k: 'start_date', label: 'Start Date', type: 'date', required: true },
-      { k: 'end_date', label: 'End Date', type: 'date' },
-      { k: 'pooja_ids', label: 'Associated Poojas', type: 'multiselect', options: poojaOptions },
+      { k: 'name', label: tr('Festival Name'), required: true },
+      { k: 'start_date', label: tr('Start Date'), type: 'date', required: true },
+      { k: 'end_date', label: tr('End Date'), type: 'date' },
+      { k: 'pooja_ids', label: tr('Associated Poojas'), type: 'multiselect', options: poojaOptions },
       {
         k: 'plan_fees', label: 'Committee Prices (set once for this festival)', type: 'custom', default: {},
         render: (data, setD) => {
@@ -63,8 +63,8 @@ export default function FestivalMaster() {
           )
         },
       },
-      { k: 'status', label: 'Status', type: 'select', options: ['Active', 'Inactive'], default: 'Active' },
-      { k: 'description', label: 'Description', type: 'textarea' },
+      { k: 'status', label: tr('Status'), type: 'select', options: ['Active', 'Inactive'], default: 'Active' },
+      { k: 'description', label: tr('Description'), type: 'textarea' },
     ],
   }), [poojaOptions, poojaAll])
 

@@ -70,7 +70,7 @@ def create_user(body: UserCreate, request: Request,
             seq += 1
         emp = f"EMP{seq:03d}"
     u = User(
-        name=body.name, username=username, email=body.email, mobile=body.mobile,
+        name=body.name, name_te=body.name_te, username=username, email=body.email, mobile=body.mobile,
         employee_id=emp, role=role, is_active=body.is_active,
         modules=",".join(body.modules), password_hash=hash_password(body.password),
         twofa_enabled=body.twofa_enabled,

@@ -9,7 +9,7 @@ import { DevoteesAPI, PoojasAPI, BookingsAPI, PaymentsAPI, PoojarisAPI, Festival
 import { inr, fmtDate } from '../../components/admin/ui.jsx'
 import { TicketRef } from '../../components/admin/BookingTicket.jsx'
 import { Select, DateField, NumberField } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useLang, personName } from '../../i18n/LanguageContext.jsx'
 
 const STEPS = [
   { t: 'Booking Details', s: 'Enter booking information' },
@@ -42,7 +42,7 @@ const validityShort = (pl) => {
   if (n.includes('life')) return 'Lifetime'
   if (n.includes('one')) return 'One-Time'
   if (n.includes('year')) return '1 Year'
-  return pl?.frequency || 'Selected Date'
+  return pl?.frequency || tr('Selected Date')
 }
 function validityRange(pl, from) {
   const d = durDays(pl)
@@ -59,14 +59,14 @@ function Stepper({ step }) {
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-2 mb-5 flex items-stretch gap-1">
       {STEPS.map((s, i) => {
         const done = i < step, active = i === step, banner = active && step > 0
-        const sub = done ? 'Completed' : active ? (i === 0 ? s.s : (step === STEPS.length - 1 ? 'Completed' : 'In Progress')) : 'Pending'
+        const sub = done ? tr('Completed') : active ? (i === 0 ? tr(s.s) : (step === STEPS.length - 1 ? tr('Completed') : tr('In Progress'))) : tr('Pending')
         return (
           <React.Fragment key={i}>
             <div className={`flex items-center gap-3 px-4 py-3 flex-1 ${banner ? 'bg-maroon-800 text-cream' : ''}`}
               style={banner ? { clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%)', borderRadius: 8 } : {}}>
               <div className={`w-8 h-8 rounded-full grid place-items-center text-sm font-bold shrink-0 ${done ? 'bg-emerald-500 text-white' : banner ? 'bg-white text-maroon-800' : active ? 'bg-maroon-800 text-white' : 'bg-gray-100 text-gray-400'}`}>{done ? <Check size={16} /> : i + 1}</div>
               <div className="hidden md:block">
-                <div className={`text-[0.8125rem] font-bold ${banner ? 'text-cream' : active ? 'text-maroon-800' : done ? 'text-gray-700' : 'text-gray-400'}`}>{s.t}</div>
+                <div className={`text-[0.8125rem] font-bold ${banner ? 'text-cream' : active ? 'text-maroon-800' : done ? 'text-gray-700' : 'text-gray-400'}`}>{tr(s.t)}</div>
                 <div className={`text-[0.6875rem] ${banner ? 'text-cream/70' : 'text-gray-400'}`}>{sub}</div>
               </div>
             </div>
@@ -79,6 +79,7 @@ function Stepper({ step }) {
 }
 
 export default function NewBooking() {
+  const { lang } = useLang()
   const nav = useNavigate()
   const [step, setStep] = useState(0)
   const [poojas, setPoojas] = useState([])
@@ -165,7 +166,7 @@ export default function NewBooking() {
   const fee = plan?.committee_decided
     ? (festCommitteeFee > 0 ? festCommitteeFee : Number(committeeAmt || 0))
     : Number(plan?.fee || 0)
-  const rateType = plan?.committee_decided ? 'Committee Decided' : 'Fixed Amount'
+  const rateType = plan?.committee_decided ? tr('Committee Decided') : tr('Fixed Amount')
   // Committee-decided bookings must carry a positive, operator-entered amount.
   const amountReady = fee > 0
 
@@ -225,11 +226,11 @@ export default function NewBooking() {
 
   const canNext = devotee && plan && schedDate
   const validText = plan ? validityRange(plan, schedDate) : ''
-  const modeLabel = (m) => (m === 'UPI/QR Code' ? 'UPI / QR Code' : m)
+  const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI / QR Code' : m)
 
   // summary rows shared by step 2 & 3
   const summaryRows = (t) => [
-    { icon: User, k: 'Devotee', v: `${devotee?.name} (${devotee?.mobile})` },
+    { icon: User, k: 'Devotee', v: `${personName(devotee, lang)} (${devotee?.mobile})` },
     { icon: Landmark, k: 'Pooja', v: pooja?.name },
     { icon: CalendarDays, k: 'Plan', v: `${plan?.plan_name} ${shortPooja(pooja?.name)}` },
     { icon: Tag, k: 'Plan Type', v: plan?.plan_name },
@@ -260,17 +261,17 @@ export default function NewBooking() {
         <div className="space-y-5">
           {/* 1. Devotee Search & Selection */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 text-maroon-700 mb-4"><User size={18} /><h3 className="font-serif text-lg font-bold">1. Devotee Search &amp; Selection</h3></div>
+            <div className="flex items-center gap-2 text-maroon-700 mb-4"><User size={18} /><h3 className="font-serif text-lg font-bold">{tr("1. Devotee Search &amp; Selection")}</h3></div>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1.2fr_auto] gap-5 items-start">
               <div>
                 <label className="label"><T>Search By</T></label>
                 <div className="flex gap-5 mb-3 mt-1">
                   {['Mobile Number', 'Devotee Name'].map((o) => (
-                    <label key={o} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="sby" className="accent-maroon-700" checked={searchBy === o} onChange={() => setSearchBy(o)} /> {o}</label>
+                    <label key={o} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="sby" className="accent-maroon-700" checked={searchBy === o} onChange={() => setSearchBy(o)} /> {tr(o)}</label>
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <input className="input flex-1" placeholder={`Enter ${searchBy.toLowerCase()}`} value={devQ} onChange={(e) => setDevQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} />
+                  <input className="input flex-1" placeholder={`${tr('Enter')} ${tr(searchBy).toLowerCase()}`} value={devQ} onChange={(e) => setDevQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} />
                   <button type="button" onClick={search} className="btn-maroon !px-4"><Search size={15} />{' '}<T>Search</T></button>
                 </div>
               </div>
@@ -330,7 +331,7 @@ export default function NewBooking() {
                 </div>
                 {qaErr && <div className="text-[0.75rem] text-red-600 mt-2">{qaErr}</div>}
                 <div className="flex items-center gap-2 mt-3">
-                  <button type="button" onClick={saveQuickAdd} disabled={qaBusy} className="btn-maroon !py-2 disabled:opacity-60"><Check size={15} /> {qaBusy ? 'Saving…' : 'Add & Select'}</button>
+                  <button type="button" onClick={saveQuickAdd} disabled={qaBusy} className="btn-maroon !py-2 disabled:opacity-60"><Check size={15} /> {qaBusy ? tr('Saving…') : tr('Add & Select')}</button>
                   <button type="button" onClick={() => setQuickAdd(null)} className="btn-outline !py-2"><T>Cancel</T></button>
                   <span className="text-[0.71875rem] text-gray-400 ml-1"><T>You can complete the full profile later from Devotee Management.</T></span>
                 </div>
@@ -341,15 +342,15 @@ export default function NewBooking() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.6fr] gap-5">
             {/* 2. Pooja Selection */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><Flame size={18} /><h3 className="font-serif text-lg font-bold"><T>2. Pooja Selection</T></h3></div>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><Flame size={18} /><h3 className="font-serif text-lg font-bold"><T>{tr("2. Pooja Selection")}</T></h3></div>
               <label className="label"><T>Select Pooja *</T></label>
-              <Select value={poojaId} onChange={(e) => { setPoojaId(e.target.value); setPlan(null) }} className="input"><option value="">Select a pooja…</option>{poojas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select>
+              <Select value={poojaId} onChange={(e) => { setPoojaId(e.target.value); setPlan(null) }} className="input"><option value="">{tr("Select a pooja…")}</option>{poojas.map((p) => <option key={p.id} value={p.id}>{p.name_te && lang === 'te' ? p.name_te : tr(p.name)}</option>)}</Select>
               <div className="mt-4 bg-blue-50/60 border border-blue-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Only plans configured for the selected pooja are shown below.</T></div>
             </div>
 
             {/* 3. Plan Selection */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><CalendarDays size={18} /><h3 className="font-serif text-lg font-bold"><T>3. Plan Selection</T></h3></div>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><CalendarDays size={18} /><h3 className="font-serif text-lg font-bold"><T>{tr("3. Plan Selection")}</T></h3></div>
               {!pooja ? (
                 <div className="border border-dashed border-gray-200 rounded-xl px-4 py-10 text-center text-gray-400 text-[0.8125rem]"><T>Select a pooja to view available plans.</T></div>
               ) : (
@@ -379,12 +380,12 @@ export default function NewBooking() {
 
           {/* 4. Booking Date */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 text-maroon-700 mb-4"><Calendar size={18} /><h3 className="font-serif text-lg font-bold"><T>4. Booking Date</T></h3></div>
+            <div className="flex items-center gap-2 text-maroon-700 mb-4"><Calendar size={18} /><h3 className="font-serif text-lg font-bold"><T>{tr("4. Booking Date")}</T></h3></div>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr] gap-5 items-start">
               {plan ? (
                 <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center shrink-0"><CalendarDays size={18} /></div>
-                  <div><div className="font-bold text-gray-800">{plan.plan_name} {shortPooja(pooja?.name)}</div><div className="text-[0.75rem] text-gray-500">{plan.plan_name} · {plan.committee_decided ? 'Committee' : inr(plan.fee)} · Validity: {validityShort(plan)}</div></div>
+                  <div><div className="font-bold text-gray-800">{tr(plan.plan_name)} {shortPooja(pooja?.name)}</div><div className="text-[0.75rem] text-gray-500">{tr(plan.plan_name)} · {plan.committee_decided ? tr('Committee') : inr(plan.fee)} · {tr('Validity')}: {validityShort(plan)}</div></div>
                 </div>
               ) : <div className="border border-dashed border-gray-200 rounded-xl px-4 py-4 text-center text-gray-400 text-[0.8125rem]"><T>Select a plan first.</T></div>}
               <div>
@@ -401,12 +402,12 @@ export default function NewBooking() {
               </div>
               <div>
                 <label className="label"><T>Time Slot *</T></label>
-                <Select value={slot} onChange={(e) => setSlot(e.target.value)}>{SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}</Select>
+                <Select value={slot} onChange={(e) => setSlot(e.target.value)}>{SLOTS.map((s) => <option key={s} value={s}>{s.replace(/\b(AM|PM)\b/g, (w) => tr(w))}</option>)}</Select>
                 <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Select the pooja timing slot for the booking.</T></div>
               </div>
               <div>
                 <label className="label"><T>Assign Poojari (Optional)</T></label>
-                <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)}><option value="">Not assigned</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}{p.specialization ? ` · ${p.specialization}` : ''}</option>)}</Select>
+                <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)}><option value="">{tr("Not assigned")}</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}{p.specialization ? ` · ${p.specialization}` : ''}</option>)}</Select>
                 <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Optionally assign a poojari to perform this booking.</T></div>
               </div>
             </div>
@@ -414,7 +415,7 @@ export default function NewBooking() {
 
           <div className="flex justify-between">
             <button onClick={() => nav('/admin/bookings')} className="btn-outline"><T>Cancel</T></button>
-            <button onClick={() => setStep(1)} disabled={!canNext} className="btn-maroon disabled:opacity-40">Next: Review &amp; Payment <ArrowRight size={15} /></button>
+            <button onClick={() => setStep(1)} disabled={!canNext} className="btn-maroon disabled:opacity-40">{tr('Next: Review & Payment')} <ArrowRight size={15} /></button>
           </div>
         </div>
       )}
@@ -424,7 +425,7 @@ export default function NewBooking() {
         <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-5">
           <div className="space-y-5">
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><ClipboardList size={18} /><h3 className="font-serif text-lg font-bold"><T>1. Booking Summary</T></h3></div>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><ClipboardList size={18} /><h3 className="font-serif text-lg font-bold"><T>{tr("1. Booking Summary")}</T></h3></div>
               <div className="divide-y divide-gray-100">
                 {summaryRows(false).map((r) => { const Icon = r.icon; return (
                   <div key={r.k} className="flex items-center gap-3 py-2.5 text-[0.84375rem]"><Icon size={15} className="text-gray-400 shrink-0" /><span className="text-gray-500 w-32 shrink-0">{r.k}</span><span className="text-gray-400">:</span><span className="text-gray-800 font-medium">{r.v}</span></div>
@@ -434,7 +435,7 @@ export default function NewBooking() {
             </div>
 
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><CreditCard size={18} /><h3 className="font-serif text-lg font-bold"><T>2. Payment Details</T></h3></div>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><CreditCard size={18} /><h3 className="font-serif text-lg font-bold"><T>{tr("2. Payment Details")}</T></h3></div>
               <label className="label"><T>Select Payment Mode *</T></label>
               <div className="grid grid-cols-2 gap-3 mt-1 mb-3">
                 {['Cash', 'UPI/QR Code'].map((m) => { const on = method === m; return (
@@ -451,7 +452,7 @@ export default function NewBooking() {
                   <label className="label"><T>Payment Date &amp; Time</T></label>
                   <div className="flex gap-2">
                     <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={fmtDate(new Date().toISOString())} readOnly /><Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
-                    <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} readOnly /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
+                    <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }).replace(/\b(AM|PM)\b/, (w) => tr(w))} readOnly /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
                   </div>
                 </div>
                 <div>
@@ -492,7 +493,7 @@ export default function NewBooking() {
 
           <div className="lg:col-span-2 flex justify-between">
             <button onClick={() => setStep(0)} className="btn-outline"><ArrowLeft size={15} />{' '}<T>Previous</T></button>
-            <button onClick={pay} disabled={busy || !amountReady} className="btn-maroon disabled:opacity-60">{busy ? 'Processing…' : <>Confirm Booking &amp; Pay <ArrowRight size={15} /></>}</button>
+            <button onClick={pay} disabled={busy || !amountReady} className="btn-maroon disabled:opacity-60">{busy ? tr('Processing…') : <>{tr('Confirm Booking & Pay')} <ArrowRight size={15} /></>}</button>
           </div>
         </div>
       )}
@@ -508,14 +509,14 @@ export default function NewBooking() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Details list */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 text-maroon-700 mb-4"><ClipboardList size={18} /><h3 className="font-serif text-lg font-bold">Booking &amp; Payment Details</h3></div>
+              <div className="flex items-center gap-2 text-maroon-700 mb-4"><ClipboardList size={18} /><h3 className="font-serif text-lg font-bold">{tr('Booking & Payment Details')}</h3></div>
               <div className="divide-y divide-gray-100 text-[0.84375rem]">
-                <Detail k="Booking ID" v={<span className="font-mono">{ticket.booking_code}</span>} />
-                <Detail k="Ticket Number" v={<span className="font-mono text-maroon-700 font-semibold">{ticket.ticket_no || ticket.receipt_no}</span>} />
+                <Detail k={tr("Booking ID")} v={<span className="font-mono">{ticket.booking_code}</span>} />
+                <Detail k={tr("Ticket Number")} v={<span className="font-mono text-maroon-700 font-semibold">{ticket.ticket_no || ticket.receipt_no}</span>} />
                 {summaryRows(true).map((r) => <Detail key={r.k} k={r.k} v={r.v} />)}
-                <Detail k="Payment Mode" v={modeLabel(ticket._method)} />
-                {ticket._utr && <Detail k="UTR / Transaction ID" v={<span className="text-emerald-700 font-mono">{ticket._utr}</span>} />}
-                <Detail k="Payment Date & Time" v={ticket._paidAt} />
+                <Detail k={tr("Payment Mode")} v={modeLabel(ticket._method)} />
+                {ticket._utr && <Detail k={tr("UTR / Transaction ID")} v={<span className="text-emerald-700 font-mono">{ticket._utr}</span>} />}
+                <Detail k={tr("Payment Date & Time")} v={ticket._paidAt} />
               </div>
               <div className="mt-3 bg-blue-50/60 border border-blue-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Please show this ticket at the temple counter / pooja venue.</T></div>
             </div>

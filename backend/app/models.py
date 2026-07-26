@@ -21,6 +21,9 @@ class User(Base):
     employee_id = Column(String(40), unique=True, nullable=False)
     username = Column(String(60), unique=True, nullable=False, index=True)
     name = Column(String(120), nullable=False)
+    # Telugu spelling of the name, entered by staff. Never machine-generated —
+    # only the person concerned knows how their name is written in Telugu.
+    name_te = Column(String(160), nullable=True)
     email = Column(String(160), unique=True, nullable=False)
     mobile = Column(String(20), nullable=True)
     password_hash = Column(String(255), nullable=False)
@@ -59,6 +62,7 @@ class Devotee(Base):
     id = Column(Integer, primary_key=True)
     code = Column(String(30), unique=True, nullable=False, index=True)   # DEV-00012458
     name = Column(String(120), nullable=False)
+    name_te = Column(String(160), nullable=True)   # Telugu spelling, staff-entered
     mobile = Column(String(20), nullable=False, index=True)
     email = Column(String(160), nullable=True)
     address = Column(Text, nullable=True)
@@ -332,6 +336,7 @@ class Poojari(Base):
     id = Column(Integer, primary_key=True)
     code = Column(String(20), unique=True, nullable=False)
     name = Column(String(120), nullable=False)
+    name_te = Column(String(160), nullable=True)   # Telugu spelling, staff-entered
     phone = Column(String(20), nullable=True)
     email = Column(String(160), nullable=True)
     specialization = Column(String(160), nullable=True)   # e.g. Abhishekam, Homam
@@ -369,6 +374,7 @@ class WasteVendor(Base):
     id = Column(Integer, primary_key=True)
     code = Column(String(20), unique=True, nullable=False)
     name = Column(String(120), nullable=False)
+    name_te = Column(String(160), nullable=True)   # Telugu spelling, staff-entered
     phone = Column(String(20), nullable=True)
     material_types = Column(String(200), nullable=True)
     active = Column(Boolean, default=True, nullable=False)
@@ -444,6 +450,7 @@ class CommitteeMember(Base):
     id = Column(Integer, primary_key=True)
     code = Column(String(20), unique=True, nullable=False)   # CM-0001
     name = Column(String(120), nullable=False)
+    name_te = Column(String(160), nullable=True)             # Telugu spelling, staff-entered
     designation = Column(String(60), nullable=True)          # Chairman | Secretary | Treasurer | Member
     phone = Column(String(20), nullable=True)
     email = Column(String(160), nullable=True)

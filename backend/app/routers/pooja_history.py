@@ -15,6 +15,15 @@ from ..models import Booking, Devotee, PoojaPlan, Poojari
 from ..security import RequireModule
 
 router = APIRouter(prefix="/api/pooja-history", tags=["pooja-history"])
+
+def devotee_name_te(db, devotee_id):
+    """Telugu spelling from the devotee record, or None. Bookings store the name
+    as text at booking time, so the twin has to be looked up."""
+    if not devotee_id:
+        return None
+    d = db.query(Devotee.name_te).filter(Devotee.id == devotee_id).first()
+    return d[0] if d else None
+
 read = RequireModule("Bookings")
 
 LONG_TERM_PLANS = ("Life Long", "Yearly Once", "Yearly Thrice", "Monthly", "Full Month")
@@ -33,6 +42,7 @@ def _row(b: Booking) -> dict:
         "id": b.id,
         "booking_code": b.booking_code,
         "devotee_name": b.devotee_name,
+        "devotee_name_te": devotee_name_te(db, b.devotee_id),
         "mobile": b.mobile,
         "pooja_name": b.seva_name,
         "category": b.category,
