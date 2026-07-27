@@ -30,14 +30,6 @@ def _booking_notify(db, b, event, user):
 
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 
-def devotee_name_te(db, devotee_id):
-    """Telugu spelling from the devotee record, or None. Bookings store the name
-    as text at booking time, so the twin has to be looked up."""
-    if not devotee_id:
-        return None
-    d = db.query(Devotee.name_te).filter(Devotee.id == devotee_id).first()
-    return d[0] if d else None
-
 read = RequireModule("Bookings")
 bill = RequireModule("Counter", write=True)   # billing counter
 
@@ -292,8 +284,7 @@ def lookup_ticket(ticket: str, db: Session = Depends(get_db), user=Depends(read)
         visits, last_visit = (cnt or 0), (str(last) if last else None)
     return {
         "id": b.id, "booking_code": b.booking_code, "ticket_no": b.ticket_no or b.receipt_no,
-        "devotee_name": b.devotee_name,
-        "devotee_name_te": devotee_name_te(db, b.devotee_id), "mobile": b.mobile,
+        "devotee_name": b.devotee_name, "mobile": b.mobile,
         "pooja": b.seva_name, "plan": b.plan_name, "category": b.category,
         "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
         "time_slot": b.time_slot, "status": b.status, "payment_status": b.payment_status,

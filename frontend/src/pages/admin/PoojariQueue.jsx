@@ -132,7 +132,7 @@ export default function PoojariQueue() {
                 </div>
                 {(b.gothram || b.nakshatram || b.beneficiary_name) && (
                   <div className="text-[0.6875rem] text-gray-500 mt-0.5">
-                    {b.beneficiary_name ? `${tr('For')} ${b.beneficiary_name} · ` : ''}
+                    {b.beneficiary_name ? `${tr('For')} ${personName({ name: b.beneficiary_name }, lang)} · ` : ''}
                     {b.gothram ? `${tr(b.gothram)} ${tr('gothram')}` : ''}{b.gothram && b.nakshatram ? ' · ' : ''}
                     {b.nakshatram ? `${tr(b.nakshatram)} ${tr('nakshatram')}` : ''}
                   </div>

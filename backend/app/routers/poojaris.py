@@ -12,14 +12,6 @@ from ..helpers import gen_code
 
 router = APIRouter(prefix="/api/poojaris", tags=["poojaris"])
 
-def devotee_name_te(db, devotee_id):
-    """Telugu spelling from the devotee record, or None. Bookings store the name
-    as text at booking time, so the twin has to be looked up."""
-    if not devotee_id:
-        return None
-    d = db.query(Devotee.name_te).filter(Devotee.id == devotee_id).first()
-    return d[0] if d else None
-
 read = RequireModule("Bookings")
 write = RequireModule("Bookings", write=True)
 
@@ -103,7 +95,6 @@ def schedule(day: date | None = None, db: Session = Depends(get_db), user=Depend
     unassigned = []
     for b in bookings:
         row = {"id": b.id, "booking_code": b.booking_code, "devotee_name": b.devotee_name,
-        "devotee_name_te": devotee_name_te(db, b.devotee_id),
                "pooja": b.seva_name, "plan": b.plan_name, "time_slot": b.time_slot,
                "status": b.status, "poojari_id": b.poojari_id}
         if b.poojari_id and b.poojari_id in groups:
@@ -159,8 +150,7 @@ def queue(day: date | None = None, mine: bool = False,
         remaining = None if allowed is None else max(0, allowed - done)
         items.append({
             "id": b.id, "booking_code": b.booking_code, "ticket_no": b.ticket_no or b.receipt_no,
-            "devotee_name": b.devotee_name,
-        "devotee_name_te": devotee_name_te(db, b.devotee_id), "mobile": b.mobile,
+            "devotee_name": b.devotee_name, "mobile": b.mobile,
             "pooja": b.seva_name, "plan": b.plan_name, "time_slot": b.time_slot,
             "status": b.status, "poojari_id": b.poojari_id, "poojari_name": b.poojari_name,
             "amount": float(b.amount or 0),

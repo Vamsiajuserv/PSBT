@@ -8,7 +8,7 @@ import { PageTitle, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI } from '../../api/client.js'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
@@ -20,6 +20,7 @@ function validityRange(pl, from) { const d = durDays(pl); if (d === null || !fro
 const validityShort = (pl) => { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('daily')) return '1 Day'; if (n.includes('monthly')) return '1 Month'; if (n.includes('life')) return 'Lifetime'; if (n.includes('one')) return 'One-Time'; if (n.includes('year')) return '1 Year'; return pl?.frequency || 'Selected Date' }
 
 export default function PoojaHistoryDetails() {
+  const { lang } = useLang()
   const { id } = useParams()
   const nav = useNavigate()
   const [d, setD] = useState(null)
@@ -60,7 +61,7 @@ export default function PoojaHistoryDetails() {
         {/* Left column */}
         <div className="space-y-5">
           <Section n="1" icon={User} title={tr("Devotee Details")}>
-            <Row label={tr("Devotee Name")} value={dev.name} />
+            <Row label={tr("Devotee Name")} value={personName(dev, lang)} />
             <Row label={tr("Mobile Number")} value={dev.mobile} />
             <Row label={tr("Email (if any)")} value={dev.email || '—'} />
           </Section>
@@ -79,7 +80,7 @@ export default function PoojaHistoryDetails() {
           </Section>
           {pr.name && (
             <Section n="4" icon={UserCog} title={tr("Poojari Details")}>
-              <Row label={tr("Poojari Name")} value={pr.name} />
+              <Row label={tr("Poojari Name")} value={personName(pr, lang)} />
               <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" />{' '}<T>Pooja was performed by the assigned Poojari.</T></div>
             </Section>
           )}
@@ -91,7 +92,7 @@ export default function PoojaHistoryDetails() {
             <TicketShell code={d.booking_code}>
               <TF icon={ClipboardList} label={tr("Booking ID")} value={d.booking_code} mono />
               <TF icon={Ticket} label={tr("Ticket Number")} value={ticketNo} mono />
-              <TF icon={User} label={tr("Devotee")} value={dev.name} sub={dev.mobile} />
+              <TF icon={User} label={tr("Devotee")} value={personName(dev, lang)} sub={dev.mobile} />
               <TF icon={Landmark} label={tr("Pooja")} value={d.pooja_name} />
               <TF icon={CalendarDays} label={tr("Plan")} value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
               <TF icon={Tag} label={tr("Plan Type")} value={plan.plan_name} />

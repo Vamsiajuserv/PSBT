@@ -363,7 +363,7 @@ export default function Hundi() {
                 <VField label={tr("Counting Completed")} value={fmtStamp(view.counting_completed_on)} />
                 <VField label={tr("Total Amount Counted")} value={inr(view.counted_amount)} />
                 <VField label={tr("Committee Members")} value={`${memberCount(view.committee_members)} ${tr("Members")}`} />
-                <VField label={tr("Members")} value={view.committee_members || '—'} wide />
+                <VField label={tr("Members")} value={view.committee_members ? view.committee_members.split(',').map((n) => personName({ name: n.trim() }, lang)).join(', ') : '—'} wide />
               </DSection>
               {Array.isArray(view.items) && view.items.length > 0 && (
                 <div>

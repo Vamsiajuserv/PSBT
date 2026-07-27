@@ -9,7 +9,7 @@ import { UsersAPI, RolesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Checkbox } from '../../components/common/Field.jsx'
 import { alertDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const AVATAR_TONES = ['bg-maroon-700', 'bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600']
 const initials = (n) => (n || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
@@ -17,6 +17,7 @@ const tone = (n) => AVATAR_TONES[(n || '').length % AVATAR_TONES.length]
 const emptyUser = () => ({ name: '', email: '', mobile: '', role: '', is_active: true, password: '', confirm: '', modules: [] })
 
 export default function Users() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const [rows, setRows] = useState([])
@@ -53,7 +54,7 @@ export default function Users() {
   }, [])
 
   const filtered = useMemo(() => rows.filter((u) => {
-    if (q && !`${u.name} ${u.email} ${u.mobile || ''}`.toLowerCase().includes(q.toLowerCase())) return false
+    if (q && !`${personName(u, lang)} ${u.email} ${u.mobile || ''}`.toLowerCase().includes(q.toLowerCase())) return false
     if (role && u.role !== role) return false
     if (status === 'Active' && !u.is_active) return false
     if (status === 'Inactive' && u.is_active) return false
@@ -87,7 +88,7 @@ export default function Users() {
       setDrawer(null); load()
     } catch (ex) { setErr(ex.detail || ex.message || 'Failed to save user.') }
   }
-  async function remove(u) { setMenu(null); if (await confirmDialog({ title: `Delete user "${u.name}"?`, message: 'They will no longer be able to sign in.', tone: 'danger', confirmLabel: tr('Delete') })) { try { await UsersAPI.remove(u.id); toast('User deleted.'); load() } catch (ex) { toast(ex.detail || 'Failed', 'error') } } }
+  async function remove(u) { setMenu(null); if (await confirmDialog({ title: `Delete user "${personName(u, lang)}"?`, message: 'They will no longer be able to sign in.', tone: 'danger', confirmLabel: tr('Delete') })) { try { await UsersAPI.remove(u.id); toast('User deleted.'); load() } catch (ex) { toast(ex.detail || 'Failed', 'error') } } }
 
   return (
     <div>
@@ -123,7 +124,7 @@ export default function Users() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className={`w-8 h-8 rounded-full ${tone(u.name)} text-white grid place-items-center text-[0.6875rem] font-bold`}>{initials(u.name)}</div>
-                      <span className="font-semibold text-gray-800">{u.name}</span>
+                      <span className="font-semibold text-gray-800">{personName(u, lang)}</span>
                       {u.role === 'Administrator' && <span className="text-[0.625rem] font-semibold text-maroon-700 bg-maroon-50 rounded px-1.5 py-0.5"><T>Admin</T></span>}
                     </div>
                   </td>

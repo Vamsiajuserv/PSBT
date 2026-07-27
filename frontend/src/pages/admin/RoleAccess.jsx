@@ -10,7 +10,7 @@ import { LOAD_ERROR } from '../../components/common/states.jsx'
 import { RolesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const MOD_ICON = {
   Devotees: UsersIcon, Sevas: Flame, Bookings: Flame, Donations: HeartHandshake,
@@ -19,6 +19,7 @@ const MOD_ICON = {
 }
 
 export default function RoleAccess() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const [roles, setRoles] = useState([])
@@ -129,8 +130,8 @@ export default function RoleAccess() {
               </div>
               <dl className="mt-4 space-y-3 text-[0.8125rem]">
                 <Row label={tr("Role Code")} value={<span className="font-mono text-gray-700">{sel.code}</span>} />
-                <div className="grid grid-cols-2 gap-3"><Row label={tr("Created On")} value={sel.created_at} /><Row label={tr("Created By")} value={sel.created_by} /></div>
-                <div className="grid grid-cols-2 gap-3"><Row label={tr("Last Updated On")} value={sel.updated_at} /><Row label={tr("Last Updated By")} value={sel.updated_by} /></div>
+                <div className="grid grid-cols-2 gap-3"><Row label={tr("Created On")} value={sel.created_at} /><Row label={tr("Created By")} value={personName({ name: sel.created_by }, lang)} /></div>
+                <div className="grid grid-cols-2 gap-3"><Row label={tr("Last Updated On")} value={sel.updated_at} /><Row label={tr("Last Updated By")} value={personName({ name: sel.updated_by }, lang)} /></div>
               </dl>
               <div className="mt-4"><div className="text-[0.6875rem] text-gray-400 mb-1"><T>Role Description</T></div><div className="text-[0.8125rem] text-gray-600 leading-relaxed">{sel.description}</div></div>
 
@@ -140,7 +141,7 @@ export default function RoleAccess() {
                   <thead><tr className="text-left text-[0.65625rem] uppercase tracking-wide text-gray-400"><th className="py-1.5 pr-2">#</th><th className="py-1.5 pr-2"><T>User Name</T></th><th className="py-1.5 pr-2"><T>Email / Mobile</T></th><th className="py-1.5"><T>Status</T></th></tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {(sel.users || []).slice(0, 6).map((u, i) => (
-                      <tr key={u.id}><td className="py-2 pr-2 text-gray-400">{i + 1}</td><td className="py-2 pr-2 font-medium text-gray-800">{u.name}</td><td className="py-2 pr-2 text-gray-500 text-[0.75rem]">{u.email}</td><td className="py-2"><span className={`text-[0.75rem] font-semibold ${u.status === 'Active' ? 'text-emerald-600' : 'text-red-500'}`}>{tr(u.status)}</span></td></tr>
+                      <tr key={u.id}><td className="py-2 pr-2 text-gray-400">{i + 1}</td><td className="py-2 pr-2 font-medium text-gray-800">{personName(u, lang)}</td><td className="py-2 pr-2 text-gray-500 text-[0.75rem]">{u.email}</td><td className="py-2"><span className={`text-[0.75rem] font-semibold ${u.status === 'Active' ? 'text-emerald-600' : 'text-red-500'}`}>{tr(u.status)}</span></td></tr>
                     ))}
                     {(!sel.users || sel.users.length === 0) && <tr><td colSpan={4} className="py-4 text-center text-gray-400 text-[0.8125rem]"><T>No users assigned.</T></td></tr>}
                   </tbody>

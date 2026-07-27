@@ -11,7 +11,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, NumberField } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const DEFAULT_MATERIALS = ['Coconut Shells', 'Flowers', 'Banana Leaves', 'Cardboard', 'Plastic', 'Waste Oil', 'Metal Scrap', 'Old Cloth']
 const UNITS = ['Kilogram (kg)', 'Tonne', 'Piece', 'Bundle']
@@ -43,6 +43,7 @@ function toWords(n) {
 const emptyForm = () => ({ vendor_id: '', vendor_name: '', buyer_name: '', mobile: '', material: DEFAULT_MATERIALS[0], materialCustom: false, unit: 'Kilogram (kg)', quantity: 1, rate: '', mode: 'Cash', txn_ref: '', paid_at: nowLocal(), verified_by: '' })
 
 export default function WasteSales() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const canWrite = user?.role !== 'Accountant'
   const SIZE = 15
@@ -284,7 +285,7 @@ export default function WasteSales() {
                 <div className="mb-4"><label className="label"><T>Sale / Payment Date & Time *</T></label>
                   <DateTimeField required value={drawer.paid_at} onChange={(e) => setM({ paid_at: e.target.value })} /></div>
                 <div className="mb-4"><label className="label"><T>Verified By</T></label>
-                  <Select className="input" value={drawer.verified_by} onChange={(e) => setM({ verified_by: e.target.value })}>
+                  <Select className="input" value={personName({ name: drawer.verified_by }, lang)} onChange={(e) => setM({ verified_by: e.target.value })}>
                     <option value="">{tr("Select…")}</option>{committeeNames.map((n) => <option key={n}>{n}</option>)}
                   </Select></div>
                 <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl px-4 py-3.5 flex items-center gap-3">

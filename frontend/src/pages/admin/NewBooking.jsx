@@ -282,7 +282,7 @@ export default function NewBooking() {
                   <>
                     <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-3.5 py-3 bg-gray-50/50">
                       <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 grid place-items-center"><User size={18} /></div>
-                      <div className="flex-1"><div className="font-bold text-gray-800">{devotee.name}</div><div className="text-[0.75rem] text-gray-500">{devotee.mobile}</div></div>
+                      <div className="flex-1"><div className="font-bold text-gray-800">{personName(devotee, lang)}</div><div className="text-[0.75rem] text-gray-500">{devotee.mobile}</div></div>
                       <button type="button" onClick={() => setDevotee(null)} className="text-gray-400 hover:text-red-600"><X size={16} /></button>
                     </div>
                     {/* Sankalpam details — printed on the ticket for the poojari */}
@@ -302,7 +302,7 @@ export default function NewBooking() {
                     {devResults.map((d) => (
                       <button key={d.id} type="button" onClick={() => setDevotee(d)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50">
                         <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</div>
-                        <div className="flex-1 min-w-0"><div className="font-semibold text-gray-800 text-[0.8125rem]">{d.name}</div><div className="text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</div></div>
+                        <div className="flex-1 min-w-0"><div className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</div><div className="text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</div></div>
                       </button>
                     ))}
                     {devResults.length === 0 && (
@@ -325,7 +325,7 @@ export default function NewBooking() {
                   <button type="button" onClick={() => setQuickAdd(null)} className="text-gray-400 hover:text-red-600"><X size={16} /></button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div><label className="label"><T>Full Name *</T></label><input autoFocus className="input" placeholder={tr("Devotee name")} value={quickAdd.name} onChange={(e) => setQuickAdd((q) => ({ ...q, name: e.target.value }))} /></div>
+                  <div><label className="label"><T>Full Name *</T></label><input autoFocus className="input" placeholder={tr("Devotee name")} value={personName(quickAdd, lang)} onChange={(e) => setQuickAdd((q) => ({ ...q, name: e.target.value }))} /></div>
                   <div><label className="label"><T>Mobile Number *</T></label><input className="input" placeholder={tr("10-digit mobile")} value={quickAdd.mobile} maxLength={10} onChange={(e) => setQuickAdd((q) => ({ ...q, mobile: e.target.value.replace(/\D/g, '') }))} /></div>
                   <div><label className="label"><T>Email (optional)</T></label><input className="input" placeholder={tr("email@example.com")} value={quickAdd.email} onChange={(e) => setQuickAdd((q) => ({ ...q, email: e.target.value }))} /></div>
                 </div>
@@ -535,7 +535,7 @@ export default function NewBooking() {
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-dashed border-amber-200 pt-4">
                   <TField k="Booking ID" v={ticket.booking_code} mono />
                   <TField k="Ticket Number" v={ticket.ticket_no || ticket.receipt_no} mono />
-                  <TField k="Devotee" v={<>{devotee.name}<span className="block text-[0.6875rem] text-gray-500 font-normal">{devotee.mobile}</span></>} />
+                  <TField k="Devotee" v={<>{personName(devotee, lang)}<span className="block text-[0.6875rem] text-gray-500 font-normal">{devotee.mobile}</span></>} />
                   {(gothram || nakshatram) && <TField k="Gothram · Nakshatram" v={[gothram, nakshatram].filter(Boolean).join(' · ')} />}
                   {beneficiary && <TField k="In the name of" v={beneficiary} />}
                   <TField k="Pooja" v={pooja.name} />

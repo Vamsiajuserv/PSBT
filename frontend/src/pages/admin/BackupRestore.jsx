@@ -6,9 +6,10 @@ import {
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { BackupAPI, getToken } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 export default function BackupRestore() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const [items, setItems] = useState([])
@@ -100,7 +101,7 @@ export default function BackupRestore() {
                   <td className="px-4 py-3"><Pill tone={b.kind === 'Backup' ? 'blue' : 'violet'}>{tr(b.kind)}</Pill></td>
                   <td className="px-4 py-3 text-gray-700">{num(b.total_records)}</td>
                   <td className="px-4 py-3 text-gray-600">{b.size_kb ? `${b.size_kb} KB` : '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{b.created_by}</td>
+                  <td className="px-4 py-3 text-gray-600">{personName({ name: b.created_by }, lang)}</td>
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.created_at)}</td>
                   <td className="px-4 py-3">
                     {b.kind === 'Backup' ? <button onClick={() => download(b)} title={tr("Download")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Download size={15} /></button> : <span className="text-gray-300">—</span>}

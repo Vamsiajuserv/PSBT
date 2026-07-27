@@ -4,7 +4,7 @@ import { Flourish } from '../../components/common/UI.jsx'
 import { BookingsAPI } from '../../api/client.js'
 import { fmtDate } from '../../components/admin/ui.jsx'
 import { Select } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 // ── Month-only calendar view ────────────────────────────────────────────────
 // The Day/Week toggle was removed: a Month-only calendar is preferred over a
@@ -34,6 +34,7 @@ const isSameDay = (a, b) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
 export default function Calendar() {
+  const { lang } = useLang()
   const today = useMemo(() => new Date(), [])
   const [current, setCurrent] = useState(() => new Date())
   const [bookings, setBookings] = useState([])
@@ -218,7 +219,7 @@ export default function Calendar() {
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{tr(e.title)}{e.plan ? ` · ${tr(e.plan)}` : ''}</div>
                     <div className="text-[0.75rem] opacity-80 truncate">
-                      {e.devotee || '—'}{e.time ? ` · ${e.time.replace(/\b(AM|PM)\b/, (w) => tr(w))}` : ''}
+                      {e.devotee ? personName({ name: e.devotee }, lang) : '—'}{e.time ? ` · ${e.time.replace(/\b(AM|PM)\b/, (w) => tr(w))}` : ''}
                     </div>
                   </div>
                   <span className="text-[0.6875rem] font-semibold whitespace-nowrap">{tr(e.status)}</span>

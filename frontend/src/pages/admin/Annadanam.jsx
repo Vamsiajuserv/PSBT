@@ -145,8 +145,8 @@ export default function Annadanam() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={UtensilsCrossed} color="#ea580c" bg="bg-orange-50" title={tr("Total Annadanam Records")} value={stats ? num(stats.total_records) : '—'} sub={tr("All Time")} />
-        <StatTile icon={Users} color="#059669" bg="bg-emerald-50" title={tr("Today's Sponsorships")} value={stats ? num(stats.today_sponsorships) : '—'} sub={`Today (${fmtDate(new Date().toISOString())})`} />
-        <StatTile icon={IndianRupee} color="#7c3aed" bg="bg-violet-50" title={tr("Today's Collection")} value={stats ? inr(stats.today_collection) : '—'} sub={`Today (${fmtDate(new Date().toISOString())})`} />
+        <StatTile icon={Users} color="#059669" bg="bg-emerald-50" title={tr("Today's Sponsorships")} value={stats ? num(stats.today_sponsorships) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
+        <StatTile icon={IndianRupee} color="#7c3aed" bg="bg-violet-50" title={tr("Today's Collection")} value={stats ? inr(stats.today_collection) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
         <StatTile icon={HeartHandshake} color="#d97706" bg="bg-amber-50" title={tr("Total Persons Sponsored")} value={stats ? num(stats.total_persons) : '—'} sub={tr("Across all Annadanam records")} />
       </div>
 
@@ -185,7 +185,7 @@ export default function Annadanam() {
                 <tr key={a.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{a.code}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.paid_at || a.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(a.paid_at || a.created_at)}</div></td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{a.donor}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: a.donor }, lang)}</td>
                   <td className="px-4 py-3 text-gray-600">{a.mobile || '—'}</td>
                   <td className="px-4 py-3 text-gray-700">{a.plates}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{num(a.amount)}</td>
@@ -226,7 +226,7 @@ export default function Annadanam() {
                   <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input className="input pr-9" placeholder={tr("Search name or mobile number…")}
                     readOnly={!!drawer.devotee}
-                    value={drawer.devotee ? `${drawer.devotee.name} / ${drawer.devotee.mobile}` : dq}
+                    value={drawer.devotee ? `${personName(drawer.devotee, lang)} / ${drawer.devotee.mobile}` : dq}
                     onChange={(e) => !drawer.devotee && setDq(e.target.value)} />
                   {!drawer.devotee && results.length > 0 && (
                     <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1">
@@ -243,7 +243,7 @@ export default function Annadanam() {
                   <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-3.5 py-3 bg-gray-50/50 mt-3">
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{drawer.devotee.name}</span><Pill tone="green"><T>Registered</T></Pill></div>
+                      <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{personName(drawer.devotee, lang)}</span><Pill tone="green"><T>Registered</T></Pill></div>
                       <div className="text-[0.75rem] text-gray-500">Mobile: {drawer.devotee.mobile}</div>
                     </div>
                     <button type="button" onClick={() => { setM({ devotee: null }); setDq('') }} className="text-gray-400 hover:text-red-600"><X size={17} /></button>

@@ -372,12 +372,15 @@ export default function Counter() {
 }
 
 function BillReceiptModal({ bill, onClose }) {
+  const { lang } = useLang()
   const rows = [
     { en: 'Devotee', value: bill.name },
     ...(bill.mobile ? [{ en: 'Mobile', value: bill.mobile }] : []),
+    // The line label is composed from three parts — interpolating them into one
+    // string would make it untranslatable, so each piece resolves separately.
     ...bill.lines.map((l) => ({
-      en: `${l.pooja_name} · ${l.plan_name}${l.vehicle_no ? ` · ${l.vehicle_no}` : ''}`,
-      valueTe: l.name_te || undefined,
+      en: [l.name_te && lang === 'te' ? l.name_te : tr(l.pooja_name), tr(l.plan_name), l.vehicle_no]
+        .filter(Boolean).join(' · '),
       value: `₹ ${Number(l.amount || 0).toLocaleString('en-IN')}`,
     })),
     { en: 'Payment Mode', value: tr(bill.mode === 'UPI/QR Code' ? 'UPI / QR Code' : bill.mode) },

@@ -8,7 +8,7 @@ import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { SettingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const CATS = [
   {
@@ -62,6 +62,7 @@ const CATS = [
 ]
 
 export default function Settings() {
+  const { lang } = useLang()
   const { user } = useAuth()
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const [data, setData] = useState(null)
@@ -183,9 +184,9 @@ export default function Settings() {
           <div className="bg-gray-50/70 rounded-xl border border-gray-100 px-5 py-4">
             <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.84375rem] mb-3"><Info size={15} />{' '}<T>Audit Information</T></div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[0.8125rem]">
-              <Meta label={tr("Created By")} value={data.created_by} />
+              <Meta label={tr("Created By")} value={personName({ name: data.created_by }, lang)} />
               <Meta label={tr("Created On")} value={data.created_on} />
-              <Meta label={tr("Last Updated By")} value={data.updated_by} />
+              <Meta label={tr("Last Updated By")} value={personName({ name: data.updated_by }, lang)} />
               <Meta label={tr("Last Updated On")} value={data.updated_at || '—'} />
             </div>
           </div>

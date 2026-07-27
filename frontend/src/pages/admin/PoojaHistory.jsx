@@ -9,7 +9,7 @@ import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { PoojaHistoryAPI, PoojasAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'Life Long': 'orange', 'One-Time': 'violet',
   'Full Month': 'violet', '30-Day': 'violet', 'Yearly Once': 'orange', 'Yearly Thrice': 'orange' }
@@ -27,6 +27,7 @@ const startOf = (slot) => (slot ? slot.split('-')[0].trim() : '')
 const endOf = (slot) => (slot && slot.includes('-') ? slot.split('-')[1].trim() : '')
 
 export default function PoojaHistory() {
+  const { lang } = useLang()
   const nav = useNavigate()
   const SIZE = 15
   const [rows, setRows] = useState([])
@@ -116,10 +117,10 @@ export default function PoojaHistory() {
               {rows.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{b.devotee_name}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>
                   <td className="px-4 py-3 text-gray-700">{tr(b.pooja_name)}</td>
                   <td className="px-4 py-3">{b.plan_name ? <Pill tone={PLAN_TONE[b.plan_name] || 'gray'}>{b.plan_name}</Pill> : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-3 text-gray-600">{b.poojari_name || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{b.poojari_name ? personName({ name: b.poojari_name }, lang) : '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(b.scheduled_date)}</div><div className="text-[0.6875rem] text-gray-400">{startOf(b.time_slot)}</div></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
                   <td className="px-4 py-3"><StatusPill completion={b.completion} /></td>
@@ -158,7 +159,7 @@ export default function PoojaHistory() {
               </DSection>
 
               <DSection icon={User} n="2" title={tr("Devotee Information")}>
-                <Field label={tr("Devotee Name")} value={drawer.devotee?.name} />
+                <Field label={tr("Devotee Name")} value={personName(drawer.devotee, lang)} />
                 <Field label={tr("Mobile Number")} value={drawer.devotee?.mobile} />
                 <Field label={tr("Email ID")} value={drawer.devotee?.email || '—'} />
                 <Field label={tr("Address")} value={drawer.devotee?.address || '—'} wide />
@@ -175,7 +176,7 @@ export default function PoojaHistory() {
               </DSection>
 
               <DSection icon={ClipboardList} n="4" title={tr("Poojari & Execution Details")}>
-                <Field label={tr("Poojari Name")} value={drawer.poojari_name || '—'} />
+                <Field label={tr("Poojari Name")} value={drawer.poojari_name ? personName({ name: drawer.poojari_name }, lang) : '—'} />
                 <Field label={tr("Performed On")} value={fmtDate(drawer.scheduled_date)} />
                 <Field label={tr("Start Time")} value={startOf(drawer.time_slot) || '—'} />
                 <Field label={tr("End Time")} value={endOf(drawer.time_slot) || '—'} />

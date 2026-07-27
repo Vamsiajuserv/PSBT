@@ -235,7 +235,7 @@ export default function Dashboard() {
                 <div className="w-9 h-9 rounded-lg bg-orange-50 text-orange-500 grid place-items-center shrink-0"><Flame size={16} /></div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[0.8125rem] font-semibold text-gray-800 truncate">{tr(b.pooja)}{b.plan ? <span className="text-gray-400 font-normal"> ({tr(b.plan)})</span> : null}</div>
-                  <div className="text-[0.6875rem] text-gray-400">{b.devotee}</div>
+                  <div className="text-[0.6875rem] text-gray-400">{personName({ name: b.devotee }, lang)}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-[0.6875rem] text-gray-400 flex items-center gap-1 justify-end"><Clock size={10} /> {String(b.time || '').replace(/\b(AM|PM)\b/, (w) => tr(w))}</div>

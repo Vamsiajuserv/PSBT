@@ -135,7 +135,7 @@ export default function DailyClosing() {
         <KpiCard icon={ListChecks} title={tr("Total Transactions")} value={num(t.count)} sub={tr("All Payment Modes")} />
         <KpiCard icon={ClipboardCheck} title={tr("Closing Status")}
           value={closed ? tr('Closed') : tr('Open')} valueClass={closed ? 'text-rose-600' : 'text-emerald-600'}
-          sub={closed ? `${tr('By')} ${sum.closed_by}` : tr('Not Closed For The Day')} />
+          sub={closed ? `${tr('By')} ${personName({ name: sum.closed_by }, lang)}` : tr('Not Closed For The Day')} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -288,7 +288,7 @@ export default function DailyClosing() {
           {closed ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="inline-flex items-center gap-2 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
-                <CheckCircle2 size={16} /> Closed by {sum.closed_by} · {fmtStamp(sum.closed_at)}
+                <CheckCircle2 size={16} /> Closed by {personName({ name: sum.closed_by }, lang)} · {fmtStamp(sum.closed_at)}
               </div>
             </div>
           ) : (

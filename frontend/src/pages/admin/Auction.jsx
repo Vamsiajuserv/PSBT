@@ -267,14 +267,14 @@ export default function Auction() {
                   <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-3.5 py-3 bg-gray-50/50">
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{drawer.devotee.name}</span><Pill tone="green"><T>Registered</T></Pill></div>
+                      <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{personName(drawer.devotee, lang)}</span><Pill tone="green"><T>Registered</T></Pill></div>
                       <div className="text-[0.75rem] text-gray-500">Mobile: {drawer.devotee.mobile}</div>
                     </div>
                     <button type="button" onClick={() => { setM({ devotee: null }); setDq('') }} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
                   </div>
                 )}
               </div>
-              <div><label className="label"><T>Winner / Highest Bidder (Optional)</T></label><input className="input" placeholder={tr("Enter winner name")} value={drawer.winner} onChange={(e) => setM({ winner: e.target.value })} /></div>
+              <div><label className="label"><T>Winner / Highest Bidder (Optional)</T></label><input className="input" placeholder={tr("Enter winner name")} value={personName({ name: drawer.winner }, lang)} onChange={(e) => setM({ winner: e.target.value })} /></div>
               <div><label className="label"><T>Description (Optional)</T></label>
                 <textarea className="input min-h-[5.625rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.description} onChange={(e) => setM({ description: e.target.value })} />
                 <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{drawer.description.length} / 250</div></div>

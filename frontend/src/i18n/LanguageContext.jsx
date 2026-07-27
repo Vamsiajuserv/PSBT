@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useRef, useEffect, useCallb
 import { te as glossaryTe } from '../lib/telugu.js'
 import { useSiteContext } from '../lib/SiteContext.jsx'
 import { TranslateAPI } from '../api/client.js'
+import { toTelugu } from '../lib/translitTelugu.js'
 
 // Curated Telugu for the public devotee-facing UI (instant, offline). Anything
 // not here falls back to the shared receipt glossary, then to the /translate
@@ -1500,6 +1501,13 @@ const UI_TE = {
   'Nizamabad': 'నిజామాబాద్',
   'Peddapuram': 'పెద్దాపురం',
   'Tirupati': 'తిరుపతి',
+  // Receipt row labels
+  'Donor': 'విరాళదారు',
+  'Tickets': 'టికెట్‌లు',
+  'Transaction': 'లావాదేవీ',
+  'UTR / Txn ID': 'UTR / లావాదేవీ ఐడి',
+  'Booking No': 'బుకింగ్ నం.',
+  'This is a computer-generated receipt.': 'ఇది కంప్యూటర్ ద్వారా రూపొందించబడిన రసీదు.',
   // ── Audit trail vocabulary ──
   'CREATE': 'సృష్టించడం',
   'UPDATE': 'నవీకరణ',
@@ -2124,7 +2132,11 @@ export function useContentText() {
 export function personName(person, lang) {
   if (!person) return ''
   const en = person.name || person.devotee_name || ''
-  return lang === 'te' ? (person.name_te || person.nameTe || en) : en
+  if (lang !== 'te') return en
+  // A staff-entered spelling is authoritative. Otherwise transliterate, so a
+  // name typed in English still reads in Telugu — including on the many
+  // endpoints that only ever return the English text.
+  return person.name_te || person.nameTe || toTelugu(en) || en
 }
 
 export function usePersonName() {

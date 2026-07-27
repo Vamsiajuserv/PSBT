@@ -114,9 +114,9 @@ export default function VerifyTicket() {
               <Field label={tr("Payment")} value={tr(result.payment_status)} />
               {result.gothram && <Field label={tr("Gothram")} value={tr(result.gothram)} />}
               {result.nakshatram && <Field label={tr("Nakshatram")} value={tr(result.nakshatram)} />}
-              {result.beneficiary_name && <Field label={tr("In the name of")} value={result.beneficiary_name} />}
+              {result.beneficiary_name && <Field label={tr("In the name of")} value={personName({ name: result.beneficiary_name }, lang)} />}
               {result.vehicle_no && <Field label={tr("Vehicle")} value={result.vehicle_no} />}
-              {result.poojari_name && <Field label={tr("Assigned Poojari")} value={result.poojari_name} />}
+              {result.poojari_name && <Field label={tr("Assigned Poojari")} value={personName({ name: result.poojari_name }, lang)} />}
               <Field label={tr("Amount")} value={`₹ ${Number(result.amount || 0).toLocaleString('en-IN')}`} />
               {result.performances_allowed != null
                 ? <Field label={tr("Performances")} value={`${result.performances_done} of ${result.performances_allowed} · ${result.remaining} left`} />
