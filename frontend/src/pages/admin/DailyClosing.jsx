@@ -9,7 +9,7 @@ import { DailyClosingAPI, RefundsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { DateField, NumberField } from '../../components/common/Field.jsx'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const dash = (n) => (n ? inr(n) : '-')
@@ -109,7 +109,7 @@ export default function DailyClosing() {
   const actualNum = Number(actual) || 0
   const closingDiff = actualNum - (sum.expected_cash || 0)
   const closed = sum.closed
-  const dateLabel = new Date(sum.date + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  const dateLabel = stamp(new Date(sum.date + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))
 
   return (
     <div>
@@ -129,9 +129,9 @@ export default function DailyClosing() {
 
       {/* ── KPI row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <KpiCard icon={IndianRupee} title={tr("Total Collections (₹)")} value={inr(t.total)} sub={`From ${modules.length} Modules`} valueClass="text-maroon-800" />
-        <KpiCard icon={Wallet} title={tr("Cash Collections (₹)")} value={inr(t.cash)} sub={`${sum.cash_pct}% of Total`} />
-        <KpiCard icon={CreditCard} title={tr("UPI / QR Collections (₹)")} value={inr(t.upi)} sub={`${sum.upi_pct}% of Total`} />
+        <KpiCard icon={IndianRupee} title={tr("Total Collections (₹)")} value={inr(t.total)} sub={`${modules.length} ${tr('Modules')}`} valueClass="text-maroon-800" />
+        <KpiCard icon={Wallet} title={tr("Cash Collections (₹)")} value={inr(t.cash)} sub={`${sum.cash_pct}% ${tr('of Total')}`} />
+        <KpiCard icon={CreditCard} title={tr("UPI / QR Collections (₹)")} value={inr(t.upi)} sub={`${sum.upi_pct}% ${tr('of Total')}`} />
         <KpiCard icon={ListChecks} title={tr("Total Transactions")} value={num(t.count)} sub={tr("All Payment Modes")} />
         <KpiCard icon={ClipboardCheck} title={tr("Closing Status")}
           value={closed ? tr('Closed') : tr('Open')} valueClass={closed ? 'text-rose-600' : 'text-emerald-600'}
@@ -187,22 +187,22 @@ export default function DailyClosing() {
                 <div className="shrink-0"><Donut cashPct={sum.cash_pct} upiPct={sum.upi_pct} /></div>
                 <div className="flex-1 min-w-0 text-[0.8125rem]">
                   <div className="flex text-[0.6875rem] uppercase tracking-wide text-gray-400 font-semibold pb-2 border-b border-gray-100">
-                    <span className="flex-1"><T>Payment Mode</T></span><span className="w-20 text-right"><T>Amount (₹)</T></span><span className="w-12 text-right">%</span>
+                    <span className="flex-1 min-w-0"><T>Payment Mode</T></span><span className="w-20 shrink-0 text-right"><T>Amount (₹)</T></span><span className="w-12 shrink-0 text-right">%</span>
                   </div>
                   <div className="flex items-center py-2.5 border-b border-gray-50">
-                    <span className="flex-1 flex items-center gap-2 text-gray-700"><span className="w-2.5 h-2.5 rounded-full" style={{ background: '#7a1220' }} />{' '}<T>Cash</T></span>
-                    <span className="w-20 text-right tabular-nums text-gray-700">{inr(t.cash)}</span>
-                    <span className="w-12 text-right tabular-nums text-gray-500">{sum.cash_pct}%</span>
+                    <span className="flex-1 min-w-0 flex items-center gap-2 text-gray-700"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: '#7a1220' }} />{' '}<T>Cash</T></span>
+                    <span className="w-20 shrink-0 text-right tabular-nums text-gray-700">{inr(t.cash)}</span>
+                    <span className="w-12 shrink-0 text-right tabular-nums text-gray-500">{sum.cash_pct}%</span>
                   </div>
                   <div className="flex items-center py-2.5 border-b border-gray-50">
-                    <span className="flex-1 flex items-center gap-2 text-gray-700"><span className="w-2.5 h-2.5 rounded-full" style={{ background: '#c99a2e' }} />{' '}<T>UPI / QR Code</T></span>
-                    <span className="w-20 text-right tabular-nums text-gray-700">{inr(t.upi)}</span>
-                    <span className="w-12 text-right tabular-nums text-gray-500">{sum.upi_pct}%</span>
+                    <span className="flex-1 min-w-0 flex items-center gap-2 text-gray-700"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: '#c99a2e' }} />{' '}<T>UPI / QR Code</T></span>
+                    <span className="w-20 shrink-0 text-right tabular-nums text-gray-700">{inr(t.upi)}</span>
+                    <span className="w-12 shrink-0 text-right tabular-nums text-gray-500">{sum.upi_pct}%</span>
                   </div>
                   <div className="flex items-center pt-2.5 font-bold text-maroon-800">
-                    <span className="flex-1"><T>Total</T></span>
-                    <span className="w-20 text-right tabular-nums">{inr(t.total)}</span>
-                    <span className="w-12 text-right tabular-nums">100%</span>
+                    <span className="flex-1 min-w-0"><T>Total</T></span>
+                    <span className="w-20 shrink-0 text-right tabular-nums">{inr(t.total)}</span>
+                    <span className="w-12 shrink-0 text-right tabular-nums">100%</span>
                   </div>
                 </div>
               </div>
@@ -304,7 +304,7 @@ export default function DailyClosing() {
               {canClose && (
                 <button onClick={closeDay} disabled={busy}
                   className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream font-semibold rounded-lg py-3 hover:from-maroon-700 disabled:opacity-60">
-                  <Lock size={16} /> {busy ? 'Closing…' : 'Close Day & Finalize'}
+                  <Lock size={16} /> {busy ? tr('Closing…') : tr('Close Day & Finalize')}
                 </button>
               )}
 
@@ -319,13 +319,15 @@ export default function DailyClosing() {
       {/* ── Footer banner ── */}
       <div className="mt-6 flex items-center gap-2.5 bg-emerald-50/60 border border-emerald-100 rounded-xl px-5 py-3.5 text-[0.8125rem] text-gray-600">
         <CheckCircle2 size={17} className="text-emerald-500 shrink-0" />
-        All amounts are in INR (₹). Figures are auto-calculated based on recorded transactions for the selected date.
+        <T>All amounts are in INR (₹). Figures are auto-calculated based on recorded transactions for the selected date.</T>
       </div>
     </div>
   )
 }
 
 function Row({ label, value, bold, valueClass }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return (
     <div className="flex items-center justify-between">
       <span className={`text-gray-600 ${bold ? 'font-semibold text-gray-800' : ''}`}>{label}</span>

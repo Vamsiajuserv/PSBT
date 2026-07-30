@@ -5,13 +5,14 @@ import { TableStates, LOAD_ERROR } from '../common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField } from '../common/Field.jsx'
 import { confirmDialog, toast } from '../common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 // Generic list + drawer master screen.
 // config: { title, subtitle, api, statCards, columns, fields, searchPlaceholder, addLabel, entity }
 export default function MasterScreen({ config }) {
   const { title, subtitle, api, statCards = [], columns, fields, searchPlaceholder = 'Search…', addLabel = 'Add New', entity = 'record' } = config
   const { user } = useAuth()
+  const { lang } = useLang()
   const canWrite = user?.role !== 'Accountant'
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
 
@@ -53,7 +54,7 @@ export default function MasterScreen({ config }) {
       setDrawer(null); load()
     } catch (ex) { setErr(ex.detail || ex.message || 'Failed to save.') }
   }
-  async function remove(row) { if (await confirmDialog({ title: `Delete this ${entity}?`, message: 'This cannot be undone.', tone: 'danger', confirmLabel: tr('Delete') })) { try { await api.remove(row.id); toast(`${entity} deleted.`); load() } catch (ex) { toast(ex.detail || 'Failed', 'error') } } }
+  async function remove(row) { if (await confirmDialog({ title: tr(`Delete this ${entity}?`), message: tr('This cannot be undone.'), tone: 'danger', confirmLabel: tr('Delete') })) { try { await api.remove(row.id); toast(tr(`${entity} deleted.`)); load() } catch (ex) { toast(ex.detail || tr('Failed'), 'error') } } }
 
   const statusOf = (row) => (row.active !== undefined ? (row.active ? 'Active' : 'Inactive') : row.status)
 
@@ -96,7 +97,9 @@ export default function MasterScreen({ config }) {
                 <tr key={row.id} className="hover:bg-gray-50/60">
                   {columns.map((c) => (
                     <td key={c.key} className={`px-4 py-3.5 ${c.mono ? 'font-mono text-[0.75rem] text-gray-500' : c.strong ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
-                      {c.render ? c.render(row) : (row[c.key] != null ? tr(String(row[c.key])) : '—')}
+                      {c.render ? c.render(row)
+                        : c.person ? personName({ name: row[c.key], name_te: row.name_te }, lang)
+                        : (row[c.key] != null ? tr(String(row[c.key])) : '—')}
                     </td>
                   ))}
                   <td className="px-4 py-3.5"><Pill tone={statusOf(row) === 'Active' ? 'green' : 'gray'}>{statusOf(row)}</Pill></td>
@@ -108,7 +111,7 @@ export default function MasterScreen({ config }) {
                   </td>
                 </tr>
               ))}
-              {items.length === 0 && <TableStates colSpan={columns.length + 2} loading={loading} error={loadErr} onRetry={load} empty={`No ${entity}s found.`} />}
+              {items.length === 0 && <TableStates colSpan={columns.length + 2} loading={loading} error={loadErr} onRetry={load} empty={tr(`No ${entity}s found.`)} />}
             </tbody>
           </table>
         </div>
@@ -120,7 +123,7 @@ export default function MasterScreen({ config }) {
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.mode === 'create' ? addLabel : `Edit ${entity}`}</h3>
+              <h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.mode === 'create' ? tr(addLabel) : tr(`Edit ${entity}`)}</h3>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-4 flex-1">

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Gavel, Clock, X, PhoneCall } from 'lucide-react'
 import { SectionTitle, Badge } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, stamp } from '../../i18n/LanguageContext.jsx'
 
 const TONE = { Live: 'green', Upcoming: 'blue', Closed: 'gray' }
 
@@ -16,7 +16,7 @@ export default function Auction() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12">
-      <SectionTitle title={tr("🔨 Seva Auctions")} subtitle="Bid for the honour of leading special sevas during festivals." />
+      <SectionTitle title={tr("🔨 Seva Auctions")} subtitle={tr("Bid for the honour of leading special sevas during festivals.")} />
 
       <div className="grid md:grid-cols-2 gap-5 mt-8">
         {auctions.map((a) => (
@@ -25,8 +25,8 @@ export default function Auction() {
               <div className="w-11 h-11 rounded-xl bg-violet-100 text-violet-600 grid place-items-center"><Gavel size={20} /></div>
               <Badge tone={TONE[a.status]}>{a.status}</Badge>
             </div>
-            <h3 className="font-bold text-gray-900 mt-3">{a.item}</h3>
-            <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-1"><Clock size={12} /> Closes {a.closes}</div>
+            <h3 className="font-bold text-gray-900 mt-3">{tr(a.item)}</h3>
+            <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-1"><Clock size={12} />{' '}{tr('Closes')} {stamp(a.closes)}</div>
 
             <div className="grid grid-cols-2 gap-3 mt-4">
               <div className="bg-gray-50 rounded-lg p-3">
@@ -39,7 +39,7 @@ export default function Auction() {
               </div>
             </div>
             <div className="flex items-center justify-between mt-4">
-              <span className="text-xs text-gray-400">{a.bids} bids placed</span>
+              <span className="text-xs text-gray-400">{a.bids} {tr('bids placed')}</span>
               <button
                 onClick={() => a.status !== 'Closed' && setBidFor(a)}
                 disabled={a.status === 'Closed'}

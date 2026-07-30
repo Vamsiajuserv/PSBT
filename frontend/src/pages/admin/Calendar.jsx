@@ -188,7 +188,7 @@ export default function Calendar() {
                       {e.time && <span className="font-semibold">{e.time.replace(/\b(AM|PM)\b/, (w) => tr(w))}</span>} {tr(e.title)}
                     </div>
                   ))}
-                  {events.length > 2 && <div className="text-[0.625rem] text-gray-400 px-1">+{events.length - 2} more</div>}
+                  {events.length > 2 && <div className="text-[0.625rem] text-gray-400 px-1">+{events.length - 2} {tr('more')}</div>}
                 </div>
               </button>
             )

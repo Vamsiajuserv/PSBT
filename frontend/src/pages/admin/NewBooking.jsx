@@ -9,7 +9,7 @@ import { DevoteesAPI, PoojasAPI, BookingsAPI, PaymentsAPI, PoojarisAPI, Festival
 import { inr, fmtDate } from '../../components/admin/ui.jsx'
 import { TicketRef } from '../../components/admin/BookingTicket.jsx'
 import { Select, DateField, NumberField } from '../../components/common/Field.jsx'
-import { T, tr, useLang, personName } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, useLang, personName } from '../../i18n/LanguageContext.jsx'
 
 const STEPS = [
   { t: 'Booking Details', s: 'Enter booking information' },
@@ -261,7 +261,7 @@ export default function NewBooking() {
         <div className="space-y-5">
           {/* 1. Devotee Search & Selection */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 text-maroon-700 mb-4"><User size={18} /><h3 className="font-serif text-lg font-bold">{tr("1. Devotee Search &amp; Selection")}</h3></div>
+            <div className="flex items-center gap-2 text-maroon-700 mb-4"><User size={18} /><h3 className="font-serif text-lg font-bold">{tr("1. Devotee Search & Selection")}</h3></div>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1.2fr_auto] gap-5 items-start">
               <div>
                 <label className="label"><T>Search By</T></label>
@@ -271,7 +271,7 @@ export default function NewBooking() {
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <input className="input flex-1" placeholder={`${tr('Enter')} ${tr(searchBy).toLowerCase()}`} value={devQ} onChange={(e) => setDevQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} />
+                  <input className="input flex-1" placeholder={tr(`Enter ${searchBy.toLowerCase()}`)} value={devQ} onChange={(e) => setDevQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} />
                   <button type="button" onClick={search} className="btn-maroon !px-4"><Search size={15} />{' '}<T>Search</T></button>
                 </div>
               </div>
@@ -362,10 +362,10 @@ export default function NewBooking() {
                         const on = plan?.id === pl.id
                         return (
                           <tr key={pl.id} className={on ? 'bg-maroon-50/40' : 'hover:bg-gray-50/60'}>
-                            <td className="px-4 py-3 font-semibold text-gray-800"><span className="inline-flex items-center gap-2"><span onClick={() => setPlan(pl)} className={`w-4 h-4 rounded-full border-2 grid place-items-center cursor-pointer ${on ? 'border-maroon-600' : 'border-gray-300'}`}>{on && <span className="w-2 h-2 rounded-full bg-maroon-600" />}</span>{pl.plan_name} {shortPooja(pooja.name)}</span></td>
-                            <td className="px-2 py-3 text-gray-600">{pl.plan_name}</td>
+                            <td className="px-4 py-3 font-semibold text-gray-800"><span className="inline-flex items-center gap-2"><span onClick={() => setPlan(pl)} className={`w-4 h-4 rounded-full border-2 grid place-items-center cursor-pointer ${on ? 'border-maroon-600' : 'border-gray-300'}`}>{on && <span className="w-2 h-2 rounded-full bg-maroon-600" />}</span>{tr(pl.plan_name)} {tr(shortPooja(pooja.name))}</span></td>
+                            <td className="px-2 py-3 text-gray-600">{tr(pl.plan_name)}</td>
                             <td className="px-2 py-3 text-right font-semibold text-gray-800">{pl.committee_decided ? <span className="text-amber-600 text-[0.75rem]"><T>Committee</T></span> : money2(pl.fee)}</td>
-                            <td className="px-2 py-3 text-gray-600 text-[0.8125rem]">{validityShort(pl)}</td>
+                            <td className="px-2 py-3 text-gray-600 text-[0.8125rem]">{tr(validityShort(pl))}</td>
                             <td className="px-2 py-3"><span className="text-[0.6875rem] font-semibold text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-0.5"><T>Available</T></span></td>
                             <td className="px-2 py-3">{on ? <span className="text-[0.75rem] font-semibold text-maroon-700 inline-flex items-center gap-1"><Check size={13} />{' '}<T>Selected</T></span> : <button type="button" onClick={() => setPlan(pl)} className="text-[0.75rem] font-semibold rounded-lg px-3 py-1 border border-maroon-200 text-maroon-700 hover:bg-maroon-50"><T>Select</T></button>}</td>
                           </tr>
@@ -402,12 +402,12 @@ export default function NewBooking() {
               </div>
               <div>
                 <label className="label"><T>Time Slot *</T></label>
-                <Select value={slot} onChange={(e) => setSlot(e.target.value)}>{SLOTS.map((s) => <option key={s} value={s}>{s.replace(/\b(AM|PM)\b/g, (w) => tr(w))}</option>)}</Select>
+                <Select value={slot} onChange={(e) => setSlot(e.target.value)}>{SLOTS.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}</Select>
                 <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Select the pooja timing slot for the booking.</T></div>
               </div>
               <div>
                 <label className="label"><T>Assign Poojari (Optional)</T></label>
-                <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)}><option value="">{tr("Not assigned")}</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}{p.specialization ? ` · ${p.specialization}` : ''}</option>)}</Select>
+                <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)}><option value="">{tr("Not assigned")}</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)}{p.specialization ? ` · ${tr(p.specialization)}` : ''}</option>)}</Select>
                 <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Optionally assign a poojari to perform this booking.</T></div>
               </div>
             </div>
@@ -452,7 +452,7 @@ export default function NewBooking() {
                   <label className="label"><T>Payment Date &amp; Time</T></label>
                   <div className="flex gap-2">
                     <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={fmtDate(new Date().toISOString())} readOnly /><Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
-                    <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }).replace(/\b(AM|PM)\b/, (w) => tr(w))} readOnly /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
+                    <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={clock12(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }))} readOnly /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
                   </div>
                 </div>
                 <div>
@@ -575,5 +575,7 @@ function Detail({ k, v }) {
   return <div className="flex items-center gap-3 py-2.5"><span className="text-gray-500 w-40 shrink-0">{k}</span><span className="text-gray-400">:</span><span className="text-gray-800 font-medium">{v}</span></div>
 }
 function TField({ k, v, sub, mono }) {
+  v = typeof v === 'string' ? tr(v) : v
+
   return <div><div className="text-[0.6875rem] text-gray-500">{k}</div><div className={`text-[0.8125rem] text-gray-800 font-semibold ${mono ? 'font-mono' : ''}`}>{v}</div>{sub && <div className="text-[0.625rem] text-gray-400">{sub}</div>}</div>
 }

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { CountUp } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr } from '../../i18n/LanguageContext.jsx'
 
 /* ── Static fallbacks (used until donation categories are configured) ──────── */
 const CASH_FALLBACK = [
@@ -109,7 +109,7 @@ export default function Donations() {
   const sponsor = byType('Sponsorship').length ? byType('Sponsorship') : SPONSOR_FALLBACK
 
   const IMPACT = [
-    { icon: IndianRupee, value: impact.year_amount || 0, prefix: '₹ ', label: `Donations in ${impact.year || new Date().getFullYear()}`, sub: 'Cash & sponsorships received' },
+    { icon: IndianRupee, value: impact.year_amount || 0, prefix: '₹ ', label: `${t('Donations in')} ${impact.year || new Date().getFullYear()}`, sub: 'Cash & sponsorships received' },
     { icon: ReceiptText, value: impact.year_count || 0, label: 'Receipts This Year', sub: 'Every donation is recorded' },
     { icon: Users, value: impact.donor_count || 0, label: 'Generous Donors', sub: 'Devotees who gave with faith' },
   ]

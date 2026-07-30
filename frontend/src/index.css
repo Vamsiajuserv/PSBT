@@ -322,3 +322,27 @@
   .no-print { display: none !important; }
   @page { margin: 12mm; }
 }
+
+/* ── Telugu heading faces ──────────────────────────────────────────────────
+   `font-serif` is Playfair Display → Noto Serif Telugu, and `font-display` is
+   Cinzel → Playfair. Neither Latin face has Telugu glyphs, so Telugu text
+   already falls through to the Telugu face — but per-character fallback keeps
+   sourcing ASCII from the Latin face, and Playfair's calligraphic ampersand
+   reads as the Telugu letter ఠ next to Telugu text ("పూజ ఠ ప్లాన్ వివరాలు").
+   In Telugu, take every glyph from the Telugu face instead. Specificity beats
+   the utility class, so no !important is needed. */
+html[lang="te"] .font-serif,
+html[lang="te"] .font-display {
+  font-family: 'Noto Serif Telugu', Georgia, serif;
+}
+
+/* `font-script` is Great Vibes — a Latin-only calligraphic face, so the public
+   site's devotional eyebrows ("సాయి శరణం", "|| ఓం శ్రీ సాయి రామ్ ||") fell back to
+   generic `cursive`: body weight, no accent quality. Telugu has no true cursive,
+   so use Ramaraja — light and graceful enough to read as an accent, with even
+   enough strokes to hold up in gold on maroon. Size stays with the utility
+   classes — overriding font-size here would resolve against the parent and
+   flatten the text-2xl / text-3xl scale. */
+html[lang="te"] .font-script {
+  font-family: 'Ramaraja', 'Noto Serif Telugu', serif;
+}

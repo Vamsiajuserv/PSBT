@@ -45,6 +45,9 @@ export default {
         script: ['"Great Vibes"', 'cursive'],
         telugu: ['"Noto Sans Telugu"', 'sans-serif'],
         'telugu-serif': ['"Noto Serif Telugu"', 'serif'],
+        // Decorative Telugu accent — the counterpart to Great Vibes, which has
+        // no Telugu glyphs. See index.css (html[lang="te"] .font-script).
+        'telugu-display': ['Ramaraja', '"Noto Serif Telugu"', 'serif'],
       },
       boxShadow: {
         soft: '0 2px 12px rgba(56,10,10,0.06)',

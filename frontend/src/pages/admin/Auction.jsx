@@ -10,7 +10,7 @@ import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, TimeField, NumberField } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const STATUS_TONE = { Scheduled: 'blue', 'In Progress': 'amber', Completed: 'green' }
 const to12h = (t) => {
@@ -18,7 +18,7 @@ const to12h = (t) => {
   const [h, m] = t.split(':').map(Number)
   const ap = h >= 12 ? 'PM' : 'AM'
   const hh = h % 12 || 12
-  return `${String(hh).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ap}`
+  return clock12(`${String(hh).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ap}`)
 }
 const emptyForm = () => ({ itemChoice: '', item: '', base_amount: '', devotee: null, winner: '', description: '', auction_date: '', start_time: '', notes: '' })
 
@@ -219,7 +219,7 @@ export default function Auction() {
       </div>
 
       <div className="mt-4 flex items-start gap-2 text-[0.8125rem] text-gray-600 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-3">
-        <Info size={16} className="text-blue-500 shrink-0 mt-0.5" /> Record each auction with its item, base amount and the winning devotee. Live bid tracking and auction payment receipts are planned; for now, collect payment at the counter.
+        <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Record each auction with its item, base amount and the winning devotee. Live bid tracking and auction payment receipts are planned; for now, collect payment at the counter.</T>
       </div>
 
       {/* ── Create New Auction drawer ── */}

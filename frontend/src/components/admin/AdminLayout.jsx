@@ -4,17 +4,20 @@ import {
   LayoutDashboard, Users as UsersIcon, Flame, HandHeart, Landmark, Gavel,
   UtensilsCrossed, Recycle, FileBarChart, ShieldCheck, Settings as SettingsIcon,
   Menu, LogOut, Bell, Calendar, Clock, ChevronDown, ChevronRight, KeyRound, Wallet,
-  Receipt, ClipboardList, ScanLine, CalendarPlus,
+  Receipt, ClipboardList, ScanLine,
 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey, keyOf } from '../../auth/access.js'
-import { useLang, T, tr, personName } from '../../i18n/LanguageContext.jsx'
+import { useLang, T, tr, clock12, personName } from '../../i18n/LanguageContext.jsx'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/counter', label: 'Counter Billing', icon: Receipt },
-  { to: '/admin/bookings/new', label: 'Advance Booking', icon: CalendarPlus },
-  { to: '/admin/my-poojas', label: 'My Poojas', icon: ClipboardList },
+  // Advance booking lives inside Pooja Management → Bookings ("Advance Booking"
+  // action) — a second top-level entry to the same wizard only duplicated it.
+  // The daily queue is "My Poojas" to the Poojari who performs them; to everyone
+  // else (Administrator, supervising staff) it is the temple's pooja queue.
+  { to: '/admin/my-poojas', label: 'Pooja Queue', poojariLabel: 'My Poojas', icon: ClipboardList },
   { to: '/admin/verify-ticket', label: 'Verify Ticket', icon: ScanLine },
   { to: '/admin/devotees', label: 'Devotee Management', icon: UsersIcon },
   {
@@ -80,8 +83,7 @@ const todayLabel = () =>
   new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', weekday: 'short' })
     .replace(/[A-Za-z]{3,}/g, (w) => tr(w))
 const timeLabel = () =>
-  new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    .replace(/\b(AM|PM)\b/, (w) => tr(w))
+  clock12(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }))
 
 function SidebarNav({ onNavigate }) {
   const location = useLocation()
@@ -95,7 +97,8 @@ function SidebarNav({ onNavigate }) {
       const kids = n.children.filter((c) => canAccessKey(user, keyOf(c.to)))
       return kids.length ? { ...n, children: kids } : null
     }
-    return canAccessKey(user, keyOf(n.to)) ? n : null
+    if (!canAccessKey(user, keyOf(n.to))) return null
+    return n.poojariLabel && user?.role === 'Poojari' ? { ...n, label: n.poojariLabel } : n
   }).filter(Boolean)
 
   const activeGroup = nav.find((n) => n.children?.some((c) => location.pathname.startsWith(c.to)))

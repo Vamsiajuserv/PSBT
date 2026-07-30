@@ -10,7 +10,7 @@ import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI, BookingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
@@ -25,7 +25,7 @@ function durDays(pl) {
   return 1
 }
 const validityShort = (pl) => { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('daily')) return '1 Day'; if (n.includes('monthly')) return '1 Month'; if (n.includes('life')) return 'Lifetime'; if (n.includes('one')) return 'One-Time'; if (n.includes('year')) return '1 Year'; return pl?.frequency || 'Selected Date' }
-function validityRange(pl, from) { const d = durDays(pl); if (d === null || !from) return 'Lifetime'; const to = addDays(from, d - 1); return `${d} Day${d > 1 ? 's' : ''} (${fmtDate(from)} to ${fmtDate(to)})` }
+function validityRange(pl, from) { const d = durDays(pl); if (d === null || !from) return 'Lifetime'; const to = addDays(from, d - 1); return `${d} ${tr(d > 1 ? 'Days' : 'Day')} (${fmtDate(from)} ${tr('to')} ${fmtDate(to)})` }
 const bookedBy = (u) => (u === 'admin' ? { name: 'Administrator', sub: 'Super Admin' } : { name: u || '—', sub: 'Staff' })
 
 export default function BookingDetails() {
@@ -70,9 +70,9 @@ export default function BookingDetails() {
         <Meta icon={ClipboardList} label={tr("Booking ID")} value={<span className="font-mono">{d.booking_code}</span>} />
         <Meta icon={Ticket} label={tr("Ticket Number")} value={<span className="font-mono">{ticketNo}</span>} />
         <Meta icon={Calendar} label={tr("Booking Date")} value={fmtStamp(d.created_at)} />
-        <Meta icon={UserCheck} label={tr("Booked By")} value={personName(bb, lang)} sub={`(${bb.sub})`} />
+        <Meta icon={UserCheck} label={tr("Booked By")} value={tr(bb.name) !== bb.name ? tr(bb.name) : personName(bb, lang)} sub={`(${tr(bb.sub)})`} />
         <Meta icon={Building2} label={tr("Booking Source")} value={d.source === 'Counter' ? tr('Counter Booking') : tr('Online Booking')} />
-        <div className="ml-auto"><span className="inline-flex items-center gap-1.5 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5"><CheckCircle2 size={15} /> {(d.status || 'Confirmed').toUpperCase()}</span></div>
+        <div className="ml-auto"><span className="inline-flex items-center gap-1.5 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5"><CheckCircle2 size={15} /> {tr((d.status || 'Confirmed').toUpperCase())}</span></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -86,11 +86,11 @@ export default function BookingDetails() {
 
           <Section n="2" icon={Landmark} title={tr("Pooja & Plan Details")}>
             <Row label={tr("Pooja Name")} value={d.pooja_name} />
-            <Row label={tr("Plan")} value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
-            <Row label={tr("Plan Type")} value={plan.plan_name} />
-            <Row label={tr("Rate Type")} value={plan.rate_type} />
+            <Row label={tr("Plan")} value={`${tr(plan.plan_name || '')} ${tr(shortPooja(d.pooja_name))}`} />
+            <Row label={tr("Plan Type")} value={tr(plan.plan_name)} />
+            <Row label={tr("Rate Type")} value={tr(plan.rate_type)} />
             <Row label={tr("Validity")} value={validRange} />
-            <Row label={tr("Plan Description")} value={`${plan.description || ''} for ${validityShort(plan)}`.trim()} />
+            <Row label={tr("Plan Description")} value={`${tr(plan.plan_name || '')} ${tr(d.pooja_name || '')} ${tr('for')} ${tr(validityShort(plan))}`.trim()} />
           </Section>
 
           <Section n="3" icon={IndianRupee} title={tr("Amount Details")}>
@@ -114,11 +114,11 @@ export default function BookingDetails() {
             <TF icon={Ticket} label={tr("Ticket Number")} value={ticketNo} mono />
             <TF icon={User} label={tr("Devotee")} value={personName(dev, lang)} sub={dev.mobile} />
             <TF icon={Landmark} label={tr("Pooja")} value={d.pooja_name} />
-            <TF icon={CalendarDays} label={tr("Plan")} value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
-            <TF icon={Tag} label={tr("Plan Type")} value={plan.plan_name} />
+            <TF icon={CalendarDays} label={tr("Plan")} value={`${tr(plan.plan_name || '')} ${tr(shortPooja(d.pooja_name))}`} />
+            <TF icon={Tag} label={tr("Plan Type")} value={tr(plan.plan_name)} />
             <TF icon={Calendar} label={tr("Booking Date")} value={fmtDate(d.created_at)} sub={fmtStamp(d.created_at).split(', ')[1]} />
-            <TF icon={ShieldCheck} label={tr("Validity")} value={validityShort(plan)} sub={validRange.includes('(') ? validRange.slice(validRange.indexOf('(')) : ''} />
-            <TF icon={IndianRupee} label={tr("Rate Type")} value={plan.rate_type} />
+            <TF icon={ShieldCheck} label={tr("Validity")} value={tr(validityShort(plan))} sub={validRange.includes('(') ? validRange.slice(validRange.indexOf('(')) : ''} />
+            <TF icon={IndianRupee} label={tr("Rate Type")} value={tr(plan.rate_type)} />
             <TF icon={IndianRupee} label={tr("Amount Paid (₹)")} value={money2(d.amount)} />
             <TF icon={CreditCard} label={tr("Payment Mode")} value={mode} />
             <TF icon={Ticket} label={tr("UTR / Transaction ID")} value={isUpi ? <span className="text-emerald-700 font-mono text-[0.75rem]">{d.payment_ref}</span> : '—'} />
@@ -139,6 +139,8 @@ export default function BookingDetails() {
 }
 
 function Meta({ icon: Icon, label, value, sub }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return (
     <div className="flex items-center gap-2.5">
       <Icon size={18} className="text-maroon-500 shrink-0" />
@@ -155,5 +157,7 @@ function Section({ n, icon: Icon, title, children }) {
   )
 }
 function Row({ label, value }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return <div className="flex text-[0.84375rem]"><span className="text-gray-500 w-44 shrink-0">{label}</span><span className="text-gray-400 mr-3">:</span><span className="text-gray-800 font-medium">{value ?? '—'}</span></div>
 }

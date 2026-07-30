@@ -7,13 +7,13 @@ import { PageHeader } from '../../components/common/UI.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { PoojasAPI, DevoteesAPI, BookingsAPI, PaymentsAPI, FestivalsAPI } from '../../api/client.js'
 import { promptDialog } from '../../components/common/Dialog.jsx'
-import { T, tr, useLang, personName } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useLang, personName, stamp } from '../../i18n/LanguageContext.jsx'
 
 const CATS = ['All', 'Daily', 'Monthly', 'Long-Term', 'Occasion', 'Festival', 'Vehicle']
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const todayISO = () => new Date().toISOString().slice(0, 10)
-const stampNow = () => new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+const stampNow = () => stamp(new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))
 
 export default function Counter() {
   const { lang } = useLang()

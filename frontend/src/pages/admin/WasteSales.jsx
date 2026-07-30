@@ -11,13 +11,12 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, NumberField } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const DEFAULT_MATERIALS = ['Coconut Shells', 'Flowers', 'Banana Leaves', 'Cardboard', 'Plastic', 'Waste Oil', 'Metal Scrap', 'Old Cloth']
 const UNITS = ['Kilogram (kg)', 'Tonne', 'Piece', 'Bundle']
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
-const fmtTime = (s) => (s ? new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  .replace(/\b(AM|PM)\b/, (w) => tr(w)) : '')
+const fmtTime = (s) => (s ? clock12(new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) : '')
 const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI (QR)' : m)
 const unitShort = (u) => { const m = /\(([^)]+)\)/.exec(u || ''); return m ? m[1] : (u || '').toLowerCase() }
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })

@@ -8,7 +8,7 @@ import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { SettingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, stamp, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 
 const CATS = [
   {
@@ -60,6 +60,15 @@ const CATS = [
       fields: [{ k: 'max_login_attempts', label: 'Max Login Attempts' }] }],
   },
 ]
+
+// The audit fields hold either a role ("Administrator") or a real person's name.
+// A role belongs in the dictionary; a name is transliterated. tr() echoes its
+// input on a miss, so that echo is what tells the two apart.
+function roleOrName(value, lang) {
+  if (!value) return '—'
+  const asTerm = tr(value)
+  return asTerm !== value ? asTerm : personName({ name: value }, lang)
+}
 
 export default function Settings() {
   const { lang } = useLang()
@@ -184,10 +193,10 @@ export default function Settings() {
           <div className="bg-gray-50/70 rounded-xl border border-gray-100 px-5 py-4">
             <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.84375rem] mb-3"><Info size={15} />{' '}<T>Audit Information</T></div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[0.8125rem]">
-              <Meta label={tr("Created By")} value={personName({ name: data.created_by }, lang)} />
-              <Meta label={tr("Created On")} value={data.created_on} />
-              <Meta label={tr("Last Updated By")} value={personName({ name: data.updated_by }, lang)} />
-              <Meta label={tr("Last Updated On")} value={data.updated_at || '—'} />
+              <Meta label={tr("Created By")} value={roleOrName(data.created_by, lang)} />
+              <Meta label={tr("Created On")} value={stamp(data.created_on)} />
+              <Meta label={tr("Last Updated By")} value={roleOrName(data.updated_by, lang)} />
+              <Meta label={tr("Last Updated On")} value={stamp(data.updated_at) || '—'} />
             </div>
           </div>
           <div className="flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5">
@@ -199,6 +208,8 @@ export default function Settings() {
 }
 
 function Meta({ label, value }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return (
     <div>
       <div className="text-[0.6875rem] text-gray-400">{label}</div>

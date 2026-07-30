@@ -8,11 +8,11 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { PoojarisAPI, BookingsAPI, ApiError } from '../../api/client.js'
 import { DateField } from '../../components/common/Field.jsx'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const fmtDate = (iso) =>
-  iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+  iso ? stamp(new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : ''
 
 const STATUS_PILL = {
   Completed: 'bg-emerald-50 text-emerald-700',
@@ -24,6 +24,9 @@ export default function PoojariQueue() {
   const { lang } = useLang()
   const { user } = useAuth()
   const linked = !!user?.poojari_id            // only a linked Poojari can filter to "mine"
+  // "My Poojas" only reads right for the Poojari performing them; an
+  // Administrator opening the same screen is looking at the temple's queue.
+  const isPoojari = user?.role === 'Poojari'
   const [day, setDay] = useState(todayISO())
   const [mine, setMine] = useState(false)
   const [data, setData] = useState(null)
@@ -73,7 +76,10 @@ export default function PoojariQueue() {
 
   return (
     <div>
-      <PageHeader title={tr("My Poojas")} subtitle={tr("Today's pooja queue — verify the ticket and mark each pooja performed")} />
+      <PageHeader title={isPoojari ? tr("My Poojas") : tr("Pooja Queue")}
+        subtitle={isPoojari
+          ? tr("Today's pooja queue — verify the ticket and mark each pooja performed")
+          : tr("Poojas due on the selected day — verify the ticket and mark each pooja performed")} />
 
       {/* Controls */}
       <div className="flex flex-wrap items-end gap-3 mb-5">
@@ -120,7 +126,7 @@ export default function PoojariQueue() {
               {/* Time */}
               <div className="w-20 shrink-0 text-center">
                 <div className="text-[0.6875rem] text-gray-400 flex items-center justify-center gap-1"><Clock size={11} />{' '}<T>Slot</T></div>
-                <div className="text-sm font-bold text-maroon-700">{b.time_slot || '—'}</div>
+                <div className="text-sm font-bold text-maroon-700">{clock12(b.time_slot) || '—'}</div>
               </div>
               {/* Pooja + devotee */}
               <div className="flex-1 min-w-0">

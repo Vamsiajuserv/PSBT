@@ -187,7 +187,7 @@ export default function Users() {
             </div>
             <div className="flex items-center gap-6 px-6 border-b border-gray-100">
               {[['details', 'User Details'], ['access', 'Role & Access']].map(([k, l]) => (
-                <button key={k} type="button" onClick={() => setTab(k)} className={`py-3 text-[0.84375rem] font-semibold border-b-2 -mb-px ${tab === k ? 'border-maroon-600 text-maroon-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>{l}</button>
+                <button key={k} type="button" onClick={() => setTab(k)} className={`py-3 text-[0.84375rem] font-semibold border-b-2 -mb-px ${tab === k ? 'border-maroon-600 text-maroon-700' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>{tr(l)}</button>
               ))}
             </div>
 

@@ -15,7 +15,7 @@ export const TE = {
   Pooja: 'పూజ',
   Service: 'సేవ',
   Plan: 'ప్లాన్',
-  Category: 'విభాగం',
+  Category: 'వర్గం',
   Date: 'తేదీ',
   Time: 'సమయం',
   'Time Slot': 'సమయం',
@@ -36,7 +36,7 @@ export const TE = {
   Plates: 'ప్లేట్లు',
   Occasion: 'సందర్భం',
   Valid: 'చెల్లుబాటు',
-  'Valid Until': 'చెల్లుబాటు వరకు',
+  'Valid Until': 'చెల్లుబాటు తేదీ',
 
   // ── Pooja categories ──
   Daily: 'రోజువారీ',
@@ -72,7 +72,7 @@ export const TE = {
   'Annadanam Donation': 'అన్నదాన విరాళం',
   'Temple Development Donation': 'ఆలయ అభివృద్ధి విరాళం',
   'Corpus / Endowment Donation': 'కార్పస్ / ఎండోమెంట్ విరాళం',
-  'Festival Sponsorship': 'ఉత్సవ ప్రాయోజకత్వం',
+  'Festival Sponsorship': 'పండుగ ప్రాయోజకత్వం',
   'Annadanam Sponsorship': 'అన్నదాన ప్రాయోజకత్వం',
   'Pooja Sponsorship': 'పూజ ప్రాయోజకత్వం',
   'Aarti Sponsorship': 'హారతి ప్రాయోజకత్వం',

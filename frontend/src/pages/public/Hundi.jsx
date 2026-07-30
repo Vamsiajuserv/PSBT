@@ -6,7 +6,7 @@ import { T, tr } from '../../i18n/LanguageContext.jsx'
 export default function Hundi() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
-      <SectionTitle title={tr("Temple Hundi")} subtitle="Place your offering into the temple hundi." />
+      <SectionTitle title={tr("Temple Hundi")} subtitle={tr("Place your offering into the temple hundi.")} />
 
       <div className="card p-8 mt-6 text-center">
         <div className="w-16 h-16 mx-auto rounded-2xl bg-blue-100 text-blue-600 grid place-items-center mb-4"><Landmark size={30} /></div>

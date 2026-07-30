@@ -10,7 +10,7 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 
 const EMPTY = { name: '', mobile: '', email: '', city: '', gothram: '', nakshatram: '', address: '', preferred_language: 'English', dob: '', status: 'Active', notes: '' }
 const PAGE_SIZE = 20
@@ -338,6 +338,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
 }
 
 function Meta({ label, value, wide }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return (
     <div className={wide ? 'col-span-2' : ''}>
       <div className="text-[0.6875rem] text-gray-400 mb-0.5">{label}</div>

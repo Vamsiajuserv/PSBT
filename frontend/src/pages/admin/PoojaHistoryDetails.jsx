@@ -8,12 +8,12 @@ import { PageTitle, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI } from '../../api/client.js'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
-const weekday = (d) => (d ? new Date(d).toLocaleDateString('en-US', { weekday: 'long' }) : '')
+const weekday = (d) => (d ? stamp(new Date(d).toLocaleDateString('en-US', { weekday: 'long' })) : '')
 const modeLabel = (m) => tr(m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'UPI / QR Code' : (m || 'Cash'))
 function durDays(pl) { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('life')) return null; if (pl?.duration_days) return pl.duration_days; if (n.includes('monthly')) return 30; if (n.includes('year')) return 365; return 1 }
 function validityRange(pl, from) { const d = durDays(pl); if (d === null || !from) return 'Lifetime'; const to = addDays(from, d - 1); return `${d} Day${d > 1 ? 's' : ''} (${fmtDate(from)}${d > 1 ? ` to ${fmtDate(to)}` : ''})` }
@@ -70,7 +70,7 @@ export default function PoojaHistoryDetails() {
             <Row label={tr("Plan")} value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
             <Row label={tr("Plan Type")} value={plan.plan_name} />
             <Row label={tr("Rate Type")} value={plan.rate_type} />
-            <Row label={tr("Plan Description")} value={`${plan.description || ''} for ${validityShort(plan)}`.trim()} />
+            <Row label={tr("Plan Description")} value={`${tr(plan.plan_name || '')} ${tr(d.pooja_name || '')} ${tr('for')} ${tr(validityShort(plan))}`.trim()} />
           </Section>
           <Section n="3" icon={CalendarDays} title={tr("Booking & Validity Details")}>
             <Row label={tr("Pooja Date")} value={`${fmtDate(d.scheduled_date)} (${weekday(d.scheduled_date)})`} />
@@ -127,11 +127,15 @@ export default function PoojaHistoryDetails() {
 }
 
 function Meta({ icon: Icon, label, value }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return <div className="flex items-center gap-2.5"><Icon size={18} className="text-maroon-500 shrink-0" /><div><div className="text-[0.6875rem] text-gray-400">{label}</div><div className="text-[0.8125rem] text-gray-800 font-semibold">{value}</div></div></div>
 }
 function Section({ n, icon: Icon, title, children }) {
   return <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5"><div className="flex items-center gap-2 text-maroon-700 mb-4"><Icon size={18} /><h3 className="font-serif text-lg font-bold">{n}. {title}</h3></div><div className="space-y-3">{children}</div></div>
 }
 function Row({ label, value }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return <div className="flex text-[0.84375rem]"><span className="text-gray-500 w-44 shrink-0">{label}</span><span className="text-gray-400 mr-3">:</span><span className="text-gray-800 font-medium">{value ?? '—'}</span></div>
 }

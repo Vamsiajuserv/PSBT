@@ -10,7 +10,7 @@ import { LOAD_ERROR } from '../../components/common/states.jsx'
 import { RolesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 
 const MOD_ICON = {
   Devotees: UsersIcon, Sevas: Flame, Bookings: Flame, Donations: HeartHandshake,
@@ -126,14 +126,14 @@ export default function RoleAccess() {
               <div className="bg-amber-50/60 border border-amber-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-700 grid place-items-center shrink-0">{sel.code === 'ADMINISTRATOR' ? <Crown size={20} /> : <UsersIcon size={20} />}</div>
                 <div className="flex-1"><div className="flex items-center gap-2"><span className="font-bold text-gray-800">{tr(sel.name)}</span><Pill tone={sel.active ? 'green' : 'red'}>{sel.active ? tr('Active') : tr('Inactive')}</Pill></div>
-                  <div className="text-[0.75rem] text-gray-500">{sel.description}</div></div>
+                  <div className="text-[0.75rem] text-gray-500">{tr(sel.description)}</div></div>
               </div>
               <dl className="mt-4 space-y-3 text-[0.8125rem]">
                 <Row label={tr("Role Code")} value={<span className="font-mono text-gray-700">{sel.code}</span>} />
                 <div className="grid grid-cols-2 gap-3"><Row label={tr("Created On")} value={sel.created_at} /><Row label={tr("Created By")} value={personName({ name: sel.created_by }, lang)} /></div>
                 <div className="grid grid-cols-2 gap-3"><Row label={tr("Last Updated On")} value={sel.updated_at} /><Row label={tr("Last Updated By")} value={personName({ name: sel.updated_by }, lang)} /></div>
               </dl>
-              <div className="mt-4"><div className="text-[0.6875rem] text-gray-400 mb-1"><T>Role Description</T></div><div className="text-[0.8125rem] text-gray-600 leading-relaxed">{sel.description}</div></div>
+              <div className="mt-4"><div className="text-[0.6875rem] text-gray-400 mb-1"><T>Role Description</T></div><div className="text-[0.8125rem] text-gray-600 leading-relaxed">{tr(sel.description)}</div></div>
 
               <div className="mt-5 pt-4 border-t border-gray-100">
                 <div className="flex items-center justify-between mb-2"><span className="font-bold text-gray-700 text-[0.84375rem]">{tr('Assigned Users')} ({sel.users?.length || 0})</span><Link to="/admin/users" className="text-[0.75rem] font-semibold text-maroon-600 underline"><T>View All</T></Link></div>
@@ -220,5 +220,7 @@ export default function RoleAccess() {
 }
 
 function Row({ label, value }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return <div><dt className="text-[0.6875rem] text-gray-400">{label}</dt><dd className="text-[0.8125rem] text-gray-800 font-medium mt-0.5">{value || '—'}</dd></div>
 }

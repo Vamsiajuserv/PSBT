@@ -9,7 +9,7 @@ import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { PoojaHistoryAPI, PoojasAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
 
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'Life Long': 'orange', 'One-Time': 'violet',
   'Full Month': 'violet', '30-Day': 'violet', 'Yearly Once': 'orange', 'Yearly Thrice': 'orange' }
@@ -19,9 +19,9 @@ const COMPLETION_ICON = { Completed: CheckCircle2, Cancelled: XCircle, Ongoing: 
 const STATUS_CLS = { green: 'bg-emerald-50 text-emerald-700', red: 'bg-red-50 text-red-700', amber: 'bg-amber-50 text-amber-700' }
 function StatusPill({ completion }) {
   const I = COMPLETION_ICON[completion]
-  return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_CLS[COMPLETION_TONE[completion]]}`}><I size={11} /> {COMPLETION_LABEL[completion]}</span>
+  return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_CLS[COMPLETION_TONE[completion]]}`}><I size={11} /> {tr(COMPLETION_LABEL[completion])}</span>
 }
-const monthLabel = () => new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+const monthLabel = () => stamp(new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }))
   .replace(/[A-Za-z]{3,}/g, (w) => tr(w))
 const startOf = (slot) => (slot ? slot.split('-')[0].trim() : '')
 const endOf = (slot) => (slot && slot.includes('-') ? slot.split('-')[1].trim() : '')
@@ -76,13 +76,15 @@ export default function PoojaHistory() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
-          <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee / Booking ID / Ticket No.</T></label>
+        {/* Filters — one self-packing row: each control declares a flex basis so
+            they fill the width instead of leaving empty grid cells behind. */}
+        <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3">
+          <div className="flex-[2_1_14rem] min-w-0">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search…")} className="input !pl-9" /></div>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Devotee / Booking ID / Ticket No.")} className="input !pl-9" /></div>
           </div>
-          <div>
+          <div className="flex-[2_1_15rem] min-w-0">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
             <div className="flex items-center gap-1.5">
               <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
@@ -90,19 +92,19 @@ export default function PoojaHistory() {
               <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
             </div>
           </div>
-          <div>
+          <div className="flex-[1_1_10rem] min-w-0">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
             <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">{tr("All Poojas")}</option>{poojas.map((p) => <option key={p.id} value={p.name}>{tr(p.name)}</option>)}</Select>
           </div>
-          <div>
+          <div className="flex-[1_1_9rem] min-w-0">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Plan</T></label>
             <Select value={plan} onChange={(e) => setPlan(e.target.value)} className="input"><option value="">{tr("All Plans")}</option>{planNames.map((p) => <option key={p} value={p}>{tr(p)}</option>)}</Select>
           </div>
-          <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Completion Status</T></label>
+          <div className="flex-[1_1_10rem] min-w-0">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Completed">{tr("Completed")}</option><option value="Ongoing">{tr("Ongoing")}</option><option value="Cancelled">{tr("Cancelled")}</option></Select>
           </div>
-          <div className="xl:col-span-4 flex gap-2 justify-end">
+          <div className="flex gap-2 ml-auto shrink-0">
             <button onClick={() => { setQ(''); setPooja(''); setPlan(''); setStatus(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
             <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
           </div>
@@ -234,6 +236,8 @@ function DSection({ icon: Icon, n, title, children }) {
   )
 }
 function Field({ label, value, wide }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return (
     <div className={wide ? 'col-span-2' : ''}>
       <div className="text-[0.6875rem] text-gray-400 mb-0.5">{label}</div>

@@ -1,4 +1,4 @@
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr, teText } from '../../i18n/LanguageContext.jsx'
 import React from 'react'
 
 // ── Count-up number that animates once when it scrolls into view ─────────────
@@ -115,7 +115,7 @@ export function MinimalBanner({ title, breadcrumb }) {
             {crumbs.map((c, i) => (
               <span key={c}>
                 {i > 0 && <span className="text-[#F5F5F5] mx-2">&gt;</span>}
-                <span className={i === crumbs.length - 1 ? 'text-[#D4AF37]' : 'text-[#F5F5F5]'}>{c}</span>
+                <span className={i === crumbs.length - 1 ? 'text-[#D4AF37]' : 'text-[#F5F5F5]'}>{t(c)}</span>
               </span>
             ))}
           </nav>
@@ -320,7 +320,9 @@ export function TempleBanner({ title, breadcrumb }) {
         {breadcrumb && (
           <div className="relative mt-1.5 text-[0.6875rem] sm:text-xs animate-slide-up"
                style={{ color: 'rgba(255,255,255,0.88)', animationDelay: '120ms' }}>
-            {breadcrumb}
+            {typeof breadcrumb === 'string'
+              ? breadcrumb.split('›').map((s) => t(s.trim())).join('  ›  ')
+              : breadcrumb}
           </div>
         )}
       </div>
@@ -410,6 +412,7 @@ const TONES = {
   saffron: 'bg-saffron-50 text-saffron-700',
 }
 export function Badge({ children, tone = 'gray' }) {
+  children = typeof children === 'string' ? teText(children) : children
   return <span className={`badge ${TONES[tone] || TONES.gray}`}>{children}</span>
 }
 

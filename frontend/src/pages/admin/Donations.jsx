@@ -11,16 +11,15 @@ import { te } from '../../lib/telugu.js'
 import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, stamp, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const TYPE_LABEL = { Cash: 'Cash Donation', Material: 'Material Donation', Sponsorship: 'Sponsorship' }
 const MODES = ['Cash', 'UPI/QR Code']
 const todayStamp = () => {
   const d = new Date()
-  return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return stamp(d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))
 }
-const fmtTime = (s) => (s ? new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  .replace(/\b(AM|PM)\b/, (w) => tr(w)) : '')
+const fmtTime = (s) => (s ? clock12(new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) : '')
 
 const newDonation = () => ({
   donation_type: 'Cash', devotee_id: '', donor_name: '', mobile: '', pan: '', fund: '', amount: '',

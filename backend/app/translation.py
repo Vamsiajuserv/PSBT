@@ -25,7 +25,7 @@ GLOSSARY: dict[str, str] = {
     # labels
     "Receipt No": "రసీదు నం.", "Booking No": "బుకింగ్ నం.", "Devotee": "భక్తుడు",
     "Devotee Name": "భక్తుని పేరు", "Mobile": "మొబైల్", "Pooja": "పూజ", "Service": "సేవ",
-    "Plan": "ప్లాన్", "Category": "విభాగం", "Date": "తేదీ", "Time Slot": "సమయం",
+    "Plan": "ప్లాన్", "Category": "వర్గం", "Date": "తేదీ", "Time Slot": "సమయం",
     "Amount": "మొత్తం", "Amount Paid": "చెల్లించిన మొత్తం", "Payment Mode": "చెల్లింపు విధానం",
     "Status": "స్థితి", "Gothram": "గోత్రం", "Nakshatram": "నక్షత్రం", "Donor": "విరాళదారు",
     "Donation": "విరాళం", "Fund": "నిధి", "Counter": "కౌంటర్", "Quantity": "పరిమాణం",

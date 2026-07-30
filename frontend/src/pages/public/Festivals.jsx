@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom'
 import { CalendarDays, Bell, Sparkles, ArrowRight, Clock } from 'lucide-react'
 import { Badge, MinimalBanner, SectionTitle } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang, useContentText } from '../../i18n/LanguageContext.jsx'
+import { useLang, useContentText, tr, stamp } from '../../i18n/LanguageContext.jsx'
 
 const DAY = 24 * 60 * 60 * 1000
 const norm = (s) => (s || '').toLowerCase().replace(/[^a-z]/g, '')
 
 function fmtRange(start, end) {
-  const f = (s) => new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  const f = (s) => stamp(new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))
   if (!start) return null
   return !end || end === start ? f(start) : `${f(start)} – ${f(end)}`
 }
@@ -70,7 +70,7 @@ export default function Festivals() {
                     <li key={u.name} className="flex items-center justify-between gap-6 text-[0.8125rem]">
                       <span className="text-cream/90">{t(u.name)}</span>
                       <span className="text-gold-300 font-semibold whitespace-nowrap">
-                        {new Date(u.start + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                        {stamp(new Date(u.start + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }))}
                       </span>
                     </li>
                   ))}

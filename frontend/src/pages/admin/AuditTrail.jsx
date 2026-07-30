@@ -4,7 +4,7 @@ import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { AuditAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, auditDetail, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const ACTION_TONE = { LOGIN: 'blue', CREATE: 'green', UPDATE: 'amber', DELETE: 'red', DENIED: 'red', LOGOUT: 'gray' }
 const ACTIONS = ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'DENIED']
@@ -92,7 +92,7 @@ export default function AuditTrail() {
                   </td>
                   <td className="px-4 py-3"><Pill tone={ACTION_TONE[r.action] || 'gray'}>{tr(r.action)}</Pill></td>
                   <td className="px-4 py-3 text-gray-600">{r.entity ? tr(r.entity) : '—'}</td>
-                  <td className="px-4 py-3 text-gray-600 max-w-md truncate">{r.detail ? tr(r.detail) : '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 max-w-md truncate">{r.detail ? auditDetail(r.detail) : '—'}</td>
                   <td className="px-4 py-3"><Pill tone={r.status === 'SUCCESS' ? 'green' : 'red'}>{tr(r.status)}</Pill></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-400">{r.ip || '—'}</td>
                 </tr>

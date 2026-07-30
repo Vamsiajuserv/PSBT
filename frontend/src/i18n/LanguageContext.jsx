@@ -22,7 +22,7 @@ const UI_TE = {
   'Temple Information': 'ఆలయ సమాచారం', 'Temple Timings': 'ఆలయ సమయాలు',
   'Established': 'స్థాపించబడింది', 'Managed By': 'నిర్వహణ', 'Trust Reg. No': 'ట్రస్ట్ నమోదు నం.',
   'Pan No.': 'పాన్ నం.', 'Everyday': 'ప్రతిరోజు',
-  'All Rights Reserved.': 'సర్వ హక్కులు కలివి.',
+  'All Rights Reserved.': 'సర్వ హక్కులు ప్రత్యేకించబడినవి.',
   'Website designed and developed for Sri Shirdi Sai Baba Temple.':
     'శ్రీ షిర్డీ సాయిబాబా ఆలయం కోసం రూపొందించి అభివృద్ధి చేయబడిన వెబ్‌సైట్.',
   'A sacred place dedicated to Sri Shirdi Sai Baba, spreading love, faith and seva.':
@@ -70,6 +70,9 @@ const UI_TE = {
   // ── Admin navigation ──
   'Dashboard': 'డాష్‌బోర్డ్', 'Counter Billing': 'కౌంటర్ బిల్లింగ్',
   'Advance Booking': 'ముందస్తు బుకింగ్', 'My Poojas': 'నా పూజలు',
+  'Pooja Queue': 'పూజల క్యూ',
+  "Poojas due on the selected day — verify the ticket and mark each pooja performed":
+    'ఎంచుకున్న రోజున జరగవలసిన పూజలు — టికెట్ ధృవీకరించి ప్రతి పూజను నిర్వహించినట్లు గుర్తించండి',
   'Verify Ticket': 'టికెట్ ధృవీకరణ', 'Devotee Management': 'భక్తుల నిర్వహణ',
   'Pooja Management': 'పూజల నిర్వహణ', 'Bookings': 'బుకింగ్‌లు',
   'Pooja Master': 'పూజల మాస్టర్', 'Poojari Schedule': 'పూజారి షెడ్యూల్',
@@ -106,7 +109,7 @@ const UI_TE = {
   'Sign out': 'సైన్ అవుట్', 'Date Range': 'తేదీ పరిధి',
 
   // ── Statuses ──
-  'Active': 'యాక్టివ్', 'Inactive': 'ఇనాక్టివ్', 'All': 'అన్నీ', 'All Status': 'అన్ని స్థితులు',
+  'Active': 'క్రియాశీలం', 'Inactive': 'నిష్క్రియం', 'All': 'అన్నీ', 'All Status': 'అన్ని స్థితులు',
   'Paid': 'చెల్లించబడింది', 'Pending': 'పెండింగ్', 'Confirmed': 'నిర్ధారించబడింది',
   'Completed': 'పూర్తయింది', 'Cancelled': 'రద్దు చేయబడింది', 'Scheduled': 'షెడ్యూల్ చేయబడింది',
   'In Progress': 'జరుగుతోంది', 'Verified': 'ధృవీకరించబడింది',
@@ -368,7 +371,7 @@ const UI_TE = {
   'Donor Name *': 'దాత పేరు *',
   'Email ID *': 'ఇమెయిల్ ఐడి *',
   'End Time *': 'ముగింపు సమయం *',
-  'Frequency / Type *': 'తరచుదనం / రకం *',
+  'Frequency / Type *': 'ఆవృత్తి / రకం *',
   'Full Name *': 'పూర్తి పేరు *',
   'Material Type': 'వస్తు రకం',
   'Material Type *': 'వస్తు రకం *',
@@ -537,6 +540,8 @@ const UI_TE = {
   'Search by Buyer Name / Mobile / Receipt No.': 'కొనుగోలుదారు పేరు / మొబైల్ / రసీదు సంఖ్య ద్వారా వెతకండి',
   'Search by Category Name…': 'వర్గం పేరు ద్వారా వెతకండి…',
   'Search by Devotee / Booking ID / Ticket No.': 'భక్తుడు / బుకింగ్ ఐడి / టికెట్ సంఖ్య ద్వారా వెతకండి',
+  'Devotee / Booking ID / Ticket No.': 'భక్తుడు / బుకింగ్ ఐడి / టికెట్ సంఖ్య',
+  'Poojari or Pooja name': 'పూజారి లేదా పూజ పేరు',
   'Search by Devotee Name / Mobile': 'భక్తుని పేరు / మొబైల్ ద్వారా వెతకండి',
   'Search by Devotee Name / Mobile / Receipt No.': 'భక్తుని పేరు / మొబైల్ / రసీదు సంఖ్య ద్వారా వెతకండి',
   'Search by Devotee Name / Mobile Number': 'భక్తుని పేరు / మొబైల్ నంబర్ ద్వారా వెతకండి',
@@ -582,7 +587,7 @@ const UI_TE = {
   'About': 'గురించి',
   'Categories': 'వర్గాలు',
   'All Services': 'అన్ని సేవలు',
-  'Starting From': 'నుండి ప్రారంభం',
+  'Starting From': 'ప్రారంభ ధర',
   'Need Help?': 'సహాయం కావాలా?',
   'Add one or more plans for this pooja': 'ఈ పూజ కోసం ఒకటి లేదా అంతకంటే ఎక్కువ ప్లాన్‌లను జోడించండి',
   'All bookings are subject to temple rules and availability.': 'అన్ని బుకింగ్‌లు ఆలయ నియమాలు మరియు అందుబాటుకు లోబడి ఉంటాయి.',
@@ -612,7 +617,7 @@ const UI_TE = {
   'Payment has been received successfully.': 'చెల్లింపు విజయవంతంగా అందుకోబడింది.',
   'Open a future day to prepare — performing is only possible for today': 'సిద్ధం కావడానికి భవిష్యత్ రోజును తెరవండి — నిర్వహణ నేటికి మాత్రమే సాధ్యం',
   'Optionally assign a poojari to perform this booking.': 'ఈ బుకింగ్‌ను నిర్వహించడానికి ఐచ్ఛికంగా పూజారిని కేటాయించండి.',
-  'Records a real receipt against the temple ledger': 'ఆలయ లెడ్జర్‌కు వ్యతిరేకంగా నిజమైన రసీదును నమోదు చేస్తుంది',
+  'Records a real receipt against the temple ledger': 'ఆలయ లెక్కల్లో నిజమైన రసీదును నమోదు చేస్తుంది',
   'Restore inserts new records and updates existing ones by their code/key. It will not delete any data.': 'పునరుద్ధరణ కొత్త రికార్డులను చొప్పిస్తుంది మరియు ఉన్నవాటిని వాటి కోడ్/కీ ద్వారా నవీకరిస్తుంది. ఇది ఏ డేటాను తొలగించదు.',
   'Once the day is closed, no further transactions can be recorded for the selected date.': 'రోజు మూసివేయబడిన తర్వాత, ఎంచుకున్న తేదీకి మరిన్ని లావాదేవీలు నమోదు చేయలేరు.',
   'Om Sai Ram': 'ఓం సాయి రామ్',
@@ -650,7 +655,7 @@ const UI_TE = {
   'Shej Aarti (Night)': 'శేజ్ హారతి (రాత్రి)',
   // Home stats
   'Daily Devotees': 'రోజువారీ భక్తులు', 'Happy Devotees': 'సంతృప్త భక్తులు',
-  'Lives Touched': 'స్పృశించిన జీవితాలు',
+  'Lives Touched': 'ప్రభావితమైన జీవితాలు',
   // About highlights
   'Established 1987': 'స్థాపన 1987',
   'Serving devotees for over three decades.': 'మూడు దశాబ్దాలకు పైగా భక్తులకు సేవ.',
@@ -669,7 +674,7 @@ const UI_TE = {
   // Donations page — how-to steps and the counter-assistance list
   'Visit the Temple Counter': 'ఆలయ కౌంటర్‌ను సందర్శించండి',
   'Register Name and Mobile': 'పేరు మరియు మొబైల్ నంబర్ నమోదు చేయండి',
-  'Select Donation Category': 'విరాళం విభాగాన్ని ఎంచుకోండి',
+  'Select Donation Category': 'విరాళ వర్గాన్ని ఎంచుకోండి',
   'Enter Amount or Hand Over Material': 'మొత్తాన్ని నమోదు చేయండి లేదా వస్తువును అందజేయండి',
   'Pay by Cash or UPI': 'నగదు లేదా యూపీఐ ద్వారా చెల్లించండి',
   'Receive Official Receipt': 'అధికారిక రసీదు పొందండి',
@@ -688,11 +693,11 @@ const UI_TE = {
   'Extra layer of security for authorized access': 'అధీకృత ప్రవేశానికి అదనపు భద్రతా పొర',
   'Audit Logs': 'ఆడిట్ లాగ్‌లు',
   'All activities are recorded and monitored': 'అన్ని కార్యకలాపాలు నమోదు చేయబడి పర్యవేక్షించబడతాయి',
-  'Administrator': 'నిర్వాహకుడు', 'Full access · all modules': 'పూర్తి ప్రవేశం · అన్ని విభాగాలు',
-  'Counter Staff': 'కౌంటర్ సిబ్బంది', 'Billing only · no cancel/delete': 'బిల్లింగ్ మాత్రమే · రద్దు/తొలగింపు లేదు',
-  'Accountant': 'అకౌంటెంట్', 'Read-only · reports & bills': 'చదవడానికి మాత్రమే · నివేదికలు & బిల్లులు',
-  'Poojari': 'పూజారి', 'Pooja queue · verify tickets': 'పూజ వరుస · టికెట్ల ధృవీకరణ',
-  'Committee': 'కమిటీ', 'Hundi verify · auction · reports': 'హుండీ ధృవీకరణ · వేలం · నివేదికలు',
+  'Full access · all modules': 'పూర్తి ప్రవేశం · అన్ని మాడ్యూల్‌లు',
+  'Billing only · no cancel/delete': 'బిల్లింగ్ మాత్రమే · రద్దు/తొలగింపు లేదు',
+  'Read-only · reports & bills': 'చదవడానికి మాత్రమే · నివేదికలు & బిల్లులు',
+  'Pooja queue · verify tickets': 'పూజ వరుస · టికెట్ల ధృవీకరణ',
+  'Hundi verify · auction · reports': 'హుండీ ధృవీకరణ · వేలం · నివేదికలు',
   'Hyderabad, Telangana': 'హైదరాబాద్, తెలంగాణ',
   'Login failed. Please try again.': 'లాగిన్ విఫలమైంది. దయచేసి మళ్లీ ప్రయత్నించండి.',
   'Verification failed.': 'ధృవీకరణ విఫలమైంది.',
@@ -960,7 +965,7 @@ const UI_TE = {
   'Mark All': 'అన్నీ గుర్తించండి',
   'Mark all due': 'పెండింగ్ ఉన్నవన్నీ గుర్తించండి',
   'Mark Performed': 'నిర్వహించినట్లు గుర్తించండి',
-  'performed': 'నిర్వహించబడింది',
+  'performed': 'నిర్వహించబడ్డాయి',
   'skipped (quota exhausted).': 'దాటవేయబడ్డాయి (కోటా అయిపోయింది).',
   'left': 'మిగిలి ఉన్నాయి',
   'For': 'కోసం',
@@ -970,7 +975,7 @@ const UI_TE = {
   'visit': 'సందర్శన',
   'visits': 'సందర్శనలు',
   'Performances': 'నిర్వహణలు',
-  'Valid until': 'వరకు చెల్లుబాటు',
+  'Valid until': 'చెల్లుబాటు తేదీ',
   'Life Long · ongoing': 'జీవితకాలం · కొనసాగుతోంది',
   'Assigned Poojari': 'కేటాయించిన పూజారి',
   'Valid — proceed with the pooja': 'చెల్లుబాటు — పూజను కొనసాగించండి',
@@ -997,7 +1002,7 @@ const UI_TE = {
   'No poojas assigned to you for': 'మీకు కేటాయించిన పూజలు లేవు —',
   'No poojas for': 'పూజలు లేవు —',
   'Ongoing · Life Long': 'కొనసాగుతోంది · జీవితకాలం',
-  'valid till': 'వరకు చెల్లుబాటు',
+  'valid till': 'చెల్లుబాటు',
   'last': 'చివరిది',
   'Life Long Pooja': 'జీవితకాల పూజ',
   'One-Time Pooja': 'ఒకసారి పూజ',
@@ -1105,7 +1110,7 @@ const UI_TE = {
   'Eligible for 80G tax exemption.': '80G పన్ను మినహాయింపునకు అర్హత.',
   'Eligible for Tax Exemption (Medical Donation)': 'పన్ను మినహాయింపునకు అర్హత (వైద్య విరాళం)',
   'No donations found.': 'ఏ విరాళాలు కనుగొనబడలేదు.',
-  'Select category…': 'విభాగాన్ని ఎంచుకోండి…',
+  'Select category…': 'వర్గాన్ని ఎంచుకోండి…',
   'Save & Print Receipt': 'సేవ్ చేసి రసీదు ముద్రించండి',
   'Saving…': 'సేవ్ అవుతోంది…',
   'Amount (₹) *': 'మొత్తం (₹) *',
@@ -1262,12 +1267,12 @@ const UI_TE = {
   'Currently serving': 'ప్రస్తుతం సేవలో',
   'Not serving': 'సేవలో లేదు',
   'Not available': 'అందుబాటులో లేదు',
-  'All Categories': 'అన్ని విభాగాలు',
+  'All Categories': 'అన్ని వర్గాలు',
   'All Cities': 'అన్ని నగరాలు',
   'All Roles': 'అన్ని పాత్రలు',
   'All Poojaris': 'అన్ని పూజారులు',
-  'Category ID': 'విభాగం ఐడి',
-  'Category Name': 'విభాగం పేరు',
+  'Category ID': 'వర్గం ఐడి',
+  'Category Name': 'వర్గం పేరు',
   'Item ID': 'వస్తువు ఐడి',
   'Item Type': 'వస్తువు రకం',
   'Member ID': 'సభ్యుని ఐడి',
@@ -1297,7 +1302,7 @@ const UI_TE = {
   'Created On': 'సృష్టించిన తేదీ',
   'Last Updated By': 'చివరిగా నవీకరించినవారు',
   'Last Updated On': 'చివరిగా నవీకరించిన తేదీ',
-  'Edit Category': 'విభాగాన్ని సవరించండి',
+  'Edit Category': 'వర్గాన్ని సవరించండి',
   'Edit Pooja': 'పూజను సవరించండి',
   'Edit Schedule': 'షెడ్యూల్‌ను సవరించండి',
   'Edit User': 'వినియోగదారుని సవరించండి',
@@ -1329,9 +1334,9 @@ const UI_TE = {
   'Manage and view poojari assignments for scheduled temple poojas.': 'షెడ్యూల్ చేసిన ఆలయ పూజలకు పూజారి కేటాయింపులను నిర్వహించండి మరియు చూడండి.',
   'Manage roles and configure module-level permissions.': 'పాత్రలను నిర్వహించండి మరియు మాడ్యూల్ స్థాయి అనుమతులను కాన్ఫిగర్ చేయండి.',
   'Manage system users, roles and access.': 'వ్యవస్థ వినియోగదారులు, పాత్రలు మరియు ప్రవేశాన్ని నిర్వహించండి.',
-  'Maintain and configure donation categories used for cash donations, material donations and sponsorships.': 'నగదు విరాళాలు, వస్తు విరాళాలు మరియు ప్రాయోజకత్వాలకు ఉపయోగించే విరాళ విభాగాలను నిర్వహించి కాన్ఫిగర్ చేయండి.',
+  'Maintain and configure donation categories used for cash donations, material donations and sponsorships.': 'నగదు విరాళాలు, వస్తు విరాళాలు మరియు ప్రాయోజకత్వాలకు ఉపయోగించే విరాళ వర్గాలను నిర్వహించి కాన్ఫిగర్ చేయండి.',
   'Configure items available for temple auctions.': 'ఆలయ వేలాలకు అందుబాటులో ఉన్న వస్తువులను కాన్ఫిగర్ చేయండి.',
-  'Configure item categories counted during hundi collection.': 'హుండీ వసూలు సమయంలో లెక్కించే వస్తు విభాగాలను కాన్ఫిగర్ చేయండి.',
+  'Configure item categories counted during hundi collection.': 'హుండీ వసూలు సమయంలో లెక్కించే వస్తు వర్గాలను కాన్ఫిగర్ చేయండి.',
   'Immutable log of every action performed in the system.': 'వ్యవస్థలో నిర్వహించిన ప్రతి చర్య యొక్క మార్పులేని లాగ్.',
   'Immutable trail of all staff actions — who, what, when': 'సిబ్బంది చర్యల మార్పులేని రికార్డు — ఎవరు, ఏమి, ఎప్పుడు',
   'Back up temple configuration and restore it through a validated, controlled workflow.': 'ఆలయ కాన్ఫిగరేషన్‌ను బ్యాకప్ చేసి, ధృవీకరించిన నియంత్రిత విధానం ద్వారా పునరుద్ధరించండి.',
@@ -1366,10 +1371,10 @@ const UI_TE = {
   'Next 7 days schedules': 'తర్వాతి 7 రోజుల షెడ్యూల్‌లు',
   'Long-term poojas': 'దీర్ఘకాలిక పూజలు',
   'Available for auction': 'వేలానికి అందుబాటులో',
-  'Official categories': 'అధికారిక విభాగాలు',
-  'Active Donation Categories': 'క్రియాశీల విరాళ విభాగాలు',
-  'Cash Donation Categories': 'నగదు విరాళ విభాగాలు',
-  'Material Donation Categories': 'వస్తు విరాళ విభాగాలు',
+  'Official categories': 'అధికారిక వర్గాలు',
+  'Active Donation Categories': 'క్రియాశీల విరాళ వర్గాలు',
+  'Cash Donation Categories': 'నగదు విరాళ వర్గాలు',
+  'Material Donation Categories': 'వస్తు విరాళ వర్గాలు',
   'Material Types': 'పదార్థ రకాలు',
   'Total Items': 'మొత్తం వస్తువులు',
   'Total Members': 'మొత్తం సభ్యులు',
@@ -1441,10 +1446,76 @@ const UI_TE = {
   'members': 'సభ్యులు',
   'vendors': 'విక్రేతలు',
   'poojaris': 'పూజారులు',
-  'categories': 'విభాగాలు',
+  'categories': 'వర్గాలు',
   'roles': 'పాత్రలు',
   'users': 'వినియోగదారులు',
   'schedules': 'షెడ్యూల్‌లు',
+  'Shown on the public site when a visitor selects తెలుగు. Leave blank to fall back to the English address.':
+    'సందర్శకుడు తెలుగును ఎంచుకున్నప్పుడు పబ్లిక్ సైట్‌లో చూపబడుతుంది. ఆంగ్ల చిరునామాకు మళ్లడానికి ఖాళీగా వదిలేయండి.',
+  'Record each auction with its item, base amount and the winning devotee. Live bid tracking and auction payment receipts are planned; for now, collect payment at the counter.':
+    'ప్రతి వేలాన్ని దాని వస్తువు, కనీస ధర మరియు గెలిచిన భక్తునితో నమోదు చేయండి. ప్రత్యక్ష బిడ్ ట్రాకింగ్ మరియు వేలం చెల్లింపు రసీదులు ప్రణాళికలో ఉన్నాయి; ప్రస్తుతానికి కౌంటర్ వద్ద చెల్లింపు స్వీకరించండి.',
+  'Place your offering into the temple hundi.': 'ఆలయ హుండీలో మీ కానుకను సమర్పించండి.',
+  'Open all days. Devotees are welcome.': 'అన్ని రోజులలో తెరిచి ఉంటుంది. భక్తులకు స్వాగతం.',
+  'Bid for the honour of leading special sevas during festivals.':
+    'పండుగల సమయంలో ప్రత్యేక సేవలకు నాయకత్వం వహించే గౌరవం కోసం బిడ్ వేయండి.',
+  'Closes': 'ముగుస్తుంది',
+  'Serving devotees since': 'భక్తులకు సేవలు అందిస్తూ',
+  'Donations in': 'విరాళాలు',
+  'Published rate': 'ప్రకటిత రేటు',
+  'choose the seva that suits your occasion.': 'మీ సందర్భానికి తగిన సేవను ఎంచుకోండి.',
+  'per plate': 'ప్లేట్‌కు',
+  'bids placed': 'బిడ్‌లు వేయబడ్డాయి',
+  'History': 'చరిత్ర',
+  'Super Admin': 'సూపర్ అడ్మిన్',
+  'more': 'మరిన్ని',
+  'Staff': 'సిబ్బంది',
+  // ── Values served by the DB that had no Telugu ──
+  'Gothranamam': 'గోత్రనామం',
+  '(Pournami)': '(పౌర్ణమి)',
+  'Navami': 'నవమి',
+  'Seva': 'సేవ',
+  'Annadanam Seva': 'అన్నదాన సేవ',
+  'Gruhapravesam': 'గృహప్రవేశం',
+  'Naming Ceremony': 'నామకరణ వేడుక',
+  'Recovery': 'ఆరోగ్య పునరుద్ధరణ',
+  'WasteVendor': 'వ్యర్థ విక్రేత',
+  'Enter devotee name': 'భక్తుని పేరు నమోదు చేయండి',
+  // ── Master-screen drawers, row actions and empty states ──
+  'Edit festival': 'పండుగను సవరించండి',
+  'Edit vendor': 'విక్రేతను సవరించండి',
+  'Edit poojari': 'పూజారిని సవరించండి',
+  'Edit member': 'సభ్యుని సవరించండి',
+  'Edit item': 'వస్తువును సవరించండి',
+  'Delete this festival?': 'ఈ పండుగను తొలగించాలా?',
+  'Delete this vendor?': 'ఈ విక్రేతను తొలగించాలా?',
+  'Delete this poojari?': 'ఈ పూజారిని తొలగించాలా?',
+  'Delete this member?': 'ఈ సభ్యుని తొలగించాలా?',
+  'Delete this item?': 'ఈ వస్తువును తొలగించాలా?',
+  'This cannot be undone.': 'దీన్ని తిరిగి పొందలేరు.',
+  'No festivals found.': 'ఏ పండుగలు కనుగొనబడలేదు.',
+  'No vendors found.': 'ఏ విక్రేతలు కనుగొనబడలేదు.',
+  'No poojaris found.': 'ఏ పూజారులు కనుగొనబడలేదు.',
+  'No members found.': 'ఏ సభ్యులు కనుగొనబడలేదు.',
+  'No items found.': 'ఏ వస్తువులు కనుగొనబడలేదు.',
+  'festival deleted.': 'పండుగ తొలగించబడింది.',
+  'vendor deleted.': 'విక్రేత తొలగించబడ్డారు.',
+  'poojari deleted.': 'పూజారి తొలగించబడ్డారు.',
+  'member deleted.': 'సభ్యుడు తొలగించబడ్డారు.',
+  'item deleted.': 'వస్తువు తొలగించబడింది.',
+  // ── Daily closing ──
+  'of Total': 'మొత్తంలో',
+  'Close Day & Finalize': 'రోజును మూసివేసి ఖరారు చేయండి',
+  'Closing…': 'మూసివేస్తోంది…',
+  // ── Booking details — validity and status ──
+  'Day': 'రోజు',
+  'for': 'కోసం',
+  'CONFIRMED': 'నిర్ధారించబడింది',
+  'COMPLETED': 'పూర్తయింది',
+  'CANCELLED': 'రద్దు చేయబడింది',
+  'PENDING': 'పెండింగ్',
+  'Per Day': 'రోజుకు',
+  // ── Audit details written by the API ──
+  'Temple settings updated': 'ఆలయ సెట్టింగ్‌లు నవీకరించబడ్డాయి',
   // ── Roles, descriptions and the module catalogue ──
   'Temple Manager': 'ఆలయ నిర్వాహకుడు',
   'Full access to all modules and settings': 'అన్ని మాడ్యూల్‌లు మరియు సెట్టింగ్‌లకు పూర్తి ప్రవేశం',
@@ -1541,15 +1612,15 @@ const UI_TE = {
   'Booking Mode': 'బుకింగ్ విధానం',
   'Execution Status': 'నిర్వహణ స్థితి',
   'Rate Amount': 'రేటు మొత్తం',
-  'Valid From': 'నుండి చెల్లుబాటు',
-  'Valid To': 'వరకు చెల్లుబాటు',
+  'Valid From': 'చెల్లుబాటు ప్రారంభం',
+  'Valid To': 'చెల్లుబాటు ముగింపు',
   'End Time': 'ముగింపు సమయం',
   'Email ID': 'ఇమెయిల్ ఐడి',
   '30-Day': '30-రోజులు',
 
   'View completed and historical pooja records.': 'పూర్తయిన మరియు గత పూజ రికార్డులను చూడండి.',
   'All time completed poojas': 'మొత్తం కాలంలో పూర్తయిన పూజలు',
-  'Poojas completed in': 'ఈ నెలలో పూర్తయిన పూజలు —',
+  'Poojas completed in': 'పూర్తయిన పూజలు —',
   'Unique devotees served': 'సేవ చేసిన ప్రత్యేక భక్తులు',
   'Life Long & Monthly poojas': 'జీవితకాల & నెలవారీ పూజలు',
   'All Poojas': 'అన్ని పూజలు',
@@ -1601,9 +1672,9 @@ const UI_TE = {
   // dates), which stores English only — so they need dictionary entries, not
   // just the `nameTe` twin the site content carries.
   'Sri Rama Navami': 'శ్రీ రామ నవమి', 'Guru Purnima': 'గురు పూర్ణిమ',
-  'Sai Baba Mahasamadhi': 'సాయి మహాసమాధి', 'Sai Jayanti': 'సాయి జయంతి',
+  'Sai Baba Mahasamadhi': 'సాయిబాబా మహాసమాధి', 'Sai Jayanti': 'సాయి జయంతి',
   'Vinayaka Chavithi': 'వినాయక చవితి', 'Devi Navaratri': 'దేవీ నవరాత్రి',
-  'Karthika Masam': 'కార్తీక మాసం', 'Thursday Celebrations': 'గురువారం సేవలు',
+  'Karthika Masam': 'కార్తీక మాసం', 'Thursday Celebrations': 'గురువారం వేడుకలు',
   'Vijayadashami': 'విజయదశమి', 'Major Festival': 'ప్రధాన పండుగ',
   // Month ranges shown on the festival badges when no live date is set.
   'Mar–Apr': 'మార్చి–ఏప్రిల్', 'Jul': 'జూలై', 'Sep–Oct': 'సెప్టెంబర్–అక్టోబర్',
@@ -1631,7 +1702,6 @@ const UI_TE = {
   'Dwarkapuri Colony, Punjagutta,': 'ద్వారకాపురి కాలనీ, పంజాగుట్ట,',
   'Enter UPI transaction reference number / UTR': 'యుపిఐ లావాదేవీ సూచన సంఖ్య / UTR నమోదు చేయండి',
   'Hundi Collection': 'హుండీ వసూలు',
-  'Hyderabad, Telangana': 'హైదరాబాద్, తెలంగాణ',
   'Item-wise Counting Register *': 'వస్తువుల వారీగా లెక్కింపు రిజిస్టర్ *',
   'Last Backup': 'చివరి బ్యాకప్',
   'Leave this empty': 'దీన్ని ఖాళీగా ఉంచండి',
@@ -1656,7 +1726,7 @@ const UI_TE = {
   'Short description of the role': 'పాత్ర యొక్క సంక్షిప్త వివరణ',
   'Special Note:': 'ప్రత్యేక గమనిక:',
   'Sri Shirdi Sai Baba Temple location map': 'శ్రీ షిర్డీ సాయిబాబా ఆలయ స్థాన పటం',
-  'The Life of': 'వీరి జీవితం',
+  'The Life of': 'జీవిత గాథ',
   'The hundi is the temple\'s traditional offering box. Devotees may place their offerings directly into the hundi within the temple premises. All collections are counted and recorded by temple staff.': 'హుండీ అనేది ఆలయం యొక్క సాంప్రదాయ కానుక పెట్టె. భక్తులు తమ కానుకలను ఆలయ ఆవరణలో నేరుగా హుండీలో వేయవచ్చు. అన్ని వసూళ్లను ఆలయ సిబ్బంది లెక్కించి నమోదు చేస్తారు.',
   'This records the auction and its winning devotee. Live bid-by-bid tracking and on-system payment receipts are not yet available — settle the winning payment at the counter and record it there.': 'ఇది వేలం మరియు దాని విజేత భక్తుని నమోదు చేస్తుంది. ప్రత్యక్ష బిడ్-బై-బిడ్ ట్రాకింగ్ మరియు సిస్టమ్‌లో చెల్లింపు రసీదులు ఇంకా అందుబాటులో లేవు — విజేత చెల్లింపును కౌంటర్ వద్ద పరిష్కరించి అక్కడ నమోదు చేయండి.',
   'Tip: a barcode/QR scanner types the number and submits automatically.': 'చిట్కా: బార్‌కోడ్/క్యూఆర్ స్కానర్ సంఖ్యను టైప్ చేసి స్వయంచాలకంగా సమర్పిస్తుంది.',
@@ -1684,7 +1754,7 @@ const UI_TE = {
   'Book this pooja at the temple counter — a ticket with a scannable QR is issued instantly. For queries call': 'ఈ పూజను ఆలయ కౌంటర్ వద్ద బుక్ చేయండి — స్కాన్ చేయదగిన క్యూఆర్‌తో టికెట్ తక్షణమే జారీ చేయబడుతుంది. ప్రశ్నల కోసం కాల్ చేయండి',
   'Channel disabled — events will be logged as “Disabled”.': 'ఛానెల్ నిలిపివేయబడింది — కార్యక్రమాలు “నిలిపివేయబడింది”గా లాగ్ చేయబడతాయి.',
   'Optional — e.g. the child': 'ఐచ్ఛికం — ఉదా. పిల్లవాడు',
-  'All rights reserved.': 'సర్వ హక్కులు కలివి.',
+  'All rights reserved.': 'సర్వ హక్కులు ప్రత్యేకించబడినవి.',
   'Select': 'ఎంచుకోండి',
   'to': 'నుండి',
   'Logo image path / URL': 'లోగో చిత్ర మార్గం / URL',
@@ -1787,7 +1857,6 @@ const UI_TE = {
   'How to Reach': 'ఎలా చేరుకోవాలి',
   'How to Sponsor': 'ఎలా ప్రాయోజకత్వం చేయాలి',
   'Loading temple information…': 'ఆలయ సమాచారం లోడ్ అవుతోంది…',
-  'Major Festival': 'ప్రధాన పండుగ',
   'Material offerings are weighed / counted at the counter and receipted in your name.': 'వస్తు సమర్పణలు కౌంటర్ వద్ద తూకం / లెక్కించబడి మీ పేరు మీద రసీదు ఇవ్వబడతాయి.',
   'Medical donations are eligible for 80G tax benefit': 'వైద్య విరాళాలు 80G పన్ను ప్రయోజనానికి అర్హమైనవి',
   'Medical donations eligible for 80G': '80Gకి అర్హమైన వైద్య విరాళాలు',
@@ -1847,7 +1916,7 @@ const UI_TE = {
   'Showing': 'చూపిస్తోంది',
   'UTR / Transaction ID (For UPI)': 'UTR / లావాదేవీ ఐడి (యుపిఐ కోసం)',
   'Winner / Highest Bidder (Optional)': 'విజేత / అత్యధిక బిడ్డర్ (ఐచ్ఛికం)',
-  'of': 'లో',
+  'of': 'వరకు, మొత్తం',
   '(status “Skipped”). Set the provider credentials (': '(స్థితి “దాటవేయబడింది”). ప్రొవైడర్ ఆధారాలను సెట్ చేయండి (',
   'Difference (₹)': 'వ్యత్యాసం (₹)',
   'All amounts are in INR (₹). Figures are auto-calculated based on recorded transactions for the selected date.': 'అన్ని మొత్తాలు INR (₹)లో ఉన్నాయి. ఎంచుకున్న తేదీకి నమోదైన లావాదేవీల ఆధారంగా అంకెలు స్వయంచాలకంగా లెక్కించబడతాయి.',
@@ -1984,7 +2053,7 @@ const UI_TE = {
   'Meals Served': 'అందించిన భోజనాలు',
   'Through Annadanam seva': 'అన్నదాన సేవ ద్వారా',
   'Poojas & Sevas': 'పూజలు & సేవలు',
-  'Performed as in Shirdi': 'షిర్డీలో వలె నిర్వహించబడింది',
+  'Performed as in Shirdi': 'షిర్డీలో వలెనే నిర్వహిస్తారు',
   'Devotees who fed devotees': 'భక్తులకు అన్నం పెట్టిన భక్తులు',
   'Daily Poojas': 'రోజువారీ పూజలు',
   'Monthly Poojas': 'నెలవారీ పూజలు',
@@ -2015,6 +2084,13 @@ export function LanguageProvider({ children }) {
     if (typeof localStorage !== 'undefined' && localStorage.getItem(KEY)) return
     if (siteDefault === 'Telugu' || siteDefault === 'te') setLangState('te')
   }, [siteDefault])
+
+  // Mirror the choice onto <html lang> — screen readers and hyphenation want it,
+  // and the serif/display stacks key off it (see index.css: Playfair contributes
+  // nothing to Telugu but its ornate ampersand, which reads as the letter ఠ).
+  useEffect(() => {
+    if (typeof document !== 'undefined') document.documentElement.lang = lang
+  }, [lang])
   const toggle = useCallback(() => setLang(lang === 'en' ? 'te' : 'en'), [lang, setLang])
 
   const flush = useCallback(() => {
@@ -2032,9 +2108,13 @@ export function LanguageProvider({ children }) {
   const t = useCallback((text) => {
     if (lang === 'en' || text == null || text === '') return text
     const s = String(text)
-    if (/[\u0C00-\u0C7F]/.test(s)) return s   // already Telugu — nothing to do
+    // Dictionary first, *then* the already-Telugu check. An English sentence can
+    // legitimately quote a Telugu word ("…when the user selects తెలుగు"), and testing
+    // for Telugu script up front rejected those before they were ever looked up,
+    // so they stayed in English.
     const local = UI_TE[s] || glossaryTe(s)
     if (local) return local
+    if (/[\u0C00-\u0C7F]/.test(s)) return s   // already Telugu — nothing to do
     // Suffix-tolerant: "Collection Date *" / "Amount:" hit the base entry.
     const dm = s.match(/^(.*?)([\s:*…]+)$/)
     if (dm) {
@@ -2054,6 +2134,15 @@ export function LanguageProvider({ children }) {
     if (am) {
       const verb = UI_TE[am[1]], ent = UI_TE[am[2]] || glossaryTe(am[2])
       if (verb && ent) return `${ent} ${verb}`
+    }
+    // "April 1987", "Sept 2026" — a month the dictionary holds plus a year.
+    const my = s.match(/^([A-Za-z]{3,9})\s+(\d{4})$/)
+    if (my) { const mo = UI_TE[my[1]]; if (mo) return `${mo} ${my[2]}` }
+    // Comma-joined vocabulary — a poojari's "Abhishekam, Archana". Each part is
+    // already known, so compose instead of holding an entry per combination.
+    if (s.includes(', ')) {
+      const parts = s.split(', ').map((p) => UI_TE[p.trim()] || glossaryTe(p.trim()))
+      if (parts.length > 1 && parts.every(Boolean)) return parts.join(', ')
     }
     // Composed content: "<Pooja name> — booked at the counter; …". Resolving
     // each half means one entry covers every pooja in the master, including
@@ -2093,6 +2182,81 @@ const reg = { lang: 'en', t: (s) => s }
 // Attribute-position translation (placeholder=, title=). Re-evaluates on the
 // provider's key={lang} remount; dictionary hits are instant.
 export function tr(text) { return reg.t(text) }
+
+// A 12-hour clock string ("02:30 PM") in the active language. English passes
+// through; Telugu names the part of the day and puts it *first*, the way the
+// temple's own timings read (ఉదయం 9:00 – రాత్రి 8:00).
+//
+// AM/PM cannot be a two-word dictionary entry: PM covers midday through night,
+// so translating it to a single word labelled every afternoon time సాయంత్రం
+// (evening). The period is picked from the 24-hour hour instead.
+export function clock12(text) {
+  const s = String(text ?? '')
+  if (reg.lang !== 'te') return s
+  // Booking slots arrive as a range ("06:00 AM - 07:00 AM") — read each end.
+  const range = s.match(/^(.+?)\s*[-–]\s*(.+)$/)
+  if (range) {
+    const a = clock12(range[1]), b = clock12(range[2])
+    if (a !== range[1] || b !== range[2]) {
+      // Both ends inside one part of the day: name it once — "ఉదయం 06:00 – 07:00".
+      const pa = a.split(' ')[0], pb = b.split(' ')[0]
+      return pa === pb ? `${a} – ${b.slice(pb.length + 1)}` : `${a} – ${b}`
+    }
+  }
+  const m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (!m) return s
+  const h24 = (Number(m[1]) % 12) + (m[3].toUpperCase() === 'PM' ? 12 : 0)
+  const part = h24 < 4 ? 'రాత్రి' : h24 < 12 ? 'ఉదయం'
+    : h24 < 16 ? 'మధ్యాహ్నం' : h24 < 19 ? 'సాయంత్రం' : 'రాత్రి'
+  return `${part} ${m[1]}:${m[2]}`
+}
+
+// A date-time the API already formatted in English ("27 Jul 2026 11:26 AM").
+// Translates the month/weekday word and the clock, leaving the digits alone —
+// for stamps the frontend receives pre-rendered rather than building itself.
+export function stamp(text) {
+  const s = String(text ?? '')
+  if (reg.lang !== 'te' || !s) return s
+  return s
+    .replace(/\d{1,2}:\d{2}\s*(AM|PM)/i, (w) => clock12(w))
+    .replace(/[A-Za-z]{3,}/g, (w) => reg.t(w))
+}
+
+// Audit details are free text the API composes from vocabulary, ids, amounts and
+// staff names ("Ashtotharam / Archana ₹20.00 (Confirmed)", "Assigned Sri Krishna
+// Murthy → BK2607…"). No single entry can hold them, so translate the vocabulary
+// runs and the names, and leave ids, amounts and machine constants alone.
+let DETAIL_RE = null
+function detailRe() {
+  if (!DETAIL_RE) {
+    const keys = Object.keys(UI_TE)
+      .filter((k) => k.length > 2 && k.length < 40 && /^[A-Za-z][A-Za-z ()/&'-]*$/.test(k))
+      .sort((a, b) => b.length - a.length)
+      .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    DETAIL_RE = new RegExp(`(?<![\\w])(${keys.join('|')})(?![\\w])`, 'g')
+  }
+  return DETAIL_RE
+}
+
+export function auditDetail(text) {
+  const s = String(text ?? '')
+  if (reg.lang !== 'te' || !s) return s
+  const whole = reg.t(s)
+  if (whole !== s) return whole
+  const named = s.replace(/\b(?:Sri|Smt|Kum)\.?(?:\s+[A-Z][A-Za-z]+)+/g, (n) => toTelugu(n) || n)
+  return named.replace(detailRe(), (m) => UI_TE[m] || m)
+}
+
+// Display text of unknown shape: a known term, a date-time the API pre-formatted,
+// or a code/name that must be left alone. Used by the read-only display helpers,
+// which receive all three.
+export function teText(text) {
+  const s = String(text ?? '')
+  if (reg.lang !== 'te' || !s) return s
+  const hit = reg.t(s)
+  if (hit !== s) return hit
+  return /\d{1,2}\s+[A-Za-z]{3,}\s+\d{4}|\d{1,2}:\d{2}\s*(AM|PM)/i.test(s) ? stamp(s) : s
+}
 
 // Text-node translation: <T>Some sentence</T>. Subscribes to the context, so
 // late-arriving dynamic translations (Azure cache) also re-render.

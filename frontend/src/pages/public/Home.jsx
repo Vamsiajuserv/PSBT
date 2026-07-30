@@ -141,7 +141,7 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10">
             {[
-              { value: yearsOfSeva, plus: true, label: 'Years of Service', sub: `Serving devotees since ${TEMPLE.established || '1987'}` },
+              { value: yearsOfSeva, plus: true, label: 'Years of Service', sub: `${t('Serving devotees since')} ${TEMPLE.established || '1987'}` },
               { value: ann.total_plates || 0, label: 'Meals Served', sub: 'Through Annadanam seva' },
               { value: (site?.sevas || []).length, plus: true, label: 'Poojas & Sevas', sub: 'Performed as in Shirdi' },
               { value: ann.total_sponsorships || 0, label: 'Annadanam Sponsors', sub: 'Devotees who fed devotees' },

@@ -1,7 +1,7 @@
 import React from 'react'
 import { Landmark } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { tr } from '../../i18n/LanguageContext.jsx'
+import { tr, teText } from '../../i18n/LanguageContext.jsx'
 
 // Real scannable ticket QR (closes gap SYS-01). The QR encodes the ticket /
 // booking code itself, so any scanner (USB gun or phone camera) reads the exact
@@ -44,6 +44,8 @@ export function TicketShell({ code, children }) {
 
 // One field in the ticket grid.
 export function TF({ icon: Icon, label, value, sub, wide, mono }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return (
     <div className={wide ? 'col-span-2' : ''}>
       <div className="flex items-center gap-1.5 text-[0.6875rem] text-gray-500">{Icon && <Icon size={12} className="text-maroon-500" />}{label}</div>

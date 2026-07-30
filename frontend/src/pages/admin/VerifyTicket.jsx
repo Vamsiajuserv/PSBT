@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { BookingsAPI, ApiError } from '../../api/client.js'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
@@ -76,7 +76,7 @@ export default function VerifyTicket() {
               className="input !pl-10 font-mono" />
           </div>
           <button type="submit" disabled={busy} className="btn-maroon disabled:opacity-60">
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Verify
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}{' '}<T>Verify</T>
           </button>
           {(result || error) && (
             <button type="button" onClick={reset} className="btn-outline" title={tr("Clear")}><RotateCcw size={16} /></button>
@@ -145,6 +145,8 @@ export default function VerifyTicket() {
 }
 
 function Field({ icon: Icon, label, value }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return (
     <div className="flex items-center gap-2">
       {Icon && <Icon size={14} className="text-gray-400 shrink-0" />}

@@ -94,7 +94,7 @@ export default function Notifications() {
                   <div className="w-11 h-11 rounded-full bg-maroon-50 grid place-items-center text-maroon-700"><Icon size={20} /></div>
                   <div>
                     <div className="font-serif text-[1rem] font-bold text-maroon-800">{tr(c.channel)}</div>
-                    <div className="text-[0.71875rem] text-gray-400">Provider: {c.provider === 'none' ? '—' : c.provider}</div>
+                    <div className="text-[0.71875rem] text-gray-400">{tr('Provider')}: {c.provider === 'none' ? '—' : c.provider}</div>
                   </div>
                 </div>
                 {/* enable toggle */}

@@ -30,7 +30,7 @@ export const ACCESS = {
   // ── Transactional screens (visible to any role holding the module) ──
   devotees: { module: 'Devotees' },
   bookings: { module: 'Bookings', roles: ['Counter Staff'] },
-  'bookings/new': { module: 'Bookings', roles: ['Counter Staff'] },   // Advance Booking nav entry
+  'bookings/new': { module: 'Bookings', roles: ['Counter Staff'] },   // Advance Booking wizard
   'pooja-history': { module: 'Bookings', roles: ['Counter Staff'] },
   calendar: { module: 'Bookings', roles: ['Counter Staff'] },
   counter: { module: 'Counter' },

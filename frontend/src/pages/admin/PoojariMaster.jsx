@@ -20,7 +20,7 @@ export default function PoojariMaster() {
     ],
     columns: [
       { key: 'code', label: tr('Poojari ID'), mono: true },
-      { key: 'name', label: tr('Name'), strong: true },
+      { key: 'name', label: tr('Name'), strong: true, person: true },
       { key: 'phone', label: tr('Phone') },
       { key: 'email', label: tr('Email') },
       { key: 'specialization', label: tr('Specialization'),

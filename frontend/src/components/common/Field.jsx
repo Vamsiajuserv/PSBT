@@ -10,7 +10,7 @@
 // empty form submit via an invisible proxy input that focuses open the widget.
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useLang, tr } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr, clock12 } from '../../i18n/LanguageContext.jsx'
 import {
   ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Calendar as CalendarIcon, Check, Clock, Search, X,
@@ -251,7 +251,7 @@ const fmt12 = (t) => {
   const [h, m] = t.split(':').map(Number)
   if (Number.isNaN(h)) return t
   const ap = h >= 12 ? 'PM' : 'AM'
-  return `${String(h % 12 || 12).padStart(2, '0')}:${String(m || 0).padStart(2, '0')} ${tr(ap)}`
+  return clock12(`${String(h % 12 || 12).padStart(2, '0')}:${String(m || 0).padStart(2, '0')} ${ap}`)
 }
 const nowHHMM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -406,7 +406,7 @@ function TimePanel({ value, onChange }) {
     <div className="flex gap-1">
       <TimeCol items={Array.from({ length: 12 }, (_, i) => i + 1)} sel={h12} render={(h) => String(h).padStart(2, '0')} onPick={(h) => emit({ h })} />
       <TimeCol items={minutes} sel={mm} render={(m) => String(m).padStart(2, '0')} onPick={(m) => emit({ m })} />
-      <TimeCol items={['AM', 'PM']} sel={ap} render={(a) => a} onPick={(a) => emit({ a })} />
+      <TimeCol items={['AM', 'PM']} sel={ap} render={(a) => tr(a)} onPick={(a) => emit({ a })} />
     </div>
   )
 }

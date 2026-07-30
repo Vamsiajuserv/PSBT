@@ -7,7 +7,7 @@ export default function Timings() {
   const site = useSite()
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
-      <SectionTitle title={tr("🕐 Darshan Timings")} subtitle="Open all days. Devotees are welcome." />
+      <SectionTitle title={tr("🕐 Darshan Timings")} subtitle={tr("Open all days. Devotees are welcome.")} />
       <div className="mt-10 space-y-3">
         {(site?.timings || []).map((t) => (
           <div key={t.session} className="flex items-center justify-between card px-5 py-4">

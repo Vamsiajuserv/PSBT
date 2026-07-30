@@ -2,15 +2,15 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Search, Eye, Ticket, RotateCcw, SlidersHorizontal, Ban, CheckCircle2,
-  Flame, CalendarDays, CalendarRange, TicketCheck, Clock, Plus, ChevronLeft, ChevronRight,
-  CalendarClock,
+  Flame, CalendarDays, CalendarRange, TicketCheck, Clock, ChevronLeft, ChevronRight,
+  CalendarClock, CalendarPlus,
 } from 'lucide-react'
 import { BookingsAPI, PoojasAPI } from '../../api/client.js'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
 
 // Page-number list with ellipsis, e.g. 1 … 4 5 [6] 7 8 … 12
 function pagesFor(page, count) {
@@ -34,10 +34,10 @@ const STATUS_TONE = {
   Cancelled: 'bg-red-50 text-red-700', Completed: 'bg-blue-50 text-blue-700',
 }
 const fmtDT = (d, slot) => (d
-  ? `${new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/[A-Za-z]{3,}/g, (w) => tr(w))}`
-    + (slot ? ', ' + slot.replace(/\b(AM|PM)\b/g, (w) => tr(w)) : '')
+  ? `${stamp(new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))}`
+    + (slot ? ', ' + clock12(slot) : '')
   : '—')
-const fmtStamp = (s) => (s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
+const fmtStamp = (s) => (s ? stamp(new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })) : '—')
 
 function Kpi({ icon: Icon, iconBg, iconColor, title, value, foot }) {
   return (
@@ -149,7 +149,7 @@ export default function Bookings() {
           <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800"><T>Pooja Management</T></h1>
           <p className="text-sm text-gray-500 mt-1"><T>Manage pooja bookings and related operations.</T></p>
         </div>
-        <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>New Booking</T></Link>
+        <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><CalendarPlus size={16} />{' '}<T>Advance Booking</T></Link>
       </div>
 
       {/* KPI tiles */}

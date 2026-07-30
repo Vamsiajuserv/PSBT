@@ -18,7 +18,7 @@ export default function CommitteeMaster() {
     ],
     columns: [
       { key: 'code', label: tr('Member ID'), mono: true },
-      { key: 'name', label: tr('Name'), strong: true },
+      { key: 'name', label: tr('Name'), strong: true, person: true },
       { key: 'designation', label: tr('Designation'), render: (r) => (r.designation ? <Pill tone={DESIG_TONE[r.designation] || 'gray'}>{r.designation}</Pill> : '—') },
       { key: 'phone', label: tr('Phone') },
       { key: 'email', label: tr('Email') },

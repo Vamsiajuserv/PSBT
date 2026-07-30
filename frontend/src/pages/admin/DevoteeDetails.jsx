@@ -8,12 +8,12 @@ import { DevoteesAPI } from '../../api/client.js'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
-const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
-const fmtStamp = (s) => (s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
+const fmtDate = (s) => (s ? stamp(new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : '—')
+const fmtStamp = (s) => (s ? stamp(new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })) : '—')
 const PLAN_TONE = { Daily: 'bg-blue-50 text-blue-700', Monthly: 'bg-emerald-50 text-emerald-700', 'One-Time': 'bg-violet-50 text-violet-700' }
 const STATUS_TONE = { Confirmed: 'bg-emerald-50 text-emerald-700', Completed: 'bg-emerald-50 text-emerald-700', Pending: 'bg-amber-50 text-amber-700', Cancelled: 'bg-red-50 text-red-700', Live: 'bg-emerald-50 text-emerald-700', Closed: 'bg-gray-100 text-gray-500' }
 
@@ -74,7 +74,7 @@ export default function DevoteeDetails() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => nav('/admin/devotees')} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Devotees</T></button>
-          <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><Plus size={15} />{' '}<T>New Booking</T></Link>
+          <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><Plus size={15} />{' '}<T>Advance Booking</T></Link>
         </div>
       </div>
 
@@ -317,6 +317,8 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
 }
 
 function Meta({ icon: Icon, label, value, badge, multiline }) {
+  value = typeof value === 'string' ? teText(value) : value
+
   return (
     <div className="flex items-start gap-2.5">
       <Icon size={15} className="text-gray-400 mt-0.5 shrink-0" />
@@ -331,5 +333,7 @@ function Meta({ icon: Icon, label, value, badge, multiline }) {
 }
 
 function Badge({ tone, children }) {
+  children = typeof children === 'string' ? teText(children) : children
+
   return <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${tone || 'bg-gray-100 text-gray-500'}`}>{children}</span>
 }

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { SectionTitle, CountUp } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr } from '../../i18n/LanguageContext.jsx'
 
 // Sponsorship tiers actually used at the counter (amount = plates × published rate).
 const TIERS = [
@@ -113,7 +113,7 @@ export default function Annadanam() {
 
       {/* ── Sponsorship tiers ── */}
       <section className="max-w-6xl mx-auto px-4 py-14">
-        <SectionTitle title={t('Sponsor Annadanam')} subtitle={t(`Published rate ₹${rate} per plate — choose the seva that suits your occasion.`)} />
+        <SectionTitle title={t('Sponsor Annadanam')} subtitle={`${t('Published rate')} ₹${rate} ${t('per plate')} — ${t('choose the seva that suits your occasion.')}`} />
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mt-10">
           {TIERS.map((tier) => (
             <div key={tier.plates}

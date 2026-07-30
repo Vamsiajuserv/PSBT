@@ -7,7 +7,7 @@ import { PageTitle, Pill, num } from '../../components/admin/ui.jsx'
 import { SchedulesAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'Life Long': 'amber', 'One-Time': 'violet' }
 const STATUS_TONE = { Scheduled: 'green', 'In Progress': 'blue', Completed: 'gray', Cancelled: 'red' }
@@ -102,22 +102,22 @@ export default function PoojariSchedule() {
 
         {tab === 'list' ? (
           <>
-            <div className="px-5 py-5">
-              <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-4">
-                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Poojari or Pooja Name</T></label>
-                  <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} placeholder={tr("Search…")} className="input !pl-9" /></div></div>
-                <div className="sm:col-span-2"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
-                  <div className="flex items-center gap-1"><DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2 !text-[0.75rem]" /><span className="text-gray-300">–</span><DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2 !text-[0.75rem]" /></div></div>
-                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
-                  <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">{tr("All Poojas")}</option>{uniquePoojaNames.map((n) => <option key={n}>{n}</option>)}</Select></div>
-                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
-                  <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input"><option value="">{tr("All Poojaris")}</option>{poojaris.map((p) => <option key={p.id}>{p.name}</option>)}</Select></div>
-                <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Schedule Status</T></label>
-                  <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Scheduled">{tr("Scheduled")}</option><option value="In Progress">{tr("In Progress")}</option><option value="Completed">{tr("Completed")}</option></Select></div>
-              </div>
-              <div className="flex justify-end gap-2 mt-4">
-                <button onClick={clear} className="btn-outline !py-2"><RotateCcw size={14} />{' '}<T>Clear</T></button>
-                <button onClick={search} className="btn-maroon !py-2"><Search size={14} />{' '}<T>Search</T></button>
+            {/* Filters — one self-packing row: each control declares a flex basis
+                so they fill the width instead of leaving empty grid cells behind. */}
+            <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3">
+              <div className="flex-[2_1_14rem] min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
+                <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} placeholder={tr("Poojari or Pooja name")} className="input !pl-9" /></div></div>
+              <div className="flex-[2_1_15rem] min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
+                <div className="flex items-center gap-1.5"><DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 !text-[0.78125rem]" /><span className="text-gray-300">–</span><DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 !text-[0.78125rem]" /></div></div>
+              <div className="flex-[1_1_10rem] min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
+                <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">{tr("All Poojas")}</option>{uniquePoojaNames.map((n) => <option key={n}>{n}</option>)}</Select></div>
+              <div className="flex-[1_1_10rem] min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
+                <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input"><option value="">{tr("All Poojaris")}</option>{poojaris.map((p) => <option key={p.id}>{p.name}</option>)}</Select></div>
+              <div className="flex-[1_1_10rem] min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
+                <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Scheduled">{tr("Scheduled")}</option><option value="In Progress">{tr("In Progress")}</option><option value="Completed">{tr("Completed")}</option></Select></div>
+              <div className="flex gap-2 ml-auto shrink-0">
+                <button onClick={clear} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+                <button onClick={search} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
               </div>
             </div>
 
@@ -134,8 +134,8 @@ export default function PoojariSchedule() {
                       <td className="px-5 py-3.5 text-gray-700">{tr(s.pooja_name)}</td>
                       <td className="px-5 py-3.5"><Pill tone={planTone(s.plan_name)}>{s.plan_name || '—'}</Pill></td>
                       <td className="px-5 py-3.5 text-[0.8125rem] text-gray-600 whitespace-nowrap">{fmtDate(s.schedule_date)}<span className="block text-[0.6875rem] text-gray-400">{weekday(s.schedule_date)}</span></td>
-                      <td className="px-5 py-3.5 text-[0.8125rem] text-gray-600 whitespace-nowrap">{s.start_time} –<span className="block">{s.end_time}</span></td>
-                      <td className="px-5 py-3.5 text-gray-600 text-[0.8125rem]">{s.execution_frequency}</td>
+                      <td className="px-5 py-3.5 text-[0.8125rem] text-gray-600 whitespace-nowrap">{clock12(s.start_time)} –<span className="block">{clock12(s.end_time)}</span></td>
+                      <td className="px-5 py-3.5 text-gray-600 text-[0.8125rem]">{tr(s.execution_frequency)}</td>
                       <td className="px-5 py-3.5"><Pill tone={STATUS_TONE[s.status] || 'gray'}>{s.status}</Pill></td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
@@ -182,7 +182,7 @@ export default function PoojariSchedule() {
                   <option value="">{tr("Select Pooja")}</option>{poojas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></div>
               <div><label className="label"><T>Plan *</T></label>
                 <Select required className="input" value={drawer.data.plan_id} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, plan_id: e.target.value } })}>
-                  <option value="">{tr("Select Plan")}</option>{planOptions.map((pl) => <option key={pl.id} value={pl.id}>{pl.plan_name} - {pl.committee_decided ? 'Committee' : '₹' + num(pl.fee)}</option>)}</Select></div>
+                  <option value="">{tr("Select Plan")}</option>{planOptions.map((pl) => <option key={pl.id} value={pl.id}>{tr(pl.plan_name)} - {pl.committee_decided ? tr('Committee') : '₹' + num(pl.fee)}</option>)}</Select></div>
               <div><label className="label"><T>Poojari *</T></label>
                 <Select required className="input" value={drawer.data.poojari_id} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, poojari_id: e.target.value } })}>
                   <option value="">{tr("Select Poojari")}</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></div>
