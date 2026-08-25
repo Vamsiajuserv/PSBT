@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Devotee, Poojari, Booking
+from ..schemas import PoojariCreate, PoojariUpdate
 from ..security import RequireModule, require_admin, log_action, client_ip
 from ..helpers import gen_code
 
@@ -48,26 +49,26 @@ def list_master(q: str = "", status: str = "", db: Session = Depends(get_db), us
 
 
 @router.post("")
-def create_poojari(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+def create_poojari(body: PoojariCreate, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     seq = (db.query(func.count(Poojari.id)).scalar() or 0) + 1
     while db.query(Poojari).filter(Poojari.code == gen_code("PR", seq, 2)).first():
         seq += 1
-    p = Poojari(code=gen_code("PR", seq, 2), name=body["name"], phone=body.get("phone"),
-                email=body.get("email"), specialization=body.get("specialization"),
-                active=body.get("active", True))
+    p = Poojari(code=gen_code("PR", seq, 2), name=body.name, phone=body.phone,
+                email=body.email, specialization=body.specialization,
+                active=body.active)
     db.add(p); db.commit(); db.refresh(p)
     log_action(db, username=user.username, action="CREATE", entity="Poojari", detail=p.name, ip=client_ip(request))
     return _dict(p)
 
 
 @router.put("/{pid}")
-def update_poojari(pid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+def update_poojari(pid: int, body: PoojariUpdate, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     p = db.get(Poojari, pid)
     if not p:
         raise HTTPException(404, "Poojari not found")
-    for k in ("name", "phone", "email", "specialization", "active"):
-        if k in body:
-            setattr(p, k, body[k])
+    data = body.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(p, k, v)
     db.commit(); db.refresh(p)
     log_action(db, username=user.username, action="UPDATE", entity="Poojari", detail=p.name, ip=client_ip(request))
     return _dict(p)

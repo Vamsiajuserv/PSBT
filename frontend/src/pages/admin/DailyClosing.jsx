@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  IndianRupee, Layers, ListChecks, ClipboardCheck, Lock, Filter,
+  IndianRupee, ListChecks, ClipboardCheck, Lock, Filter,
   Wallet, Scale, CreditCard, Info, CheckCircle2,
 } from 'lucide-react'
 import { inr, num, fmtStamp } from '../../components/admin/ui.jsx'

@@ -101,7 +101,12 @@ function SidebarNav({ onNavigate }) {
     return n.poojariLabel && user?.role === 'Poojari' ? { ...n, label: n.poojariLabel } : n
   }).filter(Boolean)
 
-  const activeGroup = nav.find((n) => n.children?.some((c) => location.pathname.startsWith(c.to)))
+  // Check if we're on a top-level route (non-group item) - if so, don't auto-expand any group
+  const isTopLevelRoute = nav.some((n) => !n.children && (
+    n.end ? location.pathname === n.to : location.pathname === n.to || location.pathname.startsWith(n.to + '/')
+  ))
+  // Only auto-expand a group if we're NOT on a top-level route
+  const activeGroup = isTopLevelRoute ? null : nav.find((n) => n.children?.some((c) => location.pathname.startsWith(c.to)))
   const [open, setOpen] = useState(activeGroup ? { [activeGroup.label]: true } : {})
 
   return (

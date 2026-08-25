@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class ORM(BaseModel):
@@ -44,7 +44,7 @@ class UserOut(ORM):
 
 
 class UserCreate(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1)
     name_te: Optional[str] = None
     username: Optional[str] = None
     email: EmailStr
@@ -52,7 +52,7 @@ class UserCreate(BaseModel):
     employee_id: Optional[str] = None
     role: str
     modules: list[str] = []
-    password: str
+    password: str = Field(..., min_length=1)
     is_active: bool = True
     twofa_enabled: bool = False
 
@@ -86,10 +86,10 @@ class FamilyMemberOut(ORM):
 
 
 class DevoteeBase(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1)
     name_te: Optional[str] = None
-    mobile: str
-    email: Optional[str] = None
+    mobile: str = Field(..., min_length=1)
+    email: Optional[EmailStr] = None
     address: Optional[str] = None
     city: Optional[str] = None
     gothram: Optional[str] = None
@@ -230,6 +230,13 @@ class DonationCreate(BaseModel):
     g80: bool = False
     notes: Optional[str] = None
     donated_on: Optional[date] = None
+
+    @model_validator(mode='after')
+    def validate_utr_for_upi(self):
+        """UTR/Transaction reference is required for UPI payments."""
+        if self.mode == "UPI/QR Code" and not (self.txn_ref and self.txn_ref.strip()):
+            raise ValueError("UTR/Transaction ID is required for UPI payments")
+        return self
 
 
 class DonationOut(ORM):
@@ -378,6 +385,25 @@ class AnnadanamOut(ORM):
     scheduled_on: Optional[date] = None
     occasion: Optional[str] = None
     created_at: Optional[datetime] = None
+
+
+# ── Poojari ──────────────────────────────────────────────────────────────────
+class PoojariCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    name_te: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    specialization: Optional[str] = None
+    active: bool = True
+
+
+class PoojariUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1)
+    name_te: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    specialization: Optional[str] = None
+    active: Optional[bool] = None
 
 
 # ── Audit ────────────────────────────────────────────────────────────────────
