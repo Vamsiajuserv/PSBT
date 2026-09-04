@@ -203,9 +203,10 @@ def create_booking(body: BookingCreate, request: Request,
     if plan and long_term and not data.get("devotee_id"):
         raise HTTPException(422, "Long-term poojas (Life Long / Yearly) require a registered devotee — link or add the devotee first.")
 
-    # Long-term must also not be double-sold to the same devotee while an active,
+    # Long-term and Monthly must also not be double-sold to the same devotee while an active,
     # unexpired booking for the same pooja+plan exists.
-    if plan and data.get("devotee_id") and long_term:
+    is_monthly = plan and plan.plan_name == "Monthly"
+    if plan and data.get("devotee_id") and (long_term or is_monthly):
         dup = (db.query(Booking).filter(
             Booking.devotee_id == data["devotee_id"],
             Booking.pooja_id == data.get("pooja_id"),
@@ -243,6 +244,57 @@ def create_booking(body: BookingCreate, request: Request,
     if paid:   # ticket issued at the counter → notify now (else notified on /payments/verify)
         _booking_notify(db, b, "booking_confirmed", user)
     return b
+
+
+@router.get("/check-duplicate")
+def check_duplicate(pooja_id: int, plan_id: int,
+                    devotee_id: int | None = None, mobile: str | None = None,
+                    db: Session = Depends(get_db), user=Depends(read)):
+    """Check if devotee already has an active Monthly/long-term booking for this pooja.
+    Can check by devotee_id OR by mobile number."""
+    if not devotee_id and not mobile:
+        return {"has_duplicate": False}
+
+    plan = db.get(PoojaPlan, plan_id)
+    if not plan:
+        return {"has_duplicate": False}
+
+    # Check for Monthly plans and long-term plans
+    start = date.today()
+    allowed, valid_until = plan_terms(plan, start)
+    long_term = allowed is None or (valid_until and (valid_until - start).days >= 300)
+    is_monthly = plan.plan_name == "Monthly"
+
+    if not (long_term or is_monthly):
+        return {"has_duplicate": False}
+
+    # Build filter based on what's provided
+    filters = [
+        Booking.pooja_id == pooja_id,
+        Booking.plan_id == plan_id,
+        Booking.status.notin_(["Cancelled", "Completed"]),
+        or_(Booking.valid_until.is_(None), Booking.valid_until >= date.today()),
+    ]
+
+    if devotee_id:
+        filters.append(Booking.devotee_id == devotee_id)
+    elif mobile:
+        # Check by mobile number if no devotee_id
+        filters.append(Booking.mobile == mobile.strip())
+
+    dup = db.query(Booking).filter(*filters).first()
+
+    if dup:
+        return {
+            "has_duplicate": True,
+            "existing_booking": dup.booking_code,
+            "ticket_no": dup.ticket_no,
+            "plan_name": plan.plan_name,
+            "booked_on": str(dup.scheduled_date) if dup.scheduled_date else (str(dup.created_at.date()) if dup.created_at else None),
+            "valid_until": str(dup.valid_until) if dup.valid_until else None,
+            "message": f"This devotee already has an active {plan.plan_name} booking for this pooja ({dup.booking_code})."
+        }
+    return {"has_duplicate": False}
 
 
 @router.get("/lookup")
@@ -454,3 +506,389 @@ def delete_booking(bid: int, request: Request,
     log_action(db, username=user.username, action="UPDATE", entity="Booking",
                detail=f"Voided {b.booking_code}", ip=client_ip(request))
     db.commit()
+
+
+# ── Today's Eligible Devotees ─────────────────────────────────────────────────
+# Find devotees who are due for their recurring poojas today based on their
+# subscription schedule (Monthly, Yearly, Life Long).
+
+@router.get("/eligible/today")
+def eligible_today(q: str = "", pooja: str = "", status: str = "",
+                   page: int = 1, size: int = 50,
+                   db: Session = Depends(get_db), user=Depends(read)):
+    """List devotees eligible for their recurring poojas today.
+
+    Eligibility rules:
+    - Monthly: same day of month as scheduled_date
+    - Yearly: same day and month as scheduled_date
+    - Life Long / Daily: always eligible (every day)
+    - Not cancelled, not expired, not already performed today
+    """
+    today = date.today()
+    today_day = today.day
+    today_month = today.month
+
+    # Get all active recurring bookings
+    query = db.query(Booking).filter(
+        Booking.status.in_(["Confirmed", "Pending"]),
+        Booking.payment_status == "Paid",
+        # Recurring plans only
+        Booking.plan_name.in_(["Monthly", "Yearly", "Yearly Once", "Yearly Thrice",
+                               "Life Long", "Daily", "Per Day"]),
+        # Not expired
+        or_(Booking.valid_until.is_(None), Booking.valid_until >= today),
+        # Started
+        or_(Booking.scheduled_date.is_(None), Booking.scheduled_date <= today),
+    )
+
+    bookings = query.all()
+
+    # Filter by eligibility for today
+    eligible = []
+    for b in bookings:
+        plan = (b.plan_name or "").lower()
+        sched = b.scheduled_date
+
+        # Determine if due today
+        is_due = False
+        if "daily" in plan or "per day" in plan:
+            is_due = True
+        elif "life long" in plan:
+            # Life Long poojas: check frequency from plan details if available
+            # Default to daily eligibility
+            is_due = True
+        elif "monthly" in plan:
+            # Same day of month as scheduled_date
+            if sched and sched.day == today_day:
+                is_due = True
+        elif "yearly" in plan:
+            # Same day and month as scheduled_date
+            if sched and sched.day == today_day and sched.month == today_month:
+                is_due = True
+
+        if not is_due:
+            continue
+
+        # Check quota
+        allowed = b.performances_allowed
+        done = b.performances_done or 0
+        if allowed is not None and done >= allowed:
+            continue  # Quota exhausted
+
+        # Status: Done if performed today, Due otherwise
+        done_today = (b.last_performed_on == today)
+
+        eligible.append({
+            "id": b.id,
+            "booking_code": b.booking_code,
+            "ticket_no": b.ticket_no,
+            "devotee_id": b.devotee_id,
+            "devotee_name": b.devotee_name,
+            "mobile": b.mobile,
+            "pooja": b.seva_name,
+            "plan": b.plan_name,
+            "category": b.category,
+            "scheduled_date": str(sched) if sched else None,
+            "due_date": str(today),
+            "status": "Done" if done_today else "Due",
+            "performances_done": done,
+            "performances_allowed": allowed,
+        })
+
+    # Apply filters
+    if q:
+        q_lower = q.lower()
+        eligible = [e for e in eligible if q_lower in e["devotee_name"].lower()
+                    or q_lower in (e["mobile"] or "")]
+    if pooja:
+        eligible = [e for e in eligible if e["pooja"] == pooja]
+    if status:
+        eligible = [e for e in eligible if e["status"] == status]
+
+    # Get unique poojas for filter dropdown
+    poojas = sorted(set(e["pooja"] for e in eligible))
+
+    # Pagination
+    total = len(eligible)
+    start = (page - 1) * size
+    items = eligible[start:start + size]
+
+    # Get Telugu names for devotees
+    devotee_ids = {e["devotee_id"] for e in items if e["devotee_id"]}
+    te_names = {d.id: d.name_te for d in db.query(Devotee)
+                .filter(Devotee.id.in_(devotee_ids)).all()} if devotee_ids else {}
+    for item in items:
+        item["devotee_name_te"] = te_names.get(item["devotee_id"])
+
+    return {
+        "date": str(today),
+        "total": total,
+        "page": page,
+        "size": size,
+        "items": items,
+        "poojas": poojas,
+        "stats": {
+            "due": sum(1 for e in eligible if e["status"] == "Due"),
+            "done": sum(1 for e in eligible if e["status"] == "Done"),
+        }
+    }
+
+
+# ── Quick Create (optimized for Counter billing) ──
+# Combines booking + payment in single request for instant Counter transactions
+
+@router.post("/quick-create")
+def quick_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(bill)):
+    """Create booking + immediate payment in single request (for Counter/Cash/UPI).
+
+    This is an optimized endpoint for Counter billing that combines:
+    1. Create booking
+    2. Create payment order
+    3. Verify payment (auto-confirm for Cash/UPI)
+    4. Return complete booking with ticket_no
+
+    Reduces 3 API calls to 1 for Counter transactions.
+    """
+    from .. import payments as pay
+
+    data = dict(body)
+    payment_method = data.pop("payment_method", "Cash")
+
+    # ── Standard booking creation (from create() logic) ──
+    start = data.get("scheduled_date") or date.today()
+    if isinstance(start, str):
+        start = date.fromisoformat(start)
+    data["scheduled_date"] = start
+
+    # Plan lookup
+    plan = None
+    if data.get("plan_id"):
+        plan = db.get(PoojaPlan, data["plan_id"])
+        if not plan:
+            raise HTTPException(404, "Plan not found")
+        if plan.fee:
+            data.setdefault("amount", float(plan.fee))
+        if not data.get("plan_name"):
+            data["plan_name"] = plan.plan_name
+
+    # Seva lookup
+    if data.get("pooja_id"):
+        sv = db.get(Seva, data["pooja_id"])
+        if sv and not data.get("seva_name"):
+            data["seva_name"] = sv.pooja_name
+        if sv and sv.amount and float(data.get("amount") or 0) < float(sv.amount):
+            raise HTTPException(422, f"Amount is below this service's fee (₹{sv.amount}).")
+
+    assert_positive(data.get("amount"), "Amount")
+
+    # Date validations
+    sd_guard = data.get("scheduled_date")
+    if sd_guard and sd_guard < date.today():
+        raise HTTPException(422, "The scheduled date cannot be in the past.")
+    assert_txn_date_open(db, data.get("scheduled_date"), allow_future=True, label="scheduled date")
+    assert_txn_date_open(db, date.today(), label="today")
+
+    # Plan terms
+    allowed, valid_until = plan_terms(plan, start)
+    data["performances_allowed"] = allowed
+    data["performances_done"] = 0
+    if data.get("valid_until") is None:
+        data["valid_until"] = valid_until
+
+    # Long-term validation
+    long_term = allowed is None or (valid_until and (valid_until - start).days >= 300)
+    if plan and long_term and not data.get("devotee_id"):
+        raise HTTPException(422, "Long-term poojas require a registered devotee.")
+
+    # Duplicate check for long-term/monthly
+    is_monthly = plan and plan.plan_name == "Monthly"
+    if plan and data.get("devotee_id") and (long_term or is_monthly):
+        dup = (db.query(Booking).filter(
+            Booking.devotee_id == data["devotee_id"],
+            Booking.pooja_id == data.get("pooja_id"),
+            Booking.plan_id == data["plan_id"],
+            Booking.status.notin_(["Cancelled", "Completed"]),
+            or_(Booking.valid_until.is_(None), Booking.valid_until >= date.today()),
+        ).first())
+        if dup:
+            raise HTTPException(409, f"This devotee already holds an active {plan.plan_name} booking for this pooja ({dup.booking_code}).")
+
+    # Create booking with Pending payment (will be updated below)
+    seq = next_code_seq(db, "booking", db.query(func.max(Booking.id)).scalar() or 0)
+    code = booking_code(seq)
+    data["payment_status"] = "Pending"
+    data["status"] = "Confirmed"
+    data["payment_method"] = payment_method
+
+    b = Booking(booking_code=code, created_by=user.username, **data)
+    db.add(b)
+
+    if b.devotee_id:
+        d = db.get(Devotee, b.devotee_id)
+        if d:
+            d.last_visit = date.today()
+            if not b.gothram:
+                b.gothram = d.gothram
+            if not b.nakshatram:
+                b.nakshatram = d.nakshatram
+
+    db.flush()
+
+    # ── Create and immediately verify payment (single transaction) ──
+    po, checkout = pay.create_order(
+        db, purpose="SEVA_BOOKING", reference_id=b.id,
+        method=payment_method, created_by=user.username,
+    )
+
+    # Auto-verify for Counter payments (Cash/UPI - no real gateway needed)
+    po = pay.verify_and_confirm(db, po=po, method=payment_method)
+
+    # Refresh booking after payment confirmation (ticket_no now set)
+    db.refresh(b)
+
+    db.commit()
+    db.refresh(b)
+
+    log_action(db, username=user.username, action="CREATE", entity="Booking",
+               detail=f"{b.seva_name} ₹{b.amount} (Paid)", ip=client_ip(request))
+
+    # Notify devotee
+    _booking_notify(db, b, "booking_confirmed", user)
+
+    return {
+        "id": b.id,
+        "booking_code": b.booking_code,
+        "ticket_no": b.ticket_no,
+        "receipt_no": b.receipt_no,
+        "seva_name": b.seva_name,
+        "plan_name": b.plan_name,
+        "amount": float(b.amount) if b.amount else 0,
+        "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
+        "devotee_name": b.devotee_name,
+        "mobile": b.mobile,
+        "status": b.status,
+        "payment_status": b.payment_status,
+        "payment_method": b.payment_method,
+    }
+
+
+@router.post("/bulk-quick-create")
+def bulk_quick_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(bill)):
+    """Create multiple bookings with immediate payment in single request.
+
+    For Counter billing with multiple cart items - processes all items in one API call.
+    Expects: {"items": [...booking data...], "payment_method": "Cash"}
+    Returns: {"success": [...], "failed": [...]}
+    """
+    from .. import payments as pay
+
+    items = body.get("items", [])
+    payment_method = body.get("payment_method", "Cash")
+
+    if not items:
+        raise HTTPException(400, "No items provided")
+
+    if len(items) > 20:
+        raise HTTPException(400, "Maximum 20 items per batch")
+
+    success = []
+    failed = []
+
+    for idx, item in enumerate(items):
+        try:
+            data = dict(item)
+            start = data.get("scheduled_date") or date.today()
+            if isinstance(start, str):
+                start = date.fromisoformat(start)
+            data["scheduled_date"] = start
+
+            # Plan lookup
+            plan = None
+            if data.get("plan_id"):
+                plan = db.get(PoojaPlan, data["plan_id"])
+                if plan and plan.fee:
+                    data.setdefault("amount", float(plan.fee))
+                if plan and not data.get("plan_name"):
+                    data["plan_name"] = plan.plan_name
+
+            # Seva lookup
+            if data.get("pooja_id"):
+                sv = db.get(Seva, data["pooja_id"])
+                if sv and not data.get("seva_name"):
+                    data["seva_name"] = sv.pooja_name
+
+            if not data.get("amount") or float(data.get("amount", 0)) <= 0:
+                raise ValueError("Invalid amount")
+
+            # Plan terms
+            allowed, valid_until = plan_terms(plan, start)
+            data["performances_allowed"] = allowed
+            data["performances_done"] = 0
+            if data.get("valid_until") is None:
+                data["valid_until"] = valid_until
+
+            # Create booking
+            seq = next_code_seq(db, "booking", db.query(func.max(Booking.id)).scalar() or 0)
+            code = booking_code(seq)
+            data["payment_status"] = "Pending"
+            data["status"] = "Confirmed"
+            data["payment_method"] = payment_method
+            data["source"] = data.get("source", "Counter")
+
+            b = Booking(booking_code=code, created_by=user.username, **data)
+            db.add(b)
+
+            if b.devotee_id:
+                d = db.get(Devotee, b.devotee_id)
+                if d:
+                    d.last_visit = date.today()
+                    if not b.gothram:
+                        b.gothram = d.gothram
+                    if not b.nakshatram:
+                        b.nakshatram = d.nakshatram
+
+            db.flush()
+
+            # Create and verify payment
+            po, checkout = pay.create_order(
+                db, purpose="SEVA_BOOKING", reference_id=b.id,
+                method=payment_method, created_by=user.username,
+            )
+            po = pay.verify_and_confirm(db, po=po, method=payment_method)
+
+            # Commit each item immediately so failures don't affect previous successes
+            db.commit()
+            db.refresh(b)
+
+            success.append({
+                "index": idx,
+                "id": b.id,
+                "booking_code": b.booking_code,
+                "ticket_no": b.ticket_no,
+                "receipt_no": b.receipt_no,
+                "seva_name": b.seva_name,
+                "plan_name": b.plan_name,
+                "amount": float(b.amount) if b.amount else 0,
+            })
+
+        except Exception as e:
+            db.rollback()  # Reset session state before processing next item
+            failed.append({
+                "index": idx,
+                "seva_name": item.get("seva_name", "Unknown"),
+                "error": str(e)[:200],
+            })
+
+    # Log the bulk action
+    if success:
+        log_action(db, username=user.username, action="CREATE", entity="Booking",
+                   detail=f"Bulk: {len(success)} bookings", ip=client_ip(request))
+        db.commit()
+
+    return {
+        "success": success,
+        "failed": failed,
+        "total": len(items),
+        "success_count": len(success),
+        "failed_count": len(failed),
+    }

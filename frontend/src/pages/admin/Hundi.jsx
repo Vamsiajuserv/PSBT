@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  Plus, X, Eye, Search, RotateCcw, Info, ChevronDown, Trash2,
-  HandCoins, IndianRupee, Landmark, CalendarClock, FileText, Calculator, ShieldCheck, Building2,
-  Package, CheckCircle2,
+  Plus, X, Eye, Search, RotateCcw, Calendar, Info, ChevronDown, Trash2, Upload,
+  HandCoins, IndianRupee, Landmark, CalendarClock, FileText, Calculator, Users, ShieldCheck, Building2,
+  Package, CheckCircle2, ArrowUp, ArrowDown,
 } from 'lucide-react'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { HundiAPI, HundiItemsAPI, DevoteesAPI, CommitteeAPI, SettingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -12,6 +13,7 @@ import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, Checkbox, NumberField } from '../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { sanitizeItemName } from '../../lib/validation.js'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
 const VER_TONE = { Verified: 'green', 'Pending Verification': 'blue' }
@@ -54,6 +56,19 @@ export default function Hundi() {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
 
+  // Sortable table columns
+  const sortColumns = [
+    { key: 'code', label: 'Hundi ID', type: 'text' },
+    { key: 'collected_on', label: 'Collection Date', type: 'date' },
+    { key: 'counted_amount', label: 'Total Amount (₹)', type: 'money' },
+    { key: 'members_count', label: 'Committee Members', type: 'num' },
+    { key: 'verification_status', label: 'Verification Status', type: 'text' },
+    { key: 'deposit_status', label: 'Deposit Status', type: 'text' },
+    { key: 'deposited_on', label: 'Deposit Date', type: 'date' },
+    { key: 'bank_name', label: 'Bank Name', type: 'text' },
+  ]
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'collected_on', direction: 'desc' }])
+
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
@@ -90,7 +105,8 @@ export default function Hundi() {
 
   // ── Item-wise counting register helpers ──
   const setLine = (i, patch) => setDrawer((d) => ({ ...d, lines: d.lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) }))
-  const addLine = () => setDrawer((d) => ({ ...d, lines: [...d.lines, emptyLine()] }))
+  // Add new item at the top so the form appears first (Item 24)
+  const addLine = () => setDrawer((d) => ({ ...d, lines: [emptyLine(), ...d.lines] }))
   const removeLine = (i) => setDrawer((d) => ({ ...d, lines: d.lines.length > 1 ? d.lines.filter((_, idx) => idx !== i) : d.lines }))
   const pickItem = (i, id) => {
     const it = itemMaster.find((x) => String(x.id) === String(id))
@@ -134,7 +150,7 @@ export default function Hundi() {
     const items = m.lines
       .filter((l) => l.item_name.trim() && l.value !== '')
       .map((l) => ({
-        hundi_item_id: l.hundi_item_id || null,
+        hundi_item_id: (l.hundi_item_id && l.hundi_item_id !== 'custom') ? l.hundi_item_id : null,
         item_name: l.item_name.trim(),
         item_type: l.item_type || null,
         quantity: l.quantity !== '' ? Number(l.quantity) : null,
@@ -183,41 +199,58 @@ export default function Hundi() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
-          <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
-            <div className="flex items-center gap-1.5">
-              <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-              <span className="text-gray-400">–</span>
-              <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-            </div>
+        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
+          <div className="min-w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
           </div>
-          <div>
+          <div className="min-w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+          </div>
+          <div className="min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Verification Status</T></label>
             <Select value={verification} onChange={(e) => setVerification(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Verified">{tr("Verified")}</option><option value="Pending Verification">{tr("Pending Verification")}</option></Select>
           </div>
-          <div>
+          <div className="min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Deposit Status</T></label>
             <Select value={deposit} onChange={(e) => setDeposit(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Deposited">{tr("Deposited")}</option><option value="Pending Deposit">{tr("Pending Deposit")}</option></Select>
           </div>
-          <div>
+          <div className="flex-1 min-w-[12rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Reference No.</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search reference number…")} className="input !pl-9" /></div>
           </div>
-          <div className="xl:col-span-4 flex gap-2 justify-end">
-            <button onClick={() => { setQ(''); setVerification(''); setDeposit(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
-            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
-          </div>
         </div>
 
+        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Hundi ID', 'Collection Date', 'Total Amount (₹)', 'Committee Members', 'Verification Status', 'Deposit Status', 'Deposit Date', 'Bank Name', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {sortColumns.map((col) => {
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((h) => (
+              {sortedRows.map((h) => (
                 <tr key={h.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{h.code}</td>
                   <td className="px-4 py-3 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDate(h.collected_on)}</td>
@@ -229,7 +262,7 @@ export default function Hundi() {
                   <td className="px-4 py-3 text-gray-600 text-[0.8125rem]">{h.bank_name ? tr(h.bank_name) : <span className="text-gray-300">-</span>}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setView(h)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      <button onClick={() => setView(h)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                       {canVerify && h.verification_status === 'Pending Verification' && (
                         <>
                           <button onClick={() => verify(h)} title={tr("Verify collection")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-emerald-200 text-emerald-700 text-[0.78125rem] font-semibold hover:bg-emerald-50"><CheckCircle2 size={15} />{' '}<T>Verify</T></button>
@@ -278,15 +311,18 @@ export default function Hundi() {
                     {drawer.lines.map((l, i) => (
                       <div key={i} className="border border-gray-200 rounded-lg p-2.5 space-y-2 bg-gray-50/40">
                         <div className="flex items-center gap-2">
-                          <Select className="input !py-1.5 text-[0.78125rem] flex-1" value={l.hundi_item_id} onChange={(e) => pickItem(i, e.target.value)}>
+                          <Select className="input !py-1.5 text-[0.78125rem] flex-1" value={l.hundi_item_id} onChange={(e) => { if (e.target.value === 'custom') { setLine(i, { hundi_item_id: 'custom', item_name: '', item_type: '', unit: '' }) } else { pickItem(i, e.target.value) } }}>
                             <option value="">{tr("Select item…")}</option>
                             {itemMaster.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}
+                            <option value="custom">{tr("Custom (Enter manually)")}</option>
                           </Select>
                           <button type="button" onClick={() => removeLine(i)} disabled={drawer.lines.length <= 1} title={tr("Remove line")}
-                            className="w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 disabled:opacity-40"><Trash2 size={14} /></button>
+                            className="w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-200 disabled:opacity-40"><Trash2 size={14} /></button>
                         </div>
-                        <input className="input !py-1.5 text-[0.78125rem]" placeholder={tr("Item name (or free text)")} value={l.item_name}
-                          onChange={(e) => setLine(i, { item_name: e.target.value, hundi_item_id: '' })} />
+                        {(l.hundi_item_id === 'custom' || (l.item_name && !l.hundi_item_id)) && (
+                          <input className="input !py-1.5 text-[0.78125rem]" placeholder={tr("Enter custom item name")} value={l.item_name}
+                            onChange={(e) => setLine(i, { item_name: sanitizeItemName(e.target.value) })} autoFocus />
+                        )}
                         <div className="grid grid-cols-3 gap-2">
                           <NumberField min="0" step="any" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Qty")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
                           <input className="input !py-1.5 text-[0.78125rem]" placeholder={tr("Unit")} value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />

@@ -52,8 +52,8 @@ const ALERT_ROUTE = { hundi: '/admin/hundi', auction: '/admin/auction', donation
 
 function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, footValue, to }) {
   const inner = (
-    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm p-5 h-full overflow-hidden ${to ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200' : ''}`}>
-      <div className="flex items-start gap-3">
+    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm p-5 h-full overflow-hidden flex flex-col ${to ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200' : ''}`}>
+      <div className="flex items-start gap-3 flex-1">
         <div className={`w-12 h-12 rounded-full grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}><Icon size={22} /></div>
         <div className="min-w-0 flex-1">
           <div className="text-[0.78125rem] text-gray-500 leading-snug">{title}</div>
@@ -61,10 +61,10 @@ function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, foot
           <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 mt-1.5 leading-tight tabular-nums break-words">{value}</div>
         </div>
       </div>
-      <div className="mt-3 pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400 truncate">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>
+      <div className="mt-auto pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400 leading-tight">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>
     </div>
   )
-  return to ? <Link to={to} className="block">{inner}</Link> : inner
+  return to ? <Link to={to} className="block h-full">{inner}</Link> : inner
 }
 
 function BarChart({ days }) {
@@ -100,6 +100,8 @@ export default function Dashboard() {
   const hasModule = useHasModule()
   const name = personName(user, lang) || tr('Administrator')
   const role = user?.role === 'Admin' ? 'Administrator' : (user?.role || '')
+  // Counter Staff sees a simplified view without charts (Item 14)
+  const isCounterStaff = user?.role === 'Counter Staff'
   const [d, setD] = useState(null)
   const todayISO = new Date().toISOString().slice(0, 10)
   const monthStartISO = todayISO.slice(0, 8) + '01'
@@ -141,9 +143,9 @@ export default function Dashboard() {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
         <div>
-          <h1 className="font-serif text-[1.75rem] font-bold text-maroon-800"><T>Dashboard</T></h1>
+          <h1 className="font-serif text-2xl font-bold text-maroon-700"><T>Dashboard</T></h1>
           <p className="text-sm text-gray-500 mt-1">{tr('Welcome back,')} {name}{role && !name.includes(role) ? ` (${tr(role)})` : ''}</p>
         </div>
         <div className="flex flex-col items-stretch lg:items-end gap-2">
@@ -174,21 +176,21 @@ export default function Dashboard() {
           user sees only the collections they actually handle. */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         {hasModule('Bookings') && <Kpi to="/admin/bookings" icon={CalendarDays} iconBg="bg-blue-50" iconColor="#2563eb" title={tr("Pooja Bookings")} sub={rangeSub}
-          value={t ? num(t.pooja_bookings.count) : '—'} footLabel={tr("Total Amount")} footValue={inr(t?.pooja_bookings.amount)} />}
+          value={t ? num(t.pooja_bookings.count) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Donations') && <Kpi to="/admin/donations" icon={HandHeart} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Donations Received")} sub={rangeSub}
-          value={t ? inr(t.donations.amount) : '—'} footLabel={tr("Total Receipts")} footValue={t ? num(t.donations.receipts) : '—'} />}
+          value={t ? num(t.donations.receipts) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Hundi') && <Kpi to="/admin/hundi" icon={HandCoins} iconBg="bg-amber-50" iconColor="#d97706" title={tr("Hundi Collection")} sub={rangeSub}
-          value={t ? inr(t.hundi.amount) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
+          value={t ? num(t.hundi.count) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Auction') && <Kpi to="/admin/auction" icon={Gavel} iconBg="bg-violet-50" iconColor="#7c3aed" title={tr("Auction Sales")} sub={rangeSub}
           value={t ? inr(t.auction.amount) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Annadanam') && <Kpi to="/admin/annadanam" icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Annadanam Sponsors")} sub={rangeSub}
           value={t ? num(t.annadanam.count) : '—'} footLabel={tr("Beneficiaries")} footValue={t ? num(t.annadanam.beneficiaries) : '—'} />}
         {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Waste Material Sales")} sub={rangeSub}
-          value={t ? inr(t.waste.amount) : '—'} footLabel={tr("Total Weight")} footValue={t ? `${num(t.waste.weight)} ${tr("Kg")}` : '—'} />}
+          value={t ? num(t.waste.count) : '—'} footLabel={tr("Total Weight")} footValue={t ? `${num(t.waste.weight)} ${tr("Kg")}` : '—'} />}
       </div>
 
-      {/* Row: Today's Overview | Week chart | Recent Bookings */}
-      <div className="grid lg:grid-cols-3 gap-5 mb-5">
+      {/* Row: Today's Overview | Week chart | Recent Bookings - Hidden for Counter Staff (Item 14) */}
+      {!isCounterStaff && <div className="grid lg:grid-cols-3 gap-5 mb-5">
         {/* Today's Overview */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <h3 className="font-serif text-lg font-bold text-maroon-800">{ap === 'today' ? tr("Today's Overview") : tr('Overview')} <span className="text-xs font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
@@ -212,7 +214,7 @@ export default function Dashboard() {
         </div>
 
         {/* Week chart */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 overflow-x-auto">
           <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Pooja Bookings</T>{' '}<span className="text-xs font-sans font-normal text-gray-400">– {ap === 'today' ? tr('This Week') : rangeLabel}</span></h3>
           <div className="text-[0.6875rem] text-gray-400 mt-0.5"><T>No. of Bookings</T></div>
           {d && <BarChart days={d.week_chart.days} />}
@@ -234,7 +236,7 @@ export default function Dashboard() {
               <div key={i} className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-orange-50 text-orange-500 grid place-items-center shrink-0"><Flame size={16} /></div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[0.8125rem] font-semibold text-gray-800 truncate">{tr(b.pooja)}{b.plan ? <span className="text-gray-400 font-normal"> ({tr(b.plan)})</span> : null}</div>
+                  <div className="text-[0.8125rem] font-semibold text-gray-800 leading-tight">{tr(b.pooja)}{b.plan ? <span className="text-gray-400 font-normal"> ({tr(b.plan)})</span> : null}</div>
                   <div className="text-[0.6875rem] text-gray-400">{personName({ name: b.devotee }, lang)}</div>
                 </div>
                 <div className="text-right">
@@ -246,10 +248,10 @@ export default function Dashboard() {
             {d?.recent_bookings?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center"><T>No recent bookings.</T></div>}
           </div>
         </div>
-      </div>
+      </div>}
 
-      {/* Row: Upcoming Special | Donations by Category | Alerts */}
-      <div className="grid lg:grid-cols-3 gap-5">
+      {/* Row: Upcoming Special | Donations by Category | Alerts - Hidden for Counter Staff (Item 14) */}
+      {!isCounterStaff && <div className="grid lg:grid-cols-3 gap-5">
         {/* Upcoming Special Poojas */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
@@ -278,25 +280,25 @@ export default function Dashboard() {
         </div>
 
         {/* Donations by Category */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Donations by Category</T>{' '}<span className="text-xs font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
-          <div className="flex items-center gap-4 mt-4">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <h3 className="font-serif text-base font-bold text-maroon-800"><T>Donations by Category</T>{' '}<span className="text-[0.6875rem] font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
+          <div className="flex items-start gap-3 mt-3">
             {donutSegs.length > 0
-              ? <Donut segments={donutSegs} total="" centerLabel="" size={140} />
-              : <div className="w-[8.75rem] h-[8.75rem] rounded-full border-[1rem] border-gray-100 shrink-0" />}
-            <div className="flex-1 space-y-2">
+              ? <Donut segments={donutSegs} total="" centerLabel="" size={120} />
+              : <div className="w-[7.5rem] h-[7.5rem] rounded-full border-[0.875rem] border-gray-100 shrink-0" />}
+            <div className="flex-1 max-h-[200px] overflow-y-auto space-y-1.5 pr-1">
               {donutSegs.map((s) => (
-                <div key={s.label} className="flex items-center justify-between text-[0.75rem]">
-                  <span className="flex items-center gap-2 text-gray-600"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />{s.label}</span>
-                  <span className="text-gray-500">{inr(s.value)} <span className="text-gray-400">({s.pct}%)</span></span>
+                <div key={s.label} className="flex items-center justify-between text-[0.6875rem]">
+                  <span className="flex items-center gap-1.5 text-gray-600 min-w-0"><span className="w-2 h-2 rounded-sm shrink-0" style={{ background: s.color }} /><span className="leading-tight">{s.label}</span></span>
+                  <span className="text-gray-500 shrink-0 ml-2">{inr(s.value)} <span className="text-gray-400">({s.pct}%)</span></span>
                 </div>
               ))}
               {donutSegs.length === 0 && <div className="text-xs text-gray-400"><T>No donations this week.</T></div>}
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-[0.8125rem] text-gray-500">{tr('Total Donations')} ({rangeLabel})</span>
-            <span className="text-lg font-extrabold text-maroon-700">{inr(dc?.total)}</span>
+          <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
+            <span className="text-[0.75rem] text-gray-500">{tr('Total Donations')} ({rangeLabel})</span>
+            <span className="text-base font-extrabold text-maroon-700">{inr(dc?.total)}</span>
           </div>
         </div>
 
@@ -320,9 +322,9 @@ export default function Dashboard() {
             {d?.alerts?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center"><T>No alerts.</T></div>}
           </div>
         </div>
-      </div>
+      </div>}
 
-      <div className="mt-5 text-[0.75rem] text-gray-400 text-center"><T>Note: All amounts shown are for the selected date range. Change the date range to view data for a different period.</T></div>
+      {!isCounterStaff && <div className="mt-5 text-[0.75rem] text-gray-400 text-center"><T>Note: All amounts shown are for the selected date range. Change the date range to view data for a different period.</T></div>}
     </div>
   )
 }

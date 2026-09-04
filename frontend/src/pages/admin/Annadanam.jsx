@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   Plus, X, Eye, Printer, Search, RotateCcw, Minus, Check, User,
-  UtensilsCrossed, Users, IndianRupee, HeartHandshake,
+  UtensilsCrossed, Users, IndianRupee, HeartHandshake, ArrowUp, ArrowDown,
 } from 'lucide-react'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
@@ -39,6 +40,77 @@ function toWords(n) {
 
 const emptyForm = (rate = RATE) => ({ devotee: null, persons: 1, rate, occasionChoice: 'General', occasion: 'General', scheduled_on: '', mode: 'Cash', txn_ref: '', paid_at: nowLocal() })
 
+// Print Annadanam receipt in new window
+function printAnnadanamReceipt(doc, toWordsFn) {
+  const fmtDateLocal = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+  const modeText = doc.mode === 'UPI/QR Code' ? 'UPI / QR Code' : doc.mode
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Annadanam Receipt - ${doc.code}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+        .header { text-align: center; border-bottom: 2px solid #8b4513; padding-bottom: 15px; margin-bottom: 15px; }
+        .icon { font-size: 50px; }
+        .temple-name { font-size: 18px; font-weight: bold; color: #8b4513; margin: 8px 0; }
+        .address { font-size: 11px; color: #666; }
+        .title-box { background: #8b4513; color: white; text-align: center; padding: 10px; margin: 15px 0; font-weight: bold; letter-spacing: 1px; }
+        .info-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 10px; }
+        .info-label { color: #666; }
+        .info-value { font-weight: 600; }
+        .details { border: 1px solid #ddd; padding: 15px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #eee; font-size: 13px; }
+        .detail-row:last-child { border-bottom: none; }
+        .amount-box { background: #fff8e7; border: 2px solid #d97706; padding: 15px; text-align: center; margin: 15px 0; }
+        .amount-label { font-size: 12px; color: #666; }
+        .amount-value { font-size: 28px; font-weight: bold; color: #8b4513; }
+        .amount-words { font-size: 11px; color: #666; margin-top: 5px; font-style: italic; }
+        .footer { text-align: center; font-size: 10px; color: #999; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ddd; }
+        @media print { body { padding: 10px; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="icon">🛕</div>
+        <div class="temple-name">Sri Shirdi Sai Baba Temple</div>
+        <div class="address">Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana 500082</div>
+        <div class="address">☎ +91 040 2335 3589</div>
+      </div>
+      <div class="title-box">ANNADANAM RECEIPT</div>
+      <div class="info-row">
+        <span><span class="info-label">Receipt No:</span> <span class="info-value">${doc.code}</span></span>
+        <span><span class="info-label">Date:</span> <span class="info-value">${fmtDateLocal(doc.paid_at || doc.created_at)}</span></span>
+      </div>
+      <div class="details">
+        <div class="detail-row"><span>Devotee</span><span>${doc.donor || '—'}</span></div>
+        <div class="detail-row"><span>Mobile</span><span>${doc.mobile || '—'}</span></div>
+        <div class="detail-row"><span>No. of Persons</span><span>${doc.plates || 1}</span></div>
+        <div class="detail-row"><span>Rate</span><span>₹${Number(doc.rate || 50).toLocaleString('en-IN')} / person</span></div>
+        <div class="detail-row"><span>Payment Mode</span><span>${modeText}</span></div>
+        ${doc.txn_ref ? `<div class="detail-row"><span>Transaction ID</span><span>${doc.txn_ref}</span></div>` : ''}
+      </div>
+      <div class="amount-box">
+        <div class="amount-label">Total Amount</div>
+        <div class="amount-value">₹ ${Number(doc.amount || 0).toLocaleString('en-IN')}</div>
+        <div class="amount-words">${toWordsFn(doc.amount)}</div>
+      </div>
+      <div class="footer">
+        || Om Sri Sai Ram ||<br/>
+        Thank you for your generous contribution to Annadanam.<br/>
+        This is a computer-generated receipt.
+      </div>
+    </body>
+    </html>
+  `
+  const win = window.open('', '_blank', 'width=450,height=600')
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+  setTimeout(() => { win.print(); win.close() }, 300)
+}
+
 export default function Annadanam() {
   const { lang } = useLang()
   const { user } = useAuth()
@@ -59,6 +131,18 @@ export default function Annadanam() {
   const [mode, setMode] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+
+  // Sortable table columns
+  const sortColumns = [
+    { key: 'code', label: 'Receipt No.', type: 'text' },
+    { key: 'paid_at', label: 'Date & Time', type: 'date' },
+    { key: 'donor', label: 'Devotee Name', type: 'text' },
+    { key: 'mobile', label: 'Mobile Number', type: 'text' },
+    { key: 'plates', label: 'No. of Persons', type: 'num' },
+    { key: 'amount', label: 'Donation Amount (₹)', type: 'money' },
+    { key: 'mode', label: 'Payment Mode', type: 'text' },
+  ]
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'paid_at', direction: 'desc' }])
 
   // configurable rate + festival names for the occasion dropdown
   const [defaultRate, setDefaultRate] = useState(RATE)
@@ -150,37 +234,54 @@ export default function Annadanam() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <div>
+        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[12rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee Name / Mobile / Receipt No.</T></label>
-            <div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search here…")} className="input pr-9" /></div>
+            <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search here…")} className="input !pl-9" /></div>
           </div>
-          <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
-            <div className="flex items-center gap-1.5">
-              <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-              <span className="text-gray-400">–</span>
-              <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-            </div>
+          <div className="min-w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
           </div>
-          <div>
+          <div className="min-w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+          </div>
+          <div className="min-w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
             <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("UPI / QR Code")}</option></Select>
           </div>
-          <div className="md:col-span-3 flex gap-2 justify-end">
-            <button onClick={() => { setQ(''); setMode(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
-            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
-          </div>
         </div>
 
+        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Receipt No.', 'Date & Time', 'Devotee Name', 'Mobile Number', 'No. of Persons', 'Donation Amount (₹)', 'Payment Mode', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {sortColumns.map((col) => {
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((a) => (
+              {sortedRows.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{a.code}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.paid_at || a.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(a.paid_at || a.created_at)}</div></td>
@@ -190,9 +291,9 @@ export default function Annadanam() {
                   <td className="px-4 py-3 font-semibold text-gray-800">{num(a.amount)}</td>
                   <td className="px-4 py-3 text-gray-600">{modeLabel(a.mode)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <button onClick={() => setPrintDoc(a)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
-                      <button onClick={() => setPrintDoc(a)} title={tr("Print receipt")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setPrintDoc(a)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      <button onClick={() => setPrintDoc(a)} title={tr("Print receipt")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
                     </div>
                   </td>
                 </tr>
@@ -325,16 +426,16 @@ export default function Annadanam() {
             {saveErr && <div className="px-6 pt-3 text-[0.75rem] text-red-600">{saveErr}</div>}
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button disabled={!drawer.devotee || saving} className="btn-maroon flex-1 justify-center disabled:opacity-50">{saving ? tr('Saving…') : <>{tr('Save Payment & Generate Receipt')} <Printer size={15} /></>}</button>
+              <button type="submit" disabled={!drawer.devotee || saving} className="btn-maroon flex-1 justify-center disabled:opacity-50">{saving ? tr('Saving…') : <>{tr('Save Payment & Generate Receipt')} <Printer size={15} /></>}</button>
             </div>
           </form>
         </div>
       )}
 
       {printDoc && (
-        <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-4 no-print" onClick={() => setPrintDoc(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm">
-            <div id="print-area">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={() => setPrintDoc(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl shadow-xl w-full max-w-lg my-auto max-h-[90vh] overflow-y-auto">
+            <div className="p-4">
               <Receipt title={tr("Annadanam Receipt")} titleTe="అన్నదానం రసీదు" no={printDoc.code} subNo={fmtDate(printDoc.paid_at || printDoc.created_at)} subNoLabel="Date" amount={printDoc.amount}
                 rows={[
                   { en: 'Devotee', value: printDoc.donor },
@@ -346,8 +447,8 @@ export default function Annadanam() {
                 ]}
                 footerNote={toWords(printDoc.amount)} />
             </div>
-            <div className="flex gap-2 justify-center mt-4 no-print">
-              <button onClick={() => window.print()} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>
+            <div className="flex gap-2 justify-center px-4 py-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
+              <button onClick={() => printAnnadanamReceipt(printDoc, toWords)} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>
               <button onClick={() => setPrintDoc(null)} className="btn-outline"><T>Close</T></button>
             </div>
           </div>

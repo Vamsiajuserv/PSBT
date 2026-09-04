@@ -75,11 +75,20 @@ def verify(body: VerifyIn, db: Session = Depends(get_db), user=Depends(pay_write
     log_action(db, username=user.username, action="CREATE", entity="Payment",
                detail=f"{po.purpose} #{po.reference_id} {po.method or po.provider} ₹{po.amount} {po.status}")
     # Notify the devotee once payment confirms the booking (ticket now issued).
+    booking_info = None
     if po.purpose == "SEVA_BOOKING" and po.status == "PAID":
         from ..models import Booking, Devotee
         from .. import notifications as notif
         b = db.get(Booking, po.reference_id)
         if b:
+            # Include booking details in response to avoid extra API call
+            booking_info = {
+                "id": b.id,
+                "booking_code": b.booking_code,
+                "ticket_no": b.ticket_no,
+                "receipt_no": b.receipt_no,
+                "payment_status": b.payment_status,
+            }
             dev = db.get(Devotee, b.devotee_id) if b.devotee_id else None
             notif.notify(db, "booking_confirmed", {
                 "devotee": b.devotee_name, "pooja": b.seva_name, "plan": b.plan_name or "",
@@ -87,7 +96,10 @@ def verify(body: VerifyIn, db: Session = Depends(get_db), user=Depends(pay_write
                 "ticket": b.ticket_no or b.receipt_no or b.booking_code,
             }, mobile=b.mobile or (dev.mobile if dev else None), email=(dev.email if dev else None),
                 entity="Booking", entity_id=b.id, created_by=user.username)
-    return _dict(po)
+    result = _dict(po)
+    if booking_info:
+        result["booking"] = booking_info
+    return result
 
 
 @router.get("/{order_ref}")

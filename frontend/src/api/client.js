@@ -62,6 +62,7 @@ export const AuthAPI = {
   login: (username, password) => api.post('/auth/login', { username, password }, { auth: false }),
   verify2fa: (challenge_token, code) => api.post('/auth/verify-2fa', { challenge_token, code }, { auth: false }),
   me: () => api.get('/auth/me'),
+  changePassword: (current_password, new_password) => api.post('/auth/change-password', { current_password, new_password }),
 }
 
 export const DevoteesAPI = {
@@ -88,6 +89,9 @@ export const PoojasAPI = {
   create: (b) => api.post('/poojas', b),
   update: (id, b) => api.put(`/poojas/${id}`, b),
   remove: (id) => api.del(`/poojas/${id}`),
+  // Festival Pricing - for Committee role
+  allPlans: () => api.get('/poojas/plans/all'),
+  updateCommitteeFee: (planId, fee) => api.put(`/poojas/plans/${planId}/committee-fee`, { fee }),
 }
 
 export const PaymentsAPI = {
@@ -101,11 +105,17 @@ export const BookingsAPI = {
   list: (params = {}) => api.get('/bookings' + qs(params)),
   stats: () => api.get('/bookings/stats'),
   create: (b) => api.post('/bookings', b),
+  // Optimized endpoint: combines create + payment in single call (for Counter)
+  quickCreate: (b) => api.post('/bookings/quick-create', b),
+  // Bulk optimized: process multiple cart items in single request
+  bulkQuickCreate: (b) => api.post('/bookings/bulk-quick-create', b),
   lookup: (ticket) => api.get('/bookings/lookup' + qs({ ticket })),
+  checkDuplicate: (params) => api.get('/bookings/check-duplicate' + qs(params)),
   complete: (id) => api.post(`/bookings/${id}/complete`),
   reschedule: (id, body) => api.post(`/bookings/${id}/reschedule`, body),
   cancel: (id, body = {}) => api.post(`/bookings/${id}/cancel`, body),
   remove: (id) => api.del(`/bookings/${id}`),
+  eligibleToday: (params = {}) => api.get('/bookings/eligible/today' + qs(params)),
 }
 
 export const DonationsAPI = {
@@ -143,6 +153,9 @@ export const AuctionAPI = {
   create: (b) => api.post('/auctions', b),
   update: (id, b) => api.put(`/auctions/${id}`, b),
   remove: (id) => api.del(`/auctions/${id}`),
+  verify: (id) => api.post(`/auctions/${id}/verify`),
+  reject: (id, reason) => api.post(`/auctions/${id}/reject`, { reason }),
+  payment: (id, b) => api.post(`/auctions/${id}/payment`, b),
 }
 
 export const RefundsAPI = {
@@ -185,6 +198,7 @@ export const PoojarisAPI = {
   queue: (params = {}) => api.get('/poojaris/queue' + qs(params)),
   completeDue: (body = {}) => api.post('/poojaris/queue/complete-due', body),
   assign: (booking_id, poojari_id) => api.post('/poojaris/assign', { booking_id, poojari_id }),
+  assignBulk: (booking_ids, poojari_id) => api.post('/poojaris/assign-bulk', { booking_ids, poojari_id }),
 }
 
 // ── Configurable masters ──
@@ -253,6 +267,7 @@ export const DailyClosingAPI = {
   stats: () => api.get('/daily-closing/stats'),
   list: () => api.get('/daily-closing'),
   close: (b) => api.post('/daily-closing/close', b),
+  reopen: (b) => api.post('/daily-closing/reopen', b),
 }
 export const BackupAPI = {
   list: () => api.get('/backups'),
@@ -269,6 +284,34 @@ export const NotificationsAPI = {
   logs: (params = {}) => api.get('/notifications/logs' + qs(params)),
   templates: () => api.get('/notifications/templates'),
   test: (b) => api.post('/notifications/test', b),
+}
+export const TithiAPI = {
+  list: (params = {}) => api.get('/tithis' + qs(params)),
+  next: (tithi_type) => api.get('/tithis/next' + qs({ tithi_type })),
+  upcoming: (tithi_type = 'Pournami', count = 12) => api.get('/tithis/upcoming' + qs({ tithi_type, count })),
+  stats: () => api.get('/tithis/stats'),
+  create: (b) => api.post('/tithis', b),
+  update: (id, b) => api.put(`/tithis/${id}`, b),
+  remove: (id) => api.del(`/tithis/${id}`),
+  bulk: (items) => api.post('/tithis/bulk', { items }),
+}
+
+export const AnalyticsAPI = {
+  trends: (params = {}) => api.get('/analytics/trends' + qs(params)),
+  breakdown: (params = {}) => api.get('/analytics/breakdown' + qs(params)),
+  comparison: (params = {}) => api.get('/analytics/comparison' + qs(params)),
+  top: (params = {}) => api.get('/analytics/top' + qs(params)),
+  paymentModes: (params = {}) => api.get('/analytics/payment-modes' + qs(params)),
+  hundiFunnel: (params = {}) => api.get('/analytics/hundi-funnel' + qs(params)),
+  summary: (params = {}) => api.get('/analytics/summary' + qs(params)),
+}
+
+export const PanchangamAPI = {
+  status: () => api.get('/panchangam/status'),
+  today: () => api.get('/panchangam/today'),
+  date: (dt) => api.get(`/panchangam/date/${dt}`),
+  month: (year, month) => api.get(`/panchangam/month/${year}/${month}`),
+  range: (start, end) => api.get('/panchangam/range' + qs({ start, end })),
 }
 
 function qs(params) {

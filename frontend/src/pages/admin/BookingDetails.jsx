@@ -58,15 +58,15 @@ export default function BookingDetails() {
   const validRange = validityRange(plan, d.scheduled_date)
 
   return (
-    <div>
-      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/bookings" className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to="/admin/bookings" className="hover:text-maroon-600"><T>Bookings</T></Link> › <span className="text-gray-500"><T>Booking Details</T></span></div>
-      <PageTitle title={tr("Booking Details")} actions={<>
+    <div className="print-modal">
+      <div className="text-[0.75rem] text-gray-400 mb-1 no-print"><Link to="/admin/bookings" className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to="/admin/bookings" className="hover:text-maroon-600"><T>Bookings</T></Link> › <span className="text-gray-500"><T>Booking Details</T></span></div>
+      <div className="no-print"><PageTitle title={tr("Booking Details")} actions={<>
         {canOperate && d.status === 'Confirmed' && <button onClick={complete} className="btn-maroon !py-2.5"><CheckCircle2 size={15} />{' '}<T>Mark as Completed</T></button>}
         <button onClick={() => nav('/admin/bookings')} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Bookings List</T></button>
-      </>} />
+      </>} /></div>
 
       {/* Summary strip */}
-      <div className="bg-amber-50/40 border border-amber-100 rounded-xl px-5 py-4 mb-5 flex flex-wrap items-center gap-x-8 gap-y-4">
+      <div className="bg-amber-50/40 border border-amber-100 rounded-xl px-5 py-4 mb-5 flex flex-wrap items-center gap-x-8 gap-y-4 no-print">
         <Meta icon={ClipboardList} label={tr("Booking ID")} value={<span className="font-mono">{d.booking_code}</span>} />
         <Meta icon={Ticket} label={tr("Ticket Number")} value={<span className="font-mono">{ticketNo}</span>} />
         <Meta icon={Calendar} label={tr("Booking Date")} value={fmtStamp(d.created_at)} />
@@ -77,7 +77,7 @@ export default function BookingDetails() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Left column */}
-        <div className="space-y-5">
+        <div className="space-y-5 no-print">
           <Section n="1" icon={User} title={tr("Devotee Details")}>
             <Row label={tr("Devotee Name")} value={personName(dev, lang)} />
             <Row label={tr("Mobile Number")} value={dev.mobile} />
@@ -133,7 +133,7 @@ export default function BookingDetails() {
         <button onClick={() => window.print()} className="btn-outline"><Download size={15} />{' '}<T>Download PDF</T></button>
         <button onClick={() => nav('/admin/bookings')} className="btn-maroon"><ArrowLeft size={15} />{' '}<T>Back to Bookings List</T></button>
       </div>
-      <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5"><ShieldCheck size={15} className="text-blue-500" />{' '}<T>All bookings are subject to temple rules and availability.</T></div>
+      <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5 no-print"><ShieldCheck size={15} className="text-blue-500" />{' '}<T>All bookings are subject to temple rules and availability.</T></div>
     </div>
   )
 }

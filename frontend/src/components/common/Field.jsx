@@ -69,7 +69,7 @@ function Popover({ pos, popRef, children }) {
   return createPortal(
     <div
       ref={popRef}
-      style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, zIndex: 90 }}
+      style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, zIndex: 9999 }}
       className="rounded-xl border border-gold-200 bg-white shadow-xl shadow-maroon-900/10 overflow-hidden"
     >
       {children}
@@ -235,6 +235,117 @@ export function Select({ value, onChange, children, className = '', disabled = f
   )
 }
 
+// ── MultiSelect ─────────────────────────────────────────────────────────────
+// Multi-select dropdown for filters with "Select All" capability
+
+export function MultiSelect({ value = [], onChange, children, className = '', disabled = false, placeholder = 'Select…', title, allLabel = 'Select All' }) {
+  const { t } = useLang()
+  const opts = useMemo(() => collectOptions(children), [children])
+  const items = opts.filter((o) => !o.group)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const triggerRef = useRef(null)
+  const popRef = useRef(null)
+  const searchRef = useRef(null)
+  const pos = usePopoverPosition(open, triggerRef)
+  useOutsideClose(open, [triggerRef, popRef], () => setOpen(false))
+
+  const vals = new Set(value)
+  const searchable = items.length > 10
+  const q = query.trim().toLowerCase()
+  const shown = q ? opts.filter((o) => o.group || o.label.toLowerCase().includes(q)) : opts
+
+  useEffect(() => { if (open) { setQuery(''); setTimeout(() => searchRef.current?.focus(), 0) } }, [open])
+
+  const toggle = (v) => {
+    const next = new Set(vals)
+    next.has(v) ? next.delete(v) : next.add(v)
+    onChange?.({ target: { value: [...next] } })
+  }
+
+  const selectAll = () => {
+    const all = items.filter((o) => !o.disabled).map((o) => o.value)
+    onChange?.({ target: { value: all } })
+  }
+
+  const clearAll = () => onChange?.({ target: { value: [] } })
+
+  const allSelected = items.filter((o) => !o.disabled).every((o) => vals.has(o.value))
+
+  const displayLabel = vals.size === 0 ? placeholder
+    : vals.size === 1 ? items.find((o) => vals.has(o.value))?.label || '1 selected'
+      : vals.size === items.length ? t('All selected')
+        : `${vals.size} ${t('selected')}`
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={triggerRef}
+        disabled={disabled}
+        title={title}
+        onClick={() => setOpen((o) => !o)}
+        className={`input flex items-center justify-between gap-2 text-left disabled:bg-gray-50 disabled:text-gray-400 ${open ? 'ring-2 ring-gold-400 border-transparent' : ''} ${className}`}
+      >
+        <span className={`truncate ${vals.size > 0 ? 'text-gray-800' : 'text-gray-400'}`}>
+          {t(displayLabel)}
+        </span>
+        <ChevronDown size={15} className={`shrink-0 text-maroon-700/50 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <Popover pos={pos} popRef={popRef}>
+          {searchable && (
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-gold-100 bg-cream/50">
+              <Search size={13} className="text-maroon-700/50 shrink-0" />
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('Search…')}
+                className="w-full bg-transparent text-[0.8125rem] outline-none placeholder:text-gray-400"
+              />
+              {query && <button type="button" onClick={() => setQuery('')} className="text-gray-400 hover:text-maroon-700"><X size={13} /></button>}
+            </div>
+          )}
+          <div className="px-3 py-2 border-b border-gold-100 flex items-center justify-between gap-2">
+            <button type="button" onClick={allSelected ? clearAll : selectAll} className="text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-900">
+              {allSelected ? t('Clear All') : t(allLabel)}
+            </button>
+            {vals.size > 0 && <span className="text-[0.75rem] text-gray-400">{vals.size} {t('selected')}</span>}
+          </div>
+          <div className="overflow-y-auto py-1" style={{ maxHeight: (pos?.maxHeight ?? 300) - (searchable ? 80 : 40) }}>
+            {shown.length === 0 && <div className="px-3 py-2.5 text-[0.8125rem] text-gray-400">{t('No matches')}</div>}
+            {shown.map((o, i) => {
+              if (o.group) {
+                return <div key={`g${i}`} className="px-3 pt-2 pb-1 text-[0.625rem] font-bold uppercase tracking-wider text-maroon-700/60">{o.group}</div>
+              }
+              const sel = vals.has(o.value)
+              return (
+                <button
+                  key={`${o.value}-${i}`}
+                  type="button"
+                  disabled={o.disabled}
+                  onClick={() => toggle(o.value)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-[0.8125rem] transition-colors ${
+                    o.disabled ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gold-100/70'
+                  }`}
+                >
+                  <span className={`w-[1.125rem] h-[1.125rem] shrink-0 rounded-[0.3125rem] border grid place-items-center transition-colors ${
+                    sel ? 'bg-maroon-800 border-maroon-800 text-cream' : 'bg-white border-gold-300'
+                  }`}>
+                    {sel && <Check size={12} strokeWidth={3.5} />}
+                  </span>
+                  <span className="truncate">{o.label ? t(o.label) : <span className="text-gray-400">—</span>}</span>
+                </button>
+              )
+            })}
+          </div>
+        </Popover>
+      )}
+    </>
+  )
+}
+
 // ── Date / time widgets ─────────────────────────────────────────────────────
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -284,7 +395,7 @@ function CalendarPanel({ value, min, max, onPick }) {
   for (let d = 1; d <= days; d++) cells.push(d)
 
   return (
-    <div style={{ minWidth: 232 }}>
+    <div style={{ minWidth: 270 }}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex">
           <NavBtn onClick={() => (mode === 'years' ? setView((v) => ({ ...v, y: v.y - 12 })) : nav(-1, 0))} label={tr("Previous year")}><ChevronsLeft size={15} /></NavBtn>
@@ -434,7 +545,7 @@ export function DateField({ value, onChange, min, max, required = false, disable
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
   const popRef = useRef(null)
-  const pos = usePopoverPosition(open, triggerRef, 340)
+  const pos = usePopoverPosition(open, triggerRef, 340, 290)
   useOutsideClose(open, [triggerRef, popRef], () => setOpen(false))
 
   const todayIso = iso(new Date())
@@ -557,7 +668,19 @@ export function DateTimeField({ value, onChange, min, max, required = false, dis
 // hidden. The wrapping label carries the `.input` styling plus any className
 // overrides, so it occupies exactly the layout slot the old input did; native
 // `required`/`min`/`max` validation stays on the real inner input.
+// Blocks 'e', '+', '-' keys to prevent scientific notation and signs.
 export function NumberField({ value, onChange, prefix, min, max, step, required = false, disabled = false, placeholder, className = '', inputClass = '', title, innerRef }) {
+  // Block non-numeric keys (e, E, +, -)
+  const handleKeyDown = (e) => {
+    if (['e', 'E', '+', '-'].includes(e.key)) {
+      e.preventDefault()
+    }
+  }
+  // Sanitize pasted content - only allow digits and decimal point
+  const handleChange = (e) => {
+    const sanitized = e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
+    onChange({ target: { value: sanitized } })
+  }
   return (
     <label
       title={title}
@@ -569,7 +692,8 @@ export function NumberField({ value, onChange, prefix, min, max, step, required 
         type="number"
         className={`no-spin w-full min-w-0 bg-transparent outline-none border-0 p-0 disabled:text-gray-400 placeholder:text-gray-400 ${inputClass}`}
         value={value ?? ''}
-        onChange={onChange}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
         min={min}
         max={max}
         step={step}
@@ -617,5 +741,174 @@ export function Toggle({ checked, onChange, disabled = false, className = '', ti
     >
       <span className={`absolute top-[0.1875rem] left-[0.1875rem] h-4 w-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[1.125rem]' : ''}`} />
     </button>
+  )
+}
+
+// ── Combobox ─────────────────────────────────────────────────────────────────
+// Searchable dropdown that allows both selection from options and custom typing.
+// Perfect for fields like Gothram / Nakshatram where common values exist but
+// custom entries are also valid.
+
+export function Combobox({
+  value,
+  onChange,
+  options = [],
+  placeholder = '',
+  disabled = false,
+  required = false,
+  className = '',
+  title,
+}) {
+  const { t } = useLang()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [active, setActive] = useState(-1)
+  const triggerRef = useRef(null)
+  const popRef = useRef(null)
+  const inputRef = useRef(null)
+  const pos = usePopoverPosition(open, triggerRef, 280, 200)
+  useOutsideClose(open, [triggerRef, popRef], () => setOpen(false))
+
+  // Filter options based on query
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? options.filter((opt) => {
+        const label = typeof opt === 'string' ? opt : opt.label
+        return label.toLowerCase().includes(q)
+      })
+    : options
+
+  // Focus input when dropdown opens
+  useEffect(() => {
+    if (open) {
+      setQuery(value || '')
+      setActive(-1)
+      setTimeout(() => inputRef.current?.focus(), 0)
+    }
+  }, [open, value])
+
+  const pick = (opt) => {
+    const val = typeof opt === 'string' ? opt : opt.value
+    setOpen(false)
+    triggerRef.current?.focus()
+    if (val !== value) onChange?.({ target: { value: val } })
+  }
+
+  const handleInputChange = (e) => {
+    setQuery(e.target.value)
+    setActive(-1)
+    // Also update the actual value for custom typing
+    onChange?.({ target: { value: e.target.value } })
+  }
+
+  const handleBlur = () => {
+    // On blur, keep whatever was typed
+    if (query.trim() !== value) {
+      onChange?.({ target: { value: query.trim() } })
+    }
+  }
+
+  const onKey = (e) => {
+    if (e.key === 'Escape') {
+      setOpen(false)
+      triggerRef.current?.focus()
+      return
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (!open) { setOpen(true); return }
+      if (!filtered.length) return
+      const dir = e.key === 'ArrowDown' ? 1 : -1
+      setActive((prev) => (prev + dir + filtered.length) % filtered.length)
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (open && active >= 0 && filtered[active]) {
+        pick(filtered[active])
+      } else if (!open) {
+        setOpen(true)
+      } else {
+        // Accept current input value
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
+    }
+  }
+
+  const displayValue = value || ''
+  const hasMatch = options.some((opt) => {
+    const val = typeof opt === 'string' ? opt : opt.value
+    return val === displayValue
+  })
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={triggerRef}
+        disabled={disabled}
+        title={title}
+        onClick={() => setOpen((o) => !o)}
+        className={`input flex items-center justify-between gap-2 text-left disabled:bg-gray-50 disabled:text-gray-400 ${open ? 'ring-2 ring-gold-400 border-transparent' : ''} ${className}`}
+      >
+        <span className={`truncate ${displayValue ? 'text-gray-800' : 'text-gray-400'}`}>
+          {displayValue || t(placeholder) || t('Select or type…')}
+        </span>
+        <ChevronDown size={15} className={`shrink-0 text-maroon-700/50 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {required && !disabled && <RequiredProxy value={value ?? ''} onFocus={() => setOpen(true)} />}
+      {open && (
+        <Popover pos={pos} popRef={popRef}>
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-gold-100 bg-cream/50">
+            <Search size={13} className="text-maroon-700/50 shrink-0" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={handleInputChange}
+              onKeyDown={onKey}
+              onBlur={handleBlur}
+              placeholder={t('Search or type custom…')}
+              className="w-full bg-transparent text-[0.8125rem] outline-none placeholder:text-gray-400"
+            />
+            {query && (
+              <button type="button" onClick={() => { setQuery(''); onChange?.({ target: { value: '' } }) }} className="text-gray-400 hover:text-maroon-700">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <div className="overflow-y-auto py-1" style={{ maxHeight: (pos?.maxHeight ?? 280) - 48 }}>
+            {filtered.length === 0 && query && (
+              <div className="px-3 py-2 text-[0.8125rem]">
+                <div className="text-gray-500">{t('No matches')}</div>
+                <div className="text-[0.75rem] text-maroon-600 mt-1">
+                  {t('Press Enter to use')}: <span className="font-medium">"{query}"</span>
+                </div>
+              </div>
+            )}
+            {filtered.map((opt, i) => {
+              const label = typeof opt === 'string' ? opt : opt.label
+              const val = typeof opt === 'string' ? opt : opt.value
+              const sel = val === value
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => pick(opt)}
+                  onMouseEnter={() => setActive(i)}
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[0.8125rem] transition-colors ${
+                    sel ? 'bg-maroon-800 text-cream font-semibold'
+                      : i === active ? 'bg-gold-100/70 text-maroon-900'
+                        : 'text-gray-700 hover:bg-gold-100/70'
+                  }`}
+                >
+                  <span className="truncate">{t(label)}</span>
+                  {sel && <Check size={14} className="shrink-0" />}
+                </button>
+              )
+            })}
+          </div>
+        </Popover>
+      )}
+    </>
   )
 }

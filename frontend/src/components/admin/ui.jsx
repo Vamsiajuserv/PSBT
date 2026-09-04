@@ -16,7 +16,16 @@ export const num = (n) => Number(n || 0).toLocaleString('en-IN')
 // translate that and leave the digits alone.
 const localiseMonth = (out) => out.replace(/[A-Za-z]{3,}/g, (mon) => tr(mon))
 export const fmtDate = (s) => (s ? localiseMonth(new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : '—')
-export const fmtStamp = (s) => (s ? localiseMonth(new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })) : '—')
+export const fmtStamp = (s) => {
+  if (!s) return '—'
+  const d = new Date(s)
+  const dateStr = localiseMonth(d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))
+  const hours = d.getHours()
+  const mins = String(d.getMinutes()).padStart(2, '0')
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  const hr12 = hours % 12 || 12
+  return `${dateStr}, ${String(hr12).padStart(2, '0')}:${mins} ${ampm}`
+}
 
 const PILL_TONES = {
   green: 'bg-emerald-50 text-emerald-700', amber: 'bg-amber-50 text-amber-700',
@@ -36,9 +45,9 @@ export function PageTitle({ title, subtitle, actions }) {
   title = typeof title === 'string' ? t(title) : title
   subtitle = typeof subtitle === 'string' ? t(subtitle) : subtitle
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
       <div>
-        <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800">{title}</h1>
+        <h1 className="font-serif text-2xl font-bold text-maroon-700">{title}</h1>
         {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
       </div>
       {actions && <div className="flex gap-2 shrink-0">{actions}</div>}
@@ -65,7 +74,7 @@ export function KpiCard({ icon: Icon, iconBg = 'bg-blue-50', iconColor = '#2563e
           <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 mt-1.5 leading-tight tabular-nums break-words">{value}</div>
         </div>
       </div>
-      {footLabel && <div className="mt-3 pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400 truncate">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>}
+      {footLabel && <div className="mt-3 pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400 leading-tight">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>}
     </div>
   )
 }
@@ -84,11 +93,11 @@ export function StatTile({ icon: Icon, color = '#8a1c1c', bg = 'bg-maroon-50', t
       <div className="flex items-center gap-3">
         <div className={`w-11 h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={20} /></div>
         <div className="min-w-0 flex-1">
-          <div className="text-[0.6875rem] uppercase tracking-wide text-gray-400 font-semibold truncate">{title}</div>
+          <div className="text-[0.6875rem] uppercase tracking-wide text-gray-600 font-semibold leading-tight">{title}</div>
           <div className="text-lg sm:text-xl font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums break-words">{value}</div>
         </div>
       </div>
-      {sub && <div className="text-[0.75rem] text-gray-400 mt-3 truncate">{sub}</div>}
+      {sub && <div className="text-[0.75rem] text-gray-600 mt-3 leading-tight">{sub}</div>}
     </div>
   )
 }

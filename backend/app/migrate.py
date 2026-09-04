@@ -43,6 +43,14 @@ COLUMN_MIGRATIONS = {
     "auctions": [
         ("devotee_id", "INTEGER"), ("description", "TEXT"), ("auction_date", "DATE"),
         ("start_time", "VARCHAR(20)"), ("notes", "TEXT"),
+        # Committee verification fields
+        ("verification_status", "VARCHAR(30) DEFAULT 'Pending'"),
+        ("verified_by", "VARCHAR(120)"), ("verified_at", "TIMESTAMP"),
+        ("rejection_reason", "TEXT"),
+        # Payment collection fields
+        ("payment_status", "VARCHAR(20) DEFAULT 'Pending'"),
+        ("payment_mode", "VARCHAR(30)"), ("payment_ref", "VARCHAR(60)"),
+        ("receipt_no", "VARCHAR(30)"), ("paid_at", "TIMESTAMP"), ("paid_by", "VARCHAR(60)"),
     ],
     "devotees": [
         ("name_te", "VARCHAR(160)"),
@@ -54,6 +62,7 @@ COLUMN_MIGRATIONS = {
     ],
     "pooja_plans": [
         ("validity_type", "VARCHAR(40)"), ("validity_value", "INTEGER"), ("validity_unit", "VARCHAR(20)"),
+        ("tithi_type", "VARCHAR(40)"),
     ],
     "waste_sales": [
         ("mobile", "VARCHAR(20)"), ("unit", "VARCHAR(20) DEFAULT 'Kilogram (kg)'"),
@@ -154,6 +163,16 @@ def run_migrations(engine) -> None:
             .bindparams(bindparam("names", expanding=True)),
             {"names": list(_FESTIVAL_POOJAS)},
         )
+        # Add Auction module to Counter Staff role if not already present
+        conn.execute(text(
+            "UPDATE roles SET modules = modules || ',Auction' "
+            "WHERE code = 'COUNTER_STAFF' AND modules NOT LIKE '%Auction%'"
+        ))
+        # Also update users with Counter Staff role
+        conn.execute(text(
+            "UPDATE users SET modules = modules || ',Auction' "
+            "WHERE role = 'Counter Staff' AND modules NOT LIKE '%Auction%'"
+        ))
         # Fill in the devotional descriptions, but only where the row still has the
         # seeded placeholder — never clobber copy written through the admin screen.
         for _name, _desc in POOJA_DESCRIPTIONS.items():
@@ -181,7 +200,7 @@ _OLD_TO_NEW = {
 _ROLE_CANON = {
     "ADMINISTRATOR": ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction",
                       "Annadanam", "Counter", "Reports", "Users", "Audit"],
-    "COUNTER_STAFF": ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"],
+    "COUNTER_STAFF": ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter"],
     "POOJARI": ["Sevas", "Bookings"],
     "ACCOUNTANT": ["Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"],
     "COMMITTEE": ["Hundi", "Auction", "Reports"],

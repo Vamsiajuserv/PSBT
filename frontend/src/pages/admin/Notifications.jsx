@@ -2,17 +2,25 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   MessageSquare, Mail, Send, CheckCircle2, XCircle, MinusCircle, Ban, Info,
-  BellRing, Smartphone,
+  BellRing, Smartphone, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { NotificationsAPI } from '../../api/client.js'
 import { Select } from '../../components/common/Field.jsx'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { promptDialog } from '../../components/common/Dialog.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const CH_ICON = { SMS: Smartphone, Email: Mail, WhatsApp: MessageSquare }
 const STATUS_TONE = { SENT: 'green', FAILED: 'red', SKIPPED: 'amber', DISABLED: 'gray', QUEUED: 'blue' }
 const STATUS_ICON = { SENT: CheckCircle2, FAILED: XCircle, SKIPPED: MinusCircle, DISABLED: Ban }
+
+// Sortable columns configuration
+const SORT_COLUMNS = [
+  { key: 'ts', label: 'Time', type: 'date' },
+  { key: 'event_label', label: 'Event', type: 'text' },
+  { key: 'status', label: 'Status', type: 'text' },
+]
 
 export default function Notifications() {
   const SIZE = 15
@@ -25,6 +33,9 @@ export default function Notifications() {
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState(null)
+
+  // Sorting
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'ts', direction: 'desc' }])
 
   const loadConfig = useCallback(() => {
     NotificationsAPI.config().then((c) => setChannels(c.channels)).catch(() => {})
@@ -136,13 +147,59 @@ export default function Notifications() {
             </Select>
           </div>
         </div>
+        <SortPanel sorts={sorts} columns={SORT_COLUMNS} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-[0.84375rem]">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Time', 'Event', 'Channel', 'Recipient', 'Provider', 'Status', 'Detail'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {['ts', 'event_label'].map((key) => {
+                const col = SORT_COLUMNS.find(c => c.key === key)
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Channel')}</th>
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Recipient')}</th>
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Provider')}</th>
+              {(() => {
+                const col = SORT_COLUMNS.find(c => c.key === 'status')
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr('Status')}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })()}
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Detail')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((r) => {
+              {sortedRows.map((r) => {
                 const SI = STATUS_ICON[r.status] || MinusCircle
                 return (
                   <tr key={r.id} className="hover:bg-gray-50/60 align-top">
@@ -156,7 +213,7 @@ export default function Notifications() {
                   </tr>
                 )
               })}
-              {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-400"><T>No notifications yet.</T></td></tr>}
+              {sortedRows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-600"><T>No notifications yet.</T></td></tr>}
             </tbody>
           </table>
         </div>

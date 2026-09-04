@@ -79,7 +79,8 @@ function Stepper({ step }) {
 }
 
 export default function NewBooking() {
-  const { lang } = useLang()
+  const langCtx = useLang()
+  const lang = langCtx?.lang || 'en'
   const nav = useNavigate()
   const [step, setStep] = useState(0)
   const [poojas, setPoojas] = useState([])
@@ -107,6 +108,7 @@ export default function NewBooking() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [ticket, setTicket] = useState(null)
+  const [duplicateWarning, setDuplicateWarning] = useState(null)
 
   // Inline "quick add devotee" — stays inside the wizard, no navigation / state loss.
   const [quickAdd, setQuickAdd] = useState(null)   // null | {name, mobile, email}
@@ -138,7 +140,18 @@ export default function NewBooking() {
     return () => clearTimeout(t)
   }, [devQ, devotee])
 
+  // Derive pooja BEFORE any useEffect that references it to avoid TDZ errors
   const pooja = poojas.find((p) => String(p.id) === String(poojaId)) || null
+
+  // Check for duplicate Monthly/long-term bookings when plan is selected
+  useEffect(() => {
+    if (!devotee?.id || !pooja?.id || !plan?.id) { setDuplicateWarning(null); return }
+    const isMonthlyOrLongTerm = plan.plan_name === 'Monthly' || plan.plan_name === 'Life Long' || plan.validity_type === 'Life Long'
+    if (!isMonthlyOrLongTerm) { setDuplicateWarning(null); return }
+    BookingsAPI.checkDuplicate({ devotee_id: devotee.id, pooja_id: pooja.id, plan_id: plan.id })
+      .then((res) => { setDuplicateWarning(res.has_duplicate ? res : null) })
+      .catch(() => { setDuplicateWarning(null) })
+  }, [devotee?.id, pooja?.id, plan?.id, plan?.plan_name, plan?.validity_type])
 
   // Active festival window linked to the selected pooja (if it is a Festival pooja).
   const festWindow = (() => {
@@ -166,7 +179,7 @@ export default function NewBooking() {
   const fee = plan?.committee_decided
     ? (festCommitteeFee > 0 ? festCommitteeFee : Number(committeeAmt || 0))
     : Number(plan?.fee || 0)
-  const rateType = plan?.committee_decided ? tr('Committee Decided') : tr('Fixed Amount')
+  const rateType = plan?.committee_decided ? '₹0' : tr('Fixed Amount')
   // Committee-decided bookings must carry a positive, operator-entered amount.
   const amountReady = fee > 0
 
@@ -245,9 +258,9 @@ export default function NewBooking() {
   return (
     <div>
       <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/bookings" className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to="/admin/bookings" className="hover:text-maroon-600"><T>Bookings</T></Link> › <span className="text-gray-500"><T>Advance Pooja Booking</T></span></div>
-      <div className="flex items-start justify-between gap-4 mb-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
         <div>
-          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800"><T>Advance Pooja Booking</T></h1>
+          <h1 className="font-serif text-2xl font-bold text-maroon-700"><T>Advance Pooja Booking</T></h1>
           <p className="text-[0.78125rem] text-gray-500 mt-0.5"><T>Schedule a pooja for a chosen date, time slot and poojari. For walk-up billing use Counter Billing.</T></p>
         </div>
         <button onClick={() => nav('/admin/bookings')} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Bookings</T></button>
@@ -352,11 +365,11 @@ export default function NewBooking() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center gap-2 text-maroon-700 mb-4"><CalendarDays size={18} /><h3 className="font-serif text-lg font-bold"><T>{tr("3. Plan Selection")}</T></h3></div>
               {!pooja ? (
-                <div className="border border-dashed border-gray-200 rounded-xl px-4 py-10 text-center text-gray-400 text-[0.8125rem]"><T>Select a pooja to view available plans.</T></div>
+                <div className="border border-dashed border-gray-200 rounded-xl px-4 py-10 text-center text-gray-600 text-[0.8125rem]"><T>Select a pooja to view available plans.</T></div>
               ) : (
                 <div className="border border-gray-100 rounded-xl overflow-hidden overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-500"><th className="px-4 py-2.5"><T>Plan Name</T></th><th className="px-2 py-2.5"><T>Plan Type</T></th><th className="px-2 py-2.5 text-right"><T>Rate (₹)</T></th><th className="px-2 py-2.5"><T>Validity</T></th><th className="px-2 py-2.5"><T>Availability</T></th><th className="px-2 py-2.5"><T>Select</T></th></tr></thead>
+                    <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-700"><th className="px-4 py-2.5"><T>Plan Name</T></th><th className="px-2 py-2.5"><T>Plan Type</T></th><th className="px-2 py-2.5 text-right"><T>Rate (₹)</T></th><th className="px-2 py-2.5"><T>Validity</T></th><th className="px-2 py-2.5"><T>Availability</T></th><th className="px-2 py-2.5"><T>Select</T></th></tr></thead>
                     <tbody className="divide-y divide-gray-100">
                       {pooja.plans.map((pl) => {
                         const on = plan?.id === pl.id
@@ -364,7 +377,7 @@ export default function NewBooking() {
                           <tr key={pl.id} className={on ? 'bg-maroon-50/40' : 'hover:bg-gray-50/60'}>
                             <td className="px-4 py-3 font-semibold text-gray-800"><span className="inline-flex items-center gap-2"><span onClick={() => setPlan(pl)} className={`w-4 h-4 rounded-full border-2 grid place-items-center cursor-pointer ${on ? 'border-maroon-600' : 'border-gray-300'}`}>{on && <span className="w-2 h-2 rounded-full bg-maroon-600" />}</span>{tr(pl.plan_name)} {tr(shortPooja(pooja.name))}</span></td>
                             <td className="px-2 py-3 text-gray-600">{tr(pl.plan_name)}</td>
-                            <td className="px-2 py-3 text-right font-semibold text-gray-800">{pl.committee_decided ? <span className="text-amber-600 text-[0.75rem]"><T>Committee</T></span> : money2(pl.fee)}</td>
+                            <td className="px-2 py-3 text-right font-semibold text-gray-800">{pl.committee_decided ? '₹0' : money2(pl.fee)}</td>
                             <td className="px-2 py-3 text-gray-600 text-[0.8125rem]">{tr(validityShort(pl))}</td>
                             <td className="px-2 py-3"><span className="text-[0.6875rem] font-semibold text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-0.5"><T>Available</T></span></td>
                             <td className="px-2 py-3">{on ? <span className="text-[0.75rem] font-semibold text-maroon-700 inline-flex items-center gap-1"><Check size={13} />{' '}<T>Selected</T></span> : <button type="button" onClick={() => setPlan(pl)} className="text-[0.75rem] font-semibold rounded-lg px-3 py-1 border border-maroon-200 text-maroon-700 hover:bg-maroon-50"><T>Select</T></button>}</td>
@@ -373,6 +386,18 @@ export default function NewBooking() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {/* Duplicate booking warning for Monthly/Long-term plans */}
+              {duplicateWarning && (
+                <div className="mt-4 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3.5 flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 grid place-items-center shrink-0">⚠️</div>
+                  <div>
+                    <div className="font-bold text-amber-800"><T>Duplicate Booking Alert</T></div>
+                    <div className="text-[0.8125rem] text-amber-700 mt-0.5">{tr(duplicateWarning.message)}</div>
+                    {duplicateWarning.valid_until && <div className="text-[0.75rem] text-gray-500 mt-1"><T>Valid until</T>: {duplicateWarning.valid_until}</div>}
+                  </div>
                 </div>
               )}
             </div>
@@ -385,9 +410,9 @@ export default function NewBooking() {
               {plan ? (
                 <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl px-4 py-3.5 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center shrink-0"><CalendarDays size={18} /></div>
-                  <div><div className="font-bold text-gray-800">{tr(plan.plan_name)} {shortPooja(pooja?.name)}</div><div className="text-[0.75rem] text-gray-500">{tr(plan.plan_name)} · {plan.committee_decided ? tr('Committee') : inr(plan.fee)} · {tr('Validity')}: {validityShort(plan)}</div></div>
+                  <div><div className="font-bold text-gray-800">{tr(plan.plan_name)} {shortPooja(pooja?.name)}</div><div className="text-[0.75rem] text-gray-500">{tr(plan.plan_name)} · {plan.committee_decided ? '₹0' : inr(plan.fee)} · {tr('Validity')}: {validityShort(plan)}</div></div>
                 </div>
-              ) : <div className="border border-dashed border-gray-200 rounded-xl px-4 py-4 text-center text-gray-400 text-[0.8125rem]"><T>Select a plan first.</T></div>}
+              ) : <div className="border border-dashed border-gray-200 rounded-xl px-4 py-4 text-center text-gray-600 text-[0.8125rem]"><T>Select a plan first.</T></div>}
               <div>
                 <label className="label"><T>Booking Date *</T></label>
                 <DateField value={schedDate}
@@ -522,7 +547,7 @@ export default function NewBooking() {
             </div>
 
             {/* Ticket card */}
-            <div id="print-area">
+            <div id="print-area" className="print-modal">
               <div className="bg-[#fdf7ee] border-2 border-dashed border-amber-300 rounded-2xl p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -549,6 +574,24 @@ export default function NewBooking() {
                   <TField k="Payment Mode" v={modeLabel(ticket._method)} />
                   <TField k="Payment Date & Time" v={ticket._paidAt} />
                 </div>
+                {/* Expiry Notice for Daily Plans */}
+                {plan.plan_name === 'Daily' && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3 text-center">
+                    <div className="text-[0.6875rem] font-semibold text-amber-700">⚠️ <T>Valid for 24 hours from time of issue</T></div>
+                  </div>
+                )}
+
+                {/* Terms & Conditions */}
+                <div className="text-[0.5625rem] text-gray-500 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-3">
+                  <div className="font-semibold text-gray-600 mb-1"><T>Terms & Conditions</T>:</div>
+                  <ol className="list-decimal list-inside space-y-0.5 pl-1">
+                    <li><T>Please arrive 15 minutes before the scheduled pooja time.</T></li>
+                    <li><T>Ticket is valid only for the date and time mentioned.</T></li>
+                    <li><T>Refunds are subject to temple policy.</T></li>
+                    <li><T>Temple is not responsible for lost or damaged tickets.</T></li>
+                  </ol>
+                </div>
+
                 <div className="text-center mt-4 pt-3 border-t border-dashed border-amber-200"><div className="font-display text-maroon-700 tracking-wide text-sm"><T>✦ Om Sai Ram ✦</T></div><div className="text-[0.6875rem] text-gray-500 mt-0.5"><T>Thank you for your devotion. May Sai Baba bless you.</T></div></div>
               </div>
             </div>

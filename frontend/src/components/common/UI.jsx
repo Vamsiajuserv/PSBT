@@ -392,7 +392,7 @@ export function PageHeader({ title, subtitle, action }) {
   title = typeof title === 'string' ? t(title) : title
   subtitle = typeof subtitle === 'string' ? t(subtitle) : subtitle
   return (
-    <div className="flex items-start justify-between gap-4 mb-6">
+    <div className="flex items-start justify-between gap-4 mb-4">
       <div>
         <h1 className="font-serif text-2xl font-bold text-maroon-700">{title}</h1>
         {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}

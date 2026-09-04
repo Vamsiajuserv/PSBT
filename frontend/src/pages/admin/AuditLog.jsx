@@ -29,7 +29,7 @@ export default function AuditLog() {
             <td className="px-4 py-3 text-gray-400 text-xs font-mono">{a.ip || '—'}</td>
           </tr>
         ))}
-        {!loading && rows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm"><T>No audit entries yet.</T></td></tr>}
+        {!loading && rows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-600 text-sm"><T>No audit entries yet.</T></td></tr>}
       </Table>
     </div>
   )

@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, X, RotateCcw, Info, Save, Trash,
-  Flame, Layers, CalendarCheck, Clock, LayoutGrid,
+  Flame, Layers, CalendarCheck, Clock, LayoutGrid, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { PageTitle, SearchInput, Pill, num } from '../../components/admin/ui.jsx'
 import { PoojasAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Toggle, NumberField } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { sanitizeName } from '../../lib/validation.js'
 
 const CAT_OPTIONS = [
   { value: 'Daily', label: 'Daily Pooja' }, { value: 'Monthly', label: 'Monthly Pooja' },
@@ -33,11 +35,27 @@ function validityDisplay(p) {
 }
 function rateLines(p) {
   if (p.plans.length === 0) return ['—']
-  if (p.plans.every((pl) => pl.committee_decided)) return [tr('Committee Decided')]
-  if (p.plans.length === 1) return [p.plans[0].committee_decided ? tr('Committee Decided') : `₹${num(p.plans[0].fee)}`]
-  return p.plans.map((pl) => `${tr(pl.plan_name)} ${pl.committee_decided ? '—' : '₹' + num(pl.fee)}`)
+  if (p.plans.every((pl) => pl.committee_decided)) return ['₹0']
+  if (p.plans.length === 1) return [p.plans[0].committee_decided ? '₹0' : `₹${num(p.plans[0].fee)}`]
+  return p.plans.map((pl) => `${tr(pl.plan_name)} ₹${pl.committee_decided ? '0' : num(pl.fee)}`)
 }
+// Committee Decided removed per Item 3 - all poojas have fixed rates now
 const emptyPlan = () => ({ plan_name: '', frequency: '', rate_type: 'Fixed', fee: '', validity_type: '', validity_value: '', validity_unit: '', active: true })
+
+// Helper to get primary rate for sorting
+function getPrimaryRate(p) {
+  if (!p.plans || p.plans.length === 0) return 0
+  const firstPlan = p.plans[0]
+  return firstPlan.committee_decided ? 0 : (firstPlan.fee || 0)
+}
+
+// Sortable columns configuration
+const SORT_COLUMNS = [
+  { key: 'name', label: 'Pooja Name', type: 'text' },
+  { key: 'category', label: 'Category', type: 'text' },
+  { key: 'primary_rate', label: 'Rate', type: 'number' },
+  { key: 'active', label: 'Status', type: 'text' },
+]
 
 function StatTile({ icon: Icon, color, bg, title, value, sub }) {
   return (
@@ -75,9 +93,13 @@ export default function PoojaMaster() {
     if (status === 'Active' && !p.active) return false
     if (status === 'Inactive' && p.active) return false
     return true
-  }), [items, q, cat, status])
-  const pageCount = Math.max(1, Math.ceil(filtered.length / SIZE))
-  const rows = filtered.slice((page - 1) * SIZE, page * SIZE)
+  }).map((p) => ({ ...p, primary_rate: getPrimaryRate(p) })), [items, q, cat, status])
+
+  // Sorting
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(filtered, SORT_COLUMNS, [{ key: 'name', direction: 'asc' }])
+
+  const pageCount = Math.max(1, Math.ceil(sortedRows.length / SIZE))
+  const rows = sortedRows.slice((page - 1) * SIZE, page * SIZE)
 
   function openCreate() { setDrawer({ mode: 'create', data: { name: '', code: '', category: 'Daily', description: '', active: true, plans: [emptyPlan()] } }) }
   function openEdit(p) {
@@ -144,13 +166,78 @@ export default function PoojaMaster() {
               <Select value={cat} onChange={(e) => { setCat(e.target.value); setPage(1) }} className="input !w-48"><option value="">{tr("All Categories")}</option>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.label}>{c.label}</option>)}</Select></div>
             <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
               <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }} className="input !w-40"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
-            <button onClick={() => { setQ(''); setCat(''); setStatus(''); setPage(1) }} className="text-[0.8125rem] font-semibold text-maroon-600 flex items-center gap-1.5 lg:ml-auto pb-2.5"><RotateCcw size={14} />{' '}<T>Reset Filters</T></button>
           </div>
         </div>
+        <SortPanel sorts={sorts} columns={SORT_COLUMNS} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Pooja Name', 'Category', 'Available Plans', 'Rate', 'Validity Type', 'Status', 'Actions'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {['name', 'category'].map((key) => {
+                const col = SORT_COLUMNS.find(c => c.key === key)
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Available Plans')}</th>
+              {(() => {
+                const col = SORT_COLUMNS.find(c => c.key === 'primary_rate')
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr('Rate')}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })()}
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Validity Type')}</th>
+              {(() => {
+                const col = SORT_COLUMNS.find(c => c.key === 'active')
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr('Status')}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })()}
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((p) => (
@@ -161,23 +248,23 @@ export default function PoojaMaster() {
                     {p.plans.slice(0, 3).map((pl) => <span key={pl.id ?? pl.plan_name} className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-blue-50 text-blue-700">{tr(pl.plan_name)}</span>)}
                     {p.plans.length > 3 && <span className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-gray-100 text-gray-500">+{p.plans.length - 3} {tr('More')}</span>}
                   </div></td>
-                  <td className="px-5 py-3.5 text-[0.8125rem]">{rateLines(p).map((r, i) => <div key={i} className={r === tr('Committee Decided') ? 'text-amber-600 text-[0.75rem]' : 'text-gray-700'}>{r}</div>)}</td>
+                  <td className="px-5 py-3.5 text-[0.8125rem]">{rateLines(p).map((r, i) => <div key={i} className="text-gray-700">{r}</div>)}</td>
                   <td className="px-5 py-3.5 text-gray-500 text-[0.8125rem]">{validityDisplay(p)}</td>
                   <td className="px-5 py-3.5"><Pill tone={p.active ? 'green' : 'gray'}>{p.active ? tr('Active') : tr('Inactive')}</Pill></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      {canWrite && <button onClick={() => openEdit(p)} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
-                      {isAdmin && <button onClick={() => remove(p)} title={tr("Delete")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300"><Trash2 size={15} /></button>}
+                      {canWrite && <button onClick={() => openEdit(p)} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
+                      {isAdmin && <button onClick={() => remove(p)} title={tr("Delete")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-300"><Trash2 size={15} /></button>}
                     </div>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-400"><T>No poojas found.</T></td></tr>}
+              {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-600"><T>No poojas found.</T></td></tr>}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <span className="text-[0.8125rem] text-gray-500">{tr('Showing')} {rows.length === 0 ? 0 : (page - 1) * SIZE + 1} {tr('to')} {Math.min(page * SIZE, filtered.length)} {tr('of')} {filtered.length} {tr('poojas')}</span>
+          <span className="text-[0.8125rem] text-gray-500">{tr('Showing')} {rows.length === 0 ? 0 : (page - 1) * SIZE + 1} {tr('to')} {Math.min(page * SIZE, sortedRows.length)} {tr('of')} {sortedRows.length} {tr('poojas')}</span>
           <div className="flex items-center gap-1.5">
             <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-500 disabled:opacity-40"><T>Previous</T></button>
             <span className="w-8 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.8125rem] font-semibold">{page}</span>
@@ -200,7 +287,7 @@ export default function PoojaMaster() {
               <div>
                 <div className="text-[0.8125rem] font-bold text-maroon-700 mb-3"><T>1. Basic Information</T></div>
                 <div className="space-y-3">
-                  <div><label className="label"><T>Pooja Name *</T></label><input required className="input" placeholder={tr("Enter pooja name")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: e.target.value } })} /></div>
+                  <div><label className="label"><T>Pooja Name *</T></label><input required className="input" placeholder={tr("Alphabets only")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: sanitizeName(e.target.value) } })} /></div>
                   <div><label className="label"><T>Pooja Code</T></label><input className="input" placeholder={tr("Auto-generated if blank")} value={drawer.data.code} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, code: e.target.value } })} /></div>
                   <div><label className="label"><T>Category *</T></label><Select required className="input" value={drawer.data.category} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, category: e.target.value } })}>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</Select></div>
                   <div><label className="label"><T>Description</T></label><textarea className="input min-h-[4rem]" placeholder={tr("Enter description (optional)")} value={drawer.data.description} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
@@ -224,10 +311,10 @@ export default function PoojaMaster() {
                         {drawer.data.plans.length > 1 && <button type="button" onClick={() => setDrawer({ ...drawer, data: { ...drawer.data, plans: drawer.data.plans.filter((_, j) => j !== i) } })} className="text-gray-300 hover:text-red-600"><Trash size={15} /></button>}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <div><label className="label"><T>Plan Name *</T></label><input required className="input" placeholder={tr("Daily / Monthly…")} value={pl.plan_name} onChange={(e) => setPlan(i, { plan_name: e.target.value })} /></div>
-                        <div><label className="label"><T>Frequency / Type *</T></label><input className="input" placeholder={tr("Per Day…")} value={pl.frequency} onChange={(e) => setPlan(i, { frequency: e.target.value })} /></div>
-                        <div><label className="label"><T>Rate Type *</T></label><Select className="input" value={pl.rate_type} onChange={(e) => setPlan(i, { rate_type: e.target.value })}><option value="Fixed">{tr("Fixed Rate")}</option><option value="Committee">{tr("Committee Decided")}</option></Select></div>
-                        <div><label className="label"><T>Rate Amount (₹)</T></label><NumberField prefix="₹" disabled={pl.rate_type === 'Committee'} placeholder={pl.rate_type === 'Committee' ? '—' : 'Amount'} value={pl.fee} onChange={(e) => setPlan(i, { fee: e.target.value })} /></div>
+                        <div><label className="label"><T>Plan Name *</T></label><input required className="input" placeholder={tr("Daily / Monthly…")} value={pl.plan_name} onChange={(e) => setPlan(i, { plan_name: sanitizeName(e.target.value) })} /></div>
+                        <div><label className="label"><T>Frequency / Type *</T></label><input className="input" placeholder={tr("Per Day…")} value={pl.frequency} onChange={(e) => setPlan(i, { frequency: sanitizeName(e.target.value) })} /></div>
+                        <div><label className="label"><T>Rate Amount (₹) *</T></label><NumberField required prefix="₹" placeholder={tr("Amount")} value={pl.fee} onChange={(e) => setPlan(i, { fee: e.target.value, rate_type: 'Fixed' })} /></div>
+                        <div></div>
                         <div><label className="label"><T>Validity Type *</T></label><Select className="input" value={pl.validity_type} onChange={(e) => setPlan(i, { validity_type: e.target.value })}><option value="">{tr("Select")}</option>{VALIDITY_TYPES.map((v) => <option key={v}>{v}</option>)}</Select></div>
                         <div className="grid grid-cols-2 gap-2">
                           <div><label className="label"><T>Value</T></label><NumberField value={pl.validity_value} onChange={(e) => setPlan(i, { validity_value: e.target.value })} /></div>

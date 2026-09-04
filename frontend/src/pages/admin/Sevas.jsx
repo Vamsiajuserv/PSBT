@@ -29,7 +29,7 @@ export default function Sevas() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 mb-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
         <div>
           <h1 className="font-serif text-2xl font-bold text-maroon-700">All Services</h1>
           <p className="text-sm text-gray-500 mt-1">Manage all temple poojas, sevas and special services.</p>
@@ -65,9 +65,9 @@ export default function Sevas() {
               <td className="px-4 py-3 text-gray-500 text-xs">{DURATION[s.category]}</td>
               <td className="px-4 py-3 font-bold text-maroon-700">{s.amount.toLocaleString('en-IN')}.00</td>
               <td className="px-4 py-3"><Badge tone={inactive ? 'red' : 'green'}>{inactive ? 'Inactive' : 'Active'}</Badge></td>
-              <td className="px-4 py-3 text-gray-500 text-xs max-w-[220px] truncate">{s.desc}</td>
+              <td className="px-4 py-3 text-gray-500 text-xs max-w-[220px]">{s.desc}</td>
               <td className="px-4 py-3">
-                <div className="flex gap-2 text-gray-400">
+                <div className="flex gap-2 text-gray-800">
                   <button className="hover:text-maroon-600" title="Edit"><Pencil size={15} /></button>
                   <button className="hover:text-red-500" title="Delete (admin only)"><Trash2 size={15} /></button>
                 </div>

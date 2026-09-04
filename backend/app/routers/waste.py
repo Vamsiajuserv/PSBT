@@ -49,7 +49,7 @@ def _sale(s: WasteSale) -> dict:
 # ── Vendors ──────────────────────────────────────────────────────────────────
 @router.get("/vendors")
 def list_vendors(db: Session = Depends(get_db), user=Depends(read)):
-    return [_vendor(v) for v in db.query(WasteVendor).filter(WasteVendor.active.is_(True)).order_by(WasteVendor.id).all()]
+    return [_vendor(v) for v in db.query(WasteVendor).filter(WasteVendor.active.is_(True)).order_by(WasteVendor.id.desc()).all()]
 
 
 @router.get("/vendors/stats")
@@ -70,14 +70,14 @@ def list_vendors_master(q: str = "", status: str = "", db: Session = Depends(get
         query = query.filter(WasteVendor.active.is_(True))
     elif status == "Inactive":
         query = query.filter(WasteVendor.active.is_(False))
-    return {"items": [_vendor(v) for v in query.order_by(WasteVendor.id).all()]}
+    return {"items": [_vendor(v) for v in query.order_by(WasteVendor.id.desc()).all()]}
 
 
 @router.post("/vendors")
 def create_vendor(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
-    seq = (db.query(func.count(WasteVendor.id)).scalar() or 0) + 1
-    while db.query(WasteVendor).filter(WasteVendor.code == gen_code("WV", seq, 2)).first():
-        seq += 1
+    # Use atomic counter to avoid duplicate code issues after deletions
+    max_id = db.query(func.max(WasteVendor.id)).scalar() or 0
+    seq = next_code_seq(db, "waste_vendor", max_id)
     v = WasteVendor(code=gen_code("WV", seq, 2), name=body["name"], phone=body.get("phone"),
                     material_types=body.get("material_types"), active=body.get("active", True))
     db.add(v); db.commit(); db.refresh(v)
@@ -128,7 +128,8 @@ def list_sales(q: str = "", material: str = "", mode: str = "",
     if end:
         query = query.filter(stamp <= end)
     total = query.count()
-    rows = query.order_by(WasteSale.id.desc()).offset((page - 1) * size).limit(size).all()
+    # Order by paid_at descending (present to old), then by id desc for same-day
+    rows = query.order_by(WasteSale.paid_at.desc().nullslast(), WasteSale.id.desc()).offset((page - 1) * size).limit(size).all()
     total_amount = float(db.query(func.coalesce(func.sum(WasteSale.amount), 0)).scalar() or 0)
     return {"total": total, "total_amount": total_amount, "items": [_sale(s) for s in rows]}
 

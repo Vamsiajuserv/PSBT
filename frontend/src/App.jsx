@@ -55,6 +55,7 @@ import HundiItemMaster from './pages/admin/HundiItemMaster.jsx'
 import CommitteeMaster from './pages/admin/CommitteeMaster.jsx'
 import FestivalMaster from './pages/admin/FestivalMaster.jsx'
 import Reports from './pages/admin/Reports.jsx'
+import Analytics from './pages/admin/Analytics.jsx'
 import AuditTrail from './pages/admin/AuditTrail.jsx'
 import DailyClosing from './pages/admin/DailyClosing.jsx'
 import BackupRestore from './pages/admin/BackupRestore.jsx'
@@ -145,6 +146,7 @@ export default function App() {
         <Route path="users" element={<Guard k="users"><Users /></Guard>} />
         <Route path="roles" element={<Guard k="roles"><RoleAccess /></Guard>} />
         <Route path="reports" element={<Guard k="reports"><Reports /></Guard>} />
+        <Route path="analytics" element={<Guard k="analytics"><Analytics /></Guard>} />
         <Route path="audit" element={<Guard k="audit"><AuditTrail /></Guard>} />
         <Route path="daily-closing" element={<Guard k="daily-closing"><DailyClosing /></Guard>} />
         <Route path="backup" element={<Guard k="backup"><BackupRestore /></Guard>} />

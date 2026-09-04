@@ -36,6 +36,8 @@ class User(Base):
     twofa_enabled = Column(Boolean, default=False, nullable=False)
     totp_secret = Column(String(64), nullable=True)
     last_login = Column(DateTime, nullable=True)
+    # Force password change on first login (set True when admin creates user)
+    must_change_password = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -123,6 +125,7 @@ class PoojaPlan(Base):
     validity_type = Column(String(40), nullable=True)       # Days | Months | One-Time | Life Long | Years
     validity_value = Column(Integer, nullable=True)         # e.g. 30
     validity_unit = Column(String(20), nullable=True)       # Days | Months | Years
+    tithi_type = Column(String(40), nullable=True)          # Pournami | Amavasya | null (for tithi-specific poojas)
     active = Column(Boolean, default=True, nullable=False)   # booking availability
 
     pooja = relationship("Pooja", back_populates="plans")
@@ -304,6 +307,18 @@ class Auction(Base):
     start_time = Column(String(20), nullable=True)
     notes = Column(Text, nullable=True)
     closes_on = Column(Date, nullable=True)
+    # Committee verification fields
+    verification_status = Column(String(30), default="Pending", nullable=False)  # Pending | Verified | Rejected
+    verified_by = Column(String(120), nullable=True)           # committee member who verified
+    verified_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    # Payment collection fields
+    payment_status = Column(String(20), default="Pending", nullable=False)  # Pending | Paid
+    payment_mode = Column(String(30), nullable=True)           # Cash | UPI/QR Code
+    payment_ref = Column(String(60), nullable=True)            # UPI transaction ref
+    receipt_no = Column(String(30), nullable=True)             # AUCR-2026-0001
+    paid_at = Column(DateTime, nullable=True)
+    paid_by = Column(String(60), nullable=True)                # staff who collected payment
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -615,3 +630,19 @@ class AuditLog(Base):
     detail = Column(Text, nullable=True)
     status = Column(String(20), default="SUCCESS")  # SUCCESS | FAILURE
     ip = Column(String(50), nullable=True)
+
+
+# ── Tithi Master (Pournami / Amavasya dates for tithi-specific poojas) ────────
+class Tithi(Base):
+    __tablename__ = "tithis"
+
+    id = Column(Integer, primary_key=True)
+    tithi_date = Column(Date, nullable=False, index=True)
+    tithi_type = Column(String(40), nullable=False)   # Pournami | Amavasya | Ekadashi | Chaturthi | Pradosham
+    name = Column(String(120), nullable=True)         # e.g. "Guru Pournami", "Maha Shivaratri"
+    description = Column(Text, nullable=True)
+    active = Column(Boolean, default=True, nullable=False)
+    created_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("tithi_date", "tithi_type", name="uq_tithi_date_type"),)

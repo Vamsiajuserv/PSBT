@@ -30,7 +30,7 @@ def stats(db: Session = Depends(get_db), user=Depends(require_admin)):
 
 @router.get("", response_model=list[UserOut])
 def list_users(db: Session = Depends(get_db), user=Depends(require_admin)):
-    return db.query(User).order_by(User.id).all()
+    return db.query(User).order_by(User.id.desc()).all()
 
 
 @router.get("/{uid}/totp")
@@ -75,6 +75,7 @@ def create_user(body: UserCreate, request: Request,
         modules=",".join(body.modules), password_hash=hash_password(body.password),
         twofa_enabled=body.twofa_enabled,
         totp_secret=pyotp.random_base32() if body.twofa_enabled else None,
+        must_change_password=True,  # Force password change on first login
     )
     db.add(u)
     db.commit()
@@ -93,6 +94,7 @@ def update_user(uid: int, body: UserUpdate, request: Request,
     data = body.model_dump(exclude_unset=True)
     if "password" in data and data["password"]:
         u.password_hash = hash_password(data.pop("password"))
+        u.must_change_password = True  # Force password change after admin reset
     else:
         data.pop("password", None)
     if "modules" in data and data["modules"] is not None:

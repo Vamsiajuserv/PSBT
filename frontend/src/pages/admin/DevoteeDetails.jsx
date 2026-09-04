@@ -66,10 +66,10 @@ export default function DevoteeDetails() {
   return (
     <div>
       {/* Breadcrumb + header */}
-      <div className="flex items-start justify-between gap-4 mb-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
         <div>
           <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin" className="hover:text-maroon-600"><T>Home</T></Link> › <Link to="/admin/devotees" className="hover:text-maroon-600"><T>Devotees</T></Link> › <span className="text-gray-500"><T>Devotee Details</T></span></div>
-          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800"><T>Devotee Details</T></h1>
+          <h1 className="font-serif text-2xl font-bold text-maroon-700"><T>Devotee Details</T></h1>
           <p className="text-sm text-gray-500 mt-0.5"><T>View devotee profile and linked temple activities.</T></p>
         </div>
         <div className="flex gap-2">
@@ -204,7 +204,7 @@ export default function DevoteeDetails() {
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.booked_on)}</td>
                 </tr>
               ))}
-              {d.bookings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400"><T>No pooja bookings.</T></td></tr>}
+              {d.bookings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-600"><T>No pooja bookings.</T></td></tr>}
             </Table>
           )}
 
@@ -221,7 +221,7 @@ export default function DevoteeDetails() {
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtDate(x.date)}</td>
                 </tr>
               ))}
-              {d.donations.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400"><T>No donations.</T></td></tr>}
+              {d.donations.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-600"><T>No donations.</T></td></tr>}
             </Table>
           )}
 
@@ -236,7 +236,7 @@ export default function DevoteeDetails() {
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtDate(a.date)}</td>
                 </tr>
               ))}
-              {d.annadanam.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400"><T>No annadanam sponsorships.</T></td></tr>}
+              {d.annadanam.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-600"><T>No annadanam sponsorships.</T></td></tr>}
             </Table>
           )}
 
@@ -251,7 +251,7 @@ export default function DevoteeDetails() {
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtDate(a.date)}</td>
                 </tr>
               ))}
-              {d.auction.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400"><T>No auction purchases.</T></td></tr>}
+              {d.auction.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-600"><T>No auction purchases.</T></td></tr>}
             </Table>
           )}
 

@@ -48,7 +48,7 @@ def ai_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
         query = query.filter(AuctionItem.active.is_(True))
     elif status == "Inactive":
         query = query.filter(AuctionItem.active.is_(False))
-    return {"items": [_ai(x) for x in query.order_by(AuctionItem.id).all()]}
+    return {"items": [_ai(x) for x in query.order_by(AuctionItem.id.desc()).all()]}
 
 
 @auction_items_router.post("")
@@ -109,7 +109,7 @@ def hi_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
         query = query.filter(HundiItem.active.is_(True))
     elif status == "Inactive":
         query = query.filter(HundiItem.active.is_(False))
-    return {"items": [_hi(x) for x in query.order_by(HundiItem.id).all()]}
+    return {"items": [_hi(x) for x in query.order_by(HundiItem.id.desc()).all()]}
 
 
 @hundi_items_router.post("")
@@ -168,7 +168,7 @@ def cm_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
         query = query.filter(CommitteeMember.active.is_(True))
     elif status == "Inactive":
         query = query.filter(CommitteeMember.active.is_(False))
-    return {"items": [_cm(x) for x in query.order_by(CommitteeMember.id).all()]}
+    return {"items": [_cm(x) for x in query.order_by(CommitteeMember.id.desc()).all()]}
 
 
 @committee_router.post("")
@@ -242,7 +242,7 @@ def fe_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
         query = query.filter(or_(Festival.name.ilike(f"%{q}%"), Festival.code.ilike(f"%{q}%")))
     if status:
         query = query.filter(Festival.status == status)
-    return {"items": [_fe(db, x) for x in query.order_by(Festival.start_date, Festival.id).all()]}
+    return {"items": [_fe(db, x) for x in query.order_by(Festival.start_date.desc(), Festival.id.desc()).all()]}
 
 
 @festivals_router.post("")

@@ -67,7 +67,8 @@ def list_hundi(q: str = "", verification: str = "", deposit: str = "",
     if end:
         query = query.filter(func.date(HundiCollection.collected_on) <= end)
     total = query.count()
-    rows = query.order_by(HundiCollection.id.desc()).offset((page - 1) * size).limit(size).all()
+    # Order by collected_on descending (latest to old), then by id desc for same-day
+    rows = query.order_by(HundiCollection.collected_on.desc().nullslast(), HundiCollection.id.desc()).offset((page - 1) * size).limit(size).all()
     return {"total": total, "page": page, "size": size,
             "items": [HundiOut.model_validate(r).model_dump() for r in rows]}
 
@@ -192,29 +193,48 @@ a_write = RequireModule("Auction", write=True)
 def auction_stats(db: Session = Depends(get_db), user=Depends(a_read)):
     def c(status):
         return db.query(func.count(Auction.id)).filter(Auction.status == status).scalar() or 0
+    def vc(vstatus):
+        return db.query(func.count(Auction.id)).filter(
+            Auction.status == "Completed", Auction.verification_status == vstatus).scalar() or 0
+    def pc(pstatus):
+        return db.query(func.count(Auction.id)).filter(
+            Auction.verification_status == "Verified", Auction.payment_status == pstatus).scalar() or 0
     return {
         "total": db.query(func.count(Auction.id)).filter(Auction.status != "Void").scalar() or 0,
         "scheduled": c("Scheduled"), "in_progress": c("In Progress"), "completed": c("Completed"),
+        # Verification stats
+        "pending_verification": vc("Pending"),
+        "verified": vc("Verified"),
+        "rejected": vc("Rejected"),
+        # Payment stats
+        "pending_payment": pc("Pending"),
+        "paid": pc("Paid"),
     }
 
 
 @auction_router.get("", response_model=dict)
 def list_auctions(q: str = "", status: str = "",
+                  verification: str = "", payment: str = "",
                   start: date | None = None, end: date | None = None,
                   page: int = 1, size: int = 50,
                   db: Session = Depends(get_db), user=Depends(a_read)):
     query = db.query(Auction)
     if q:
         like = f"%{q}%"
-        query = query.filter((Auction.code.ilike(like)) | (Auction.item.ilike(like)))
+        query = query.filter((Auction.code.ilike(like)) | (Auction.item.ilike(like)) | (Auction.winner.ilike(like)))
     if status:
         query = query.filter(Auction.status == status)
+    if verification:
+        query = query.filter(Auction.verification_status == verification)
+    if payment:
+        query = query.filter(Auction.payment_status == payment)
     if start:
         query = query.filter(func.date(Auction.auction_date) >= start)
     if end:
         query = query.filter(func.date(Auction.auction_date) <= end)
     total = query.count()
-    rows = query.order_by(Auction.id.desc()).offset((page - 1) * size).limit(size).all()
+    # Order by auction_date descending (present to old), then by id desc for same-day
+    rows = query.order_by(Auction.auction_date.desc().nullslast(), Auction.id.desc()).offset((page - 1) * size).limit(size).all()
     return {"total": total, "page": page, "size": size,
             "items": [AuctionOut.model_validate(r).model_dump() for r in rows]}
 
@@ -285,6 +305,89 @@ def delete_auction(aid: int, request: Request,
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
                detail=f"Voided {au.item}", ip=client_ip(request))
     db.commit()
+
+
+@auction_router.post("/{aid}/verify", response_model=AuctionOut)
+def verify_auction(aid: int, request: Request,
+                   db: Session = Depends(get_db), user=Depends(RequireRole("Committee"))):
+    """Committee (or Administrator) verifies a completed auction result.
+    Only Completed auctions with a winner can be verified."""
+    au = db.get(Auction, aid)
+    if not au:
+        raise HTTPException(404, "Auction not found")
+    if au.status != "Completed":
+        raise HTTPException(409, "Only completed auctions can be verified.")
+    if not (au.winner or "").strip():
+        raise HTTPException(422, "The auction must have a winner before verification.")
+    if au.verification_status == "Verified":
+        raise HTTPException(409, "This auction is already verified.")
+    if au.created_by and user.username == au.created_by:
+        raise HTTPException(403, "The person who recorded the auction cannot verify it.")
+    au.verification_status = "Verified"
+    au.verified_by = user.name or user.username
+    au.verified_at = datetime.utcnow()
+    au.rejection_reason = None
+    db.commit(); db.refresh(au)
+    log_action(db, username=user.username, action="UPDATE", entity="Auction",
+               detail=f"Verified {au.code} ₹{au.current_amount} winner: {au.winner}", ip=client_ip(request))
+    return au
+
+
+@auction_router.post("/{aid}/reject", response_model=AuctionOut)
+def reject_auction(aid: int, body: dict, request: Request,
+                   db: Session = Depends(get_db), user=Depends(RequireRole("Committee"))):
+    """Committee rejects a completed auction — e.g., discrepancy in bid amount or winner."""
+    au = db.get(Auction, aid)
+    if not au:
+        raise HTTPException(404, "Auction not found")
+    if au.status != "Completed":
+        raise HTTPException(409, "Only completed auctions can be rejected.")
+    if au.verification_status == "Verified":
+        raise HTTPException(409, "An already-verified auction cannot be rejected.")
+    reason = (body.get("reason") or "").strip()
+    if not reason:
+        raise HTTPException(422, "A reason is required to reject the auction.")
+    au.verification_status = "Rejected"
+    au.rejection_reason = reason
+    au.verified_by = user.name or user.username
+    au.verified_at = datetime.utcnow()
+    db.commit(); db.refresh(au)
+    log_action(db, username=user.username, action="UPDATE", entity="Auction",
+               detail=f"Rejected {au.code}: {reason[:80]}", ip=client_ip(request))
+    return au
+
+
+@auction_router.post("/{aid}/payment", response_model=AuctionOut)
+def collect_auction_payment(aid: int, body: dict, request: Request,
+                            db: Session = Depends(get_db), user=Depends(a_write)):
+    """Record payment collection from the auction winner.
+    Only verified auctions can have payment collected."""
+    au = db.get(Auction, aid)
+    if not au:
+        raise HTTPException(404, "Auction not found")
+    if au.verification_status != "Verified":
+        raise HTTPException(409, "Payment can only be collected for verified auctions.")
+    if au.payment_status == "Paid":
+        raise HTTPException(409, "Payment has already been collected for this auction.")
+    mode = (body.get("mode") or "Cash").strip()
+    if mode not in ("Cash", "UPI/QR Code"):
+        raise HTTPException(422, "Payment mode must be Cash or UPI/QR Code.")
+    if mode == "UPI/QR Code" and not (body.get("txn_ref") or "").strip():
+        raise HTTPException(422, "Transaction reference is required for UPI payments.")
+    # Generate receipt number
+    year = date.today().year
+    from ..helpers import next_code_seq
+    seq = next_code_seq(db, "auction_receipt", db.query(func.max(Auction.id)).filter(Auction.receipt_no.isnot(None)).scalar() or 0)
+    au.payment_status = "Paid"
+    au.payment_mode = mode
+    au.payment_ref = (body.get("txn_ref") or "").strip() or None
+    au.receipt_no = f"AUCR-{year}-{str(seq).zfill(4)}"
+    au.paid_at = datetime.utcnow()
+    au.paid_by = user.username
+    db.commit(); db.refresh(au)
+    log_action(db, username=user.username, action="UPDATE", entity="Auction",
+               detail=f"Payment {au.receipt_no} ₹{au.current_amount} {mode}", ip=client_ip(request))
+    return au
 
 
 # ── Annadanam ────────────────────────────────────────────────────────────────

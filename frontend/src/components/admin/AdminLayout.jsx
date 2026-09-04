@@ -3,12 +3,14 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Users as UsersIcon, Flame, HandHeart, Landmark, Gavel,
   UtensilsCrossed, Recycle, FileBarChart, ShieldCheck, Settings as SettingsIcon,
-  Menu, LogOut, Bell, Calendar, Clock, ChevronDown, ChevronRight, KeyRound, Wallet,
-  Receipt, ClipboardList, ScanLine,
+  Menu, LogOut, Bell, Calendar, Clock, ChevronDown, ChevronRight, ChevronLeft, KeyRound, Wallet,
+  Receipt, ClipboardList, ScanLine, TrendingUp,
 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey, keyOf } from '../../auth/access.js'
 import { useLang, T, tr, clock12, personName } from '../../i18n/LanguageContext.jsx'
+import { getFontScale, setFontScale } from '../../lib/fontScale.js'
+import ChangePasswordModal from './ChangePasswordModal.jsx'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -29,6 +31,7 @@ const NAV = [
       { to: '/admin/poojari-master', label: 'Poojari Master' },
       { to: '/admin/pooja-history', label: 'Pooja History' },
       { to: '/admin/calendar', label: 'Calendar' },
+      { to: '/admin/festivals', label: 'Festival Master' },
     ],
   },
   {
@@ -61,6 +64,7 @@ const NAV = [
     ],
   },
   { to: '/admin/reports', label: 'Reports', icon: FileBarChart, chevron: true },
+  { to: '/admin/analytics', label: 'Analytics & Trends', icon: TrendingUp, chevron: true },
   { to: '/admin/daily-closing', label: 'Daily Closing', icon: Wallet, chevron: true },
   { to: '/admin/users', label: 'User Management', icon: ShieldCheck, chevron: true },
   { to: '/admin/roles', label: 'Role & Access Management', icon: KeyRound, chevron: true },
@@ -69,7 +73,6 @@ const NAV = [
     children: [
       { to: '/admin/settings', label: 'System Settings' },
       { to: '/admin/committee', label: 'Committee Member Master' },
-      { to: '/admin/festivals', label: 'Festival Master' },
       { to: '/admin/notifications', label: 'Notifications' },
       { to: '/admin/audit', label: 'Audit Trail' },
       { to: '/admin/backup', label: 'Backup & Restore' },
@@ -84,6 +87,26 @@ const todayLabel = () =>
     .replace(/[A-Za-z]{3,}/g, (w) => tr(w))
 const timeLabel = () =>
   clock12(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }))
+
+// Accessibility text-size control (A− / A / A+) — bumps the whole UI via the
+// --font-scale CSS variable, remembered across visits (see lib/fontScale.js).
+function FontSizeToggle() {
+  const [level, setLevel] = useState(getFontScale())
+  const pick = (l) => setLevel(setFontScale(l))
+  const btn = (l, node, title) => (
+    <button onClick={() => pick(l)} title={title} aria-label={title}
+      className={`px-2 py-1 leading-none ${level === l ? 'bg-maroon-700 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+      {node}
+    </button>
+  )
+  return (
+    <div className="inline-flex items-stretch rounded-full border border-gray-300 overflow-hidden font-bold">
+      {btn('small', <span className="text-[0.625rem]">A−</span>, 'Smaller text')}
+      {btn('normal', <span className="text-[0.8125rem]">A</span>, 'Default text size')}
+      {btn('large', <span className="text-[1rem]">A+</span>, 'Larger text')}
+    </div>
+  )
+}
 
 function SidebarNav({ onNavigate }) {
   const location = useLocation()
@@ -110,7 +133,7 @@ function SidebarNav({ onNavigate }) {
   const [open, setOpen] = useState(activeGroup ? { [activeGroup.label]: true } : {})
 
   return (
-    <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+    <nav className="flex-1 overflow-y-auto sidebar-scroll px-3 py-3 space-y-0.5">
       {nav.map((n) => {
         const Icon = n.icon
         if (n.children) {
@@ -176,62 +199,77 @@ export default function AdminLayout() {
   const signOut = () => { logout(); navigate('/staff-login') }
 
   return (
-    <div className="min-h-screen min-h-dvh bg-cream flex">
+    <div className="h-screen h-dvh bg-cream flex overflow-hidden">
       {/* ── Sidebar ── */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream flex flex-col transition-all duration-300 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${collapsed ? 'lg:-ml-64' : 'lg:ml-0'}`}>
-        <div className="px-5 pt-5 pb-4 text-center border-b border-white/10">
+        <div className="px-5 pt-4 pb-4 text-center border-b border-white/10 relative">
           <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-20 h-20 mx-auto drop-shadow-md" />
           <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight mt-1"><T>Sri Shirdi Sai Baba Temple</T></div>
           <div className="text-[0.65625rem] text-cream/55 leading-tight mt-1"><T>Dwarkapuri Colony, Punjagutta,</T><br /><T>Hyderabad, Telangana</T></div>
+          {/* Toggle button at top right corner of logo section */}
+          <button
+            onClick={() => { setOpen(false); setCollapsed((c) => !c) }}
+            className="hidden lg:flex absolute top-2 right-2 items-center justify-center text-white/70 hover:text-white hover:bg-maroon-600 transition-colors w-8 h-8 rounded-full"
+            title={tr("Toggle sidebar")}
+            aria-label={tr("Toggle sidebar")}>
+            <ChevronLeft size={18} />
+          </button>
         </div>
 
         <SidebarNav onNavigate={() => setOpen(false)} />
-
-        <div className="px-3 pb-3">
-          <div className="rounded-xl bg-[#3a0909] border-2 border-gold-500/50 py-4 text-center shadow-inner ring-1 ring-inset ring-gold-400/15">
-            <div className="text-gold-300 text-2xl leading-none font-telugu">ॐ</div>
-            <div className="font-display text-[0.9375rem] tracking-[0.25em] text-gold-300 mt-1.5"><T>Om Sai Ram</T></div>
-          </div>
-          <div className="text-[0.625rem] text-cream/40 text-center mt-3 leading-tight"><T>© 2026 Sri Shirdi Sai Baba Temple.</T><br /><T>All rights reserved.</T></div>
-        </div>
       </aside>
+
+      {/* Toggle button when sidebar is collapsed - only icon visible */}
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="hidden lg:flex fixed left-0 top-0 z-40 w-10 h-10 bg-maroon-700 hover:bg-maroon-600 rounded-br-lg items-center justify-center text-white shadow-md transition-colors"
+          title={tr("Show sidebar")}
+          aria-label={tr("Show sidebar")}>
+          <ChevronRight size={20} />
+        </button>
+      )}
 
       {open && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setOpen(false)} />}
 
       {/* ── Main ── */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-            <button className="text-gray-500 hover:text-maroon-700" title={tr("Toggle sidebar")} aria-label={tr("Toggle sidebar")}
-              onClick={() => { setOpen((o) => !o); setCollapsed((c) => !c) }}><Menu size={22} /></button>
-            <span className="font-serif font-bold text-maroon-800 text-lg hidden sm:block"><T>Sri Shirdi Sai Baba Temple</T></span>
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <header className="h-[4.5rem] min-h-[4.5rem] shrink-0 bg-white border-b border-gray-200 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-30">
+          <div className="flex items-center gap-5">
+            <button className="lg:hidden text-gray-500 hover:text-maroon-700" title={tr("Menu")} aria-label={tr("Menu")}
+              onClick={() => setOpen((o) => !o)}><Menu size={26} /></button>
+            <span className="font-serif font-bold text-maroon-800 text-[1.5rem] hidden sm:block"><T>Sri Shirdi Sai Baba Temple</T></span>
           </div>
 
-          <div className="flex items-center gap-4 lg:gap-5">
-            <span className="hidden md:flex items-center gap-2 text-[0.8125rem] text-gray-600"><Calendar size={15} className="text-gray-400" /> {todayLabel()}</span>
-            <span className="hidden md:flex items-center gap-2 text-[0.8125rem] text-gray-600"><Clock size={15} className="text-gray-400" /> {timeLabel()}</span>
+          <div className="flex items-center gap-5 lg:gap-6">
+            <span className="hidden md:flex items-center gap-2.5 text-[0.9375rem] text-gray-600"><Calendar size={18} className="text-gray-400" /> {todayLabel()}</span>
+            <span className="hidden md:flex items-center gap-2.5 text-[0.9375rem] text-gray-600"><Clock size={18} className="text-gray-400" /> {timeLabel()}</span>
             <button onClick={toggleLang} title={tr("Switch language / భాష మార్చండి")}
-              className="px-2.5 py-1 rounded-full border border-gold-300 text-[0.71875rem] font-bold text-maroon-700 hover:bg-gold-50">
+              className="px-3.5 py-1.5 rounded-full border border-gold-300 text-[0.875rem] font-bold text-maroon-700 hover:bg-gold-50">
               {lang === 'en' ? 'తెలుగు' : tr('English')}
             </button>
             <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label={tr("Notifications")} className="relative text-gray-500 hover:text-maroon-700">
-              <Bell size={20} />
+              <Bell size={24} />
             </button>
-            <div className="flex items-center gap-2.5 pl-4 border-l border-gray-200">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 text-white grid place-items-center text-sm font-bold">{initials}</div>
-              <div className="hidden sm:block leading-tight">
-                <div className="text-[0.8125rem] font-bold text-gray-800">{name}</div>
-                <div className="text-[0.6875rem] text-gray-400">{t(roleLabel)}</div>
+            <FontSizeToggle />
+            <div className="flex items-center gap-3 pl-5 border-l border-gray-200">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 text-white grid place-items-center text-lg font-bold shadow-sm">{initials}</div>
+              <div className="hidden sm:block leading-snug">
+                <div className="text-base font-bold text-gray-800">{name}</div>
+                <div className="text-[0.875rem] text-gray-500">{t(roleLabel)}</div>
               </div>
-              <button onClick={signOut} title={tr("Sign out")} className="text-gray-400 hover:text-maroon-700 ml-1"><LogOut size={16} /></button>
+              <button onClick={signOut} title={tr("Sign out")} className="text-gray-400 hover:text-maroon-700 ml-2"><LogOut size={20} /></button>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] max-w-[100rem] w-full mx-auto">
+        <main className="flex-1 px-4 lg:px-6 pt-2 lg:pt-3 pb-[max(2.5rem,env(safe-area-inset-bottom))] max-w-[100rem] w-full mx-auto">
           <Outlet context={{ role }} />
         </main>
       </div>
+
+      {/* Force password change on first login */}
+      <ChangePasswordModal />
     </div>
   )
 }

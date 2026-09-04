@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   IndianRupee, ListChecks, ClipboardCheck, Lock, Filter,
-  Wallet, Scale, CreditCard, Info, CheckCircle2,
+  Wallet, Scale, CreditCard, Info, CheckCircle2, Unlock,
 } from 'lucide-react'
 import { inr, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
@@ -66,7 +66,10 @@ function CardHead({ icon: Icon, title }) {
 export default function DailyClosing() {
   const { lang } = useLang()
   const { user } = useAuth()
-  const canClose = user?.role !== 'Accountant' && user?.role !== 'Committee'
+  // Admin, Counter Staff, Committee, and Accountant can all close the day
+  const canClose = ['Admin', 'Administrator', 'Counter Staff', 'Committee', 'Accountant'].includes(user?.role)
+  // Only Admin can reopen a closed day
+  const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const [day, setDay] = useState(today())
   const [sum, setSum] = useState(null)
   const [actual, setActual] = useState('')
@@ -101,6 +104,15 @@ export default function DailyClosing() {
     } catch (ex) { setMsg(ex.detail || 'Failed to close the day.') } finally { setBusy(false) }
   }
 
+  async function reopenDay() {
+    if (!(await confirmDialog({ title: `${tr('Reopen Day')} — ${sum?.date}?`, message: tr('This will allow new transactions for this date. Only reopen if corrections are needed.'), tone: 'warning', confirmLabel: tr('Yes, Reopen') }))) return
+    setBusy(true); setMsg('')
+    try {
+      await DailyClosingAPI.reopen({ date: day })
+      setMsg('Day reopened successfully.'); load()
+    } catch (ex) { setMsg(ex.detail || 'Failed to reopen the day.') } finally { setBusy(false) }
+  }
+
   if (loadErr) return <ErrorBlock message={loadErr} onRetry={load} />
   if (!sum) return <LoadingBlock />
 
@@ -114,9 +126,9 @@ export default function DailyClosing() {
   return (
     <div>
       {/* ── Header ── */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
         <div>
-          <h1 className="font-serif text-[1.75rem] font-bold text-maroon-800 leading-tight"><T>Daily Closing</T></h1>
+          <h1 className="font-serif text-2xl font-bold text-maroon-700 leading-tight"><T>Daily Closing</T></h1>
           <div className="text-[0.8125rem] text-gray-400 mt-0.5"><T>Dashboard</T>{' '}<span className="mx-1">›</span>{' '}<T>Daily Closing</T></div>
         </div>
         <div className="flex items-center gap-3">
@@ -186,7 +198,7 @@ export default function DailyClosing() {
               <div className="p-5 flex items-center gap-5">
                 <div className="shrink-0"><Donut cashPct={sum.cash_pct} upiPct={sum.upi_pct} /></div>
                 <div className="flex-1 min-w-0 text-[0.8125rem]">
-                  <div className="flex text-[0.6875rem] uppercase tracking-wide text-gray-400 font-semibold pb-2 border-b border-gray-100">
+                  <div className="flex text-[0.6875rem] uppercase tracking-wide text-gray-700 font-semibold pb-2 border-b border-gray-100">
                     <span className="flex-1 min-w-0"><T>Payment Mode</T></span><span className="w-20 shrink-0 text-right"><T>Amount (₹)</T></span><span className="w-12 shrink-0 text-right">%</span>
                   </div>
                   <div className="flex items-center py-2.5 border-b border-gray-50">
@@ -261,7 +273,7 @@ export default function DailyClosing() {
               <div className="font-serif text-[0.9375rem] font-bold text-maroon-800 mb-3">Refunds ({refunds.length})</div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[0.8125rem]">
-                  <thead><tr className="text-left text-[0.6875rem] uppercase tracking-wide text-gray-500 bg-gray-50/70">
+                  <thead><tr className="text-left text-[0.6875rem] uppercase tracking-wide text-gray-700 bg-gray-50/70">
                     {['Refund No.', 'Against', 'Reason', 'Mode', 'By', 'Amount (₹)'].map((c) => <th key={c} className="px-3 py-2 font-semibold whitespace-nowrap">{tr(c)}</th>)}
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100">
@@ -290,6 +302,14 @@ export default function DailyClosing() {
               <div className="inline-flex items-center gap-2 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
                 <CheckCircle2 size={16} /> Closed by {personName({ name: sum.closed_by }, lang)} · {fmtStamp(sum.closed_at)}
               </div>
+              {/* Admin-only Reopen button */}
+              {isAdmin && (
+                <button onClick={reopenDay} disabled={busy}
+                  className="w-full mt-4 inline-flex items-center justify-center gap-2 bg-amber-50 border border-amber-300 text-amber-800 font-semibold rounded-lg py-2.5 hover:bg-amber-100 disabled:opacity-60">
+                  <Unlock size={16} /> {busy ? tr('Reopening…') : tr('Reopen Day')}
+                </button>
+              )}
+              {msg && <div className="mt-3 text-[0.8125rem] text-emerald-700">{msg}</div>}
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">

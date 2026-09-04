@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import DonationCategory
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import gen_code
+from ..helpers import gen_code, next_code_seq
 
 router = APIRouter(prefix="/api/donation-categories", tags=["donation-master"])
 read = RequireModule("Donations")   # category master edits are Administrator-only (require_admin)
@@ -37,13 +37,15 @@ def list_categories(q: str = "", type: str = "", status: str = "",
         query = query.filter(DonationCategory.type == type)
     if status:
         query = query.filter(DonationCategory.active.is_(status == "Active"))
-    rows = query.order_by(DonationCategory.id).all()
+    rows = query.order_by(DonationCategory.id.desc()).all()
     return {"items": [_dict(c) for c in rows]}
 
 
 @router.post("")
 def create_category(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
-    seq = (db.query(func.count(DonationCategory.id)).scalar() or 0) + 1
+    # Use atomic counter to avoid duplicate code issues after deletions
+    max_id = db.query(func.max(DonationCategory.id)).scalar() or 0
+    seq = next_code_seq(db, "donation_category", max_id)
     c = DonationCategory(code=body.get("code") or gen_code("CAT-", seq, 4), name=body["name"],
                          type=body.get("type", "Cash"), unit=body.get("unit"),
                          quantity_required=bool(body.get("quantity_required")),

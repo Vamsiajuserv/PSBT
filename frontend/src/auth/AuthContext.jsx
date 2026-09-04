@@ -54,11 +54,16 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
+  // Update user state (e.g., after password change)
+  function updateUser(u) {
+    applyUser(u)
+  }
+
   // Back-compat: session object mirrors old shape ({ type:'staff', role, name })
   const session = user ? { type: 'staff', role: user.role, name: user.name, email: user.email } : null
 
   return (
-    <AuthCtx.Provider value={{ user, session, ready, completeLogin, logout: signOut }}>
+    <AuthCtx.Provider value={{ user, session, ready, completeLogin, logout: signOut, updateUser }}>
       {children}
     </AuthCtx.Provider>
   )

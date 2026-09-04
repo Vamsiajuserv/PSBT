@@ -40,6 +40,7 @@ export const ACCESS = {
   'waste-sales': { module: 'Counter' },
   auction: { module: 'Auction' },
   reports: { module: 'Reports' },
+  analytics: { module: 'Reports' },
   'daily-closing': { module: 'Reports' },
   audit: { module: 'Audit' },
 
@@ -55,7 +56,7 @@ export const ACCESS = {
   'hundi-items': { adminOnly: true },
   'auction-items': { adminOnly: true },
   vendors: { adminOnly: true },
-  committee: { adminOnly: true },
+  committee: { module: 'Hundi', roles: ['Committee'] },  // Committee role for Festival Pricing
   festivals: { adminOnly: true },
   settings: { adminOnly: true },
   users: { adminOnly: true },

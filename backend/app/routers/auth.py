@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import User, AuditLog, Setting
-from ..schemas import LoginIn, TwoFAIn, TokenOut, UserOut
+from ..schemas import LoginIn, TwoFAIn, PasswordChangeIn, TokenOut, UserOut
 from ..security import (
     verify_password, hash_password, create_token, decode_token, log_action,
     get_current_user, client_ip,
@@ -94,4 +94,33 @@ def verify_2fa(body: TwoFAIn, request: Request, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
+    return user
+
+
+@router.post("/change-password", response_model=UserOut)
+def change_password(body: PasswordChangeIn, request: Request,
+                    db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Change the current user's password. Used for first-login password change
+    and voluntary password updates. Requires current password for security."""
+    ip = client_ip(request)
+
+    # Verify current password
+    if not verify_password(body.current_password, user.password_hash):
+        log_action(db, username=user.username, action="UPDATE", entity="Password",
+                   detail="Failed: incorrect current password", status_="FAILURE", ip=ip)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Current password is incorrect")
+
+    # Prevent reusing the same password
+    if verify_password(body.new_password, user.password_hash):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            "New password must be different from current password")
+
+    # Update password and clear the must_change_password flag
+    user.password_hash = hash_password(body.new_password)
+    user.must_change_password = False
+    db.commit()
+    db.refresh(user)
+
+    log_action(db, username=user.username, action="UPDATE", entity="Password",
+               detail="Password changed successfully", ip=ip)
     return user

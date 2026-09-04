@@ -1,12 +1,21 @@
 import React, { useEffect, useState } from 'react'
 import {
   Database, HardDriveDownload, RotateCcw, Table2, Download, Upload, ShieldCheck,
-  CheckCircle2, AlertTriangle, X, Loader2,
+  CheckCircle2, AlertTriangle, X, Loader2, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { BackupAPI, getToken } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+
+// Sortable columns configuration
+const SORT_COLUMNS = [
+  { key: 'kind', label: 'Type', type: 'text' },
+  { key: 'total_records', label: 'Records', type: 'number' },
+  { key: 'created_by', label: 'Created By', type: 'text' },
+  { key: 'created_at', label: 'Date', type: 'date' },
+]
 
 export default function BackupRestore() {
   const { lang } = useLang()
@@ -17,6 +26,9 @@ export default function BackupRestore() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [restore, setRestore] = useState(null)  // { snapshot, validation } or { result }
+
+  // Sorting
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(items, SORT_COLUMNS, [{ key: 'created_at', direction: 'desc' }])
 
   const load = () => Promise.all([BackupAPI.list(), BackupAPI.stats().catch(() => null)])
     .then(([d, s]) => { setItems(d.items); if (s) setStats(s) })
@@ -59,7 +71,7 @@ export default function BackupRestore() {
   if (!isAdmin) return (
     <div>
       <PageTitle title={tr("Backup & Restore")} subtitle={tr("Configuration backup and controlled restore.")} />
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center text-gray-400">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center text-gray-600">
         <ShieldCheck size={36} className="mx-auto mb-3 opacity-40" /> {tr('Backup & Restore is restricted to the Administrator role.')}
       </div>
     </div>
@@ -89,13 +101,58 @@ export default function BackupRestore() {
       {/* Backup history */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-serif text-lg font-bold text-maroon-800"><T>Backup History</T></h3></div>
+        <SortPanel sorts={sorts} columns={SORT_COLUMNS} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['File Name', 'Type', 'Records', 'Size', 'Created By', 'Date', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('File Name')}</th>
+              {['kind', 'total_records'].map((key) => {
+                const col = SORT_COLUMNS.find(c => c.key === key)
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Size')}</th>
+              {['created_by', 'created_at'].map((key) => {
+                const col = SORT_COLUMNS.find(c => c.key === key)
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((b) => (
+              {sortedRows.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-600">{b.filename}</td>
                   <td className="px-4 py-3"><Pill tone={b.kind === 'Backup' ? 'blue' : 'violet'}>{tr(b.kind)}</Pill></td>
@@ -108,7 +165,7 @@ export default function BackupRestore() {
                   </td>
                 </tr>
               ))}
-              {items.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400"><T>No backups yet. Click “Create Backup” to take a snapshot.</T></td></tr>}
+              {sortedRows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-600"><T>No backups yet. Click "Create Backup" to take a snapshot.</T></td></tr>}
             </tbody>
           </table>
         </div>

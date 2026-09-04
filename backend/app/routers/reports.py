@@ -13,17 +13,43 @@ from ..security import RequireModule
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 read = RequireModule("Reports")
 
-# Report catalog — categories → report names (mirrors the mockup's Reports List)
+# Report catalog — 4 consolidated categories for cleaner UI
 CATALOG = [
-    {"key": "pooja", "label": "Pooja Reports", "reports": ["Pooja Booking Summary", "Pooja Collection Report", "Lifelong Pooja Register"]},
-    {"key": "donation", "label": "Donation Reports", "reports": ["Donation Summary Report", "Donation Detailed Report"]},
-    {"key": "medical", "label": "Medical Donation Reports", "reports": ["Medical Donation Report"]},
-    {"key": "hundi", "label": "Hundi Reports", "reports": ["Hundi Collection Report", "Bank Deposit Report"]},
-    {"key": "auction", "label": "Auction Reports", "reports": ["Auction Sale Summary", "Auction Item Wise Report"]},
-    {"key": "annadanam", "label": "Annadanam Reports", "reports": ["Annadanam Summary Report", "Annadanam Detailed Report"]},
-    {"key": "waste", "label": "Waste Material Sales Reports", "reports": ["Waste Material Sales Report"]},
-    {"key": "general", "label": "General Reports",
-     "reports": ["Daily Cash Collection", "Festival-wise Collection", "Receipt Register", "Graph Trends"]},
+    {"key": "pooja", "label": "Pooja Reports", "reports": [
+        "Daily Pooja Summary",
+        "Pooja Booking Register",
+        "Pooja-wise Collection",
+        "Plan-wise Collection",
+        "Poojari Performance",
+        "Lifetime/Yearly Register",
+        "Scheduled Poojas",
+        "Cancelled Bookings Report",
+    ]},
+    {"key": "donation", "label": "Donation Reports", "reports": [
+        "Daily Donation Summary",
+        "Donation Register",
+        "Category-wise Donations",
+        "80G Donations Report",
+        "Annadanam Register",
+        "Annadanam Summary",
+        "Top Donors Report",
+    ]},
+    {"key": "collection", "label": "Collection Reports", "reports": [
+        "Hundi Collection Register",
+        "Hundi Bank Deposits",
+        "Auction Summary",
+        "Auction Register",
+        "Waste Sales Register",
+        "Waste Sales Summary",
+    ]},
+    {"key": "general", "label": "General Reports", "reports": [
+        "Daily Cash Collection",
+        "Consolidated Summary",
+        "Receipt Register",
+        "Festival Collection",
+        "Monthly Trends",
+        "Payment Mode Analysis",
+    ]},
 ]
 
 M = lambda k, label: {"key": k, "label": label, "type": "money"}
@@ -93,97 +119,335 @@ def _range(model, start, end, db):
 
 
 def generate(report, start, end, db):
-    if report == "Pooja Booking Summary":
-        return rep_daily(db, Booking, "amount", start, end, "payment_method",
-                         "Pooja Booking Summary", "Summary of pooja bookings and collection for the selected period.")
-    if report == "Pooja Collection Report":
+    # ══════════════════════════════════════════════════════════════════════════
+    # POOJA REPORTS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    if report == "Daily Pooja Summary":
+        buckets = _daily_summary(db, Booking, "amount", start, end, "payment_method")
+        rows, tot = [], {"count": 0, "completed": 0, "cancelled": 0, "amount": 0.0, "cash": 0.0, "upi": 0.0}
+        all_bookings = _range(Booking, start, end, db)
+        # Group by date with status counts
+        date_stats = {}
+        for b in all_bookings:
+            d = (b.created_at.date() if b.created_at else None)
+            if not d:
+                continue
+            ds = date_stats.setdefault(d, {"completed": 0, "cancelled": 0, "pending": 0})
+            if b.status == "Completed":
+                ds["completed"] += 1
+            elif b.status == "Cancelled":
+                ds["cancelled"] += 1
+            else:
+                ds["pending"] += 1
+
+        for d, b in buckets.items():
+            stats = date_stats.get(d, {})
+            rows.append({
+                "date": d.strftime("%d %b %Y"),
+                "count": b["count"],
+                "completed": stats.get("completed", 0),
+                "cancelled": stats.get("cancelled", 0),
+                "cash": b["cash"],
+                "upi": b["upi"],
+                "amount": b["amount"],
+            })
+            tot["count"] += b["count"]
+            tot["completed"] += stats.get("completed", 0)
+            tot["cancelled"] += stats.get("cancelled", 0)
+            tot["amount"] += b["amount"]
+            tot["cash"] += b["cash"]
+            tot["upi"] += b["upi"]
+        total = {"date": "Total", **tot}
+        return {
+            "title": "Daily Pooja Summary",
+            "subtitle": "Day-wise pooja booking summary with status and collection breakdown.",
+            "columns": [
+                T("date", "Date"), N("count", "Bookings"), N("completed", "Completed"),
+                N("cancelled", "Cancelled"), M("cash", "Cash (₹)"), M("upi", "UPI (₹)"), M("amount", "Total (₹)")
+            ],
+            "rows": rows, "total": total
+        }
+
+    if report == "Pooja Booking Register":
+        rows = _range(Booking, start, end, db)
+        data = []
+        for b in rows:
+            mode = b.payment_method or "Cash"
+            amt = float(b.amount or 0)
+            data.append({
+                "receipt": b.receipt_no or "-",
+                "ticket": b.ticket_no or "-",
+                "date": b.created_at.strftime("%d %b %Y %I:%M %p") if b.created_at else "-",
+                "devotee": b.devotee_name or "-",
+                "mobile": b.mobile or "-",
+                "pooja": b.seva_name or "-",
+                "plan": b.plan_name or "-",
+                "scheduled": b.scheduled_date.strftime("%d %b %Y") if b.scheduled_date else "-",
+                "slot": b.time_slot or "-",
+                "poojari": b.poojari_name or "-",
+                "mode": mode,
+                "txn_ref": b.payment_ref or "-",
+                "amount": amt,
+                "status": b.status or "-",
+            })
+        total = {
+            "receipt": "Total", "ticket": "", "date": "", "devotee": "", "mobile": "",
+            "pooja": "", "plan": "", "scheduled": "", "slot": "", "poojari": "",
+            "mode": "", "txn_ref": "", "amount": sum(r["amount"] for r in data), "status": "",
+        }
+        return {
+            "title": "Pooja Booking Register",
+            "subtitle": "Complete booking ledger with devotee, schedule, and payment details.",
+            "columns": [
+                T("receipt", "Receipt#"), T("ticket", "Ticket#"), T("date", "Date/Time"),
+                T("devotee", "Devotee"), T("mobile", "Mobile"), T("pooja", "Pooja"),
+                T("plan", "Plan"), T("scheduled", "Scheduled"), T("slot", "Slot"),
+                T("poojari", "Poojari"), T("mode", "Mode"), T("txn_ref", "UTR"),
+                M("amount", "Amount (₹)"), T("status", "Status"),
+            ],
+            "rows": data, "total": total,
+        }
+
+    if report == "Pooja-wise Collection":
         rows = _range(Booking, start, end, db)
         agg = OrderedDict()
         for b in rows:
-            a = agg.setdefault(b.seva_name, {"pooja": b.seva_name, "count": 0, "amount": 0.0})
-            a["count"] += 1; a["amount"] += float(b.amount or 0)
+            key = b.seva_name or "Unknown"
+            a = agg.setdefault(key, {"pooja": key, "category": b.category or "-", "count": 0, "completed": 0, "amount": 0.0})
+            a["count"] += 1
+            a["amount"] += float(b.amount or 0)
+            if b.status == "Completed":
+                a["completed"] += 1
         data = list(agg.values())
-        total = {"pooja": "Total", "count": sum(r["count"] for r in data), "amount": sum(r["amount"] for r in data)}
-        return {"title": "Pooja Collection Report", "subtitle": "Pooja-wise collection for the selected period.",
-                "columns": [T("pooja", "Pooja Name"), N("count", "No. of Bookings"), M("amount", "Collection Amount (₹)")],
-                "rows": data, "total": total}
-    if report == "Donation Summary Report":
+        total = {"pooja": "Total", "category": "", "count": sum(r["count"] for r in data),
+                 "completed": sum(r["completed"] for r in data), "amount": sum(r["amount"] for r in data)}
+        return {
+            "title": "Pooja-wise Collection",
+            "subtitle": "Collection grouped by pooja type for the selected period.",
+            "columns": [T("pooja", "Pooja Name"), T("category", "Category"), N("count", "Bookings"),
+                        N("completed", "Completed"), M("amount", "Collection (₹)")],
+            "rows": data, "total": total
+        }
+
+    if report == "Plan-wise Collection":
+        rows = _range(Booking, start, end, db)
+        agg = OrderedDict()
+        for b in rows:
+            key = b.plan_name or "Unknown"
+            a = agg.setdefault(key, {"plan": key, "count": 0, "amount": 0.0})
+            a["count"] += 1
+            a["amount"] += float(b.amount or 0)
+        data = list(agg.values())
+        total = {"plan": "Total", "count": sum(r["count"] for r in data), "amount": sum(r["amount"] for r in data)}
+        return {
+            "title": "Plan-wise Collection",
+            "subtitle": "Collection grouped by plan type (Daily/Monthly/Yearly/Lifetime).",
+            "columns": [T("plan", "Plan Name"), N("count", "Bookings"), M("amount", "Collection (₹)")],
+            "rows": data, "total": total
+        }
+
+    if report == "Poojari Performance":
+        rows = _range(Booking, start, end, db)
+        agg = OrderedDict()
+        for b in rows:
+            if not b.poojari_name:
+                continue
+            key = b.poojari_name
+            a = agg.setdefault(key, {"poojari": key, "assigned": 0, "completed": 0, "pending": 0, "amount": 0.0})
+            a["assigned"] += 1
+            a["amount"] += float(b.amount or 0)
+            if b.status == "Completed":
+                a["completed"] += 1
+            elif b.status not in ("Cancelled",):
+                a["pending"] += 1
+        data = list(agg.values())
+        total = {"poojari": "Total", "assigned": sum(r["assigned"] for r in data),
+                 "completed": sum(r["completed"] for r in data), "pending": sum(r["pending"] for r in data),
+                 "amount": sum(r["amount"] for r in data)}
+        return {
+            "title": "Poojari Performance",
+            "subtitle": "Poojas assigned and completed by each poojari.",
+            "columns": [T("poojari", "Poojari"), N("assigned", "Assigned"), N("completed", "Completed"),
+                        N("pending", "Pending"), M("amount", "Total Amount (₹)")],
+            "rows": data, "total": total
+        }
+
+    if report == "Scheduled Poojas":
+        from datetime import timedelta
+        # Show upcoming 30 days by default, or use provided range
+        rows = (db.query(Booking)
+                .filter(Booking.scheduled_date.between(start, end), Booking.status != "Cancelled")
+                .order_by(Booking.scheduled_date, Booking.time_slot).all())
+        data = [{
+            "date": b.scheduled_date.strftime("%d %b %Y") if b.scheduled_date else "-",
+            "slot": b.time_slot or "-",
+            "pooja": b.seva_name or "-",
+            "devotee": b.devotee_name or "-",
+            "mobile": b.mobile or "-",
+            "poojari": b.poojari_name or "-",
+            "status": b.status or "-",
+        } for b in rows]
+        return {
+            "title": "Scheduled Poojas",
+            "subtitle": "Upcoming scheduled poojas for the selected period.",
+            "columns": [T("date", "Date"), T("slot", "Slot"), T("pooja", "Pooja"), T("devotee", "Devotee"),
+                        T("mobile", "Mobile"), T("poojari", "Poojari"), T("status", "Status")],
+            "rows": data, "total": None
+        }
+
+    if report == "Cancelled Bookings Report":
+        rows = (db.query(Booking)
+                .filter(func.date(Booking.created_at).between(start, end), Booking.status == "Cancelled")
+                .order_by(Booking.id.desc()).all())
+        data = [{
+            "ticket": b.ticket_no or b.booking_code or "-",
+            "date": b.created_at.strftime("%d %b %Y") if b.created_at else "-",
+            "devotee": b.devotee_name or "-",
+            "pooja": b.seva_name or "-",
+            "amount": float(b.amount or 0),
+            "cancelled_by": b.created_by or "-",
+        } for b in rows]
+        total = {"ticket": "Total", "date": "", "devotee": "", "pooja": "",
+                 "amount": sum(r["amount"] for r in data), "cancelled_by": ""}
+        return {
+            "title": "Cancelled Bookings Report",
+            "subtitle": "All cancelled bookings for audit purposes.",
+            "columns": [T("ticket", "Ticket#"), T("date", "Booking Date"), T("devotee", "Devotee"),
+                        T("pooja", "Pooja"), M("amount", "Amount (₹)"), T("cancelled_by", "Cancelled By")],
+            "rows": data, "total": total
+        }
+    # ══════════════════════════════════════════════════════════════════════════
+    # DONATION REPORTS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    if report == "Daily Donation Summary":
         return rep_daily(db, Donation, "amount", start, end, "mode",
-                         "Donation Summary Report", "Day-wise donation collection for the selected period.")
-    if report == "Donation Detailed Report":
+                         "Daily Donation Summary", "Day-wise donation collection for the selected period.")
+
+    if report == "Donation Register":
         rows = _range(Donation, start, end, db)
-        data = [{"receipt": d.receipt_no, "date": (d.donated_on or d.created_at.date()).strftime("%d %b %Y"),
-                 "donor": d.donor_name, "category": d.fund, "amount": float(d.amount or 0), "mode": d.mode} for d in rows]
-        return {"title": "Donation Detailed Report", "subtitle": "Itemised donation records for the selected period.",
-                "columns": [T("receipt", "Receipt No."), T("date", "Date"), T("donor", "Donor"),
-                            T("category", "Category"), M("amount", "Amount (₹)"), T("mode", "Payment Mode")],
-                "rows": data, "total": {"receipt": "Total", "date": "", "donor": "", "category": "",
-                                        "amount": sum(r["amount"] for r in data), "mode": ""}}
-    if report == "Medical Donation Report":
-        rows = [d for d in _range(Donation, start, end, db) if d.fund == "Medical Donation"]
-        data = [{"receipt": d.receipt_no, "date": (d.donated_on or d.created_at.date()).strftime("%d %b %Y"),
-                 "donor": d.donor_name, "amount": float(d.amount or 0), "g80": "Yes" if d.g80 else "No", "mode": d.mode} for d in rows]
-        return {"title": "Medical Donation Report", "subtitle": "Medical donations eligible for 80G for the selected period.",
-                "columns": [T("receipt", "Receipt No."), T("date", "Date"), T("donor", "Donor"),
-                            M("amount", "Amount (₹)"), T("g80", "80G"), T("mode", "Payment Mode")],
-                "rows": data, "total": {"receipt": "Total", "date": "", "donor": "",
-                                        "amount": sum(r["amount"] for r in data), "g80": "", "mode": ""}}
-    if report == "Hundi Collection Report":
-        rows = _range(HundiCollection, start, end, db)
-        data = [{"code": h.code, "date": (h.collected_on or h.created_at.date()).strftime("%d %b %Y"),
-                 "amount": float(h.counted_amount or 0), "verification": h.verification_status,
-                 "deposit": h.deposit_status, "bank": h.bank_name or "-"} for h in rows]
-        return {"title": "Hundi Collection Report", "subtitle": "Hundi collections, verification and deposits for the selected period.",
-                "columns": [T("code", "Hundi ID"), T("date", "Collection Date"), M("amount", "Amount (₹)"),
-                            T("verification", "Verification"), T("deposit", "Deposit"), T("bank", "Bank Name")],
-                "rows": data, "total": {"code": "Total", "date": "", "amount": sum(r["amount"] for r in data),
-                                        "verification": "", "deposit": "", "bank": ""}}
-    if report == "Auction Sale Summary":
-        rows = _range(Auction, start, end, db)
-        agg = OrderedDict((s, {"status": s, "count": 0, "amount": 0.0}) for s in ["Scheduled", "In Progress", "Completed"])
-        for a in rows:
-            b = agg.setdefault(a.status, {"status": a.status, "count": 0, "amount": 0.0})
-            b["count"] += 1; b["amount"] += float(a.current_amount or 0)
-        data = [v for v in agg.values() if v["count"]]
-        return {"title": "Auction Sale Summary", "subtitle": "Auction status summary for the selected period.",
-                "columns": [T("status", "Status"), N("count", "No. of Auctions"), M("amount", "Highest Bid Total (₹)")],
-                "rows": data, "total": {"status": "Total", "count": sum(r["count"] for r in data), "amount": sum(r["amount"] for r in data)}}
-    if report == "Auction Item Wise Report":
-        rows = _range(Auction, start, end, db)
-        data = [{"code": a.code, "item": a.item, "date": (a.auction_date or (a.created_at.date() if a.created_at else None)),
-                 "bidders": a.bids, "amount": float(a.current_amount or 0), "bidder": a.winner or "-", "status": a.status} for a in rows]
-        for d in data:
-            d["date"] = d["date"].strftime("%d %b %Y") if d["date"] else "-"
-        return {"title": "Auction Item Wise Report", "subtitle": "Item-wise auction details for the selected period.",
-                "columns": [T("code", "Auction ID"), T("item", "Item Name"), T("date", "Auction Date"),
-                            N("bidders", "Bidders"), M("amount", "Highest Bid (₹)"), T("bidder", "Highest Bidder"), T("status", "Status")],
-                "rows": data, "total": {"code": "Total", "item": "", "date": "", "bidders": sum(r["bidders"] for r in data),
-                                        "amount": sum(r["amount"] for r in data), "bidder": "", "status": ""}}
-    if report == "Annadanam Summary Report":
-        return rep_daily(db, Annadanam, "amount", start, end, "mode",
-                         "Annadanam Summary Report", "Day-wise annadanam sponsorship for the selected period.", persons=True)
-    if report == "Annadanam Detailed Report":
+        data = [{
+            "receipt": d.receipt_no or "-",
+            "date": (d.donated_on or d.created_at.date()).strftime("%d %b %Y"),
+            "donor": d.donor_name or "-",
+            "mobile": d.mobile or "-",
+            "category": d.fund or "-",
+            "purpose": d.purpose or "-",
+            "amount": float(d.amount or 0),
+            "mode": d.mode or "Cash",
+            "txn_ref": d.txn_ref or "-",
+            "g80": "Yes" if d.g80 else "No",
+        } for d in rows]
+        total = {"receipt": "Total", "date": "", "donor": "", "mobile": "", "category": "",
+                 "purpose": "", "amount": sum(r["amount"] for r in data), "mode": "", "txn_ref": "", "g80": ""}
+        return {
+            "title": "Donation Register",
+            "subtitle": "Complete donation ledger with donor details and payment info.",
+            "columns": [
+                T("receipt", "Receipt#"), T("date", "Date"), T("donor", "Donor"), T("mobile", "Mobile"),
+                T("category", "Category"), T("purpose", "Purpose"), M("amount", "Amount (₹)"),
+                T("mode", "Mode"), T("txn_ref", "UTR"), T("g80", "80G")
+            ],
+            "rows": data, "total": total
+        }
+
+    if report == "Category-wise Donations":
+        rows = _range(Donation, start, end, db)
+        agg = OrderedDict()
+        for d in rows:
+            key = d.fund or "General"
+            a = agg.setdefault(key, {"category": key, "count": 0, "amount": 0.0})
+            a["count"] += 1
+            a["amount"] += float(d.amount or 0)
+        data = list(agg.values())
+        total = {"category": "Total", "count": sum(r["count"] for r in data), "amount": sum(r["amount"] for r in data)}
+        return {
+            "title": "Category-wise Donations",
+            "subtitle": "Donations grouped by fund/category.",
+            "columns": [T("category", "Category"), N("count", "Donations"), M("amount", "Amount (₹)")],
+            "rows": data, "total": total
+        }
+
+    if report == "80G Donations Report":
+        rows = [d for d in _range(Donation, start, end, db) if d.g80]
+        data = [{
+            "receipt": d.receipt_no or "-",
+            "date": (d.donated_on or d.created_at.date()).strftime("%d %b %Y"),
+            "donor": d.donor_name or "-",
+            "pan": d.pan or "-",
+            "address": d.address or "-",
+            "amount": float(d.amount or 0),
+        } for d in rows]
+        total = {"receipt": "Total", "date": "", "donor": "", "pan": "", "address": "",
+                 "amount": sum(r["amount"] for r in data)}
+        return {
+            "title": "80G Donations Report",
+            "subtitle": "Tax-deductible donations eligible for 80G certificate.",
+            "columns": [T("receipt", "Receipt#"), T("date", "Date"), T("donor", "Donor"),
+                        T("pan", "PAN"), T("address", "Address"), M("amount", "Amount (₹)")],
+            "rows": data, "total": total
+        }
+
+    if report == "Annadanam Register":
         rows = _range(Annadanam, start, end, db)
-        data = [{"receipt": a.code, "date": ((a.paid_at or a.created_at).date()).strftime("%d %b %Y"),
-                 "devotee": a.donor, "persons": a.plates, "amount": float(a.amount or 0), "mode": a.mode} for a in rows]
-        return {"title": "Annadanam Detailed Report", "subtitle": "Itemised annadanam records for the selected period.",
-                "columns": [T("receipt", "Receipt No."), T("date", "Date"), T("devotee", "Devotee"),
-                            N("persons", "No. of Persons"), M("amount", "Amount (₹)"), T("mode", "Payment Mode")],
-                "rows": data, "total": {"receipt": "Total", "date": "", "devotee": "",
-                                        "persons": sum(r["persons"] for r in data), "amount": sum(r["amount"] for r in data), "mode": ""}}
-    if report == "Waste Material Sales Report":
-        rows = _range(WasteSale, start, end, db)
-        data = [{"receipt": s.code, "date": ((s.paid_at or s.created_at).date()).strftime("%d %b %Y"),
-                 "buyer": s.vendor_name, "material": s.material, "qty": float(s.weight_kg or 0),
-                 "rate": float(s.rate or 0), "amount": float(s.amount or 0), "mode": s.mode} for s in rows]
-        return {"title": "Waste Material Sales Report", "subtitle": "Waste material sales register for the selected period.",
-                "columns": [T("receipt", "Receipt No."), T("date", "Date"), T("buyer", "Buyer"), T("material", "Material"),
-                            N("qty", "Quantity"), M("rate", "Rate (₹)"), M("amount", "Amount (₹)"), T("mode", "Payment Mode")],
-                "rows": data, "total": {"receipt": "Total", "date": "", "buyer": "", "material": "", "qty": "",
-                                        "rate": "", "amount": sum(r["amount"] for r in data), "mode": ""}}
-    if report == "Lifelong Pooja Register":
-        # Derive from the configured Life Long plan validity (not literal plan names).
-        ll_ids = [pid for (pid,) in db.query(PoojaPlan.id).filter(PoojaPlan.validity_type == "Life Long").all()]
+        data = [{
+            "receipt": a.code or "-",
+            "date": ((a.paid_at or a.created_at).date()).strftime("%d %b %Y"),
+            "sponsor": a.donor or "-",
+            "mobile": a.mobile or "-",
+            "persons": a.plates or 0,
+            "amount": float(a.amount or 0),
+            "mode": a.mode or "Cash",
+            "occasion": a.occasion or "-",
+        } for a in rows]
+        total = {"receipt": "Total", "date": "", "sponsor": "", "mobile": "",
+                 "persons": sum(r["persons"] for r in data), "amount": sum(r["amount"] for r in data),
+                 "mode": "", "occasion": ""}
+        return {
+            "title": "Annadanam Register",
+            "subtitle": "Food sponsorship details with person count.",
+            "columns": [T("receipt", "Receipt#"), T("date", "Date"), T("sponsor", "Sponsor"),
+                        T("mobile", "Mobile"), N("persons", "Persons"), M("amount", "Amount (₹)"),
+                        T("mode", "Mode"), T("occasion", "Occasion")],
+            "rows": data, "total": total
+        }
+
+    if report == "Annadanam Summary":
+        return rep_daily(db, Annadanam, "amount", start, end, "mode",
+                         "Annadanam Summary", "Day-wise annadanam sponsorship summary.", persons=True)
+
+    if report == "Top Donors Report":
+        # Aggregate donations by donor
+        rows = _range(Donation, start, end, db)
+        agg = {}
+        for d in rows:
+            key = (d.donor_name or "Anonymous", d.mobile or "")
+            a = agg.setdefault(key, {"donor": d.donor_name or "Anonymous", "mobile": d.mobile or "-",
+                                     "count": 0, "amount": 0.0, "last_date": None})
+            a["count"] += 1
+            a["amount"] += float(d.amount or 0)
+            dt = d.donated_on or (d.created_at.date() if d.created_at else None)
+            if dt and (not a["last_date"] or dt > a["last_date"]):
+                a["last_date"] = dt
+        data = sorted(agg.values(), key=lambda x: x["amount"], reverse=True)[:50]  # Top 50
+        for r in data:
+            r["last_date"] = r["last_date"].strftime("%d %b %Y") if r["last_date"] else "-"
+        total = {"donor": "Total", "mobile": "", "count": sum(r["count"] for r in data),
+                 "amount": sum(r["amount"] for r in data), "last_date": ""}
+        return {
+            "title": "Top Donors Report",
+            "subtitle": "Top 50 donors by total contribution.",
+            "columns": [T("donor", "Donor"), T("mobile", "Mobile"), N("count", "Donations"),
+                        M("amount", "Total Amount (₹)"), T("last_date", "Last Donation")],
+            "rows": data, "total": total
+        }
+
+    if report == "Lifetime/Yearly Register":
+        # Derive from the configured Life Long / Yearly plan validity
+        ll_ids = [pid for (pid,) in db.query(PoojaPlan.id).filter(
+            PoojaPlan.validity_type.in_(["Life Long", "Yearly", "Year"])
+        ).all()]
         rows = []
         if ll_ids:
             bks = (db.query(Booking).filter(Booking.plan_id.in_(ll_ids),
@@ -192,37 +456,176 @@ def generate(report, start, end, db):
             devmap = {d.id: d for d in db.query(Devotee).filter(Devotee.id.in_(dev_ids)).all()} if dev_ids else {}
             for b in bks:
                 dv = devmap.get(b.devotee_id)
-                rows.append({"code": b.booking_code, "devotee": b.devotee_name,
-                             "mobile": b.mobile or (dv.mobile if dv else "-"), "pooja": b.seva_name,
-                             "gothram": (dv.gothram if dv else None) or "-",
-                             "nakshatram": (dv.nakshatram if dv else None) or "-",
-                             "date": b.created_at.strftime("%d %b %Y") if b.created_at else "-",
-                             "amount": float(b.amount or 0), "status": b.status})
-        total = {"code": "Total", "devotee": "", "mobile": "", "pooja": "", "gothram": "", "nakshatram": "",
-                 "date": "", "amount": sum(r["amount"] for r in rows), "status": ""}
-        return {"title": "Lifelong Pooja Register",
-                "subtitle": "Devotees enrolled in Life Long validity poojas (e.g. Nithya Pooja).",
-                "columns": [T("code", "Booking ID"), T("devotee", "Devotee"), T("mobile", "Mobile"),
-                            T("pooja", "Pooja"), T("gothram", "Gothram"), T("nakshatram", "Nakshatram"),
-                            T("date", "Registered On"), M("amount", "Amount (₹)"), T("status", "Status")],
-                "rows": rows, "total": total}
+                rows.append({
+                    "code": b.booking_code or "-",
+                    "devotee": b.devotee_name or "-",
+                    "mobile": b.mobile or (dv.mobile if dv else "-") or "-",
+                    "pooja": b.seva_name or "-",
+                    "plan": b.plan_name or "-",
+                    "gothram": (dv.gothram if dv else None) or "-",
+                    "nakshatram": (dv.nakshatram if dv else None) or "-",
+                    "registered": b.created_at.strftime("%d %b %Y") if b.created_at else "-",
+                    "valid_until": b.valid_until.strftime("%d %b %Y") if b.valid_until else "Lifetime",
+                    "amount": float(b.amount or 0),
+                    "status": b.status or "-",
+                })
+        total = {"code": "Total", "devotee": "", "mobile": "", "pooja": "", "plan": "",
+                 "gothram": "", "nakshatram": "", "registered": "", "valid_until": "",
+                 "amount": sum(r["amount"] for r in rows), "status": ""}
+        return {
+            "title": "Lifetime/Yearly Register",
+            "subtitle": "Devotees enrolled in long-term validity poojas.",
+            "columns": [
+                T("code", "Booking ID"), T("devotee", "Devotee"), T("mobile", "Mobile"),
+                T("pooja", "Pooja"), T("plan", "Plan"), T("gothram", "Gothram"),
+                T("nakshatram", "Nakshatram"), T("registered", "Registered On"),
+                T("valid_until", "Valid Until"), M("amount", "Amount (₹)"), T("status", "Status")
+            ],
+            "rows": rows, "total": total
+        }
 
-    if report == "Bank Deposit Report":
+    # ══════════════════════════════════════════════════════════════════════════
+    # COLLECTION REPORTS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    if report == "Hundi Collection Register":
+        rows = _range(HundiCollection, start, end, db)
+        data = [{
+            "code": h.code or "-",
+            "date": (h.collected_on or h.created_at.date()).strftime("%d %b %Y"),
+            "amount": float(h.counted_amount or 0),
+            "verified_by": h.verified_by or "-",
+            "verification": h.verification_status or "-",
+            "deposit": h.deposit_status or "-",
+        } for h in rows]
+        total = {"code": "Total", "date": "", "amount": sum(r["amount"] for r in data),
+                 "verified_by": "", "verification": "", "deposit": ""}
+        return {
+            "title": "Hundi Collection Register",
+            "subtitle": "All hundi collections with verification status.",
+            "columns": [T("code", "Hundi ID"), T("date", "Collection Date"), M("amount", "Amount (₹)"),
+                        T("verified_by", "Verified By"), T("verification", "Verification"), T("deposit", "Deposit Status")],
+            "rows": data, "total": total
+        }
+
+    if report == "Hundi Bank Deposits":
         q = (db.query(HundiCollection).filter(HundiCollection.deposit_status == "Deposited",
              HundiCollection.deposited_on.isnot(None), HundiCollection.deposited_on.between(start, end))
              .order_by(HundiCollection.deposited_on.desc()).all())
-        rows = [{"code": h.code, "cdate": h.collected_on.strftime("%d %b %Y") if h.collected_on else "-",
-                 "amount": float(h.counted_amount or 0), "bank": h.bank_name or "-", "ref": h.bank_ref or "-",
-                 "ddate": h.deposited_on.strftime("%d %b %Y") if h.deposited_on else "-",
-                 "by": h.verified_by or "-"} for h in q]
-        total = {"code": "Total", "cdate": "", "amount": sum(r["amount"] for r in rows),
+        data = [{
+            "code": h.code or "-",
+            "cdate": h.collected_on.strftime("%d %b %Y") if h.collected_on else "-",
+            "amount": float(h.counted_amount or 0),
+            "bank": h.bank_name or "-",
+            "ref": h.bank_ref or "-",
+            "ddate": h.deposited_on.strftime("%d %b %Y") if h.deposited_on else "-",
+            "by": h.verified_by or "-",
+        } for h in q]
+        total = {"code": "Total", "cdate": "", "amount": sum(r["amount"] for r in data),
                  "bank": "", "ref": "", "ddate": "", "by": ""}
-        return {"title": "Bank Deposit Report",
-                "subtitle": "Hundi collections deposited into the bank for the selected period.",
-                "columns": [T("code", "Hundi ID"), T("cdate", "Collection Date"), M("amount", "Amount (₹)"),
-                            T("bank", "Bank Name"), T("ref", "Challan / Ref No."), T("ddate", "Deposited On"),
-                            T("by", "Verified By")],
-                "rows": rows, "total": total}
+        return {
+            "title": "Hundi Bank Deposits",
+            "subtitle": "Hundi collections deposited into the bank.",
+            "columns": [T("code", "Hundi ID"), T("cdate", "Collection Date"), M("amount", "Amount (₹)"),
+                        T("bank", "Bank"), T("ref", "Challan/Ref"), T("ddate", "Deposited On"), T("by", "Verified By")],
+            "rows": data, "total": total
+        }
+
+    if report == "Auction Summary":
+        rows = _range(Auction, start, end, db)
+        agg = OrderedDict((s, {"status": s, "count": 0, "amount": 0.0}) for s in ["Scheduled", "In Progress", "Completed"])
+        for a in rows:
+            b = agg.setdefault(a.status, {"status": a.status, "count": 0, "amount": 0.0})
+            b["count"] += 1; b["amount"] += float(a.current_amount or 0)
+        data = [v for v in agg.values() if v["count"]]
+        total = {"status": "Total", "count": sum(r["count"] for r in data), "amount": sum(r["amount"] for r in data)}
+        return {
+            "title": "Auction Summary",
+            "subtitle": "Auction status summary for the selected period.",
+            "columns": [T("status", "Status"), N("count", "No. of Auctions"), M("amount", "Highest Bid Total (₹)")],
+            "rows": data, "total": total
+        }
+    if report == "Auction Register":
+        rows = _range(Auction, start, end, db)
+        data = [{
+            "code": a.code or "-",
+            "item": a.item or "-",
+            "date": (a.auction_date or (a.created_at.date() if a.created_at else None)),
+            "bidders": a.bids or 0,
+            "amount": float(a.current_amount or 0),
+            "bidder": a.winner or "-",
+            "mobile": a.winner_mobile or "-",
+            "status": a.status or "-"
+        } for a in rows]
+        for d in data:
+            d["date"] = d["date"].strftime("%d %b %Y") if d["date"] else "-"
+        total = {
+            "code": "Total", "item": "", "date": "", "bidders": sum(r["bidders"] for r in data),
+            "amount": sum(r["amount"] for r in data), "bidder": "", "mobile": "", "status": ""
+        }
+        return {
+            "title": "Auction Register",
+            "subtitle": "Item-wise auction ledger with winner details.",
+            "columns": [
+                T("code", "Auction ID"), T("item", "Item"), T("date", "Auction Date"),
+                N("bidders", "Bidders"), M("amount", "Winning Bid (₹)"), T("bidder", "Winner"),
+                T("mobile", "Mobile"), T("status", "Status")
+            ],
+            "rows": data, "total": total
+        }
+    if report == "Waste Sales Register":
+        rows = _range(WasteSale, start, end, db)
+        data = [{
+            "receipt": s.code or "-",
+            "date": ((s.paid_at or s.created_at).date()).strftime("%d %b %Y") if (s.paid_at or s.created_at) else "-",
+            "vendor": s.vendor_name or "-",
+            "material": s.material or "-",
+            "qty": float(s.weight_kg or 0),
+            "rate": float(s.rate or 0),
+            "amount": float(s.amount or 0),
+            "mode": s.mode or "Cash",
+            "status": s.status or "-",
+        } for s in rows]
+        total = {
+            "receipt": "Total", "date": "", "vendor": "", "material": "",
+            "qty": sum(r["qty"] for r in data), "rate": "",
+            "amount": sum(r["amount"] for r in data), "mode": "", "status": ""
+        }
+        return {
+            "title": "Waste Sales Register",
+            "subtitle": "Waste material sales ledger with vendor details.",
+            "columns": [
+                T("receipt", "Receipt#"), T("date", "Date"), T("vendor", "Vendor"),
+                T("material", "Material"), N("qty", "Qty (kg)"), M("rate", "Rate (₹)"),
+                M("amount", "Amount (₹)"), T("mode", "Mode"), T("status", "Status")
+            ],
+            "rows": data, "total": total
+        }
+
+    if report == "Waste Sales Summary":
+        # Group by material type
+        rows = _range(WasteSale, start, end, db)
+        agg = OrderedDict()
+        for s in rows:
+            key = s.material or "Unknown"
+            a = agg.setdefault(key, {"material": key, "count": 0, "qty": 0.0, "amount": 0.0})
+            a["count"] += 1
+            a["qty"] += float(s.weight_kg or 0)
+            a["amount"] += float(s.amount or 0)
+        data = list(agg.values())
+        total = {
+            "material": "Total", "count": sum(r["count"] for r in data),
+            "qty": sum(r["qty"] for r in data), "amount": sum(r["amount"] for r in data)
+        }
+        return {
+            "title": "Waste Sales Summary",
+            "subtitle": "Material-wise waste sales summary.",
+            "columns": [
+                T("material", "Material"), N("count", "Transactions"),
+                N("qty", "Total Qty (kg)"), M("amount", "Amount (₹)")
+            ],
+            "rows": data, "total": total
+        }
 
     if report == "Daily Cash Collection":
         # Transaction-level across heads that carry a real payment mode. Cash vs Online
@@ -267,17 +670,15 @@ def generate(report, start, end, db):
                             M("online", "UPI / Online (₹)"), M("amount", "Total (₹)")],
                 "rows": tx, "total": total}
 
-    if report == "Festival-wise Collection":
+    if report == "Festival Collection":
         fests = db.query(Festival).filter(Festival.start_date.isnot(None), Festival.end_date.isnot(None)).all()
         rows = []
         for f in fests:
-            if f.end_date < start or f.start_date > end:   # festival window overlaps the report range?
+            if f.end_date < start or f.start_date > end:
                 continue
             pids = [int(x) for x in (f.pooja_ids or "").split(",") if x.strip().isdigit()]
             if not pids:
                 continue
-            # Exact attribution via the booking's festival link; legacy bookings
-            # (made before the link existed) fall back to the date-window inference.
             from sqlalchemy import and_ as _and, or_ as _or
             bks = (db.query(Booking).filter(
                    _or(Booking.festival_id == f.id,
@@ -289,16 +690,29 @@ def generate(report, start, end, db):
             pnames = [p.name for p in db.query(Pooja).filter(Pooja.id.in_(pids)).all()]
             period = (f.start_date.strftime("%d %b %Y") if f.start_date == f.end_date
                       else f"{f.start_date.strftime('%d %b')} – {f.end_date.strftime('%d %b %Y')}")
-            rows.append({"festival": f.name, "period": period, "poojas": ", ".join(pnames) or "-",
-                         "count": len(bks), "completed": sum(1 for b in bks if b.status == "Completed"),
-                         "amount": sum(float(b.amount or 0) for b in bks)})
-        total = {"festival": "Total", "period": "", "poojas": "", "count": sum(r["count"] for r in rows),
-                 "completed": sum(r["completed"] for r in rows), "amount": sum(r["amount"] for r in rows)}
-        return {"title": "Festival-wise Collection",
-                "subtitle": "Bookings and collection for festival-associated poojas within each festival window.",
-                "columns": [T("festival", "Festival"), T("period", "Period"), T("poojas", "Associated Poojas"),
-                            N("count", "Bookings"), N("completed", "Completed"), M("amount", "Collection (₹)")],
-                "rows": rows, "total": total}
+            rows.append({
+                "festival": f.name,
+                "period": period,
+                "poojas": ", ".join(pnames) or "-",
+                "count": len(bks),
+                "completed": sum(1 for b in bks if b.status == "Completed"),
+                "amount": sum(float(b.amount or 0) for b in bks)
+            })
+        total = {
+            "festival": "Total", "period": "", "poojas": "",
+            "count": sum(r["count"] for r in rows),
+            "completed": sum(r["completed"] for r in rows),
+            "amount": sum(r["amount"] for r in rows)
+        }
+        return {
+            "title": "Festival Collection",
+            "subtitle": "Bookings and collection for festival-associated poojas.",
+            "columns": [
+                T("festival", "Festival"), T("period", "Period"), T("poojas", "Associated Poojas"),
+                N("count", "Bookings"), N("completed", "Completed"), M("amount", "Collection (₹)")
+            ],
+            "rows": rows, "total": total
+        }
 
     if report == "Receipt Register":
         rows = []
@@ -332,9 +746,8 @@ def generate(report, start, end, db):
                             M("amount", "Amount (₹)"), T("mode", "Payment Mode")],
                 "rows": rows, "total": total}
 
-    if report == "Graph Trends":
-        # Month-wise collection trend across all heads. Plain tabular (shared contract);
-        # visual analytics live on the Dashboard, not here.
+    if report == "Monthly Trends":
+        # Month-wise collection trend across all heads
         months, y, m = [], start.year, start.month
         while (y, m) <= (end.year, end.month):
             months.append(f"{y:04d}-{m:02d}")
@@ -376,12 +789,140 @@ def generate(report, start, end, db):
                 tot[k] += v[k]
             tot["total"] += row_total
         total = {"month": "Total", **tot}
-        return {"title": "Graph Trends",
-                "subtitle": "Month-wise collection trend across all heads for the selected period.",
-                "columns": [T("month", "Month"), M("pooja", "Pooja (₹)"), M("donation", "Donations (₹)"),
-                            M("hundi", "Hundi (₹)"), M("auction", "Auction (₹)"), M("annadanam", "Annadanam (₹)"),
-                            M("waste", "Waste (₹)"), M("total", "Total (₹)")],
-                "rows": rows, "total": total}
+        return {
+            "title": "Monthly Trends",
+            "subtitle": "Month-wise collection trend across all heads.",
+            "columns": [
+                T("month", "Month"), M("pooja", "Pooja (₹)"), M("donation", "Donations (₹)"),
+                M("hundi", "Hundi (₹)"), M("auction", "Auction (₹)"), M("annadanam", "Annadanam (₹)"),
+                M("waste", "Waste (₹)"), M("total", "Total (₹)")
+            ],
+            "rows": rows, "total": total
+        }
+
+    if report == "Consolidated Summary":
+        # Summary of all collections across heads for the period
+        pooja_amt = sum(float(b.amount or 0) for b in db.query(Booking).filter(
+            func.date(Booking.created_at).between(start, end), Booking.status != "Cancelled").all())
+        pooja_count = db.query(Booking).filter(
+            func.date(Booking.created_at).between(start, end), Booking.status != "Cancelled").count()
+
+        donation_amt = sum(float(d.amount or 0) for d in db.query(Donation).filter(
+            func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all())
+        donation_count = db.query(Donation).filter(
+            func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).count()
+
+        hundi_amt = sum(float(h.counted_amount or 0) for h in db.query(HundiCollection).filter(
+            HundiCollection.collected_on.between(start, end)).all())
+        hundi_count = db.query(HundiCollection).filter(
+            HundiCollection.collected_on.between(start, end)).count()
+
+        auction_amt = sum(float(a.current_amount or 0) for a in db.query(Auction).filter(
+            Auction.status == "Completed", Auction.auction_date.between(start, end)).all())
+        auction_count = db.query(Auction).filter(
+            Auction.status == "Completed", Auction.auction_date.between(start, end)).count()
+
+        annadanam_amt = sum(float(a.amount or 0) for a in db.query(Annadanam).filter(
+            func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)).between(start, end)).all())
+        annadanam_count = db.query(Annadanam).filter(
+            func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)).between(start, end)).count()
+
+        waste_amt = sum(float(s.amount or 0) for s in db.query(WasteSale).filter(
+            func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end),
+            WasteSale.status != "Void").all())
+        waste_count = db.query(WasteSale).filter(
+            func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end),
+            WasteSale.status != "Void").count()
+
+        data = [
+            {"head": "Pooja Bookings", "count": pooja_count, "amount": pooja_amt},
+            {"head": "Donations", "count": donation_count, "amount": donation_amt},
+            {"head": "Hundi Collections", "count": hundi_count, "amount": hundi_amt},
+            {"head": "Auctions", "count": auction_count, "amount": auction_amt},
+            {"head": "Annadanam", "count": annadanam_count, "amount": annadanam_amt},
+            {"head": "Waste Sales", "count": waste_count, "amount": waste_amt},
+        ]
+        total = {
+            "head": "Grand Total",
+            "count": sum(r["count"] for r in data),
+            "amount": sum(r["amount"] for r in data)
+        }
+        return {
+            "title": "Consolidated Summary",
+            "subtitle": "Overall collection summary across all heads.",
+            "columns": [T("head", "Head"), N("count", "Transactions"), M("amount", "Amount (₹)")],
+            "rows": data, "total": total
+        }
+
+    if report == "Payment Mode Analysis":
+        # Analyze payment modes across all heads
+        modes = {"Cash": 0.0, "UPI": 0.0, "Card": 0.0, "Bank Transfer": 0.0, "Cheque": 0.0, "Online": 0.0}
+        mode_counts = {"Cash": 0, "UPI": 0, "Card": 0, "Bank Transfer": 0, "Cheque": 0, "Online": 0}
+
+        for b in db.query(Booking).filter(func.date(Booking.created_at).between(start, end),
+                                          Booking.status != "Cancelled").all():
+            m = b.payment_method or "Cash"
+            if m not in modes:
+                m = "Online" if m != "Cash" else "Cash"
+            modes[m] = modes.get(m, 0) + float(b.amount or 0)
+            mode_counts[m] = mode_counts.get(m, 0) + 1
+
+        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end),
+                                           Donation.voided.isnot(True)).all():
+            m = d.mode or "Cash"
+            if m not in modes:
+                m = "Online" if m != "Cash" else "Cash"
+            modes[m] = modes.get(m, 0) + float(d.amount or 0)
+            mode_counts[m] = mode_counts.get(m, 0) + 1
+
+        for a in db.query(Annadanam).filter(
+                func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)).between(start, end)).all():
+            m = a.mode or "Cash"
+            if m not in modes:
+                m = "Online" if m != "Cash" else "Cash"
+            modes[m] = modes.get(m, 0) + float(a.amount or 0)
+            mode_counts[m] = mode_counts.get(m, 0) + 1
+
+        for s in db.query(WasteSale).filter(
+                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end),
+                WasteSale.status != "Void").all():
+            m = s.mode or "Cash"
+            if m not in modes:
+                m = "Online" if m != "Cash" else "Cash"
+            modes[m] = modes.get(m, 0) + float(s.amount or 0)
+            mode_counts[m] = mode_counts.get(m, 0) + 1
+
+        # Add Hundi as cash
+        for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end)).all():
+            modes["Cash"] += float(h.counted_amount or 0)
+            mode_counts["Cash"] += 1
+
+        total_amt = sum(modes.values())
+        data = []
+        for m in ["Cash", "UPI", "Card", "Bank Transfer", "Cheque", "Online"]:
+            if modes.get(m, 0) > 0 or mode_counts.get(m, 0) > 0:
+                pct = (modes[m] / total_amt * 100) if total_amt > 0 else 0
+                data.append({
+                    "mode": m,
+                    "count": mode_counts[m],
+                    "amount": modes[m],
+                    "percent": f"{pct:.1f}%"
+                })
+        total = {
+            "mode": "Total",
+            "count": sum(r["count"] for r in data),
+            "amount": sum(r["amount"] for r in data),
+            "percent": "100%"
+        }
+        return {
+            "title": "Payment Mode Analysis",
+            "subtitle": "Collection breakdown by payment mode.",
+            "columns": [
+                T("mode", "Payment Mode"), N("count", "Transactions"),
+                M("amount", "Amount (₹)"), T("percent", "% Share")
+            ],
+            "rows": data, "total": total
+        }
 
     return {"title": report, "subtitle": "No data.", "columns": [], "rows": [], "total": None}
 

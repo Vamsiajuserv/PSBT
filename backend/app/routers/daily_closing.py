@@ -164,3 +164,23 @@ def close_day(body: dict, request: Request, db: Session = Depends(get_db),
     log_action(db, username=user.username, action="UPDATE", entity="DailyClosing",
                detail=f"Closed {on} · ₹{s['total']['total']:.2f}", ip=client_ip(request))
     return {"ok": True, "id": dc.id, "date": str(on)}
+
+
+@router.post("/reopen")
+def reopen_day(body: dict, request: Request, db: Session = Depends(get_db),
+               user=Depends(RequireModule("Reports", write=True))):
+    """Reopen a previously closed day. Admin only."""
+    # Check if user is Admin
+    if user.role not in ("Admin", "Administrator"):
+        raise HTTPException(403, "Only Admin can reopen a closed day.")
+
+    on = date.fromisoformat(body["date"]) if body.get("date") else date.today()
+    existing = db.query(DailyClosing).filter(DailyClosing.closing_date == on).first()
+    if not existing:
+        raise HTTPException(404, "This day is not closed.")
+
+    db.delete(existing)
+    db.commit()
+    log_action(db, username=user.username, action="DELETE", entity="DailyClosing",
+               detail=f"Reopened {on}", ip=client_ip(request))
+    return {"ok": True, "date": str(on)}

@@ -153,6 +153,10 @@ def devotee_detail(did: int, db: Session = Depends(get_db), user=Depends(read)):
 @router.post("", response_model=DevoteeOut, status_code=201)
 def create_devotee(body: DevoteeCreate, request: Request,
                    db: Session = Depends(get_db), user=Depends(write)):
+    # Check for duplicate mobile number
+    existing = db.query(Devotee).filter(Devotee.mobile == body.mobile).first()
+    if existing:
+        raise HTTPException(409, f"A devotee with mobile number {body.mobile} already exists (Code: {existing.code})")
     seq = 12458 + (db.query(func.count(Devotee.id)).scalar() or 0)
     d = Devotee(code=gen_code("DEV-", seq, 8), **body.model_dump(exclude={"family"}))
     for fm in body.family:
@@ -171,6 +175,11 @@ def update_devotee(did: int, body: DevoteeUpdate, request: Request,
     d = db.get(Devotee, did)
     if not d:
         raise HTTPException(404, "Devotee not found")
+    # Check for duplicate mobile number if mobile is being updated
+    if body.mobile and body.mobile != d.mobile:
+        existing = db.query(Devotee).filter(Devotee.mobile == body.mobile, Devotee.id != did).first()
+        if existing:
+            raise HTTPException(409, f"A devotee with mobile number {body.mobile} already exists (Code: {existing.code})")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(d, k, v)
     db.commit()

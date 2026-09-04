@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import {
   Plus, Pencil, MoreVertical, X, Search, RotateCcw, Eye, EyeOff, Save, Info, Trash2,
-  Users as UsersIcon, UserCheck, UserX, ShieldCheck,
+  Users as UsersIcon, UserCheck, UserX, ShieldCheck, ArrowUp, ArrowDown,
 } from 'lucide-react'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { UsersAPI, RolesAPI } from '../../api/client.js'
@@ -10,6 +11,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Checkbox } from '../../components/common/Field.jsx'
 import { alertDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
 
 const AVATAR_TONES = ['bg-maroon-700', 'bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600']
 const initials = (n) => (n || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
@@ -29,6 +31,7 @@ export default function Users() {
   const [showPw, setShowPw] = useState(false)
   const [menu, setMenu] = useState(null)
   const [err, setErr] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
 
@@ -66,6 +69,17 @@ export default function Users() {
   const from = filtered.length ? (pageNum - 1) * perPage + 1 : 0
   const to = Math.min(pageNum * perPage, filtered.length)
 
+  // Sortable table columns
+  const sortColumns = [
+    { key: 'name', label: 'User Name', type: 'text' },
+    { key: 'email', label: 'Email', type: 'text' },
+    { key: 'mobile', label: 'Mobile', type: 'text' },
+    { key: 'role', label: 'Role', type: 'text' },
+    { key: 'is_active', label: 'Status', type: 'text' },
+    { key: 'last_login', label: 'Last Login', type: 'date' },
+  ]
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(paged, sortColumns, [{ key: 'last_login', direction: 'desc' }])
+
   async function openCreate() {
     setTab('details'); setErr(''); setDrawer({ mode: 'create', data: emptyUser() })
   }
@@ -80,6 +94,25 @@ export default function Users() {
   async function save(e) {
     e.preventDefault()
     const d = drawer.data
+
+    // Validate fields
+    const errors = {}
+    const nameResult = validateName(d.name)
+    if (!nameResult.valid) errors.name = nameResult.error
+
+    const phoneResult = validatePhone(d.mobile)
+    if (!phoneResult.valid) errors.mobile = phoneResult.error
+
+    const emailResult = validateEmail(d.email)
+    if (!emailResult.valid) errors.email = emailResult.error
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      setErr(tr('Please fix the errors above.'))
+      return
+    }
+    setFieldErrors({})
+
     if (drawer.mode === 'create' && d.password !== d.confirm) { setErr('Passwords do not match.'); return }
     try {
       const payload = { name: d.name, email: d.email, mobile: d.mobile, role: d.role, is_active: d.is_active, modules: d.modules }
@@ -102,23 +135,45 @@ export default function Users() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 flex flex-col lg:flex-row lg:items-end gap-4">
-          <div className="flex-1 max-w-xs relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search by name, email or mobile…")} className="input pr-9" /></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Select Role</T></label><Select value={role} onChange={(e) => setRole(e.target.value)} className="input !w-48"><option value="">{tr("All Roles")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label><Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
-          <div className="lg:ml-auto flex flex-col gap-2">
-            {isAdmin && <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New User</T></button>}
-            <button onClick={load} className="btn-outline !py-2 self-end"><RotateCcw size={14} />{' '}<T>Refresh</T></button>
+        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[14rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
+            <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search by name, email or mobile…")} className="input !pl-9" /></div>
           </div>
+          <div className="min-w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Select Role</T></label><Select value={role} onChange={(e) => setRole(e.target.value)} className="input"><option value="">{tr("All Roles")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>
+          <div className="min-w-[9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label><Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
+          {isAdmin && <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New User</T></button>}
         </div>
 
+        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-amber-50/40 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['#', 'User Name', 'Email / Mobile', 'Role', 'Status', 'Last Login', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-amber-50/40 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('#')}</th>
+              {sortColumns.map((col) => {
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {paged.map((u, i) => (
+              {sortedRows.map((u, i) => (
                 <tr key={u.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 text-gray-400">{(pageNum - 1) * perPage + i + 1}</td>
                   <td className="px-4 py-3">
@@ -145,7 +200,7 @@ export default function Users() {
                           })
                         } catch (ex) { toast(ex?.detail || 'Could not fetch the 2FA setup.', 'error') }
                       }} title={tr("Show 2FA setup secret")} className="px-2 h-8 rounded-lg border border-amber-200 text-amber-700 text-[0.6875rem] font-bold hover:bg-amber-50"><T>2FA</T></button>}
-                      <button onClick={() => setMenu(menu === u.id ? null : u.id)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700"><MoreVertical size={15} /></button>
+                      <button onClick={() => setMenu(menu === u.id ? null : u.id)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700"><MoreVertical size={15} /></button>
                       {menu === u.id && (
                         <div className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-lg shadow-lg py-1 w-32 text-sm">
                           {isAdmin && <button onClick={() => openEdit(u)} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-600"><Pencil size={14} />{' '}<T>Edit</T></button>}
@@ -194,11 +249,21 @@ export default function Users() {
             <div className="px-6 py-5 space-y-4 flex-1">
               {tab === 'details' && (
                 <>
-                  <div><label className="label"><T>Full Name *</T></label><input required className="input" placeholder={tr("Enter full name")} value={drawer.data.name} onChange={(e) => setD({ name: e.target.value })} /></div>
-                  <div><label className="label"><T>Full Name (Telugu)</T></label><input className="input font-telugu" placeholder={tr("Name as written in Telugu")} value={drawer.data.name_te || ''} onChange={(e) => setD({ name_te: e.target.value })} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Shown when the user selects తెలుగు. Leave blank to keep the English spelling.</T></div></div>
-                  <div><label className="label"><T>Email ID *</T></label><input required type="email" className="input" placeholder={tr("Enter email address")} value={drawer.data.email} onChange={(e) => setD({ email: e.target.value })} /></div>
-                  <div><label className="label"><T>Mobile Number *</T></label>
-                    <div className="flex gap-2"><Select className="input !w-24"><option>+91</option></Select><input required className="input flex-1" placeholder={tr("Enter mobile number")} value={drawer.data.mobile} onChange={(e) => setD({ mobile: e.target.value })} /></div>
+                  <div>
+                    <label className="label"><T>Full Name *</T></label>
+                    <input required className={`input ${fieldErrors.name ? 'border-red-400' : ''}`} placeholder={tr("Alphabets only")} value={drawer.data.name} onChange={(e) => { setFieldErrors((p) => ({ ...p, name: null })); setD({ name: sanitizeName(e.target.value) }) }} />
+                    {fieldErrors.name && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.name}</div>}
+                  </div>
+                  <div><label className="label"><T>Full Name (Telugu)</T></label><input className="input font-telugu" placeholder={tr("Telugu / Alphabets only (no numbers)")} value={drawer.data.name_te || ''} onChange={(e) => setD({ name_te: sanitizeName(e.target.value) })} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Shown when the user selects తెలుగు. Leave blank to keep the English spelling.</T></div></div>
+                  <div>
+                    <label className="label"><T>Email ID *</T></label>
+                    <input required type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} placeholder={tr("Enter email address")} value={drawer.data.email} onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setD({ email: e.target.value }) }} />
+                    {fieldErrors.email && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.email}</div>}
+                  </div>
+                  <div>
+                    <label className="label"><T>Mobile Number *</T></label>
+                    <div className="flex gap-2"><Select className="input !w-24"><option>+91</option></Select><input required className={`input flex-1 ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("10 digits only")} maxLength={10} value={drawer.data.mobile} onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setD({ mobile: sanitizePhone(e.target.value) }) }} /></div>
+                    {fieldErrors.mobile && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.mobile}</div>}
                   </div>
                   <div><label className="label"><T>Role *</T></label><Select required className="input" value={drawer.data.role} onChange={(e) => setD({ role: e.target.value })}><option value="">{tr("Select Role")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>
                   <div><label className="label"><T>Status *</T></label><Select className="input" value={drawer.data.is_active ? tr('Active') : tr('Inactive')} onChange={(e) => setD({ is_active: e.target.value === 'Active' })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>

@@ -16,7 +16,24 @@ const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); r
 const weekday = (d) => (d ? stamp(new Date(d).toLocaleDateString('en-US', { weekday: 'long' })) : '')
 const modeLabel = (m) => tr(m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'UPI / QR Code' : (m || 'Cash'))
 function durDays(pl) { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('life')) return null; if (pl?.duration_days) return pl.duration_days; if (n.includes('monthly')) return 30; if (n.includes('year')) return 365; return 1 }
-function validityRange(pl, from) { const d = durDays(pl); if (d === null || !from) return 'Lifetime'; const to = addDays(from, d - 1); return `${d} Day${d > 1 ? 's' : ''} (${fmtDate(from)}${d > 1 ? ` to ${fmtDate(to)}` : ''})` }
+function validityRange(pl, fromDate, bookingTime) {
+  const d = durDays(pl)
+  if (d === null || !fromDate) return 'Lifetime'
+  // Calculate expiry: booking date + duration days, same time as booking
+  const from = new Date(fromDate)
+  if (bookingTime) {
+    const bt = new Date(bookingTime)
+    from.setHours(bt.getHours(), bt.getMinutes(), bt.getSeconds())
+  }
+  const validUntil = addDays(from, d)
+  // Format with time including AM/PM
+  const dateStr = fmtDate(validUntil)
+  const hours = validUntil.getHours()
+  const mins = String(validUntil.getMinutes()).padStart(2, '0')
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  const hr12 = hours % 12 || 12
+  return `${dateStr}, ${String(hr12).padStart(2, '0')}:${mins} ${ampm}`
+}
 const validityShort = (pl) => { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('daily')) return '1 Day'; if (n.includes('monthly')) return '1 Month'; if (n.includes('life')) return 'Lifetime'; if (n.includes('one')) return 'One-Time'; if (n.includes('year')) return '1 Year'; return pl?.frequency || 'Selected Date' }
 
 export default function PoojaHistoryDetails() {
@@ -37,12 +54,12 @@ export default function PoojaHistoryDetails() {
   const ticketNo = d.ticket_no || d.receipt_no
   const mode = modeLabel(d.payment_method)
   const isUpi = mode.includes('UPI')
-  const validRange = validityRange(plan, d.scheduled_date)
+  const validRange = validityRange(plan, d.scheduled_date, d.created_at)
   const completed = d.completion === 'Completed'
 
   return (
-    <div>
-      <div className="text-[0.75rem] text-gray-400 mb-1"><Link to="/admin/pooja-history" className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to="/admin/pooja-history" className="hover:text-maroon-600"><T>Pooja History</T></Link> › <span className="text-gray-500"><T>Pooja History Details</T></span></div>
+    <div className="print-modal">
+      <div className="text-[0.75rem] text-gray-400 mb-1 no-print"><Link to="/admin/pooja-history" className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to="/admin/pooja-history" className="hover:text-maroon-600"><T>Pooja History</T></Link> › <span className="text-gray-500"><T>Pooja History Details</T></span></div>
       <PageTitle title={tr("Pooja History Details")} actions={<button onClick={() => nav('/admin/pooja-history')} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Pooja History List</T></button>} />
 
       {/* Summary strip */}

@@ -2,8 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, RotateCcw, Eye, X, Printer, Calendar, Flame, CalendarCheck, Users, Infinity as InfinityIcon,
-  FileText, User, Sparkles, ClipboardList, StickyNote, Info, CheckCircle2, XCircle, Clock,
+  FileText, User, Sparkles, ClipboardList, StickyNote, Info, CheckCircle2, XCircle, Clock, ArrowUp, ArrowDown,
 } from 'lucide-react'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
@@ -26,6 +27,37 @@ const monthLabel = () => stamp(new Date().toLocaleDateString('en-US', { month: '
 const startOf = (slot) => (slot ? slot.split('-')[0].trim() : '')
 const endOf = (slot) => (slot && slot.includes('-') ? slot.split('-')[1].trim() : '')
 
+// Calculate validity end date based on plan
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+function calcValidTo(plan, fromDate, bookingTime) {
+  if (!fromDate) return null
+  const n = (plan?.plan_name || '').toLowerCase()
+  if (n.includes('life')) return null // Lifetime = no end
+  let days = plan?.duration_days
+  if (!days) {
+    if (n.includes('monthly')) days = 30
+    else if (n.includes('year')) days = 365
+    else days = 1
+  }
+  // Calculate expiry with same time as booking
+  const from = new Date(fromDate)
+  if (bookingTime) {
+    const bt = new Date(bookingTime)
+    from.setHours(bt.getHours(), bt.getMinutes(), bt.getSeconds())
+  }
+  return addDays(from, days)
+}
+function formatValidTo(plan, fromDate, bookingTime) {
+  const validUntil = calcValidTo(plan, fromDate, bookingTime)
+  if (!validUntil) return 'Lifetime'
+  const dateStr = fmtDate(validUntil)
+  const hours = validUntil.getHours()
+  const mins = String(validUntil.getMinutes()).padStart(2, '0')
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  const hr12 = hours % 12 || 12
+  return `${dateStr}, ${String(hr12).padStart(2, '0')}:${mins} ${ampm}`
+}
+
 export default function PoojaHistory() {
   const { lang } = useLang()
   const nav = useNavigate()
@@ -44,6 +76,19 @@ export default function PoojaHistory() {
   const [status, setStatus] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+
+  // Sortable table columns
+  const sortColumns = [
+    { key: 'booking_code', label: 'Booking ID', type: 'text' },
+    { key: 'devotee_name', label: 'Devotee Name', type: 'text' },
+    { key: 'pooja_name', label: 'Pooja Name', type: 'text' },
+    { key: 'plan_name', label: 'Plan', type: 'text' },
+    { key: 'poojari_name', label: 'Poojari Name', type: 'text' },
+    { key: 'scheduled_date', label: 'Performed On', type: 'date' },
+    { key: 'ticket_no', label: 'Ticket No.', type: 'text' },
+    { key: 'completion', label: 'Status', type: 'text' },
+  ]
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'scheduled_date', direction: 'desc' }])
 
   const load = useCallback(async () => {
     const [d, s] = await Promise.all([
@@ -84,13 +129,13 @@ export default function PoojaHistory() {
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Devotee / Booking ID / Ticket No.")} className="input !pl-9" /></div>
           </div>
-          <div className="flex-[2_1_15rem] min-w-0">
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
-            <div className="flex items-center gap-1.5">
-              <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-              <span className="text-gray-400">–</span>
-              <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-            </div>
+          <div className="flex-[1_1_8rem] min-w-0">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+          </div>
+          <div className="flex-[1_1_8rem] min-w-0">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
           </div>
           <div className="flex-[1_1_10rem] min-w-0">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
@@ -104,19 +149,37 @@ export default function PoojaHistory() {
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Completed">{tr("Completed")}</option><option value="Ongoing">{tr("Ongoing")}</option><option value="Cancelled">{tr("Cancelled")}</option></Select>
           </div>
-          <div className="flex gap-2 ml-auto shrink-0">
-            <button onClick={() => { setQ(''); setPooja(''); setPlan(''); setStatus(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
-            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
-          </div>
+          <button onClick={() => { setQ(''); setPooja(''); setPlan(''); setStatus(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
 
+        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Booking ID', 'Devotee Name', 'Pooja Name', 'Plan', 'Poojari Name', 'Performed On', 'Ticket No.', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {sortColumns.map((col) => {
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((b) => (
+              {sortedRows.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>
@@ -127,11 +190,11 @@ export default function PoojaHistory() {
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
                   <td className="px-4 py-3"><StatusPill completion={b.completion} /></td>
                   <td className="px-4 py-3">
-                    <button onClick={() => open(b.id)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                    <button onClick={() => open(b.id)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400"><T>No pooja records found.</T></td></tr>}
+              {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-600"><T>No pooja records found.</T></td></tr>}
             </tbody>
           </table>
         </div>
@@ -174,7 +237,7 @@ export default function PoojaHistory() {
                 <Field label={tr("Rate Amount")} value={inr(drawer.plan?.rate_amount)} />
                 <Field label={tr("Validity")} value={drawer.plan?.frequency || drawer.plan?.validity_type || '—'} />
                 <Field label={tr("Valid From")} value={fmtDate(drawer.scheduled_date)} />
-                <Field label={tr("Valid To")} value={drawer.valid_until ? fmtDate(drawer.valid_until) : fmtDate(drawer.scheduled_date)} />
+                <Field label={tr("Valid To")} value={drawer.valid_until ? fmtDate(drawer.valid_until) : formatValidTo(drawer.plan, drawer.scheduled_date, drawer.created_at)} />
               </DSection>
 
               <DSection icon={ClipboardList} n="4" title={tr("Poojari & Execution Details")}>
@@ -203,10 +266,11 @@ export default function PoojaHistory() {
       )}
 
       {printDoc && (
-        <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-4 no-print" onClick={() => setPrintDoc(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={() => setPrintDoc(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg my-auto">
             <div id="print-area">
               <Receipt title={tr("Pooja Ticket")} titleTe="పూజ టికెట్" no={printDoc.ticket_no} subNo={printDoc.booking_code} subNoLabel="Booking No" amount={printDoc.amount}
+                expiryHours={printDoc.plan?.plan_name === 'Daily' ? 24 : undefined}
                 rows={[
                   { en: 'Devotee', value: printDoc.devotee?.name },
                   { en: 'Pooja', value: printDoc.pooja_name, valueTe: te(printDoc.pooja_name) },

@@ -44,7 +44,7 @@ def _role_dict(db, r: Role, detail=False):
          "created_at": r.created_at.strftime("%d %b %Y %I:%M %p") if r.created_at else None,
          "updated_at": r.updated_at.strftime("%d %b %Y %I:%M %p") if r.updated_at else None}
     if detail:
-        users = db.query(User).filter(User.role == r.name).order_by(User.id).all()
+        users = db.query(User).filter(User.role == r.name).order_by(User.id.desc()).all()
         d["users"] = [{"id": u.id, "name": u.name, "email": u.email,
                        "status": "Active" if u.is_active else "Inactive"} for u in users]
     return d
@@ -65,7 +65,7 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
 
 @router.get("")
 def list_roles(db: Session = Depends(get_db), user=Depends(read)):
-    rows = db.query(Role).order_by(Role.id).all()
+    rows = db.query(Role).order_by(Role.id.desc()).all()
     return {"items": [_role_dict(db, r) for r in rows]}
 
 

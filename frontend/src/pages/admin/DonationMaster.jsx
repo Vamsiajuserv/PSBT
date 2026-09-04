@@ -1,13 +1,22 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Plus, Pencil, MoreVertical, X, Save, RotateCcw, Search, Info, HandHeart, Coins, Package, Users } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Save, RotateCcw, Search, Info, HandHeart, Coins, Package, Users, ArrowUp, ArrowDown } from 'lucide-react'
 import { PageTitle, Pill, num } from '../../components/admin/ui.jsx'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { DonationCategoriesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { sanitizeName } from '../../lib/validation.js'
 
 const TYPE_TONE = { Cash: 'green', Material: 'blue', Sponsorship: 'violet' }
+
+// Sortable columns configuration
+const SORT_COLUMNS = [
+  { key: 'name', label: 'Category Name', type: 'text' },
+  { key: 'type', label: 'Type', type: 'text' },
+  { key: 'active', label: 'Status', type: 'text' },
+]
 const CASH_UNITS = ['Amount']
 const MATERIAL_UNITS = ['Grams', 'Bags / Kg', 'Kg', 'Liters', 'Packet', 'Nos', 'Units']
 const emptyCat = () => ({ type: 'Cash', name: '', description: '', unit: 'Amount', quantity_required: false, active: true })
@@ -46,15 +55,27 @@ export default function DonationMaster() {
     return true
   }), [items, q, type, status])
 
+  // Sorting
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(filtered, SORT_COLUMNS, [{ key: 'name', direction: 'asc' }])
+
   function setType2(t) {
     setDrawer((d) => ({ ...d, data: { ...d.data, type: t, unit: t === 'Cash' ? 'Amount' : t === 'Material' ? 'Grams' : null, quantity_required: t === 'Material' } }))
   }
   async function save(e) {
     e.preventDefault()
     const d = drawer.data
-    if (drawer.mode === 'create') await DonationCategoriesAPI.create(d)
-    else await DonationCategoriesAPI.update(d.id, d)
-    setDrawer(null); load()
+    try {
+      if (drawer.mode === 'create') {
+        await DonationCategoriesAPI.create(d)
+        toast(tr('Category created successfully.'))
+      } else {
+        await DonationCategoriesAPI.update(d.id, d)
+        toast(tr('Category updated successfully.'))
+      }
+      setDrawer(null); load()
+    } catch (ex) {
+      toast(ex?.detail || tr('Could not save the category. Please check the details and try again.'), 'error')
+    }
   }
   async function remove(c) { if (await confirmDialog({ title: `Delete category "${c.name}"?`, message: 'This cannot be undone.', tone: 'danger', confirmLabel: tr('Delete') })) { await DonationCategoriesAPI.remove(c.id); toast('Category deleted.'); load() } }
 
@@ -77,15 +98,59 @@ export default function DonationMaster() {
           <div className="flex-1 max-w-xs relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search by Category Name…")} className="input !pl-9" /></div>
           <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Type</T></label><Select value={type} onChange={(e) => setType(e.target.value)} className="input !w-40"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="Material">{tr("Material")}</option><option value="Sponsorship">{tr("Sponsorship")}</option></Select></div>
           <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label><Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">{tr("All")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
-          <div className="flex gap-2 lg:ml-auto"><button onClick={() => { setQ(''); setType(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button><button className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button></div>
         </div>
+        <SortPanel sorts={sorts} columns={SORT_COLUMNS} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Category ID', 'Category Name', 'Type', 'Unit / Measurement', 'Quantity Required', 'Status', 'Actions'].map((c) => <th key={c} className="px-5 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Category ID')}</th>
+              {SORT_COLUMNS.filter(col => col.key === 'name' || col.key === 'type').map((col) => {
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Unit / Measurement')}</th>
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Quantity Required')}</th>
+              {(() => {
+                const col = SORT_COLUMNS.find(c => c.key === 'active')
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr('Status')}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })()}
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((c) => (
+              {sortedRows.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50/60">
                   <td className="px-5 py-3.5 font-mono text-[0.75rem] text-gray-500">{c.code}</td>
                   <td className="px-5 py-3.5 font-semibold text-gray-800">{tr(c.name)}</td>
@@ -96,17 +161,17 @@ export default function DonationMaster() {
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
                       {canWrite && <button onClick={() => setDrawer({ mode: 'edit', data: { ...c } })} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Pencil size={15} /></button>}
-                      {isAdmin && <button onClick={() => remove(c)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300"><MoreVertical size={15} /></button>}
+                      {isAdmin && <button onClick={() => remove(c)} title={tr("Delete")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-300"><Trash2 size={15} /></button>}
                     </div>
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-400"><T>No categories found.</T></td></tr>}
+              {sortedRows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-600"><T>No categories found.</T></td></tr>}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <span className="text-[0.8125rem] text-gray-500">Showing 1 to {filtered.length} of {filtered.length} categories</span>
+          <span className="text-[0.8125rem] text-gray-500">Showing 1 to {sortedRows.length} of {sortedRows.length} categories</span>
           <div className="flex items-center gap-1.5"><button disabled className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-400 opacity-40"><T>Previous</T></button><span className="w-8 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.8125rem] font-semibold">1</span><button disabled className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-400 opacity-40"><T>Next</T></button></div>
         </div>
       </div>
@@ -125,7 +190,7 @@ export default function DonationMaster() {
                 <div className="flex gap-5 mt-1">{['Cash', 'Material', 'Sponsorship'].map((t) => (
                   <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="ctype" className="accent-maroon-700" checked={dtype === t} onChange={() => setType2(t)} /> {t === 'Cash' ? 'Cash Donation' : t === 'Material' ? 'Material Donation' : 'Sponsorship'}</label>
                 ))}</div></div>
-              <div><label className="label"><T>Category Name *</T></label><input required className="input" placeholder={tr("Enter category name")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: e.target.value } })} /></div>
+              <div><label className="label"><T>Category Name *</T></label><input required className="input" placeholder={tr("Alphabets only")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: sanitizeName(e.target.value) } })} /></div>
               <div><label className="label"><T>Description (Optional)</T></label><textarea className="input min-h-[4.5rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.data.description || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
               <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Fields below will change based on the category type selected.</T></div>
               {dtype !== 'Material' && (
@@ -141,7 +206,9 @@ export default function DonationMaster() {
               </div>
               <div><label className="label"><T>Quantity Required</T></label>
                 <div className="flex gap-5 mt-1">{['Yes', 'No'].map((y) => (
-                  <label key={y} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="qreq" disabled={dtype !== 'Material'} className="accent-maroon-700" checked={drawer.data.quantity_required === (y === 'Yes')} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, quantity_required: y === 'Yes' } })} /> {y}</label>
+                  <label key={y} className={`flex items-center gap-2 text-sm ${dtype !== 'Material' ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 cursor-pointer'}`}>
+                    <input type="radio" name="qreq" disabled={dtype !== 'Material'} className="accent-maroon-700 w-4 h-4" checked={y === 'Yes' ? !!drawer.data.quantity_required : !drawer.data.quantity_required} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, quantity_required: y === 'Yes' } })} /> {y}
+                  </label>
                 ))}</div>
                 {dtype !== 'Material' && <div className="text-[0.6875rem] text-gray-400 mt-1">Quantity is not required for {dtype.toLowerCase()} donation categories.</div>}
               </div>

@@ -91,10 +91,10 @@ def dashboard(start: str = "", end: str = "", day: str = "",
     tiles = {
         "pooja_bookings": {"count": ccount(Booking), "amount": booking_amt},
         "donations": {"amount": donation_amt, "receipts": ccount(Donation)},
-        "hundi": {"amount": hundi_amt, "date": range_label},
+        "hundi": {"count": ccount(HundiCollection), "amount": hundi_amt, "date": range_label},
         "auction": {"amount": auction_amt, "date": range_label},
         "annadanam": {"count": annadanam_count, "beneficiaries": annadanam_beneficiaries},
-        "waste": {"amount": waste_amt, "weight": waste_weight},
+        "waste": {"count": ccount(WasteSale), "amount": waste_amt, "weight": waste_weight},
     }
 
     # ── Overview (range totals) ──

@@ -2,7 +2,8 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+import re
 
 
 class ORM(BaseModel):
@@ -18,6 +19,11 @@ class LoginIn(BaseModel):
 class TwoFAIn(BaseModel):
     challenge_token: str
     code: str
+
+
+class PasswordChangeIn(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=6)
 
 
 class TokenOut(BaseModel):
@@ -41,6 +47,7 @@ class UserOut(ORM):
     is_active: bool
     twofa_enabled: bool
     last_login: Optional[datetime] = None
+    must_change_password: bool = False
 
 
 class UserCreate(BaseModel):
@@ -88,7 +95,7 @@ class FamilyMemberOut(ORM):
 class DevoteeBase(BaseModel):
     name: str = Field(..., min_length=1)
     name_te: Optional[str] = None
-    mobile: str = Field(..., min_length=1)
+    mobile: str = Field(..., min_length=10, max_length=10)
     email: Optional[EmailStr] = None
     address: Optional[str] = None
     city: Optional[str] = None
@@ -98,6 +105,19 @@ class DevoteeBase(BaseModel):
     preferred_language: str = "English"
     status: str = "Active"
     notes: Optional[str] = None
+
+    @field_validator('mobile')
+    @classmethod
+    def validate_mobile(cls, v: str) -> str:
+        """Validate Indian mobile number: exactly 10 digits starting with 6-9."""
+        if not v:
+            raise ValueError('Mobile number is required')
+        # Remove any whitespace
+        v = v.strip()
+        # Check if it's exactly 10 digits
+        if not re.match(r'^[6-9]\d{9}$', v):
+            raise ValueError('Invalid mobile number. Must be 10 digits starting with 6-9')
+        return v
 
 
 class DevoteeCreate(DevoteeBase):
@@ -117,6 +137,19 @@ class DevoteeUpdate(BaseModel):
     preferred_language: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+
+    @field_validator('mobile')
+    @classmethod
+    def validate_mobile(cls, v: Optional[str]) -> Optional[str]:
+        """Validate Indian mobile number if provided: exactly 10 digits starting with 6-9."""
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            return None
+        if not re.match(r'^[6-9]\d{9}$', v):
+            raise ValueError('Invalid mobile number. Must be 10 digits starting with 6-9')
+        return v
 
 
 class DevoteeOut(ORM):
@@ -353,6 +386,18 @@ class AuctionOut(ORM):
     start_time: Optional[str] = None
     notes: Optional[str] = None
     closes_on: Optional[date] = None
+    # Committee verification fields
+    verification_status: str = "Pending"
+    verified_by: Optional[str] = None
+    verified_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+    # Payment fields
+    payment_status: str = "Pending"
+    payment_mode: Optional[str] = None
+    payment_ref: Optional[str] = None
+    receipt_no: Optional[str] = None
+    paid_at: Optional[datetime] = None
+    paid_by: Optional[str] = None
     created_at: Optional[datetime] = None
 
 

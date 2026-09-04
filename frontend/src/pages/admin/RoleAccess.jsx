@@ -11,6 +11,7 @@ import { RolesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
+import { sanitizeName } from '../../lib/validation.js'
 
 const MOD_ICON = {
   Devotees: UsersIcon, Sevas: Flame, Bookings: Flame, Donations: HeartHandshake,
@@ -95,20 +96,20 @@ export default function RoleAccess() {
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-28 text-[0.8125rem]"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
           </div>
           <div className="space-y-2">
-            {loading && <div className="py-8 text-center text-gray-400 text-sm"><T>Loading…</T></div>}
+            {loading && <div className="py-8 text-center text-gray-600 text-sm"><T>Loading…</T></div>}
             {!loading && loadErr && (
               <div className="py-8 text-center">
                 <div className="text-sm text-red-600 mb-3">{loadErr}</div>
                 <button onClick={loadAll} className="btn-outline !py-1.5 mx-auto"><RefreshCw size={14} />{' '}<T>Retry</T></button>
               </div>
             )}
-            {!loading && !loadErr && filtered.length === 0 && <div className="py-8 text-center text-gray-400 text-sm"><T>No roles found.</T></div>}
+            {!loading && !loadErr && filtered.length === 0 && <div className="py-8 text-center text-gray-600 text-sm"><T>No roles found.</T></div>}
             {!loading && !loadErr && filtered.map((r) => {
               const on = sel?.id === r.id; const Icon = r.code === 'ADMINISTRATOR' ? Crown : UsersIcon
               return (
                 <button key={r.id} onClick={() => pick(r.id)} className={`w-full flex items-center gap-3 text-left px-3 py-3 rounded-xl border transition-colors ${on ? 'border-maroon-300 bg-amber-50/60 ring-1 ring-maroon-100' : 'border-gray-100 hover:border-maroon-200'}`}>
                   <div className={`w-9 h-9 rounded-full grid place-items-center shrink-0 ${r.code === 'ADMINISTRATOR' ? 'bg-amber-100 text-amber-700' : 'bg-violet-50 text-violet-600'}`}><Icon size={17} /></div>
-                  <div className="flex-1 min-w-0"><div className="font-semibold text-gray-800 text-[0.84375rem]">{tr(r.name)}</div><div className="text-[0.71875rem] text-gray-400 truncate">{tr(r.description)}</div></div>
+                  <div className="flex-1 min-w-0"><div className="font-semibold text-gray-800 text-[0.84375rem]">{tr(r.name)}</div><div className="text-[0.71875rem] text-gray-400 leading-tight">{tr(r.description)}</div></div>
                   <Pill tone={r.active ? 'green' : 'red'}>{r.active ? tr('Active') : tr('Inactive')}</Pill>
                   <ChevronRight size={15} className="text-gray-300 shrink-0" />
                 </button>
@@ -143,7 +144,7 @@ export default function RoleAccess() {
                     {(sel.users || []).slice(0, 6).map((u, i) => (
                       <tr key={u.id}><td className="py-2 pr-2 text-gray-400">{i + 1}</td><td className="py-2 pr-2 font-medium text-gray-800">{personName(u, lang)}</td><td className="py-2 pr-2 text-gray-500 text-[0.75rem]">{u.email}</td><td className="py-2"><span className={`text-[0.75rem] font-semibold ${u.status === 'Active' ? 'text-emerald-600' : 'text-red-500'}`}>{tr(u.status)}</span></td></tr>
                     ))}
-                    {(!sel.users || sel.users.length === 0) && <tr><td colSpan={4} className="py-4 text-center text-gray-400 text-[0.8125rem]"><T>No users assigned.</T></td></tr>}
+                    {(!sel.users || sel.users.length === 0) && <tr><td colSpan={4} className="py-4 text-center text-gray-600 text-[0.8125rem]"><T>No users assigned.</T></td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -199,7 +200,7 @@ export default function RoleAccess() {
             <div className="space-y-3">
               <div>
                 <label className="label"><T>Role Name *</T></label>
-                <input autoFocus required className="input" value={creating.name} onChange={(e) => setCreating({ ...creating, name: e.target.value })} placeholder={tr("e.g. Temple Manager")} />
+                <input autoFocus required className="input" placeholder={tr("Alphabets only")} value={creating.name} onChange={(e) => setCreating({ ...creating, name: sanitizeName(e.target.value) })} />
               </div>
               <div>
                 <label className="label"><T>Description</T></label>

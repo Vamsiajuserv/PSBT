@@ -25,6 +25,11 @@ export default function FestivalMaster() {
       { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: 'Active', sub: 'Currently active' },
       { key: 'upcoming', icon: CalendarClock, color: '#d97706', bg: 'bg-amber-50', title: 'Upcoming', sub: 'Yet to start' },
     ],
+    sortColumns: [
+      { key: 'name', label: 'Festival Name', type: 'text' },
+      { key: 'start_date', label: 'Start Date', type: 'date' },
+      { key: 'status', label: 'Status', type: 'text' },
+    ],
     columns: [
       { key: 'code', label: tr('Festival ID'), mono: true },
       { key: 'name', label: tr('Festival Name'), strong: true },
@@ -33,7 +38,7 @@ export default function FestivalMaster() {
       { key: 'poojas', label: tr('Associated Poojas'), render: (r) => (r.poojas?.length ? <div className="flex flex-wrap gap-1">{r.poojas.slice(0, 3).map((p) => <Pill key={p.id} tone="maroon">{p.name}</Pill>)}{r.poojas.length > 3 && <span className="text-[0.6875rem] text-gray-400">+{r.poojas.length - 3}</span>}</div> : '—') },
     ],
     fields: [
-      { k: 'name', label: tr('Festival Name'), required: true },
+      { k: 'name', label: tr('Festival Name'), type: 'name', required: true },
       { k: 'start_date', label: tr('Start Date'), type: 'date', required: true },
       { k: 'end_date', label: tr('End Date'), type: 'date' },
       { k: 'pooja_ids', label: tr('Associated Poojas'), type: 'multiselect', options: poojaOptions },

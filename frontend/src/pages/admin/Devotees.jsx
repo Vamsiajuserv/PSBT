@@ -1,16 +1,20 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Plus, X, Eye, Search, RotateCcw, Phone, Mail, Printer, ChevronRight,
+  Plus, X, Eye, Pencil, Search, RotateCcw, Phone, Mail, Printer, ChevronRight,
   Users, CalendarPlus, HeartHandshake, HandHeart,
-  Flame, UtensilsCrossed, Gavel,
+  Flame, UtensilsCrossed, Gavel, ArrowUp, ArrowDown,
 } from 'lucide-react'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { isAdminRole } from '../../auth/access.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
+import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
+import { useTemple } from '../../lib/SiteContext.jsx'
 
 const EMPTY = { name: '', mobile: '', email: '', city: '', gothram: '', nakshatram: '', address: '', preferred_language: 'English', dob: '', status: 'Active', notes: '' }
 const PAGE_SIZE = 20
@@ -19,10 +23,95 @@ const STATUS_TONE = { Confirmed: 'green', Completed: 'green', Pending: 'amber', 
 
 const TABS = ['Overview', 'Pooja History', 'Donation History', 'Other Activities']
 
+// Print devotee summary in new window
+function printDevoteeSummary(dev, stats, temple) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Devotee Summary - ${dev.code}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; color: #000; }
+        .header { text-align: center; padding-bottom: 20px; margin-bottom: 25px; }
+        .icon { font-size: 50px; margin-bottom: 10px; }
+        .temple-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
+        .temple-address { font-size: 13px; color: #333; }
+        .section { border: 2px solid #000; margin-bottom: 20px; }
+        .section-title { background: #f5f5f5; border-bottom: 2px solid #000; padding: 12px 20px; text-align: center; font-weight: bold; font-size: 16px; text-transform: uppercase; letter-spacing: 2px; }
+        .section-subtitle { font-size: 12px; color: #555; margin-top: 5px; font-weight: normal; letter-spacing: 0; }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 12px 20px; border-bottom: 1px solid #ddd; font-size: 15px; }
+        td:first-child { color: #555; width: 140px; }
+        td:last-child { font-weight: 500; }
+        tr:last-child td { border-bottom: none; }
+        .stats-table th { border-bottom: 1px solid #ccc; padding: 12px 10px; font-size: 13px; font-weight: 600; }
+        .stats-table th:not(:last-child) { border-right: 1px solid #ccc; }
+        .stats-table td { text-align: center; padding: 20px 10px; font-size: 28px; font-weight: bold; border-bottom: none; }
+        .stats-table td:not(:last-child) { border-right: 1px solid #ccc; }
+        .footer { text-align: center; padding: 20px; }
+        .blessing { font-weight: 600; font-size: 18px; margin-bottom: 10px; }
+        .footer-text { font-size: 12px; color: #666; }
+        @media print { body { padding: 20px; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="icon">🛕</div>
+        <div class="temple-name">${temple?.name || 'Sri Shirdi Sai Baba Temple'}</div>
+        <div class="temple-address">${temple?.address || 'Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana'}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Devotee Summary<div class="section-subtitle">ID: ${dev.code || 'N/A'}</div></div>
+        <table>
+          <tr><td>Name:</td><td>${dev.name || '—'}</td></tr>
+          <tr><td>Phone:</td><td>${dev.mobile || '—'}</td></tr>
+          <tr><td>Email:</td><td>${dev.email || '—'}</td></tr>
+          <tr><td>City:</td><td>${dev.city || '—'}</td></tr>
+          <tr><td>Registered On:</td><td>${dev.registered_on ? new Date(dev.registered_on).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'}) : '—'}</td></tr>
+          <tr><td>Status:</td><td>${dev.status || 'Active'}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Activity Summary</div>
+        <table class="stats-table">
+          <tr>
+            <th>Pooja Bookings</th>
+            <th>Donations</th>
+            <th>Annadanam</th>
+            <th>Auction</th>
+          </tr>
+          <tr>
+            <td>${stats?.bookings?.count || 0}</td>
+            <td>${stats?.donations?.count || 0}</td>
+            <td>${stats?.annadanam?.persons || 0}</td>
+            <td>${stats?.auction?.count || 0}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="footer">
+        <div class="blessing">|| Om Sri Sai Ram ||</div>
+        <div class="footer-text">This is a computer-generated summary.</div>
+        <div class="footer-text">Printed on: ${new Date().toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})}</div>
+      </div>
+    </body>
+    </html>
+  `
+  const win = window.open('', '_blank', 'width=650,height=750')
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+  setTimeout(() => { win.print(); win.close() }, 300)
+}
+
 export default function Devotees() {
   const { lang } = useLang()
   const { user } = useAuth()
-  const canWrite = user?.role !== 'Accountant'
+  const isAdmin = isAdminRole(user)
+  const canWrite = isAdmin // Only Admin can add/edit devotees
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState(null)
@@ -35,9 +124,21 @@ export default function Devotees() {
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
+
+  // Sortable table columns
+  const sortColumns = [
+    { key: 'code', label: 'Devotee ID', type: 'text' },
+    { key: 'name', label: 'Devotee Name', type: 'text' },
+    { key: 'mobile', label: 'Mobile Number', type: 'text' },
+    { key: 'city', label: 'City / Location', type: 'text' },
+    { key: 'registered_on', label: 'Registered On', type: 'date' },
+    { key: 'status', label: 'Status', type: 'text' },
+  ]
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'registered_on', direction: 'desc' }])
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
@@ -64,10 +165,42 @@ export default function Devotees() {
   async function save(e) {
     e.preventDefault()
     if (saving) return
+
+    // Validate fields
+    const errors = {}
+    const nameResult = validateName(modal.data.name)
+    if (!nameResult.valid) errors.name = nameResult.error
+
+    const phoneResult = validatePhone(modal.data.mobile)
+    if (!phoneResult.valid) errors.mobile = phoneResult.error
+
+    if (modal.data.email) {
+      const emailResult = validateEmail(modal.data.email)
+      if (!emailResult.valid) errors.email = emailResult.error
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      setSaveErr(tr('Please fix the errors above.'))
+      return
+    }
+
+    setFieldErrors({})
     setSaving(true); setSaveErr('')
     try {
-      if (modal.mode === 'create') await DevoteesAPI.create(modal.data)
-      else await DevoteesAPI.update(modal.data.id, modal.data)
+      // Clean data before sending - convert empty strings to null for optional fields
+      const cleanData = { ...modal.data }
+      if (!cleanData.dob) cleanData.dob = null
+      if (!cleanData.email) cleanData.email = null
+      if (!cleanData.name_te) cleanData.name_te = null
+      if (!cleanData.address) cleanData.address = null
+      if (!cleanData.city) cleanData.city = null
+      if (!cleanData.gothram) cleanData.gothram = null
+      if (!cleanData.nakshatram) cleanData.nakshatram = null
+      if (!cleanData.notes) cleanData.notes = null
+
+      if (modal.mode === 'create') await DevoteesAPI.create(cleanData)
+      else await DevoteesAPI.update(cleanData.id, cleanData)
       setModal(null); load()
     } catch (err) {
       setSaveErr(err?.detail || 'Could not save the devotee. A duplicate mobile number is the usual cause.')
@@ -75,7 +208,15 @@ export default function Devotees() {
       setSaving(false)
     }
   }
-  function openDetail(id) { setTab('Overview'); DevoteesAPI.detail(id).then(setDetail) }
+  function openDetail(id) {
+    setTab('Overview')
+    DevoteesAPI.detail(id)
+      .then(setDetail)
+      .catch((err) => {
+        console.error('Failed to load devotee details:', err)
+        setLoadErr(err?.detail || 'Could not load devotee details. Please try again.')
+      })
+  }
 
   return (
     <div>
@@ -108,19 +249,36 @@ export default function Devotees() {
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
           </div>
-          <div className="md:col-span-3 flex gap-2 justify-end">
-            <button onClick={() => { setQ(''); setCity(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
-            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
-          </div>
         </div>
 
+        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Devotee ID', 'Devotee Name', 'Mobile Number', 'City / Location', 'Registered On', 'Status', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {sortColumns.map((col) => {
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((d) => (
+              {sortedRows.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3.5 font-mono text-[0.75rem] text-gray-500">{d.code}</td>
                   <td className="px-4 py-3.5 font-semibold text-gray-800">{personName(d, lang)}</td>
@@ -128,8 +286,9 @@ export default function Devotees() {
                   <td className="px-4 py-3.5 text-gray-600">{d.city ? tr(d.city.trim()) : '—'}</td>
                   <td className="px-4 py-3.5 text-gray-500 text-[0.8125rem]">{fmtDate(d.registered_on)}</td>
                   <td className="px-4 py-3.5"><Pill tone={d.status === 'Active' ? 'green' : 'gray'}>{d.status}</Pill></td>
-                  <td className="px-4 py-3.5">
-                    <button onClick={() => openDetail(d.id)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                  <td className="px-4 py-3.5 flex gap-1">
+                    <button onClick={() => openDetail(d.id)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                    {isAdmin && <button onClick={() => { setSaveErr(''); setModal({ mode: 'edit', data: { ...d } }) }} title={tr("Edit devotee")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
                   </td>
                 </tr>
               ))}
@@ -152,22 +311,55 @@ export default function Devotees() {
               <button type="button" onClick={() => setModal(null)} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
-              {[['name', 'Full Name *', true], ['name_te', 'Full Name (Telugu)', false], ['mobile', 'Mobile *', true], ['email', 'Email', false], ['city', 'City', false], ['gothram', 'Gothram', false], ['nakshatram', 'Nakshatram', false]].map(([k, label, req]) => (
-                <div key={k}>
-                  <label className="label">{label}</label>
-                  <input required={req} className="input" value={modal.data[k] || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, [k]: e.target.value } })} />
-                </div>
-              ))}
+              <div>
+                <label className="label"><T>Full Name</T> *</label>
+                <input required className={`input ${fieldErrors.name ? 'border-red-400' : ''}`} value={modal.data.name || ''}
+                  onChange={(e) => { setFieldErrors((p) => ({ ...p, name: null })); setModal({ ...modal, data: { ...modal.data, name: sanitizeName(e.target.value) } }) }}
+                  placeholder={tr("Alphabets only")} />
+                {fieldErrors.name && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.name}</div>}
+              </div>
+              <div>
+                <label className="label"><T>Full Name (Telugu)</T></label>
+                <input className="input" placeholder={tr("Telugu / Alphabets only (no numbers)")} value={modal.data.name_te || ''}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, name_te: sanitizeName(e.target.value) } })} />
+              </div>
+              <div>
+                <label className="label"><T>Mobile</T> *</label>
+                <input required className={`input ${fieldErrors.mobile ? 'border-red-400' : ''}`} value={modal.data.mobile || ''}
+                  onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setModal({ ...modal, data: { ...modal.data, mobile: sanitizePhone(e.target.value) } }) }}
+                  placeholder={tr("10 digits only")} maxLength={10} />
+                {fieldErrors.mobile && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.mobile}</div>}
+              </div>
+              <div>
+                <label className="label"><T>Email</T></label>
+                <input type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} value={modal.data.email || ''}
+                  onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setModal({ ...modal, data: { ...modal.data, email: e.target.value } }) }} />
+                {fieldErrors.email && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.email}</div>}
+              </div>
+              <div>
+                <label className="label"><T>City</T></label>
+                <input className="input" placeholder={tr("Alphabets only")} value={modal.data.city || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, city: sanitizeName(e.target.value) } })} />
+              </div>
+              <div>
+                <label className="label"><T>Gothram</T></label>
+                <input className="input" value={modal.data.gothram || ''}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, gothram: sanitizeName(e.target.value) } })} />
+              </div>
+              <div>
+                <label className="label"><T>Nakshatram</T></label>
+                <input className="input" value={modal.data.nakshatram || ''}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, nakshatram: sanitizeName(e.target.value) } })} />
+              </div>
               <div><label className="label"><T>Date of Birth</T></label>
                 <DateField className="input" value={modal.data.dob || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dob: e.target.value } })} />
               </div>
               <div><label className="label"><T>Status</T></label>
                 <Select className="input" value={modal.data.status || 'Active'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, status: e.target.value } })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
               </div>
-              <div className="sm:col-span-2"><label className="label"><T>Address</T></label><input className="input" value={modal.data.address || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, address: e.target.value } })} /></div>
               <div><label className="label"><T>Preferred Language</T></label>
                 <Select className="input" value={modal.data.preferred_language || 'English'} onChange={(e) => setModal({ ...modal, data: { ...modal.data, preferred_language: e.target.value } })}><option value="English">{tr("English")}</option><option value="Telugu">{tr("Telugu")}</option></Select>
               </div>
+              <div className="sm:col-span-2"><label className="label"><T>Address</T></label><input className="input" value={modal.data.address || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, address: e.target.value } })} /></div>
               <div className="sm:col-span-2"><label className="label"><T>Notes</T></label>
                 <textarea rows={3} className="input" value={modal.data.notes || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, notes: e.target.value } })} /></div>
             </div>
@@ -184,38 +376,46 @@ export default function Devotees() {
 }
 
 function DevoteeDrawer({ d, tab, setTab, onClose }) {
-  const dev = d.devotee
+  const { lang } = useLang()
+  const temple = useTemple()
+  const dev = d.devotee || {}
   const initials = (dev.name || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+
+  const bookings = d.bookings || []
+  const donations = d.donations || []
+  const annadanam = d.annadanam || []
+  const auction = d.auction || []
+  const stats = d.stats || { bookings: { count: 0 }, donations: { amount: 0 }, annadanam: { persons: 0 }, auction: { count: 0 } }
 
   const recent = useMemo(() => {
     const items = [
-      ...d.bookings.map((b) => ({ icon: Flame, tone: 'bg-blue-50 text-blue-600', title: 'Pooja Booking', sub: `${b.pooja}${b.plan ? ` (${b.plan})` : ''}`, date: b.scheduled_date || b.booked_on, amount: b.amount })),
-      ...d.donations.map((x) => ({ icon: HandHeart, tone: 'bg-emerald-50 text-emerald-600', title: 'Donation', sub: x.fund, date: x.date, amount: x.amount })),
-      ...d.annadanam.map((a) => ({ icon: UtensilsCrossed, tone: 'bg-orange-50 text-orange-600', title: 'Annadanam Sponsorship', sub: `${a.plates} Beneficiaries`, date: a.date, amount: a.amount })),
-      ...d.auction.map((a) => ({ icon: Gavel, tone: 'bg-violet-50 text-violet-600', title: 'Auction Purchase', sub: a.item, date: a.date, amount: a.amount })),
+      ...bookings.map((b) => ({ icon: Flame, tone: 'bg-blue-50 text-blue-600', title: 'Pooja Booking', sub: `${b.pooja}${b.plan ? ` (${b.plan})` : ''}`, date: b.scheduled_date || b.booked_on, amount: b.amount })),
+      ...donations.map((x) => ({ icon: HandHeart, tone: 'bg-emerald-50 text-emerald-600', title: 'Donation', sub: x.fund, date: x.date, amount: x.amount })),
+      ...annadanam.map((a) => ({ icon: UtensilsCrossed, tone: 'bg-orange-50 text-orange-600', title: 'Annadanam Sponsorship', sub: `${a.plates} Beneficiaries`, date: a.date, amount: a.amount })),
+      ...auction.map((a) => ({ icon: Gavel, tone: 'bg-violet-50 text-violet-600', title: 'Auction Purchase', sub: a.item, date: a.date, amount: a.amount })),
     ].filter((x) => x.date)
     items.sort((a, b) => new Date(b.date) - new Date(a.date))
     return items.slice(0, 6)
-  }, [d])
+  }, [bookings, donations, annadanam, auction])
 
   const SUMMARY = [
-    { icon: Flame, tone: 'bg-orange-50 text-orange-600', label: 'Pooja Bookings', value: num(d.stats.bookings.count) },
-    { icon: HandHeart, tone: 'bg-emerald-50 text-emerald-600', label: 'Donations', value: inr(d.stats.donations.amount) },
-    { icon: UtensilsCrossed, tone: 'bg-amber-50 text-amber-600', label: 'Annadanam', value: num(d.stats.annadanam.persons), sub: 'Beneficiaries' },
-    { icon: Gavel, tone: 'bg-violet-50 text-violet-600', label: 'Auction Purchases', value: num(d.stats.auction.count) },
+    { icon: Flame, tone: 'bg-orange-50 text-orange-600', label: 'Pooja Bookings', value: num(stats.bookings?.count || 0) },
+    { icon: HandHeart, tone: 'bg-emerald-50 text-emerald-600', label: 'Donations', value: inr(stats.donations?.amount || 0) },
+    { icon: UtensilsCrossed, tone: 'bg-amber-50 text-amber-600', label: 'Annadanam', value: num(stats.annadanam?.persons || 0), sub: 'Beneficiaries' },
+    { icon: Gavel, tone: 'bg-violet-50 text-violet-600', label: 'Auction Purchases', value: num(stats.auction?.count || 0) },
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
-        <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
+    <div className="fixed inset-0 z-50 flex justify-end print:static print:block">
+      <div className="absolute inset-0 bg-black/30 print:hidden" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl flex flex-col print:max-w-none print:shadow-none print:overflow-visible">
+        <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between print:hidden">
           <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Devotee Details</T></h3>
             <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>View devotee profile and activity history.</T></p></div>
           <button onClick={onClose} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
         </div>
 
-        <div className="px-6 py-5 flex-1">
+        <div className="px-6 py-5 flex-1 print:hidden">
           {/* Identity */}
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-full bg-amber-50 grid place-items-center text-amber-700 text-xl font-bold shrink-0">{initials}</div>
@@ -279,14 +479,14 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
                     </div>
                   )
                 })}
-                {recent.length === 0 && <div className="py-8 text-center text-gray-400 text-sm"><T>No recent activities.</T></div>}
+                {recent.length === 0 && <div className="py-8 text-center text-gray-600 text-sm"><T>No recent activities.</T></div>}
               </div>
             </div>
           )}
 
           {tab === 'Pooja History' && (
             <DrawerTable cols={['Booking ID', 'Pooja', 'Plan', 'Date', 'Amount', 'Status']} empty={tr("No pooja bookings.")}>
-              {d.bookings.map((b) => (
+              {bookings.map((b) => (
                 <tr key={b.booking_code} className="hover:bg-gray-50/60">
                   <td className="px-3 py-2.5 font-mono text-[0.71875rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{b.pooja}</td>
@@ -301,7 +501,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
 
           {tab === 'Donation History' && (
             <DrawerTable cols={['Receipt', 'Category', 'Type', 'Amount', 'Date']} empty={tr("No donations.")}>
-              {d.donations.map((x) => (
+              {donations.map((x) => (
                 <tr key={x.receipt_no} className="hover:bg-gray-50/60">
                   <td className="px-3 py-2.5 font-mono text-[0.71875rem] text-maroon-600">{x.receipt_no}</td>
                   <td className="px-3 py-2.5 text-gray-700">{x.fund}</td>
@@ -315,8 +515,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
 
           {tab === 'Other Activities' && (
             <DrawerTable cols={['Type', 'Detail', 'Amount', 'Date']} empty={tr("No other activities.")}>
-              {[...d.annadanam.map((a) => ({ k: 'an' + a.code, type: 'Annadanam', detail: `${a.plates} Beneficiaries · ${a.occasion || ''}`, amount: a.amount, date: a.date })),
-                ...d.auction.map((a) => ({ k: 'au' + a.code, type: 'Auction', detail: a.item, amount: a.amount, date: a.date }))].map((r) => (
+              {[...annadanam.map((a) => ({ k: 'an' + a.code, type: 'Annadanam', detail: `${a.plates} Beneficiaries · ${a.occasion || ''}`, amount: a.amount, date: a.date })),
+                ...auction.map((a) => ({ k: 'au' + a.code, type: 'Auction', detail: a.item, amount: a.amount, date: a.date }))].map((r) => (
                 <tr key={r.k} className="hover:bg-gray-50/60">
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{r.type}</td>
                   <td className="px-3 py-2.5 text-gray-600">{r.detail}</td>
@@ -328,9 +528,72 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-          <button onClick={() => window.print()} className="btn-outline flex-1 justify-center"><Printer size={15} />{' '}<T>Print Devotee Summary</T></button>
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white print:hidden">
+          <button onClick={() => printDevoteeSummary(dev, stats, temple)} className="btn-outline flex-1 justify-center"><Printer size={15} />{' '}<T>Print Devotee Summary</T></button>
           <button onClick={onClose} className="btn-maroon flex-1 justify-center"><T>Close</T></button>
+        </div>
+
+        {/* Print-only Devotee Summary - Hidden on screen via CSS, visible only when printing */}
+        <div id="print-area">
+          <div style={{ width: '170mm', margin: '0 auto', fontFamily: 'Arial, sans-serif', color: '#000', lineHeight: '1.8' }}>
+
+            {/* Temple Header - No Border */}
+            <div style={{ padding: '15px 20px', marginBottom: '25px', textAlign: 'center' }}>
+              <div style={{ fontSize: '40px', marginBottom: '8px' }}>🛕</div>
+              <div style={{ fontWeight: 'bold', fontSize: '22px', marginBottom: '5px' }}>{temple?.name || 'Sri Shirdi Sai Baba Temple'}</div>
+              <div style={{ fontSize: '14px', color: '#333' }}>{temple?.address || 'Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana'}</div>
+            </div>
+
+            {/* Devotee Details - Bordered with Title */}
+            <div style={{ border: '2px solid #000', marginBottom: '20px' }}>
+              <div style={{ background: '#f5f5f5', borderBottom: '2px solid #000', padding: '12px 20px', textAlign: 'center' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '18px', textTransform: 'uppercase', letterSpacing: '2px' }}>Devotee Summary</div>
+                <div style={{ fontSize: '13px', color: '#555', marginTop: '5px' }}>ID: {dev.code}</div>
+              </div>
+              <table style={{ width: '100%', fontSize: '16px', borderCollapse: 'collapse' }}>
+                <tbody>
+                  <tr><td style={{ padding: '12px 20px', color: '#555', width: '150px', borderBottom: '1px solid #ddd' }}>Name:</td><td style={{ padding: '12px 20px', fontWeight: '600', borderBottom: '1px solid #ddd' }}>{personName(dev, lang)}</td></tr>
+                  <tr><td style={{ padding: '12px 20px', color: '#555', borderBottom: '1px solid #ddd' }}>Phone:</td><td style={{ padding: '12px 20px', borderBottom: '1px solid #ddd' }}>{dev.mobile || '—'}</td></tr>
+                  <tr><td style={{ padding: '12px 20px', color: '#555', borderBottom: '1px solid #ddd' }}>Email:</td><td style={{ padding: '12px 20px', borderBottom: '1px solid #ddd' }}>{dev.email || '—'}</td></tr>
+                  <tr><td style={{ padding: '12px 20px', color: '#555', borderBottom: '1px solid #ddd' }}>City:</td><td style={{ padding: '12px 20px', borderBottom: '1px solid #ddd' }}>{dev.city || '—'}</td></tr>
+                  <tr><td style={{ padding: '12px 20px', color: '#555', borderBottom: '1px solid #ddd' }}>Registered On:</td><td style={{ padding: '12px 20px', borderBottom: '1px solid #ddd' }}>{fmtDate(dev.registered_on)}</td></tr>
+                  <tr><td style={{ padding: '12px 20px', color: '#555' }}>Status:</td><td style={{ padding: '12px 20px', fontWeight: '600' }}>{dev.status}</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Activity Summary - Bordered */}
+            <div style={{ border: '2px solid #000', marginBottom: '25px' }}>
+              <div style={{ background: '#f5f5f5', borderBottom: '2px solid #000', padding: '12px 20px', textAlign: 'center' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '18px', textTransform: 'uppercase', letterSpacing: '2px' }}>Activity Summary</div>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ borderRight: '1px solid #ccc', borderBottom: '1px solid #ccc', padding: '15px 10px', fontSize: '14px', fontWeight: '600' }}>Pooja Bookings</th>
+                    <th style={{ borderRight: '1px solid #ccc', borderBottom: '1px solid #ccc', padding: '15px 10px', fontSize: '14px', fontWeight: '600' }}>Donations</th>
+                    <th style={{ borderRight: '1px solid #ccc', borderBottom: '1px solid #ccc', padding: '15px 10px', fontSize: '14px', fontWeight: '600' }}>Annadanam</th>
+                    <th style={{ borderBottom: '1px solid #ccc', padding: '15px 10px', fontSize: '14px', fontWeight: '600' }}>Auction</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ borderRight: '1px solid #ccc', padding: '20px 10px', textAlign: 'center', fontWeight: 'bold', fontSize: '28px' }}>{stats.bookings?.count || 0}</td>
+                    <td style={{ borderRight: '1px solid #ccc', padding: '20px 10px', textAlign: 'center', fontWeight: 'bold', fontSize: '28px' }}>{stats.donations?.count || 0}</td>
+                    <td style={{ borderRight: '1px solid #ccc', padding: '20px 10px', textAlign: 'center', fontWeight: 'bold', fontSize: '28px' }}>{stats.annadanam?.persons || 0}</td>
+                    <td style={{ padding: '20px 10px', textAlign: 'center', fontWeight: 'bold', fontSize: '28px' }}>{stats.auction?.count || 0}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer - No Border */}
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontWeight: '600', fontSize: '18px', color: '#000' }}>|| Om Sri Sai Ram ||</div>
+              <div style={{ fontSize: '13px', color: '#000', marginTop: '10px' }}>This is a computer-generated summary.</div>
+              <div style={{ fontSize: '13px', color: '#000', marginTop: '5px' }}>Printed on: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -352,8 +615,8 @@ function DrawerTable({ cols, children, empty }) {
   return (
     <div className="mt-5 border border-gray-100 rounded-xl overflow-hidden">
       <table className="w-full text-sm">
-        <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-500">{cols.map((c) => <th key={c} className="px-3 py-2.5 font-semibold whitespace-nowrap">{tr(c)}</th>)}</tr></thead>
-        <tbody className="divide-y divide-gray-100">{body.length ? body : <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-gray-400">{empty}</td></tr>}</tbody>
+        <thead><tr className="bg-gray-50/70 text-left text-[0.65625rem] uppercase tracking-wide text-gray-700">{cols.map((c) => <th key={c} className="px-3 py-2.5 font-semibold whitespace-nowrap">{tr(c)}</th>)}</tr></thead>
+        <tbody className="divide-y divide-gray-100">{body.length ? body : <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-gray-600">{empty}</td></tr>}</tbody>
       </table>
     </div>
   )

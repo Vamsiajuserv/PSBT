@@ -1,13 +1,22 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { ScrollText, Activity, LogIn, Users, Search, RotateCcw } from 'lucide-react'
+import { ScrollText, Activity, LogIn, Users, Search, RotateCcw, ArrowUp, ArrowDown } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { AuditAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { T, tr, auditDetail, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const ACTION_TONE = { LOGIN: 'blue', CREATE: 'green', UPDATE: 'amber', DELETE: 'red', DENIED: 'red', LOGOUT: 'gray' }
 const ACTIONS = ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'DENIED']
+
+// Sortable columns configuration
+const SORT_COLUMNS = [
+  { key: 'ts', label: 'Timestamp', type: 'date' },
+  { key: 'username', label: 'User', type: 'text' },
+  { key: 'action', label: 'Action', type: 'text' },
+  { key: 'status', label: 'Status', type: 'text' },
+]
 
 export default function AuditTrail() {
   const { lang } = useLang()
@@ -24,6 +33,9 @@ export default function AuditTrail() {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const size = 20
+
+  // Sorting
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'ts', direction: 'desc' }])
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
@@ -69,17 +81,62 @@ export default function AuditTrail() {
           <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label><DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
           <div className="flex gap-2 items-end">
             <div className="flex-1"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label><DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></div>
-            <button onClick={() => { setQ(''); setAction(''); setEntity(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} /></button>
+            <button type="button" onClick={() => { setQ(''); setAction(''); setEntity(''); setStart(''); setEnd(''); setPage(1) }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
           </div>
         </div>
+        <SortPanel sorts={sorts} columns={SORT_COLUMNS} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Timestamp', 'User', 'Action', 'Entity', 'Detail', 'Status', 'IP Address'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {['ts', 'username', 'action'].map((key) => {
+                const col = SORT_COLUMNS.find(c => c.key === key)
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Entity')}</th>
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Detail')}</th>
+              {(() => {
+                const col = SORT_COLUMNS.find(c => c.key === 'status')
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr('Status')}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })()}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('IP Address')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((r) => (
+              {sortedRows.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(r.ts)}</td>
                   <td className="px-4 py-3">
@@ -97,7 +154,7 @@ export default function AuditTrail() {
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-400">{r.ip || '—'}</td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No audit events found.")} />}
+              {sortedRows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No audit events found.")} />}
             </tbody>
           </table>
         </div>

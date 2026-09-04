@@ -2,13 +2,14 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Search, Eye, Ticket, RotateCcw, SlidersHorizontal, Ban, CheckCircle2,
-  Flame, CalendarDays, CalendarRange, TicketCheck, Clock, ChevronLeft, ChevronRight,
-  CalendarClock, CalendarPlus,
+  ChevronLeft, ChevronRight, CalendarClock, CalendarPlus, Users, X,
+  ArrowUp, ArrowDown,
 } from 'lucide-react'
-import { BookingsAPI, PoojasAPI } from '../../api/client.js'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { BookingsAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { Select, DateField } from '../../components/common/Field.jsx'
+import { Select, DateField, Checkbox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
 
@@ -24,7 +25,6 @@ function pagesFor(page, count) {
   return out
 }
 
-const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const PLAN_TONE = {
   Daily: 'bg-emerald-50 text-emerald-700', Monthly: 'bg-blue-50 text-blue-700',
   'One-Time': 'bg-violet-50 text-violet-700', 'Life Long': 'bg-amber-50 text-amber-700',
@@ -39,21 +39,6 @@ const fmtDT = (d, slot) => (d
   : '—')
 const fmtStamp = (s) => (s ? stamp(new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })) : '—')
 
-function Kpi({ icon: Icon, iconBg, iconColor, title, value, foot }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      <div className="flex items-start gap-3">
-        <div className={`w-11 h-11 rounded-full grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}><Icon size={20} /></div>
-        <div className="min-w-0">
-          <div className="text-[0.8125rem] text-gray-500 leading-tight">{title}</div>
-          <div className="text-2xl font-extrabold text-gray-800 mt-1">{value}</div>
-        </div>
-      </div>
-      {foot && <div className="mt-3 pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400">{foot.label} <span className="font-semibold text-gray-600">{foot.value}</span></div>}
-    </div>
-  )
-}
-
 export default function Bookings() {
   const { lang } = useLang()
   const { user } = useAuth()
@@ -61,7 +46,6 @@ export default function Bookings() {
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   // Operational roles that run/perform poojas may mark them completed (backend enforces too).
   const canOperate = isAdmin || ['Counter Staff', 'Poojari'].includes(user?.role)
-  const [stats, setStats] = useState(null)
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [poojas, setPoojas] = useState([])
@@ -78,8 +62,26 @@ export default function Bookings() {
   const [applied, setApplied] = useState({ q: '', pooja: '', plan: '', status: '', payment: '', start: '', end: '' })
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
+  // Multi-select for bulk poojari assignment
+  const [selected, setSelected] = useState(new Set())
+  const [poojaris, setPoojaris] = useState([])
+  const [bulkPoojari, setBulkPoojari] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
-  const loadStats = useCallback(() => BookingsAPI.stats().then(setStats).catch(() => {}), [])
+  // Sortable table columns
+  const sortColumns = [
+    { key: 'booking_code', label: 'Booking ID', type: 'text' },
+    { key: 'seva_name', label: 'Pooja Name', type: 'text' },
+    { key: 'devotee_name', label: 'Devotee Name', type: 'text' },
+    { key: 'plan_name', label: 'Plan', type: 'text' },
+    { key: 'scheduled_date', label: 'Date & Time', type: 'date' },
+    { key: 'amount', label: 'Amount (₹)', type: 'money' },
+    { key: 'status', label: 'Status', type: 'text' },
+    { key: 'ticket_no', label: 'Ticket No.', type: 'text' },
+    { key: 'created_at', label: 'Booked On', type: 'date' },
+  ]
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'scheduled_date', direction: 'desc' }])
+
   const loadList = useCallback(async (f, pg) => {
     setLoading(true); setLoadErr('')
     try {
@@ -90,8 +92,34 @@ export default function Bookings() {
     } finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { loadStats(); PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => {}) }, [loadStats])
-  useEffect(() => { loadList(applied, page) }, [applied, page, loadList])
+  useEffect(() => {
+    PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => {})
+    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => {})
+  }, [])
+  useEffect(() => { loadList(applied, page); setSelected(new Set()) }, [applied, page, loadList])
+
+  // Selection helpers
+  const toggleSelect = (id) => setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  const selectAll = () => setSelected(new Set(rows.map((r) => r.id)))
+  const deselectAll = () => setSelected(new Set())
+  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
+
+  // Bulk poojari assignment
+  async function assignPoojari() {
+    if (selected.size === 0 || !bulkPoojari) return
+    setAssigning(true)
+    try {
+      const res = await PoojarisAPI.assignBulk([...selected], Number(bulkPoojari))
+      toast(`${res.assigned} booking(s) assigned to ${res.poojari_name || 'poojari'}.`)
+      setSelected(new Set())
+      setBulkPoojari('')
+      loadList(applied, page)
+    } catch (ex) {
+      toast(ex.detail || 'Could not assign poojari.', 'error')
+    } finally {
+      setAssigning(false)
+    }
+  }
 
   const search = () => { setPage(1); setApplied({ q, pooja, plan, status, payment, start, end }) }
   const clear = () => { setQ(''); setPooja(''); setPlan(''); setStatus(''); setPayment(''); setStart(''); setEnd(''); setPage(1); setApplied({ q: '', pooja: '', plan: '', status: '', payment: '', start: '', end: '' }) }
@@ -144,26 +172,12 @@ export default function Bookings() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="flex items-start justify-between gap-4 mb-4">
         <div>
-          <h1 className="font-serif text-[1.625rem] font-bold text-maroon-800"><T>Pooja Management</T></h1>
+          <h1 className="font-serif text-2xl font-bold text-maroon-700"><T>Pooja Management</T></h1>
           <p className="text-sm text-gray-500 mt-1"><T>Manage pooja bookings and related operations.</T></p>
         </div>
         <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><CalendarPlus size={16} />{' '}<T>Advance Booking</T></Link>
-      </div>
-
-      {/* KPI tiles */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
-        <Kpi icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Today's Bookings")}
-          value={stats?.today.count ?? '—'} foot={{ label: tr('Amount'), value: inr(stats?.today.amount) }} />
-        <Kpi icon={CalendarDays} iconBg="bg-emerald-50" iconColor="#059669" title={tr("This Week Bookings")}
-          value={stats?.week.count ?? '—'} foot={{ label: tr('Amount'), value: inr(stats?.week.amount) }} />
-        <Kpi icon={CalendarRange} iconBg="bg-rose-50" iconColor="#e11d48" title={tr("This Month Bookings")}
-          value={stats?.month.count ?? '—'} foot={{ label: tr('Amount'), value: inr(stats?.month.amount) }} />
-        <Kpi icon={TicketCheck} iconBg="bg-violet-50" iconColor="#7c3aed" title={tr("Tickets Generated (This Month)")}
-          value={stats ? Number(stats.tickets_month).toLocaleString('en-IN') : '—'} />
-        <Kpi icon={Clock} iconBg="bg-amber-50" iconColor="#d97706" title={tr("Upcoming Bookings")}
-          value={stats?.upcoming ?? '—'} foot={{ label: tr('Next 7 Days'), value: '' }} />
       </div>
 
       {/* Filters */}
@@ -180,13 +194,13 @@ export default function Bookings() {
           </div>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-7 gap-4 mt-4">
-          <div className="sm:col-span-2">
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
-            <div className="flex items-center gap-1">
-              <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2 !text-[0.75rem]" />
-              <span className="text-gray-300">–</span>
-              <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2 !text-[0.75rem]" />
-            </div>
+          <div>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+          </div>
+          <div>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
@@ -222,23 +236,77 @@ export default function Bookings() {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="bg-maroon-50 border border-maroon-200 rounded-xl px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-[0.875rem] font-semibold text-maroon-700">
+              {selected.size} {tr(selected.size === 1 ? 'booking selected' : 'bookings selected')}
+            </span>
+            <button onClick={deselectAll} className="text-[0.8125rem] text-maroon-600 hover:text-maroon-800 flex items-center gap-1">
+              <X size={14} /> {tr('Clear')}
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Users size={16} className="text-maroon-600" />
+            <Select value={bulkPoojari} onChange={(e) => setBulkPoojari(e.target.value)} className="input !w-auto !py-1.5 text-[0.8125rem]">
+              <option value="">{tr('Select Poojari…')}</option>
+              {poojaris.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)}{p.specialization ? ` · ${tr(p.specialization)}` : ''}</option>)}
+            </Select>
+            <button onClick={assignPoojari} disabled={!bulkPoojari || assigning} className="btn-maroon !py-1.5 !text-[0.8125rem] disabled:opacity-50">
+              {assigning ? tr('Assigning…') : tr('Assign Poojari')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Bookings list */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-4 py-4 border-b border-gray-100">
+        <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Bookings List</T></h3>
+          {rows.length > 0 && (
+            <button onClick={allSelected ? deselectAll : selectAll} className="text-[0.8125rem] text-maroon-600 hover:text-maroon-800">
+              {allSelected ? tr('Deselect All') : tr('Select All')}
+            </button>
+          )}
         </div>
+        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-                {['Booking ID', 'Pooja Name', 'Devotee Name', 'Plan', 'Date & Time', 'Amount (₹)', 'Status', 'Ticket No.', 'Booked On', 'Actions'].map((c) => (
-                  <th key={c} className="px-3 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>
-                ))}
+              <tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+                <th className="px-3 py-3 w-10">
+                  <Checkbox checked={allSelected && rows.length > 0} onChange={allSelected ? deselectAll : selectAll} />
+                </th>
+                {sortColumns.map((col) => {
+                  const sortIdx = getSortIndex(col.key)
+                  const sortDir = getSortDirection(col.key)
+                  const isSorted = sortIdx >= 0
+                  return (
+                    <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                      className={`px-3 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                      title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                      <span className="inline-flex items-center gap-1">
+                        {tr(col.label)}
+                        {isSorted && (
+                          <span className="inline-flex items-center gap-0.5 text-blue-600">
+                            {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                            {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                          </span>
+                        )}
+                      </span>
+                    </th>
+                  )
+                })}
+                <th className="px-3 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((b) => (
-                <tr key={b.id} className="hover:bg-gray-50/60">
+              {sortedRows.map((b) => (
+                <tr key={b.id} className={`hover:bg-gray-50/60 ${selected.has(b.id) ? 'bg-maroon-50/40' : ''}`}>
+                  <td className="px-3 py-3.5">
+                    <Checkbox checked={selected.has(b.id)} onChange={() => toggleSelect(b.id)} />
+                  </td>
                   <td className="px-3 py-3.5 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-3 py-3.5 font-semibold text-gray-800">{tr(b.seva_name)}</td>
                   <td className="px-3 py-3.5 text-gray-700">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>
@@ -250,21 +318,21 @@ export default function Bookings() {
                   <td className="px-3 py-3.5 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.created_at)}</td>
                   <td className="px-3 py-3.5">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                       <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("Ticket")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Ticket size={15} /></button>
                       {canOperate && b.status === 'Confirmed' && <button onClick={() => complete(b)} title={tr("Mark Completed")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300"><CheckCircle2 size={15} /></button>}
                       {canOperate && b.status === 'Confirmed' && b.payment_status === 'Paid' && !(b.performances_done > 0) && <button onClick={() => reschedule(b)} title={tr("Reschedule")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"><CalendarClock size={15} /></button>}
-                      {isAdmin && b.status !== 'Cancelled' && <button onClick={() => cancel(b)} title={tr("Cancel")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300"><Ban size={15} /></button>}
+                      {isAdmin && b.status !== 'Cancelled' && <button onClick={() => cancel(b)} title={tr("Cancel")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-300"><Ban size={15} /></button>}
                     </div>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={10} loading={loading} error={loadErr} onRetry={() => loadList(applied, page)} empty={tr("No bookings found.")} />}
+              {rows.length === 0 && <TableStates colSpan={11} loading={loading} error={loadErr} onRetry={() => loadList(applied, page)} empty={tr("No bookings found.")} />}
             </tbody>
           </table>
         </div>
         <div className="px-4 py-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-[0.8125rem] text-gray-500">{tr('Showing')} {from} {tr('to')} {to} {tr('of')} {total} {tr('bookings')}</div>
+          <div className="text-[0.8125rem] text-gray-500">{tr('Showing')} {from} {tr('to')} {to} {tr('of')} {total} {tr('bookings')}{sorts.length > 0 && <span className="text-blue-600 ml-2">• {tr('Sorted')}</span>}</div>
           <div className="flex items-center gap-1.5">
             <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-40 hover:border-maroon-300"><ChevronLeft size={15} /></button>
             {pageNums.map((n, i) => n === '…'

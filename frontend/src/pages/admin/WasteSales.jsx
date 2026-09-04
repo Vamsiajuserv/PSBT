@@ -1,17 +1,19 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  Plus, X, Eye, Printer, Search, RotateCcw, Minus, Check,
-  IndianRupee, CalendarDays, ShoppingCart, FileText, Calculator,
+  Plus, X, Eye, Printer, Search, Minus, Check, User,
+  IndianRupee, CalendarDays, ShoppingCart, FileText, Calculator, ArrowUp, ArrowDown,
 } from 'lucide-react'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
-import { WasteAPI, VendorsAPI, CommitteeAPI } from '../../api/client.js'
+import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, NumberField } from '../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { sanitizeName, sanitizePhone, validateName, validatePhone } from '../../lib/validation.js'
 
 const DEFAULT_MATERIALS = ['Coconut Shells', 'Flowers', 'Banana Leaves', 'Cardboard', 'Plastic', 'Waste Oil', 'Metal Scrap', 'Old Cloth']
 const UNITS = ['Kilogram (kg)', 'Tonne', 'Piece', 'Bundle']
@@ -39,7 +41,7 @@ function toWords(n) {
   return out.trim() + ' ' + tr('Rupees Only')
 }
 
-const emptyForm = () => ({ vendor_id: '', vendor_name: '', buyer_name: '', mobile: '', material: DEFAULT_MATERIALS[0], materialCustom: false, unit: 'Kilogram (kg)', quantity: 1, rate: '', mode: 'Cash', txn_ref: '', paid_at: nowLocal(), verified_by: '' })
+const emptyForm = () => ({ vendor_id: '', vendor_name: '', devotee_id: null, buyer_name: '', mobile: '', material: DEFAULT_MATERIALS[0], materialCustom: false, unit: 'Kilogram (kg)', quantity: 1, rate: '', mode: 'Cash', txn_ref: '', paid_at: nowLocal(), verified_by: '' })
 
 export default function WasteSales() {
   const { lang } = useLang()
@@ -54,6 +56,7 @@ export default function WasteSales() {
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [printDoc, setPrintDoc] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState({})
   const [vendors, setVendors] = useState([])
   const [committee, setCommittee] = useState([])
 
@@ -62,6 +65,20 @@ export default function WasteSales() {
   const [mode, setMode] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+
+  // Sortable table columns
+  const sortColumns = [
+    { key: 'code', label: 'Receipt No.', type: 'text' },
+    { key: 'paid_at', label: 'Date & Time', type: 'date' },
+    { key: 'buyer_name', label: 'Buyer Name', type: 'text' },
+    { key: 'mobile', label: 'Mobile Number', type: 'text' },
+    { key: 'material', label: 'Material Type', type: 'text' },
+    { key: 'weight_kg', label: 'Quantity', type: 'num' },
+    { key: 'rate', label: 'Rate (₹/Unit)', type: 'money' },
+    { key: 'amount', label: 'Amount (₹)', type: 'money' },
+    { key: 'mode', label: 'Payment Mode', type: 'text' },
+  ]
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'paid_at', direction: 'desc' }])
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
@@ -90,6 +107,26 @@ export default function WasteSales() {
       .catch(() => {})
   }, [])
 
+  // Devotee search for registered devotees who can also buy waste materials (Item 33)
+  const [devQ, setDevQ] = useState('')
+  const [devResults, setDevResults] = useState([])
+  useEffect(() => {
+    if (!drawer || drawer.devotee_id || devQ.trim().length < 2) { setDevResults([]); return }
+    const t = setTimeout(() => {
+      DevoteesAPI.list({ q: devQ.trim(), size: 8 })
+        .then((r) => setDevResults(Array.isArray(r) ? r : (r.items || [])))
+        .catch(() => setDevResults([]))
+    }, 200)
+    return () => clearTimeout(t)
+  }, [devQ, drawer])
+  const onPickDevotee = (d) => {
+    setM({ devotee_id: d.id, buyer_name: d.name, mobile: d.mobile || '', vendor_id: '', vendor_name: '' })
+    setDevQ(''); setDevResults([])
+  }
+  const clearDevotee = () => {
+    setM({ devotee_id: null, buyer_name: '', mobile: '' })
+  }
+
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
   const amount = drawer ? (Number(drawer.quantity) || 0) * (Number(drawer.rate) || 0) : 0
   const committeeNames = committee.map((c) => c.name)
@@ -98,25 +135,43 @@ export default function WasteSales() {
     ? selectedVendor.material_types.split(',').map((s) => s.trim()).filter(Boolean)
     : DEFAULT_MATERIALS
   const onVendor = (id) => {
-    if (!id) { setM({ vendor_id: '', vendor_name: '' }); return }
+    if (!id) { setM({ vendor_id: '', vendor_name: '', devotee_id: null }); return }
     const v = vendors.find((x) => String(x.id) === String(id))
     if (!v) return
     const mats = (v.material_types || '').split(',').map((s) => s.trim()).filter(Boolean)
-    setM({ vendor_id: v.id, vendor_name: v.name, buyer_name: v.name, mobile: v.phone || '', material: mats[0] || DEFAULT_MATERIALS[0], materialCustom: false })
+    setM({ vendor_id: v.id, vendor_name: v.name, buyer_name: v.name, mobile: v.phone || '', material: mats[0] || DEFAULT_MATERIALS[0], materialCustom: false, devotee_id: null })
   }
 
   async function save(e) {
     e.preventDefault()
     const m = drawer
+
+    // Validate fields only for walk-in buyers (not vendor or devotee selected)
+    if (!m.vendor_id && !m.devotee_id) {
+      const errors = {}
+      const nameResult = validateName(m.buyer_name)
+      if (!nameResult.valid) errors.buyer_name = nameResult.error
+
+      const phoneResult = validatePhone(m.mobile)
+      if (!phoneResult.valid) errors.mobile = phoneResult.error
+
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors)
+        return
+      }
+    }
+    setFieldErrors({})
+
     const created = await WasteAPI.createSale({
       vendor_id: m.vendor_id || null,
       vendor_name: m.vendor_name || m.buyer_name || null,
+      devotee_id: m.devotee_id || null,
       buyer_name: m.buyer_name, mobile: m.mobile, material: m.material, unit: m.unit,
       weight_kg: Number(m.quantity), rate: Number(m.rate), amount,
       mode: m.mode, txn_ref: m.mode === 'UPI/QR Code' ? (m.txn_ref || null) : null, paid_at: m.paid_at || null,
       verified_by: m.verified_by || null,
     })
-    setDrawer(null); load(); setPrintDoc(created)
+    setDrawer(null); setDevQ(''); load(); setPrintDoc(created)
   }
 
   const EXPORT_COLS = [{ key: 'code', label: tr('Sale ID') }, { key: 'vendor_name', label: tr('Buyer / Vendor') }, { key: 'material', label: tr('Material') },
@@ -137,41 +192,58 @@ export default function WasteSales() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
-          <div>
+        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[12rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Buyer Name / Mobile / Receipt No.</T></label>
-            <div className="relative"><Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search here…")} className="input pr-9" /></div>
+            <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search here…")} className="input !pl-9" /></div>
           </div>
-          <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
-            <div className="flex items-center gap-1.5">
-              <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-              <span className="text-gray-400">–</span>
-              <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-            </div>
+          <div className="min-w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
           </div>
-          <div>
+          <div className="min-w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+          </div>
+          <div className="min-w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Material Type</T></label>
             <Select value={material} onChange={(e) => setMaterial(e.target.value)} className="input"><option value="">{tr("All")}</option>{DEFAULT_MATERIALS.map((m) => <option key={m}>{m}</option>)}</Select>
           </div>
-          <div>
+          <div className="min-w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
             <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("UPI / QR Code")}</option></Select>
           </div>
-          <div className="xl:col-span-4 flex gap-2 justify-end">
-            <button onClick={() => { setQ(''); setMaterial(''); setMode(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
-            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
-          </div>
         </div>
 
+        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Receipt No.', 'Date & Time', 'Buyer Name', 'Mobile Number', 'Material Type', 'Quantity / Unit', 'Rate (₹/Unit)', 'Amount (₹)', 'Payment Mode', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {sortColumns.map((col) => {
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((s) => (
+              {sortedRows.map((s) => (
                 <tr key={s.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{s.code}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(s.paid_at || s.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(s.paid_at || s.created_at)}</div></td>
@@ -183,7 +255,7 @@ export default function WasteSales() {
                   <td className="px-4 py-3 font-semibold text-gray-800">{money2(s.amount)}</td>
                   <td className="px-4 py-3 text-gray-600">{modeLabel(s.mode)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 text-gray-400">
+                    <div className="flex items-center gap-2 text-gray-800">
                       <button onClick={() => setPrintDoc(s)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                       <button onClick={() => setPrintDoc(s)} title={tr("Print receipt")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
                     </div>
@@ -216,7 +288,7 @@ export default function WasteSales() {
                 <div className="mb-4">
                   <label className="label"><T>Vendor</T></label>
                   <Select className="input" value={drawer.vendor_id} onChange={(e) => onVendor(e.target.value)}>
-                    <option value="">{tr("Other / walk-in buyer")}</option>
+                    <option value="">{tr("Other / walk-in buyer / devotee")}</option>
                     {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.phone ? ` — ${v.phone}` : ''}</option>)}
                   </Select>
                 </div>
@@ -225,10 +297,49 @@ export default function WasteSales() {
                     <div><label className="label"><T>Buyer Name</T></label><input disabled className="input bg-gray-50" value={drawer.buyer_name} /></div>
                     <div><label className="label"><T>Mobile Number</T></label><input disabled className="input bg-gray-50" value={drawer.mobile} /></div>
                   </div>
+                ) : drawer.devotee_id ? (
+                  /* Devotee selected - show as linked devotee */
+                  <div className="flex items-center gap-3 border border-emerald-200 rounded-xl px-3.5 py-3 bg-emerald-50/50">
+                    <div className="w-10 h-10 rounded-full bg-emerald-600 text-white grid place-items-center"><User size={18} /></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-800 truncate">{drawer.buyer_name}</div>
+                      <div className="text-[0.75rem] text-emerald-600">{drawer.mobile || tr('Registered Devotee')}</div>
+                    </div>
+                    <button type="button" onClick={clearDevotee} className="text-emerald-600 hover:text-emerald-900"><X size={18} /></button>
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="label"><T>Buyer Name *</T></label><input required className="input" placeholder={tr("Enter buyer name")} value={drawer.buyer_name} onChange={(e) => setM({ buyer_name: e.target.value })} /></div>
-                    <div><label className="label"><T>Mobile Number *</T></label><input required className="input" placeholder={tr("Enter mobile number")} value={drawer.mobile} onChange={(e) => setM({ mobile: e.target.value })} /></div>
+                  <div className="space-y-4">
+                    {/* Devotee search option (Item 33) */}
+                    <div>
+                      <label className="label"><T>Search Registered Devotee</T></label>
+                      <div className="relative">
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input className="input !pl-9" placeholder={tr("Search by name or mobile (min 2 chars)…")} value={devQ} onChange={(e) => setDevQ(e.target.value)} />
+                        {devResults.length > 0 && (
+                          <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1 max-h-48 overflow-y-auto">
+                            {devResults.map((d) => (
+                              <button type="button" key={d.id} onClick={() => onPickDevotee(d)} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
+                                <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
+                                <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[0.6875rem] text-gray-400 mt-1"><T>Or enter details manually below</T></p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="label"><T>Buyer Name *</T></label>
+                        <input required className={`input ${fieldErrors.buyer_name ? 'border-red-400' : ''}`} placeholder={tr("Alphabets only")} value={drawer.buyer_name} onChange={(e) => { setFieldErrors((p) => ({ ...p, buyer_name: null })); setM({ buyer_name: sanitizeName(e.target.value) }) }} />
+                        {fieldErrors.buyer_name && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.buyer_name}</div>}
+                      </div>
+                      <div>
+                        <label className="label"><T>Mobile Number *</T></label>
+                        <input required className={`input ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("10 digits only")} maxLength={10} value={drawer.mobile} onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setM({ mobile: sanitizePhone(e.target.value) }) }} />
+                        {fieldErrors.mobile && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.mobile}</div>}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -309,8 +420,8 @@ export default function WasteSales() {
       )}
 
       {printDoc && (
-        <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-4 no-print" onClick={() => setPrintDoc(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={() => setPrintDoc(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg my-auto">
             <div id="print-area">
               <Receipt title={tr("Waste Material Sale Receipt")} titleTe="వ్యర్థ పదార్థ విక్రయ రసీదు" no={printDoc.code} subNo={fmtDate(printDoc.paid_at || printDoc.created_at)} subNoLabel="Date" amount={printDoc.amount}
                 rows={[

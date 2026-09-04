@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Pooja, PoojaPlan, Booking, Schedule
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import gen_code
+from ..helpers import gen_code, next_code_seq
 
 router = APIRouter(prefix="/api/poojas", tags=["poojas"])
 read = RequireModule("Sevas")   # master edits are Administrator-only (require_admin)
@@ -21,7 +21,7 @@ def _plan_dict(p: PoojaPlan) -> dict:
             "rate_type": "Committee" if p.committee_decided else "Fixed",
             "committee_decided": p.committee_decided, "duration_days": p.duration_days,
             "validity_type": p.validity_type, "validity_value": p.validity_value,
-            "validity_unit": p.validity_unit, "active": p.active}
+            "validity_unit": p.validity_unit, "tithi_type": p.tithi_type, "active": p.active}
 
 
 def _pooja_dict(pj: Pooja, all_plans: bool = False) -> dict:
@@ -40,6 +40,7 @@ def _add_plan(pl: dict) -> PoojaPlan:
         validity_type=pl.get("validity_type"),
         validity_value=int(pl["validity_value"]) if pl.get("validity_value") not in (None, "") else None,
         validity_unit=pl.get("validity_unit"),
+        tithi_type=pl.get("tithi_type"),
         active=pl.get("active", True))
 
 
@@ -49,7 +50,7 @@ def list_poojas(category: str = "", db: Session = Depends(get_db)):
     q = db.query(Pooja).filter(Pooja.active.is_(True))
     if category:
         q = q.filter(Pooja.category == category)
-    poojas = q.order_by(Pooja.category, Pooja.id).all()
+    poojas = q.order_by(Pooja.category, Pooja.id.desc()).all()
     return {"categories": CATEGORIES, "items": [_pooja_dict(p) for p in poojas]}
 
 
@@ -66,14 +67,14 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
 @router.get("/admin")
 def list_admin(db: Session = Depends(get_db), user=Depends(read)):
     """All poojas (incl. inactive) with all plans — for the Pooja Master screen."""
-    poojas = db.query(Pooja).order_by(Pooja.id).all()
+    poojas = db.query(Pooja).order_by(Pooja.id.desc()).all()
     return {"categories": CATEGORIES, "items": [_pooja_dict(p, all_plans=True) for p in poojas]}
 
 
 @router.get("/grouped")
 def grouped(db: Session = Depends(get_db)):
     """Poojas grouped by category (for the booking wizard category cards)."""
-    poojas = db.query(Pooja).filter(Pooja.active.is_(True)).order_by(Pooja.id).all()
+    poojas = db.query(Pooja).filter(Pooja.active.is_(True)).order_by(Pooja.id.desc()).all()
     groups = {c: [] for c in CATEGORIES}
     for p in poojas:
         groups.setdefault(p.category, []).append(_pooja_dict(p))
@@ -91,7 +92,9 @@ def get_pooja(pid: int, db: Session = Depends(get_db)):
 # ── Admin: configure poojas & plans ──────────────────────────────────────────
 @router.post("")
 def create_pooja(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
-    seq = (db.query(func.count(Pooja.id)).scalar() or 0) + 1
+    # Use atomic counter to avoid duplicate code issues after deletions
+    max_id = db.query(func.max(Pooja.id)).scalar() or 0
+    seq = next_code_seq(db, "pooja", max_id)
     code = body.get("code") or gen_code("PJ", seq, 3)
     p = Pooja(code=code, name=body["name"], name_te=body.get("name_te"),
               category=body.get("category", "Daily"), description=body.get("description"),
@@ -136,7 +139,7 @@ def update_pooja(pid: int, body: dict, request: Request, db: Session = Depends(g
                 pl.committee_decided = bool(item["committee_decided"])
             if "fee" in item:
                 pl.fee = Decimal(str(item["fee"])) if item["fee"] not in (None, "") else None
-            for f in ("validity_type", "validity_unit"):
+            for f in ("validity_type", "validity_unit", "tithi_type"):
                 if f in item:
                     setattr(pl, f, item[f])
             if "validity_value" in item:
@@ -191,3 +194,67 @@ def delete_pooja(pid: int, request: Request, db: Session = Depends(get_db), user
     db.query(Schedule).filter(Schedule.pooja_id == pid).delete(synchronize_session=False)
     log_action(db, username=user.username, action="DELETE", entity="Pooja", detail=p.name, ip=client_ip(request))
     db.delete(p); db.commit()
+
+
+# ── Committee: Festival Pricing ───────────────────────────────────────────────
+# List all pooja plans for the Festival Pricing tab. Committee role can update
+# fees for plans where committee_decided=True.
+
+committee_read = RequireModule("Hundi")  # Committee role has access to Hundi module
+
+
+@router.get("/plans/all")
+def list_all_plans(db: Session = Depends(get_db), user=Depends(committee_read)):
+    """List all pooja plans with their fees for the Festival Pricing tab."""
+    poojas = db.query(Pooja).filter(Pooja.active.is_(True)).order_by(Pooja.category, Pooja.id.desc()).all()
+    plans = []
+    for pj in poojas:
+        for pl in pj.plans:
+            if not pl.active:
+                continue
+            plans.append({
+                "id": pl.id,
+                "pooja_id": pj.id,
+                "pooja_name": pj.name,
+                "pooja_name_te": pj.name_te,
+                "category": pj.category,
+                "plan_name": pl.plan_name,
+                "fee": float(pl.fee) if pl.fee is not None else 0,
+                "committee_decided": pl.committee_decided,
+            })
+    return {"items": plans}
+
+
+@router.put("/plans/{plan_id}/committee-fee")
+def update_committee_fee(plan_id: int, body: dict, request: Request,
+                         db: Session = Depends(get_db), user=Depends(committee_read)):
+    """Update fee for a committee-decided plan. Only Committee role can do this."""
+    # Verify user has Committee role
+    if user.role not in ("Admin", "Administrator", "Committee"):
+        raise HTTPException(403, "Only Committee members can update committee-decided prices.")
+
+    pl = db.get(PoojaPlan, plan_id)
+    if not pl:
+        raise HTTPException(404, "Plan not found")
+
+    if not pl.committee_decided:
+        raise HTTPException(400, "This plan is not committee-decided. Use Pooja Master to edit fixed prices.")
+
+    fee = body.get("fee")
+    if fee is None:
+        raise HTTPException(400, "Fee is required.")
+
+    pl.fee = Decimal(str(fee)) if fee not in (None, "", 0) else Decimal("0")
+    db.commit()
+
+    pooja = db.get(Pooja, pl.pooja_id)
+    log_action(db, username=user.username, action="UPDATE", entity="CommitteeFee",
+               detail=f"{pooja.name} / {pl.plan_name} → ₹{pl.fee}", ip=client_ip(request))
+
+    return {
+        "id": pl.id,
+        "pooja_name": pooja.name if pooja else "",
+        "plan_name": pl.plan_name,
+        "fee": float(pl.fee) if pl.fee is not None else 0,
+        "committee_decided": pl.committee_decided,
+    }

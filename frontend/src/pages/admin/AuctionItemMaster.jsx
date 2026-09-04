@@ -16,6 +16,12 @@ export default function AuctionItemMaster() {
       { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: 'Active', sub: 'Available for auction' },
       { key: 'inactive', icon: XCircle, color: '#dc2626', bg: 'bg-red-50', title: 'Inactive', sub: 'Not available' },
     ],
+    sortColumns: [
+      { key: 'name', label: 'Item Name', type: 'text' },
+      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'base_price', label: 'Base Price', type: 'number' },
+      { key: 'active', label: 'Status', type: 'text' },
+    ],
     columns: [
       { key: 'code', label: tr('Item ID'), mono: true },
       { key: 'name', label: tr('Item Name'), strong: true },
@@ -24,7 +30,7 @@ export default function AuctionItemMaster() {
       { key: 'unit', label: tr('Unit') },
     ],
     fields: [
-      { k: 'name', label: tr('Item Name'), required: true },
+      { k: 'name', label: tr('Item Name'), type: 'name', required: true },
       { k: 'category', label: tr('Category'), type: 'select', options: ['Jewellery', 'Vessels', 'Idols', 'Cloth', 'Other'] },
       { k: 'base_price', label: tr('Base Price (₹)'), type: 'number', prefix: '₹' },
       { k: 'unit', label: tr('Unit'), type: 'select', options: ['Piece', 'Set', 'Kg', 'Gram'] },

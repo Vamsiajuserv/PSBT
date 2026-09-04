@@ -22,7 +22,7 @@ def list_sevas(category: str = "", active_only: bool = False,
         query = query.filter(Seva.category == category)
     if active_only:
         query = query.filter(Seva.active.is_(True))
-    return query.order_by(Seva.id).all()
+    return query.order_by(Seva.id.desc()).all()
 
 
 @router.post("", response_model=SevaOut, status_code=201)

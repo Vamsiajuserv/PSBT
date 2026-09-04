@@ -125,16 +125,16 @@ export default function PoojariQueue() {
             <div key={b.id} className={`card p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${b.done_today || b.status === 'Completed' || b.remaining === 0 ? 'opacity-75 bg-emerald-50/40 border-emerald-100' : ''}`}>
               {/* Time */}
               <div className="w-20 shrink-0 text-center">
-                <div className="text-[0.6875rem] text-gray-400 flex items-center justify-center gap-1"><Clock size={11} />{' '}<T>Slot</T></div>
+                <div className="text-[0.6875rem] text-gray-600 flex items-center justify-center gap-1"><Clock size={11} />{' '}<T>Slot</T></div>
                 <div className="text-sm font-bold text-maroon-700">{clock12(b.time_slot) || '—'}</div>
               </div>
               {/* Pooja + devotee */}
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-gray-800">{tr(b.pooja)}{b.plan ? <span className="text-gray-400 font-normal"> · {tr(b.plan)}</span> : null}</div>
+                <div className="font-semibold text-gray-800">{tr(b.pooja)}{b.plan ? <span className="text-gray-600 font-normal"> · {tr(b.plan)}</span> : null}</div>
                 <div className="text-[0.8125rem] text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
                   <span className="flex items-center gap-1"><User size={12} /> {personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</span>
                   {b.mobile && <span className="flex items-center gap-1"><Phone size={12} /> {b.mobile}</span>}
-                  <span className="text-gray-400">#{b.ticket_no || b.booking_code}</span>
+                  <span className="text-gray-600">#{b.ticket_no || b.booking_code}</span>
                 </div>
                 {(b.gothram || b.nakshatram || b.beneficiary_name) && (
                   <div className="text-[0.6875rem] text-gray-500 mt-0.5">

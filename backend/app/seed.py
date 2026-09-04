@@ -10,7 +10,7 @@ from .security import MODULES
 from .models import (User, Devotee, FamilyMember, Seva, Pooja, PoojaPlan, Booking,
                      Donation, HundiCollection, Auction, Annadanam, Poojari,
                      WasteVendor, WasteSale, Schedule, DonationCategory, Role,
-                     AuctionItem, HundiItem, CommitteeMember, Festival)
+                     AuctionItem, HundiItem, CommitteeMember, Festival, Tithi)
 
 # ── Configurable masters demo data ───────────────────────────────────────────
 DEMO_AUCTION_ITEMS = [
@@ -45,6 +45,40 @@ DEMO_FESTIVALS = [
     ("Devi Navaratri", "2026-10-11", 9, "Active", ["Devi Navaratri Pooja"]),
     ("Sai Baba Mahasamadhi", "2026-10-20", 1, "Active", ["Abhishekam"]),
     ("Karthika Masam", "2026-11-09", 30, "Active", ["Karthika Masam Pooja"]),
+]
+
+# Tithi dates — Pournami (full moon) dates for 2026-2027 (Hindu Panchang calendar)
+# Format: (date ISO, type, name/significance)
+TITHI_POURNAMI = [
+    # 2026 Pournami dates
+    ("2026-01-13", "Pournami", "Pushya Purnima"),
+    ("2026-02-12", "Pournami", "Magha Purnima"),
+    ("2026-03-14", "Pournami", "Phalguna Purnima (Holi)"),
+    ("2026-04-12", "Pournami", "Chaitra Purnima (Hanuman Jayanti)"),
+    ("2026-05-12", "Pournami", "Vaishakha Purnima (Buddha Purnima)"),
+    ("2026-06-11", "Pournami", "Jyeshtha Purnima"),
+    ("2026-07-10", "Pournami", "Ashadha Purnima"),
+    ("2026-07-29", "Pournami", "Guru Purnima"),
+    ("2026-08-09", "Pournami", "Shravana Purnima (Raksha Bandhan)"),
+    ("2026-09-07", "Pournami", "Bhadrapada Purnima"),
+    ("2026-10-07", "Pournami", "Ashwina Purnima (Sharad Purnima)"),
+    ("2026-11-05", "Pournami", "Kartika Purnima"),
+    ("2026-12-04", "Pournami", "Margashirsha Purnima"),
+    # 2027 Pournami dates
+    ("2027-01-03", "Pournami", "Pausha Purnima"),
+    ("2027-02-01", "Pournami", "Magha Purnima"),
+    ("2027-03-03", "Pournami", "Phalguna Purnima (Holi)"),
+    ("2027-04-01", "Pournami", "Chaitra Purnima (Hanuman Jayanti)"),
+    ("2027-05-01", "Pournami", "Vaishakha Purnima (Buddha Purnima)"),
+    ("2027-05-31", "Pournami", "Jyeshtha Purnima"),
+    ("2027-06-29", "Pournami", "Ashadha Purnima"),
+    ("2027-07-18", "Pournami", "Guru Purnima"),
+    ("2027-07-29", "Pournami", "Shravana Purnima (Raksha Bandhan)"),
+    ("2027-08-27", "Pournami", "Bhadrapada Purnima"),
+    ("2027-09-26", "Pournami", "Ashwina Purnima (Sharad Purnima)"),
+    ("2027-10-26", "Pournami", "Kartika Purnima"),
+    ("2027-11-24", "Pournami", "Margashirsha Purnima"),
+    ("2027-12-24", "Pournami", "Pausha Purnima"),
 ]
 
 # Roles & module access (doc §Role & Access) — (code, name, description, module keys, active).
@@ -655,6 +689,22 @@ def run():
                                 end_date=sd + timedelta(days=dur - 1), pooja_ids=",".join(map(str, ids)),
                                 status=status, description=f"{name} celebrations at the temple."))
             db.commit(); print(f"  seeded {len(DEMO_FESTIVALS)} festivals")
+
+        # Tithi dates (Pournami calendar for Sai Vratam and other lunar poojas)
+        if db.query(Tithi).count() == 0:
+            for dt_iso, ttype, name in TITHI_POURNAMI:
+                dt = date.fromisoformat(dt_iso)
+                db.add(Tithi(tithi_date=dt, tithi_type=ttype, name=name, active=True, created_by="admin"))
+            db.commit()
+            print(f"  seeded {len(TITHI_POURNAMI)} tithi dates (Pournami)")
+
+        # Set tithi_type on "Sai Vratam (Pournami)" plan (idempotent backfill)
+        sai_vratam = db.query(Pooja).filter(Pooja.name == "Sai Vratam (Pournami)").first()
+        if sai_vratam:
+            for pl in sai_vratam.plans:
+                if not pl.tithi_type:
+                    pl.tithi_type = "Pournami"
+            db.commit()
 
         # Roles (Role & Access Management)
         if db.query(Role).count() == 0:

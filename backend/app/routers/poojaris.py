@@ -24,7 +24,7 @@ def _dict(p: Poojari) -> dict:
 
 @router.get("")
 def list_poojaris(db: Session = Depends(get_db), user=Depends(read)):
-    return [_dict(p) for p in db.query(Poojari).filter(Poojari.active.is_(True)).order_by(Poojari.id).all()]
+    return [_dict(p) for p in db.query(Poojari).filter(Poojari.active.is_(True)).order_by(Poojari.id.desc()).all()]
 
 
 @router.get("/stats")
@@ -45,7 +45,7 @@ def list_master(q: str = "", status: str = "", db: Session = Depends(get_db), us
         query = query.filter(Poojari.active.is_(True))
     elif status == "Inactive":
         query = query.filter(Poojari.active.is_(False))
-    return {"items": [_dict(p) for p in query.order_by(Poojari.id).all()]}
+    return {"items": [_dict(p) for p in query.order_by(Poojari.id.desc()).all()]}
 
 
 @router.post("")
@@ -207,6 +207,42 @@ def complete_due(body: dict | None = None, request: Request = None,
 class AssignIn(BaseModel):
     booking_id: int
     poojari_id: int | None = None
+
+
+class BulkAssignIn(BaseModel):
+    booking_ids: list[int]
+    poojari_id: int | None = None
+
+
+@router.post("/assign-bulk")
+def assign_bulk(body: BulkAssignIn, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+    """Assign a poojari to multiple bookings at once."""
+    if not body.booking_ids:
+        raise HTTPException(400, "No booking IDs provided")
+
+    p = None
+    if body.poojari_id:
+        p = db.get(Poojari, body.poojari_id)
+        if not p:
+            raise HTTPException(404, "Poojari not found")
+
+    assigned = 0
+    for bid in body.booking_ids:
+        b = db.get(Booking, bid)
+        if not b:
+            continue
+        if body.poojari_id and p:
+            b.poojari_id = p.id
+            b.poojari_name = p.name
+        else:
+            b.poojari_id = None
+            b.poojari_name = None
+        assigned += 1
+
+    db.commit()
+    log_action(db, username=user.username, action="UPDATE", entity="Booking",
+               detail=f"Bulk assigned {p.name if p else 'none'} → {assigned} bookings", ip=client_ip(request))
+    return {"ok": True, "assigned": assigned, "poojari_name": p.name if p else None}
 
 
 @router.post("/assign")

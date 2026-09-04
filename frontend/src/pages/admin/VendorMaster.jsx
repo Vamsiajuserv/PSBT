@@ -13,6 +13,11 @@ export default function VendorMaster() {
       { key: 'active', icon: UserCheck, color: '#059669', bg: 'bg-emerald-50', title: 'Active', sub: 'Currently active' },
       { key: 'inactive', icon: UserX, color: '#dc2626', bg: 'bg-red-50', title: 'Inactive', sub: 'Not active' },
     ],
+    sortColumns: [
+      { key: 'name', label: 'Name', type: 'text' },
+      { key: 'material_types', label: 'Material Types', type: 'text' },
+      { key: 'active', label: 'Status', type: 'text' },
+    ],
     columns: [
       { key: 'code', label: tr('Vendor ID'), mono: true },
       { key: 'name', label: tr('Name'), strong: true },
@@ -22,9 +27,9 @@ export default function VendorMaster() {
         render: (r) => (r.material_types || '').split(',').map((x) => tr(x.trim())).filter(Boolean).join(', ') || '—' },
     ],
     fields: [
-      { k: 'name', label: tr('Vendor Name'), required: true },
-      { k: 'phone', label: tr('Phone') },
-      { k: 'material_types', label: tr('Material Types'), placeholder: 'e.g. Flowers, Paper, Plastic' },
+      { k: 'name', label: tr('Vendor Name'), type: 'name', required: true },
+      { k: 'phone', label: tr('Phone'), type: 'phone' },
+      { k: 'material_types', label: tr('Material Types'), type: 'name', placeholder: 'e.g. Flowers, Paper, Plastic' },
       { k: 'active', label: tr('Status'), type: 'active' },
     ],
   }} />

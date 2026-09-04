@@ -16,6 +16,11 @@ export default function HundiItemMaster() {
       { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: 'Active', sub: 'In use' },
       { key: 'inactive', icon: XCircle, color: '#dc2626', bg: 'bg-red-50', title: 'Inactive', sub: 'Not in use' },
     ],
+    sortColumns: [
+      { key: 'name', label: 'Item Name', type: 'text' },
+      { key: 'item_type', label: 'Type', type: 'text' },
+      { key: 'active', label: 'Status', type: 'text' },
+    ],
     columns: [
       { key: 'code', label: tr('Item ID'), mono: true },
       { key: 'name', label: tr('Item Name'), strong: true },
@@ -23,7 +28,7 @@ export default function HundiItemMaster() {
       { key: 'unit', label: tr('Unit / Measurement') },
     ],
     fields: [
-      { k: 'name', label: tr('Item Name'), required: true },
+      { k: 'name', label: tr('Item Name'), type: 'name', required: true },
       { k: 'item_type', label: tr('Item Type'), type: 'select', options: ['Cash', 'Coins', 'Foreign Currency', 'Gold', 'Silver', 'Jewellery', 'Valuables'] },
       { k: 'unit', label: tr('Unit / Measurement'), type: 'select', options: ['Amount', 'Count', 'Grams'] },
       { k: 'description', label: tr('Description'), type: 'textarea' },

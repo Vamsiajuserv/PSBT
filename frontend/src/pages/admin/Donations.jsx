@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import {
   Plus, X, Printer, Eye, Search, RotateCcw, Calendar, Info, ChevronDown,
-  Sprout, CalendarDays, Package, HandHeart, User,
+  Sprout, CalendarDays, Package, HandHeart, User, ArrowUp, ArrowDown,
 } from 'lucide-react'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
@@ -12,6 +13,7 @@ import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI } from '../../api/clie
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField } from '../../components/common/Field.jsx'
 import { T, tr, clock12, stamp, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { sanitizePhone, sanitizeName } from '../../lib/validation.js'
 
 const TYPE_LABEL = { Cash: 'Cash Donation', Material: 'Material Donation', Sponsorship: 'Sponsorship' }
 const MODES = ['Cash', 'UPI/QR Code']
@@ -55,6 +57,19 @@ export default function Donations() {
   const [mode, setMode] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+
+  // Sortable table columns
+  const sortColumns = [
+    { key: 'code', label: 'Donation ID', type: 'text' },
+    { key: 'donor_name', label: 'Devotee', type: 'text' },
+    { key: 'donation_type', label: 'Donation Type', type: 'text' },
+    { key: 'category_name', label: 'Category', type: 'text' },
+    { key: 'amount', label: 'Amount / Material', type: 'money' },
+    { key: 'mode', label: 'Payment Mode', type: 'text' },
+    { key: 'donated_on', label: 'Donated On', type: 'date' },
+    { key: 'receipt_no', label: 'Receipt No.', type: 'text' },
+  ]
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'donated_on', direction: 'desc' }])
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
@@ -100,8 +115,10 @@ export default function Donations() {
   }
   function setFund(name) {
     const c = cats.find((x) => x.name === name)
+    // Auto-enable 80G for Medical donations (case-insensitive check)
+    const isMedical = (name || '').toLowerCase().includes('medical')
     setDrawer((m) => ({ ...m, fund: name, unit: m.donation_type === 'Material' ? (c?.unit || '') : m.unit,
-      g80: name === 'Medical Donation' ? true : m.g80 }))
+      g80: isMedical ? true : m.g80 }))
   }
   function pickDevotee(dv) {
     setDrawer((m) => ({ ...m, devotee_id: dv.id, donor_name: dv.name, mobile: dv.mobile || '' }))
@@ -177,45 +194,62 @@ export default function Donations() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
-          <div>
+        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[12rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee Name / Mobile</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search name or mobile number…")} className="input !pl-9" /></div>
           </div>
-          <div>
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Date Range</T></label>
-            <div className="flex items-center gap-1.5">
-              <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-              <span className="text-gray-400">–</span>
-              <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !px-2.5 text-[0.78125rem]" />
-            </div>
+          <div className="min-w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
           </div>
-          <div>
+          <div className="min-w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+          </div>
+          <div className="min-w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Donation Type</T></label>
             <Select value={type} onChange={(e) => setType(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash Donation")}</option><option value="Material">{tr("Material Donation")}</option><option value="Sponsorship">{tr("Sponsorship")}</option></Select>
           </div>
-          <div>
+          <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Category</T></label>
             <Select value={category} onChange={(e) => setCategory(e.target.value)} className="input"><option value="">{tr("All")}</option>{cats.map((c) => <option key={c.id}>{c.name}</option>)}</Select>
           </div>
-          <div>
+          <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
             <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option>{MODES.map((m) => <option key={m}>{m}</option>)}</Select>
           </div>
-          <div className="xl:col-span-4 flex gap-2 justify-end">
-            <button onClick={() => { setQ(''); setType(''); setCategory(''); setMode(''); setStart(''); setEnd('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Reset</T></button>
-            <button onClick={() => load()} className="btn-maroon !py-2.5"><Search size={14} />{' '}<T>Search</T></button>
-          </div>
         </div>
 
+        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-500">
-              {['Donation ID', 'Devotee', 'Donation Type', 'Category', 'Amount / Material', 'Payment Mode', 'Donated On', 'Receipt No.', 'Actions'].map((c) => <th key={c} className="px-4 py-3 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {sortColumns.map((col) => {
+                const sortIdx = getSortIndex(col.key)
+                const sortDir = getSortDirection(col.key)
+                const isSorted = sortIdx >= 0
+                return (
+                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
+                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
+                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
+                    <span className="inline-flex items-center gap-1">
+                      {tr(col.label)}
+                      {isSorted && (
+                        <span className="inline-flex items-center gap-0.5 text-blue-600">
+                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((d) => (
+              {sortedRows.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-maroon-600">{d.donation_code || d.receipt_no}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: d.donor_name, name_te: d.donor_name_te }, lang)}</td>
@@ -226,9 +260,9 @@ export default function Donations() {
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(d.donated_on)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(d.created_at)}</div></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{d.receipt_no}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <button onClick={() => setPrintDoc(d)} title={tr("Print receipt")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
-                      <button onClick={() => setPrintDoc(d)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setPrintDoc(d)} title={tr("Print receipt")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
+                      <button onClick={() => setPrintDoc(d)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                     </div>
                   </td>
                 </tr>
@@ -290,9 +324,9 @@ export default function Donations() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label"><T>Donor Name *</T></label>
-                  <input required className="input" placeholder={tr("Walk-in / donor name")} value={personName({ name: drawer.donor_name }, lang)} onChange={(e) => setDrawer({ ...drawer, donor_name: e.target.value })} /></div>
+                  <input required className="input" placeholder={tr("Walk-in / donor name")} value={personName({ name: drawer.donor_name }, lang)} onChange={(e) => setDrawer({ ...drawer, donor_name: sanitizeName(e.target.value) })} /></div>
                 <div><label className="label"><T>Mobile (Optional)</T></label>
-                  <input className="input" placeholder={tr("Mobile number")} value={drawer.mobile} onChange={(e) => setDrawer({ ...drawer, mobile: e.target.value })} /></div>
+                  <input className="input" placeholder={tr("Mobile number")} maxLength={10} value={drawer.mobile} onChange={(e) => setDrawer({ ...drawer, mobile: sanitizePhone(e.target.value) })} /></div>
               </div>
 
               <div><label className="label"><T>Donation Category *</T></label>
@@ -323,11 +357,15 @@ export default function Donations() {
               <div><label className="label"><T>Donation Date *</T></label>
                 <div className="relative"><input className="input bg-gray-50 pr-9" value={todayStamp()} readOnly /><Calendar size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
 
-              <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Tax exemption is applicable only for Medical Donations.</T></div>
-              <label className="flex items-center gap-2 text-sm text-gray-700"><Checkbox checked={drawer.g80} disabled={drawer.donation_type !== 'Cash'} onChange={(e) => { setDrawer({ ...drawer, g80: e.target.checked }); if (!e.target.checked) setPanErr('') }} /> {tr('Eligible for Tax Exemption (Medical Donation)')}</label>
+              {drawer.g80 ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 text-[0.75rem] text-emerald-700 flex items-start gap-2"><Info size={15} className="text-emerald-500 shrink-0 mt-0.5" />{' '}<T>80G Tax Exemption enabled — PAN is mandatory for this receipt.</T></div>
+              ) : (
+                <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Tax exemption (80G) is applicable only for Medical Donations.</T></div>
+              )}
+              <label className="flex items-center gap-2 text-sm text-gray-700"><Checkbox checked={drawer.g80} disabled={drawer.donation_type !== 'Cash'} onChange={(e) => { setDrawer({ ...drawer, g80: e.target.checked }); if (!e.target.checked) setPanErr('') }} /> {tr('Eligible for Tax Exemption (80G)')}</label>
 
               <div><label className="label">{tr("PAN")} {drawer.g80 && <span className="text-red-500">*</span>}{drawer.g80 && <span className="text-[0.6875rem] text-gray-400 font-normal"> <T>(required for 80G)</T></span>}</label>
-                <input className={`input uppercase ${panErr ? 'border-red-400' : ''}`} placeholder={tr("ABCDE1234F")}
+                <input className={`input uppercase ${panErr ? 'border-red-400 ring-1 ring-red-300' : drawer.g80 && !drawer.pan ? 'border-amber-400' : ''}`} placeholder={tr("ABCDE1234F")}
                   value={drawer.pan} onChange={(e) => { setDrawer({ ...drawer, pan: e.target.value.toUpperCase() }); if (panErr) setPanErr('') }} />
                 {panErr && <div className="text-[0.71875rem] text-red-600 mt-1">{panErr}</div>}</div>
 
@@ -335,17 +373,20 @@ export default function Donations() {
                 <textarea className="input min-h-[4.5rem]" maxLength={250} placeholder={tr("Enter any additional notes…")} value={drawer.notes} onChange={(e) => setDrawer({ ...drawer, notes: e.target.value })} />
                 <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{(drawer.notes || '').length} / 250</div></div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-              <button type="button" disabled={saving} onClick={(e) => save(e, false)} className="btn-outline flex-1 justify-center disabled:opacity-50"><T>Save</T></button>
-              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{tr('Save & Print Receipt')} <Printer size={14} /></>}</button>
+            <div className="px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
+              {panErr && <div className="text-[0.75rem] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3 text-center">{panErr}</div>}
+              <div className="flex gap-3">
+                <button type="button" disabled={saving} onClick={(e) => save(e, false)} className="btn-outline flex-1 justify-center disabled:opacity-50"><T>Save</T></button>
+                <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{tr('Save & Print Receipt')} <Printer size={14} /></>}</button>
+              </div>
             </div>
           </form>
         </div>
       )}
 
       {printDoc && (
-        <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-4 no-print" onClick={() => setPrintDoc(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={() => setPrintDoc(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg my-auto">
             <div id="print-area">
               <Receipt title={tr("Donation Receipt")} titleTe="విరాళం రసీదు" no={printDoc.receipt_no} subNo={fmtDate(printDoc.donated_on)} subNoLabel="Date" amount={printDoc.amount}
                 rows={[
