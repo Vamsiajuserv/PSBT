@@ -8,7 +8,7 @@ import {
 import { DevoteesAPI, PoojasAPI, BookingsAPI, PaymentsAPI, PoojarisAPI, FestivalsAPI } from '../../api/client.js'
 import { inr, fmtDate } from '../../components/admin/ui.jsx'
 import { TicketRef } from '../../components/admin/BookingTicket.jsx'
-import { Select, DateField, NumberField } from '../../components/common/Field.jsx'
+import { Select, DateField, NumberField, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { T, tr, clock12, useLang, personName } from '../../i18n/LanguageContext.jsx'
 
 const STEPS = [
@@ -87,6 +87,7 @@ export default function NewBooking() {
 
   const [searchBy, setSearchBy] = useState('Mobile Number')
   const [devQ, setDevQ] = useState('')
+  const [searchCountryCode, setSearchCountryCode] = useState('+91')
   const [devResults, setDevResults] = useState(null)
   const [devotee, setDevotee] = useState(null)
 
@@ -273,19 +274,26 @@ export default function NewBooking() {
       {step === 0 && (
         <div className="space-y-5">
           {/* 1. Devotee Search & Selection */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 text-maroon-700 mb-4"><User size={18} /><h3 className="font-serif text-lg font-bold">{tr("1. Devotee Search & Selection")}</h3></div>
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1.2fr_auto] gap-5 items-start">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5">
+            <div className="flex items-center gap-2 text-maroon-700 mb-4"><User size={18} aria-hidden="true" /><h3 className="font-serif text-base sm:text-lg font-bold">{tr("1. Devotee Search & Selection")}</h3></div>
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1.2fr_auto] gap-4 sm:gap-5 items-start">
               <div>
                 <label className="label"><T>Search By</T></label>
-                <div className="flex gap-5 mb-3 mt-1">
+                <div className="flex flex-wrap gap-3 sm:gap-5 mb-3 mt-1" role="group" aria-label={tr("Search method")}>
                   {['Mobile Number', 'Devotee Name'].map((o) => (
-                    <label key={o} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="sby" className="accent-maroon-700" checked={searchBy === o} onChange={() => setSearchBy(o)} /> {tr(o)}</label>
+                    <label key={o} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"><input type="radio" name="sby" className="accent-maroon-700 focus:ring-2 focus:ring-maroon-500" checked={searchBy === o} onChange={() => setSearchBy(o)} /> {tr(o)}</label>
                   ))}
                 </div>
-                <div className="flex gap-2">
-                  <input className="input flex-1" placeholder={tr(`Enter ${searchBy.toLowerCase()}`)} value={devQ} onChange={(e) => setDevQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} />
-                  <button type="button" onClick={search} className="btn-maroon !px-4"><Search size={15} />{' '}<T>Search</T></button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {searchBy === 'Mobile Number' ? (
+                    <div className="flex flex-1">
+                      <CountryCodeSelect value={searchCountryCode} onChange={(e) => setSearchCountryCode(e.target.value)} />
+                      <input className="input flex-1 !rounded-l-none focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" placeholder={tr("Enter Mobile Number")} aria-label={tr("Mobile number")} value={devQ} maxLength={getCountryDigits(searchCountryCode)} onChange={(e) => setDevQ(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => e.key === 'Enter' && search()} />
+                    </div>
+                  ) : (
+                    <input className="input flex-1 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" placeholder={tr("Enter Devotee Name")} aria-label={tr("Devotee name")} value={devQ} onChange={(e) => setDevQ(e.target.value.replace(/[0-9]/g, ''))} onKeyDown={(e) => e.key === 'Enter' && search()} />
+                  )}
+                  <button type="button" onClick={search} className="btn-maroon !px-4 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1" aria-label={tr("Search devotee")}><Search size={15} aria-hidden="true" />{' '}<T>Search</T></button>
                 </div>
               </div>
               <div className="hidden lg:flex flex-col items-center justify-center text-[0.75rem] text-gray-400 self-stretch"><div className="flex-1 w-px bg-gray-100" /><span className="py-1"><T>OR</T></span><div className="flex-1 w-px bg-gray-100" /></div>
@@ -299,13 +307,13 @@ export default function NewBooking() {
                       <button type="button" onClick={() => setDevotee(null)} className="text-gray-400 hover:text-red-600"><X size={16} /></button>
                     </div>
                     {/* Sankalpam details — printed on the ticket for the poojari */}
-                    <div className="grid grid-cols-3 gap-2 mt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
                       <div><label className="label !text-[0.6875rem]"><T>Gothram</T></label>
-                        <input className="input !py-2 text-sm" value={gothram} onChange={(e) => setGothram(e.target.value)} placeholder={tr("Gothram")} /></div>
+                        <input className="input !py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Gothram")} value={gothram} onChange={(e) => setGothram(e.target.value)} placeholder={tr("Gothram")} /></div>
                       <div><label className="label !text-[0.6875rem]"><T>Nakshatram</T></label>
-                        <input className="input !py-2 text-sm" value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} placeholder={tr("Nakshatram")} /></div>
+                        <input className="input !py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Nakshatram")} value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} placeholder={tr("Nakshatram")} /></div>
                       <div><label className="label !text-[0.6875rem]"><T>In the name of</T></label>
-                        <input className="input !py-2 text-sm" value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder={tr("Optional — e.g. the child")} /></div>
+                        <input className="input !py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Beneficiary name")} value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder={tr("Optional — e.g. the child")} /></div>
                     </div>
                   </>
                 ) : devResults === null ? (
@@ -332,21 +340,21 @@ export default function NewBooking() {
 
             {/* Inline quick-add — 2 fields, no navigation, no lost progress */}
             {quickAdd && (
-              <div className="mt-4 border border-maroon-200 bg-maroon-50/30 rounded-xl p-4">
+              <div className="mt-4 border border-maroon-200 bg-maroon-50/30 rounded-xl p-3 sm:p-4" role="region" aria-labelledby="quick-add-title">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 text-maroon-700"><UserPlus size={16} /><h4 className="font-semibold text-[0.875rem]"><T>Quick Add Devotee</T></h4></div>
-                  <button type="button" onClick={() => setQuickAdd(null)} className="text-gray-400 hover:text-red-600"><X size={16} /></button>
+                  <div className="flex items-center gap-2 text-maroon-700"><UserPlus size={16} aria-hidden="true" /><h4 id="quick-add-title" className="font-semibold text-[0.8125rem] sm:text-[0.875rem]"><T>Quick Add Devotee</T></h4></div>
+                  <button type="button" onClick={() => setQuickAdd(null)} className="text-gray-400 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-lg p-1" aria-label={tr("Close")}><X size={16} aria-hidden="true" /></button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div><label className="label"><T>Full Name *</T></label><input autoFocus className="input" placeholder={tr("Devotee name")} value={personName(quickAdd, lang)} onChange={(e) => setQuickAdd((q) => ({ ...q, name: e.target.value }))} /></div>
-                  <div><label className="label"><T>Mobile Number *</T></label><input className="input" placeholder={tr("10-digit mobile")} value={quickAdd.mobile} maxLength={10} onChange={(e) => setQuickAdd((q) => ({ ...q, mobile: e.target.value.replace(/\D/g, '') }))} /></div>
-                  <div><label className="label"><T>Email (optional)</T></label><input className="input" placeholder={tr("email@example.com")} value={quickAdd.email} onChange={(e) => setQuickAdd((q) => ({ ...q, email: e.target.value }))} /></div>
+                  <div><label className="label"><T>Full Name *</T></label><input autoFocus className="input focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Full name")} placeholder={tr("Full Name")} value={personName(quickAdd, lang)} onChange={(e) => setQuickAdd((q) => ({ ...q, name: e.target.value.replace(/[0-9]/g, '') }))} /></div>
+                  <div><label className="label"><T>Mobile Number *</T></label><div className="flex"><CountryCodeSelect value={quickAdd.country_code || '+91'} onChange={(e) => setQuickAdd((q) => ({ ...q, country_code: e.target.value }))} /><input className="input flex-1 !rounded-l-none focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Mobile number")} placeholder={tr("Enter Mobile Number")} value={quickAdd.mobile} maxLength={getCountryDigits(quickAdd.country_code || '+91')} onChange={(e) => setQuickAdd((q) => ({ ...q, mobile: e.target.value.replace(/\D/g, '') }))} /></div></div>
+                  <div><label className="label"><T>Email (optional)</T></label><input className="input focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Email")} placeholder={tr("email@example.com")} value={quickAdd.email} onChange={(e) => setQuickAdd((q) => ({ ...q, email: e.target.value }))} /></div>
                 </div>
-                {qaErr && <div className="text-[0.75rem] text-red-600 mt-2">{qaErr}</div>}
-                <div className="flex items-center gap-2 mt-3">
-                  <button type="button" onClick={saveQuickAdd} disabled={qaBusy} className="btn-maroon !py-2 disabled:opacity-60"><Check size={15} /> {qaBusy ? tr('Saving…') : tr('Add & Select')}</button>
-                  <button type="button" onClick={() => setQuickAdd(null)} className="btn-outline !py-2"><T>Cancel</T></button>
-                  <span className="text-[0.71875rem] text-gray-400 ml-1"><T>You can complete the full profile later from Devotee Management.</T></span>
+                {qaErr && <div className="text-[0.75rem] text-red-600 mt-2" role="alert">{qaErr}</div>}
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  <button type="button" onClick={saveQuickAdd} disabled={qaBusy} className="btn-maroon !py-2 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1"><Check size={15} aria-hidden="true" /> {qaBusy ? tr('Saving…') : tr('Add & Select')}</button>
+                  <button type="button" onClick={() => setQuickAdd(null)} className="btn-outline !py-2 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1"><T>Cancel</T></button>
+                  <span className="text-[0.65rem] sm:text-[0.71875rem] text-gray-400 ml-1"><T>You can complete the full profile later from Devotee Management.</T></span>
                 </div>
               </div>
             )}

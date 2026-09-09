@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import {
   Plus, X, Eye, Search, RotateCcw, Calendar, Info, ChevronDown, Trash2, Upload,
   HandCoins, IndianRupee, Landmark, CalendarClock, FileText, Calculator, Users, ShieldCheck, Building2,
-  Package, CheckCircle2, ArrowUp, ArrowDown,
+  Package, CheckCircle2, ArrowUp, ArrowDown, Gem, Lock,
 } from 'lucide-react'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
@@ -16,8 +16,9 @@ import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeItemName } from '../../lib/validation.js'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
-const VER_TONE = { Verified: 'green', 'Pending Verification': 'blue' }
-const DEP_TONE = { Deposited: 'green', 'Pending Deposit': 'amber' }
+const VER_TONE = { Verified: 'green', 'Pending Verification': 'blue', Rejected: 'red' }
+const DEP_TONE = { Deposited: 'green', 'Pending Deposit': 'amber', 'N/A': 'gray' }
+const VAL_TONE = { 'In Store': 'green', 'Pending Custody': 'violet' }
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
 const today = () => nowLocal().slice(0, 10)
 const memberCount = (s) => (s ? s.split(',').filter((x) => x.trim()).length : 0)
@@ -59,13 +60,12 @@ export default function Hundi() {
   // Sortable table columns
   const sortColumns = [
     { key: 'code', label: 'Hundi ID', type: 'text' },
-    { key: 'collected_on', label: 'Collection Date', type: 'date' },
-    { key: 'counted_amount', label: 'Total Amount (₹)', type: 'money' },
-    { key: 'members_count', label: 'Committee Members', type: 'num' },
-    { key: 'verification_status', label: 'Verification Status', type: 'text' },
-    { key: 'deposit_status', label: 'Deposit Status', type: 'text' },
-    { key: 'deposited_on', label: 'Deposit Date', type: 'date' },
-    { key: 'bank_name', label: 'Bank Name', type: 'text' },
+    { key: 'collected_on', label: 'Date', type: 'date' },
+    { key: 'cash_amount', label: 'Cash (₹)', type: 'money' },
+    { key: 'valuables_amount', label: 'Valuables (₹)', type: 'money' },
+    { key: 'verification_status', label: 'Verification', type: 'text' },
+    { key: 'deposit_status', label: 'Cash Status', type: 'text' },
+    { key: 'valuables_status', label: 'Valuables Status', type: 'text' },
   ]
   const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'collected_on', direction: 'desc' }])
 
@@ -115,9 +115,10 @@ export default function Hundi() {
   }
 
   async function depositCollection(h) {
+    const cashAmt = h.cash_amount || 0
     const res = await promptDialog({
-      title: `${tr('Record bank deposit')} — ${h.code}`,
-      message: `Counted amount: ₹${h.counted_amount}`,
+      title: `${tr('Record Cash Bank Deposit')} — ${h.code}`,
+      message: `${tr('Cash amount')}: ${inr(cashAmt)}`,
       confirmLabel: tr('Record Deposit'),
       fields: [
         { k: 'bank_name', label: tr('Bank name'), defaultValue: h.bank_name || '', placeholder: tr('e.g. SBI Punjagutta') },
@@ -125,8 +126,23 @@ export default function Hundi() {
       ],
     })
     if (!res) return
-    try { await HundiAPI.deposit(h.id, { bank_name: res.bank_name.trim() || null, bank_ref: res.bank_ref.trim() || null, deposited_on: today() }); toast(tr('Deposit recorded.')); load() }
+    try { await HundiAPI.deposit(h.id, { bank_name: res.bank_name.trim() || null, bank_ref: res.bank_ref.trim() || null, deposited_on: today() }); toast(tr('Cash deposited to bank.')); load() }
     catch (ex) { toast(ex.detail || tr('Could not record the deposit.'), 'error') }
+  }
+  async function storeValuables(h) {
+    const valAmt = h.valuables_amount || 0
+    const res = await promptDialog({
+      title: `${tr('Record Valuables Store Custody')} — ${h.code}`,
+      message: `${tr('Valuables amount')}: ${inr(valAmt)}`,
+      confirmLabel: tr('Record Custody'),
+      fields: [
+        { k: 'store_location', label: tr('Store Location'), defaultValue: '', placeholder: tr('e.g. Main Vault, Locker A') },
+        { k: 'custodian', label: tr('Custodian Name'), defaultValue: '', placeholder: tr('Committee member holding custody') },
+      ],
+    })
+    if (!res) return
+    try { await HundiAPI.store(h.id, { store_location: res.store_location.trim() || null, custodian: res.custodian.trim() || null, stored_on: today() }); toast(tr('Valuables stored in custody.')); load() }
+    catch (ex) { toast(ex.detail || tr('Could not record custody.'), 'error') }
   }
   async function rejectCollection(h) {
     const res = await promptDialog({
@@ -176,26 +192,39 @@ export default function Hundi() {
   }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
 
-  const EXPORT_COLS = [{ key: 'code', label: tr('Hundi ID') }, { key: 'collected_on', label: tr('Collection Date') },
-    { key: 'counted_amount', label: tr('Amount (₹)'), type: 'money' }, { key: 'committee_members', label: tr('Committee Members') },
-    { key: 'verification_status', label: tr('Verification') }, { key: 'deposit_status', label: tr('Deposit') },
-    { key: 'deposited_on', label: tr('Deposit Date') }, { key: 'bank_name', label: tr('Bank') }]
+  const EXPORT_COLS = [
+    { key: 'code', label: tr('Hundi ID') },
+    { key: 'collected_on', label: tr('Collection Date') },
+    { key: 'cash_amount', label: tr('Cash (₹)'), type: 'money' },
+    { key: 'valuables_amount', label: tr('Valuables (₹)'), type: 'money' },
+    { key: 'verification_status', label: tr('Verification') },
+    { key: 'deposit_status', label: tr('Cash Status') },
+    { key: 'bank_name', label: tr('Bank') },
+    { key: 'valuables_status', label: tr('Valuables Status') },
+    { key: 'store_location', label: tr('Store Location') },
+  ]
   const exportRows = rows
-  const exportTotal = { code: 'Total', counted_amount: rows.reduce((s, h) => s + Number(h.counted_amount || 0), 0) }
+  const exportTotal = {
+    code: 'Total',
+    cash_amount: rows.reduce((s, h) => s + Number(h.cash_amount || 0), 0),
+    valuables_amount: rows.reduce((s, h) => s + Number(h.valuables_amount || 0), 0),
+  }
   return (
     <div>
       <PageTitle title={tr("Hundi Management")} subtitle={tr("Manage physical hundi collections from the temple, counting, verification and bank deposits.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Hundi Collection Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record New Collection</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={HandCoins} color="#059669" bg="bg-emerald-50" title={tr("Latest Collection")}
-          value={stats ? inr(stats.latest_amount) : '—'} sub={stats?.latest_date ? fmtDate(stats.latest_date) : '—'} />
-        <StatTile icon={IndianRupee} color="#7c3aed" bg="bg-violet-50" title={tr("This Month Collections")}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <StatTile icon={HandCoins} color="#059669" bg="bg-emerald-50" title={tr("This Month Total")}
           value={stats ? inr(stats.month_amount) : '—'} sub={stats ? `${num(stats.month_count)} ${tr("Collections")}` : ''} />
-        <StatTile icon={Landmark} color="#d97706" bg="bg-amber-50" title={tr("Deposited This Month")}
-          value={stats ? inr(stats.deposited_month_amount) : '—'} sub={stats ? `${num(stats.deposited_month_count)} ${tr("Deposits")}` : ''} />
-        <StatTile icon={CalendarClock} color="#2563eb" bg="bg-blue-50" title={tr("Pending Deposit")}
-          value={stats ? inr(stats.pending_amount) : '—'} sub={stats ? `${num(stats.pending_count)} ${tr("Collections")}` : ''} />
+        <StatTile icon={IndianRupee} color="#2563eb" bg="bg-blue-50" title={tr("Cash (This Month)")}
+          value={stats ? inr(stats.month_cash) : '—'} sub={stats?.pending_deposit_count ? `${num(stats.pending_deposit_count)} ${tr("Pending Deposit")}` : tr("For bank deposit")} />
+        <StatTile icon={Gem} color="#7c3aed" bg="bg-violet-50" title={tr("Valuables (This Month)")}
+          value={stats ? inr(stats.month_valuables) : '—'} sub={stats?.pending_custody_count ? `${num(stats.pending_custody_count)} ${tr("Pending Custody")}` : tr("Gold, Silver, Jewellery")} />
+        <StatTile icon={Landmark} color="#d97706" bg="bg-amber-50" title={tr("Cash Deposited")}
+          value={stats ? inr(stats.deposited_month_amount) : '—'} sub={stats ? `${num(stats.deposited_month_count)} ${tr("Bank Deposits")}` : ''} />
+        <StatTile icon={Lock} color="#059669" bg="bg-emerald-50" title={tr("Valuables In Store")}
+          value={stats ? `${num(stats.stored_month_count)}` : '—'} sub={tr("Collections in custody")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -254,14 +283,13 @@ export default function Hundi() {
                 <tr key={h.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{h.code}</td>
                   <td className="px-4 py-3 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDate(h.collected_on)}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{inr(h.counted_amount)}</td>
-                  <td className="px-4 py-3 text-gray-600">{memberCount(h.committee_members)} {tr("Members")}</td>
-                  <td className="px-4 py-3"><Pill tone={VER_TONE[h.verification_status] || 'gray'}>{h.verification_status}</Pill></td>
-                  <td className="px-4 py-3"><Pill tone={DEP_TONE[h.deposit_status] || 'gray'}>{h.deposit_status}</Pill></td>
-                  <td className="px-4 py-3 text-gray-600 text-[0.8125rem]">{h.deposited_on ? fmtDate(h.deposited_on) : <span className="text-gray-300">-</span>}</td>
-                  <td className="px-4 py-3 text-gray-600 text-[0.8125rem]">{h.bank_name ? tr(h.bank_name) : <span className="text-gray-300">-</span>}</td>
+                  <td className="px-4 py-3 font-semibold text-blue-700">{h.cash_amount > 0 ? inr(h.cash_amount) : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3 font-semibold text-violet-700">{h.valuables_amount > 0 ? inr(h.valuables_amount) : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3"><Pill tone={VER_TONE[h.verification_status] || 'gray'}>{tr(h.verification_status)}</Pill></td>
+                  <td className="px-4 py-3">{h.deposit_status && h.deposit_status !== 'N/A' ? <Pill tone={DEP_TONE[h.deposit_status] || 'gray'}>{tr(h.deposit_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3">{h.valuables_status ? <Pill tone={VAL_TONE[h.valuables_status] || 'gray'}>{tr(h.valuables_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <button onClick={() => setView(h)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                       {canVerify && h.verification_status === 'Pending Verification' && (
                         <>
@@ -269,14 +297,17 @@ export default function Hundi() {
                           <button onClick={() => rejectCollection(h)} title={tr("Flag a discrepancy")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-red-200 text-red-600 text-[0.78125rem] font-semibold hover:bg-red-50"><T>Reject</T></button>
                         </>
                       )}
-                      {canWrite && h.verification_status === 'Verified' && h.deposit_status !== 'Deposited' && (
-                        <button onClick={() => depositCollection(h)} title={tr("Record bank deposit")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-blue-200 text-blue-700 text-[0.78125rem] font-semibold hover:bg-blue-50"><Landmark size={15} />{' '}<T>Deposit</T></button>
+                      {canWrite && h.verification_status === 'Verified' && h.deposit_status === 'Pending Deposit' && h.cash_amount > 0 && (
+                        <button onClick={() => depositCollection(h)} title={tr("Record cash bank deposit")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-blue-200 text-blue-700 text-[0.78125rem] font-semibold hover:bg-blue-50"><Landmark size={15} />{' '}<T>Bank Deposit</T></button>
+                      )}
+                      {canWrite && h.verification_status === 'Verified' && h.valuables_status === 'Pending Custody' && h.valuables_amount > 0 && (
+                        <button onClick={() => storeValuables(h)} title={tr("Record valuables store custody")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-violet-200 text-violet-700 text-[0.78125rem] font-semibold hover:bg-violet-50"><Lock size={15} />{' '}<T>Store Custody</T></button>
                       )}
                     </div>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty={tr("No collections recorded.")} />}
+              {rows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty={tr("No collections recorded.")} />}
             </tbody>
           </table>
         </div>
@@ -432,13 +463,26 @@ export default function Hundi() {
                 <VField label={tr("Verified By")} value={view.verified_by ? personName({ name: view.verified_by }, lang) : '—'} />
                 <VField label={tr("Verified On")} value={view.verified_on ? fmtStamp(view.verified_on) : '—'} wide />
               </DSection>
-              <DSection n="3" icon={Building2} title={tr("Deposit")}>
-                <VField label={tr("Status")} value={<Pill tone={DEP_TONE[view.deposit_status]}>{tr(view.deposit_status)}</Pill>} />
-                <VField label={tr("Deposit Date")} value={view.deposited_on ? fmtDate(view.deposited_on) : '—'} />
-                <VField label={tr("Bank Name")} value={view.bank_name ? tr(view.bank_name) : '—'} wide />
-                <VField label={tr("Challan / Reference")} value={view.bank_ref || '—'} wide />
-                <VField label={tr("Attachment")} value={view.attachment || '—'} wide />
-              </DSection>
+              {/* Cash → Bank Deposit Section */}
+              {view.cash_amount > 0 && (
+                <DSection n="3" icon={Landmark} title={tr("Cash → Bank Deposit")}>
+                  <VField label={tr("Cash Amount")} value={inr(view.cash_amount)} />
+                  <VField label={tr("Status")} value={<Pill tone={DEP_TONE[view.deposit_status]}>{tr(view.deposit_status)}</Pill>} />
+                  <VField label={tr("Deposit Date")} value={view.deposited_on ? fmtDate(view.deposited_on) : '—'} />
+                  <VField label={tr("Bank Name")} value={view.bank_name ? tr(view.bank_name) : '—'} />
+                  <VField label={tr("Challan / Reference")} value={view.bank_ref || '—'} wide />
+                </DSection>
+              )}
+              {/* Valuables → Store Custody Section */}
+              {view.valuables_amount > 0 && (
+                <DSection n={view.cash_amount > 0 ? "4" : "3"} icon={Lock} title={tr("Valuables → Store Custody")}>
+                  <VField label={tr("Valuables Amount")} value={inr(view.valuables_amount)} />
+                  <VField label={tr("Status")} value={view.valuables_status ? <Pill tone={VAL_TONE[view.valuables_status]}>{tr(view.valuables_status)}</Pill> : '—'} />
+                  <VField label={tr("Custody Date")} value={view.valuables_stored_on ? fmtDate(view.valuables_stored_on) : '—'} />
+                  <VField label={tr("Store Location")} value={view.store_location || '—'} />
+                  <VField label={tr("Custodian")} value={view.valuables_custodian ? personName({ name: view.valuables_custodian }, lang) : '—'} wide />
+                </DSection>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
               <button onClick={() => setView(null)} className="btn-maroon w-full justify-center"><T>Close</T></button>

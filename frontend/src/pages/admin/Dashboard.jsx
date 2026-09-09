@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarDays, HeartHandshake, HandHeart, HandCoins, Gavel, Flame, Recycle,
-  Calendar, Filter, RotateCcw, TrendingUp, ArrowRight, Clock, ChevronRight, BarChart3,
+  Calendar, Filter, RotateCcw, TrendingUp, ArrowRight, Clock, ChevronRight, BarChart3, Loader2,
 } from 'lucide-react'
 import { Donut } from '../../components/common/UI.jsx'
 import { useAuth, useHasModule } from '../../auth/AuthContext.jsx'
@@ -52,19 +52,19 @@ const ALERT_ROUTE = { hundi: '/admin/hundi', auction: '/admin/auction', donation
 
 function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, footValue, to }) {
   const inner = (
-    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm p-5 h-full overflow-hidden flex flex-col ${to ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200' : ''}`}>
-      <div className="flex items-start gap-3 flex-1">
-        <div className={`w-12 h-12 rounded-full grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}><Icon size={22} /></div>
+    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5 h-full overflow-hidden flex flex-col ${to ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200 focus-within:ring-2 focus-within:ring-maroon-500 focus-within:ring-offset-2' : ''}`}>
+      <div className="flex items-start gap-2 sm:gap-3 flex-1">
+        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}><Icon size={18} aria-hidden="true" /></div>
         <div className="min-w-0 flex-1">
-          <div className="text-[0.78125rem] text-gray-500 leading-snug">{title}</div>
-          {sub && <div className="text-[0.6875rem] text-gray-400 leading-none">{sub}</div>}
-          <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 mt-1.5 leading-tight tabular-nums break-words">{value}</div>
+          <div className="text-[0.6875rem] sm:text-[0.78125rem] text-gray-500 leading-snug">{title}</div>
+          {sub && <div className="text-[0.5625rem] sm:text-[0.6875rem] text-gray-400 leading-none">{sub}</div>}
+          <div className="text-sm sm:text-base lg:text-lg xl:text-xl font-extrabold text-gray-800 mt-1 sm:mt-1.5 leading-tight tabular-nums break-words">{value}</div>
         </div>
       </div>
-      <div className="mt-auto pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400 leading-tight">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>
+      <div className="mt-auto pt-2 sm:pt-3 border-t border-gray-100 text-[0.6875rem] sm:text-[0.75rem] text-gray-400 leading-tight">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>
     </div>
   )
-  return to ? <Link to={to} className="block h-full">{inner}</Link> : inner
+  return to ? <Link to={to} className="block h-full focus:outline-none" aria-label={`${title}: ${value}`}>{inner}</Link> : inner
 }
 
 function BarChart({ days }) {
@@ -149,13 +149,14 @@ export default function Dashboard() {
           <p className="text-sm text-gray-500 mt-1">{tr('Welcome back,')} {name}{role && !name.includes(role) ? ` (${tr(role)})` : ''}</p>
         </div>
         <div className="flex flex-col items-stretch lg:items-end gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label={tr('Date range presets')}>
             {[['today', 'Today', () => setPreset(todayISO, todayISO)],
               ['7d', '7 Days', () => setPreset(shift(6), todayISO)],
               ['30d', '30 Days', () => setPreset(shift(29), todayISO)],
               ['month', 'This Month', () => setPreset(monthStartISO, todayISO)]].map(([key, label, fn]) => (
               <button key={key} onClick={fn}
-                className={`px-3 py-1.5 rounded-lg text-[0.75rem] font-semibold border transition ${ap === key ? 'bg-maroon-700 text-cream border-maroon-700' : 'bg-white text-gray-600 border-gray-200 hover:border-maroon-300'}`}>
+                aria-pressed={ap === key}
+                className={`px-2 sm:px-3 py-1.5 rounded-lg text-[0.6875rem] sm:text-[0.75rem] font-semibold border transition focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1 ${ap === key ? 'bg-maroon-700 text-cream border-maroon-700' : 'bg-white text-gray-600 border-gray-200 hover:border-maroon-300'}`}>
                 {tr(label)}
               </button>
             ))}
@@ -172,9 +173,17 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Loading state */}
+      {!d && (
+        <div className="flex items-center justify-center py-12 text-gray-400" role="status" aria-live="polite">
+          <Loader2 size={24} className="animate-spin mr-3" aria-hidden="true" />
+          <span className="text-sm"><T>Loading dashboard data...</T></span>
+        </div>
+      )}
+
       {/* KPI tiles — each gated to the module its screen needs, so a counter
           user sees only the collections they actually handle. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+      {d && <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-6" role="region" aria-label={tr('Key performance indicators')}>
         {hasModule('Bookings') && <Kpi to="/admin/bookings" icon={CalendarDays} iconBg="bg-blue-50" iconColor="#2563eb" title={tr("Pooja Bookings")} sub={rangeSub}
           value={t ? num(t.pooja_bookings.count) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Donations') && <Kpi to="/admin/donations" icon={HandHeart} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Donations Received")} sub={rangeSub}
@@ -187,10 +196,10 @@ export default function Dashboard() {
           value={t ? num(t.annadanam.count) : '—'} footLabel={tr("Beneficiaries")} footValue={t ? num(t.annadanam.beneficiaries) : '—'} />}
         {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Waste Material Sales")} sub={rangeSub}
           value={t ? num(t.waste.count) : '—'} footLabel={tr("Total Weight")} footValue={t ? `${num(t.waste.weight)} ${tr("Kg")}` : '—'} />}
-      </div>
+      </div>}
 
       {/* Row: Today's Overview | Week chart | Recent Bookings - Hidden for Counter Staff (Item 14) */}
-      {!isCounterStaff && <div className="grid lg:grid-cols-3 gap-5 mb-5">
+      {d && !isCounterStaff && <div className="grid lg:grid-cols-3 gap-4 sm:gap-5 mb-5">
         {/* Today's Overview */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <h3 className="font-serif text-lg font-bold text-maroon-800">{ap === 'today' ? tr("Today's Overview") : tr('Overview')} <span className="text-xs font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
@@ -251,7 +260,7 @@ export default function Dashboard() {
       </div>}
 
       {/* Row: Upcoming Special | Donations by Category | Alerts - Hidden for Counter Staff (Item 14) */}
-      {!isCounterStaff && <div className="grid lg:grid-cols-3 gap-5">
+      {d && !isCounterStaff && <div className="grid lg:grid-cols-3 gap-4 sm:gap-5">
         {/* Upcoming Special Poojas */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
@@ -324,7 +333,7 @@ export default function Dashboard() {
         </div>
       </div>}
 
-      {!isCounterStaff && <div className="mt-5 text-[0.75rem] text-gray-400 text-center"><T>Note: All amounts shown are for the selected date range. Change the date range to view data for a different period.</T></div>}
+      {d && !isCounterStaff && <div className="mt-5 text-[0.6875rem] sm:text-[0.75rem] text-gray-400 text-center"><T>Note: All amounts shown are for the selected date range. Change the date range to view data for a different period.</T></div>}
     </div>
   )
 }

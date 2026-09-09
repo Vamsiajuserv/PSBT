@@ -6,7 +6,7 @@ import {
 import { Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 import { useLang, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
-import { Select } from '../../components/common/Field.jsx'
+import { Select, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 
 const MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=Shirdi+Sai+Baba+Temple+Dwarakapuri+Colony+Punjagutta+Hyderabad'
 
@@ -33,7 +33,7 @@ export default function Contact() {
   ]
 
   // ── Inquiry form state ──
-  const [form, setForm] = useState({ name: '', mobile: '', email: '', subject: 'General', message: '', website: '' })
+  const [form, setForm] = useState({ name: '', countryCode: '+91', mobile: '', email: '', subject: 'General', message: '', website: '' })
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
@@ -115,7 +115,7 @@ export default function Contact() {
               <p className="text-sm text-gray-600 mt-1.5 max-w-sm mx-auto">
                 {t('Your message has reached the temple office. Our staff will get back to you during temple hours.')}
               </p>
-              <button onClick={() => { setDone(false); setForm({ name: '', mobile: '', email: '', subject: 'General', message: '', website: '' }) }}
+              <button onClick={() => { setDone(false); setForm({ name: '', countryCode: '+91', mobile: '', email: '', subject: 'General', message: '', website: '' }) }}
                       className="btn-outline mt-5 !py-2 text-xs">{t('Send another message')}</button>
             </div>
           ) : (
@@ -128,13 +128,19 @@ export default function Contact() {
                 <label className="label">{t('Your Name')} *</label>
                 <div className="relative">
                   <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input required minLength={2} className="input !pl-8" placeholder={t('Full name')} value={form.name} onChange={set('name')} />
+                  <input required minLength={2} className="input !pl-8" placeholder={t('Full name')} value={form.name}
+                    onChange={(e) => { const v = e.target.value.replace(/[^a-zA-Z\s.]/g, ''); setForm((f) => ({ ...f, name: v })) }} />
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="label">{t('Mobile')}</label>
-                  <input className="input" inputMode="tel" placeholder={tr("98xxxxxxxx")} value={form.mobile} onChange={set('mobile')} />
+                  <div className="flex">
+                    <CountryCodeSelect value={form.countryCode} onChange={(e) => setForm((f) => ({ ...f, countryCode: e.target.value, mobile: '' }))} />
+                    <input className="input !rounded-l-none flex-1" inputMode="tel" placeholder={tr("Enter mobile number")} value={form.mobile}
+                      maxLength={getCountryDigits(form.countryCode)}
+                      onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setForm((f) => ({ ...f, mobile: v })) }} />
+                  </div>
                 </div>
                 <div>
                   <label className="label">{t('Email')}</label>

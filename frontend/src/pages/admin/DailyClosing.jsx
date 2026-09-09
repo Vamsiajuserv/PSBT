@@ -66,8 +66,8 @@ function CardHead({ icon: Icon, title }) {
 export default function DailyClosing() {
   const { lang } = useLang()
   const { user } = useAuth()
-  // Admin, Counter Staff, Committee, and Accountant can all close the day
-  const canClose = ['Admin', 'Administrator', 'Counter Staff', 'Committee', 'Accountant'].includes(user?.role)
+  // Admin, Committee, and Accountant can close the day (requires Reports write permission)
+  const canClose = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   // Only Admin can reopen a closed day
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const [day, setDay] = useState(today())
@@ -323,7 +323,7 @@ export default function DailyClosing() {
 
               {canClose && (
                 <button onClick={closeDay} disabled={busy}
-                  className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream font-semibold rounded-lg py-3 hover:from-maroon-700 disabled:opacity-60">
+                  className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-maroon-700 text-white font-semibold rounded-lg py-3 hover:bg-maroon-800">
                   <Lock size={16} /> {busy ? tr('Closing…') : tr('Close Day & Finalize')}
                 </button>
               )}

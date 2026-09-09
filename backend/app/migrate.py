@@ -30,6 +30,7 @@ COLUMN_MIGRATIONS = {
         ("quantity", "NUMERIC(12,2)"),
         ("donation_code", "VARCHAR(30)"), ("txn_ref", "VARCHAR(60)"), ("notes", "TEXT"),
         ("voided", "BOOLEAN DEFAULT FALSE"), ("void_reason", "TEXT"),
+        ("mobile", "VARCHAR(20)"), ("address", "TEXT"),
     ],
     "hundi_collections": [
         ("committee_member", "VARCHAR(160)"), ("notes", "TEXT"),
@@ -39,6 +40,10 @@ COLUMN_MIGRATIONS = {
         ("verified_by", "VARCHAR(120)"), ("verified_on", "TIMESTAMP"),
         ("deposit_status", "VARCHAR(30) DEFAULT 'Pending Deposit'"),
         ("bank_name", "VARCHAR(160)"), ("attachment", "VARCHAR(200)"),
+        # Valuables custody fields
+        ("valuables_status", "VARCHAR(30)"), ("store_location", "VARCHAR(160)"),
+        ("valuables_custodian", "VARCHAR(120)"), ("valuables_stored_on", "DATE"),
+        ("custody_receipt", "VARCHAR(200)"),
     ],
     "auctions": [
         ("devotee_id", "INTEGER"), ("description", "TEXT"), ("auction_date", "DATE"),
@@ -51,6 +56,7 @@ COLUMN_MIGRATIONS = {
         ("payment_status", "VARCHAR(20) DEFAULT 'Pending'"),
         ("payment_mode", "VARCHAR(30)"), ("payment_ref", "VARCHAR(60)"),
         ("receipt_no", "VARCHAR(30)"), ("paid_at", "TIMESTAMP"), ("paid_by", "VARCHAR(60)"),
+        ("winner_mobile", "VARCHAR(20)"),
     ],
     "devotees": [
         ("name_te", "VARCHAR(160)"),
@@ -67,11 +73,14 @@ COLUMN_MIGRATIONS = {
     "waste_sales": [
         ("mobile", "VARCHAR(20)"), ("unit", "VARCHAR(20) DEFAULT 'Kilogram (kg)'"),
         ("mode", "VARCHAR(20) DEFAULT 'Cash'"), ("txn_ref", "VARCHAR(60)"), ("paid_at", "TIMESTAMP"),
+        ("verification_status", "VARCHAR(20) DEFAULT 'Pending'"), ("verified_at", "TIMESTAMP"),
+        ("rejection_reason", "VARCHAR(300)"),
     ],
     "users": [
         ("name_te", "VARCHAR(160)"), ("mobile", "VARCHAR(20)"), ("poojari_id", "INTEGER")],
     "poojaris": [
-        ("name_te", "VARCHAR(160)"),("email", "VARCHAR(160)")],
+        ("name_te", "VARCHAR(160)"),("email", "VARCHAR(160)"),
+        ("deleted", "BOOLEAN DEFAULT FALSE")],
     "daily_closings": [
         ("opening_cash", "NUMERIC(14,2) DEFAULT 0"), ("refunds", "NUMERIC(14,2) DEFAULT 0"),
         ("expected_cash", "NUMERIC(14,2) DEFAULT 0"), ("actual_cash", "NUMERIC(14,2) DEFAULT 0"),

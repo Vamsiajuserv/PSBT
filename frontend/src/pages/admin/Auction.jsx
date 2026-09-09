@@ -473,7 +473,7 @@ export default function Auction() {
                   </div>
                 )}
               </div>
-              <div><label className="label"><T>Winner / Highest Bidder (Optional)</T></label><input className="input" placeholder={tr("Alphabets only")} value={personName({ name: drawer.winner }, lang)} onChange={(e) => setM({ winner: sanitizeName(e.target.value) })} /></div>
+              <div><label className="label"><T>Winner / Highest Bidder (Optional)</T></label><input className="input" placeholder={tr("Enter Winner / Highest Bidder Name")} value={personName({ name: drawer.winner }, lang)} onChange={(e) => setM({ winner: sanitizeName(e.target.value) })} /></div>
               <div><label className="label"><T>Description (Optional)</T></label>
                 <textarea className="input min-h-[5.625rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.description} onChange={(e) => setM({ description: e.target.value })} />
                 <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{drawer.description.length} / 250</div></div>

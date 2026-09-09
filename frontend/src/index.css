@@ -111,6 +111,31 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+/* Thin scrollbar for light panels - subtle, appears on hover */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scrollbar-thin:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
 /* ── Loading screen (TempleLoader) — a calm maroon ground + gently pulsing seal */
 .temple-loader {
   background: linear-gradient(160deg, #4A0F0F 0%, #380A0A 55%, #2B0505 100%);
@@ -553,7 +578,11 @@
   #print-area,
   #print-area *,
   #auction-receipt,
-  #auction-receipt * {
+  #auction-receipt *,
+  #print-history-area,
+  #print-history-area *,
+  #print-pooja-queue,
+  #print-pooja-queue * {
     visibility: visible !important;
   }
 
@@ -570,6 +599,111 @@
     background: #fff !important;
     z-index: 99999 !important;
     box-sizing: border-box !important;
+  }
+
+  /* Position #print-history-area for Pooja History Report printing */
+  #print-history-area {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 10mm 15mm !important;
+    background: #fff !important;
+    z-index: 99999 !important;
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-history-area .print-header {
+    margin-bottom: 8mm !important;
+  }
+
+  #print-history-area .print-stats {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 4mm !important;
+    margin-bottom: 6mm !important;
+  }
+
+  #print-history-area .print-stats > div {
+    border: 1px solid #e5e7eb !important;
+    padding: 3mm !important;
+    background: #f9fafb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-history-area .print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8pt !important;
+  }
+
+  #print-history-area .print-table th,
+  #print-history-area .print-table td {
+    padding: 2mm 3mm !important;
+    border: 0.5pt solid #d1d5db !important;
+  }
+
+  #print-history-area .print-table thead tr {
+    background: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-history-area .print-footer {
+    margin-top: 5mm !important;
+    padding-top: 3mm !important;
+    border-top: 0.5pt solid #e5e7eb !important;
+  }
+
+  /* Position #print-pooja-queue for My Poojas / Pooja Queue Report printing */
+  #print-pooja-queue {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 10mm 15mm !important;
+    background: #fff !important;
+    z-index: 99999 !important;
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-pooja-queue .print-header {
+    margin-bottom: 8mm !important;
+  }
+
+  #print-pooja-queue table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8pt !important;
+  }
+
+  #print-pooja-queue table th,
+  #print-pooja-queue table td {
+    padding: 2mm 3mm !important;
+    border: 0.5pt solid #d1d5db !important;
+  }
+
+  #print-pooja-queue table thead tr {
+    background: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-pooja-queue table tfoot tr {
+    background: #f9fafb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* Position #print-area at top-left of page for A4 printing */

@@ -19,24 +19,29 @@ write = RequireModule("Bookings", write=True)
 
 def _dict(p: Poojari) -> dict:
     return {"id": p.id, "code": p.code, "name": p.name, "name_te": p.name_te, "phone": p.phone, "email": p.email,
-            "specialization": p.specialization, "active": p.active}
+            "specialization": p.specialization, "active": p.active, "deleted": p.deleted}
 
 
 @router.get("")
 def list_poojaris(db: Session = Depends(get_db), user=Depends(read)):
-    return [_dict(p) for p in db.query(Poojari).filter(Poojari.active.is_(True)).order_by(Poojari.id.desc()).all()]
+    # Exclude deleted poojaris, show only active ones for operational lists
+    return [_dict(p) for p in db.query(Poojari).filter(
+        Poojari.deleted.is_(False), Poojari.active.is_(True)
+    ).order_by(Poojari.id.desc()).all()]
 
 
 @router.get("/stats")
 def poojari_stats(db: Session = Depends(get_db), user=Depends(read)):
-    total = db.query(func.count(Poojari.id)).scalar() or 0
-    active = db.query(func.count(Poojari.id)).filter(Poojari.active.is_(True)).scalar() or 0
+    # Stats exclude deleted records
+    total = db.query(func.count(Poojari.id)).filter(Poojari.deleted.is_(False)).scalar() or 0
+    active = db.query(func.count(Poojari.id)).filter(Poojari.deleted.is_(False), Poojari.active.is_(True)).scalar() or 0
     return {"total": total, "active": active, "inactive": total - active}
 
 
 @router.get("/master")
 def list_master(q: str = "", status: str = "", db: Session = Depends(get_db), user=Depends(read)):
-    query = db.query(Poojari)
+    # Master list excludes deleted records by default (deleted ≠ inactive)
+    query = db.query(Poojari).filter(Poojari.deleted.is_(False))
     if q:
         from sqlalchemy import or_
         query = query.filter(or_(Poojari.name.ilike(f"%{q}%"), Poojari.code.ilike(f"%{q}%"),
@@ -79,7 +84,8 @@ def delete_poojari(pid: int, request: Request, db: Session = Depends(get_db), us
     p = db.get(Poojari, pid)
     if not p:
         raise HTTPException(404, "Poojari not found")
-    p.active = False   # soft-delete keeps historical assignments intact
+    # Soft-delete: mark as deleted, distinct from inactive (operational unavailability)
+    p.deleted = True
     db.commit()
     log_action(db, username=user.username, action="DELETE", entity="Poojari", detail=p.name, ip=client_ip(request))
 
@@ -91,7 +97,7 @@ def schedule(day: date | None = None, db: Session = Depends(get_db), user=Depend
     bookings = (db.query(Booking)
                 .filter(Booking.scheduled_date == day, Booking.status != "Cancelled")
                 .order_by(Booking.time_slot, Booking.id).all())
-    poojaris = db.query(Poojari).filter(Poojari.active.is_(True)).all()
+    poojaris = db.query(Poojari).filter(Poojari.deleted.is_(False), Poojari.active.is_(True)).all()
     groups = {p.id: {"poojari": _dict(p), "bookings": []} for p in poojaris}
     unassigned = []
     for b in bookings:
@@ -118,30 +124,51 @@ def _revisit_map(db: Session, devotee_ids) -> dict:
 
 
 @router.get("/queue")
-def queue(day: date | None = None, mine: bool = False,
-          db: Session = Depends(get_db), user=Depends(read)):
-    """The Poojari's pooja queue for a day: all confirmed/completed poojas, or —
+def queue(day: date | None = None, start: date | None = None, end: date | None = None,
+          mine: bool = False, db: Session = Depends(get_db), user=Depends(read)):
+    """The Poojari's pooja queue for a day or date range: all confirmed/completed poojas, or —
     with mine=true — only those assigned to the logged-in poojari. Each row carries
-    the devotee's repeat-visit info so the poojari can recognise regular devotees."""
-    day = day or date.today()
-    # A booking is "due" on `day` if it is paid, not cancelled, has started
-    # (scheduled_date <= day), and is either still active within its validity window
-    # or was actually performed on this day (so recurring poojas appear every day of
-    # their window, and completed-today entries stay visible).
-    q = db.query(Booking).filter(
-        Booking.payment_status == "Paid",
-        Booking.status != "Cancelled",
-        or_(Booking.scheduled_date.is_(None), Booking.scheduled_date <= day),
-    ).filter(or_(
-        and_(Booking.status == "Confirmed",
-             or_(Booking.valid_until.is_(None), Booking.valid_until >= day)),
-        Booking.last_performed_on == day,
-    ))
+    the devotee's repeat-visit info so the poojari can recognise regular devotees.
+
+    Supports both single day (day param) and date range (start/end params) filtering."""
+    # Date range mode if start/end provided, otherwise single day mode
+    if start and end:
+        # Date range mode - show poojas performed within the range
+        q = db.query(Booking).filter(
+            Booking.payment_status == "Paid",
+            Booking.status != "Cancelled",
+            Booking.last_performed_on.isnot(None),
+            Booking.last_performed_on >= start,
+            Booking.last_performed_on <= end,
+        )
+        ref_day = end  # Use end date as reference for done_today check
+        is_range = True
+    else:
+        # Single day mode (original behavior)
+        day = day or date.today()
+        ref_day = day
+        is_range = False
+        # A booking is "due" on `day` if it is paid, not cancelled, has started
+        # (scheduled_date <= day), and is either still active within its validity window
+        # or was actually performed on this day (so recurring poojas appear every day of
+        # their window, and completed-today entries stay visible).
+        q = db.query(Booking).filter(
+            Booking.payment_status == "Paid",
+            Booking.status != "Cancelled",
+            or_(Booking.scheduled_date.is_(None), Booking.scheduled_date <= day),
+        ).filter(or_(
+            and_(Booking.status == "Confirmed",
+                 or_(Booking.valid_until.is_(None), Booking.valid_until >= day)),
+            Booking.last_performed_on == day,
+        ))
+
     if mine:
         if not user.poojari_id:
-            return {"day": str(day), "mine": True, "poojari_id": None, "items": []}
+            return {"day": str(ref_day), "start": str(start) if start else None,
+                    "end": str(end) if end else None, "mine": True, "poojari_id": None, "items": []}
         q = q.filter(Booking.poojari_id == user.poojari_id)
-    bookings = q.order_by(Booking.time_slot, Booking.id).all()
+
+    bookings = q.order_by(Booking.last_performed_on.desc() if is_range else Booking.time_slot, Booking.id).all()
     rmap = _revisit_map(db, {b.devotee_id for b in bookings})
     items = []
     for b in bookings:
@@ -158,11 +185,19 @@ def queue(day: date | None = None, mine: bool = False,
             "gothram": b.gothram, "nakshatram": b.nakshatram,
             "beneficiary_name": b.beneficiary_name,
             "performances_allowed": allowed, "performances_done": done, "remaining": remaining,
-            "done_today": b.last_performed_on == day,
+            "done_today": b.last_performed_on == date.today(),
+            "performed_on": str(b.last_performed_on) if b.last_performed_on else None,
             "valid_until": str(b.valid_until) if b.valid_until else None,
             "visits": rv["visits"], "last_visit": rv["last_visit"], "repeat": rv["visits"] > 0,
         })
-    return {"day": str(day), "mine": mine, "poojari_id": user.poojari_id, "items": items}
+    return {
+        "day": str(ref_day),
+        "start": str(start) if start else None,
+        "end": str(end) if end else None,
+        "mine": mine,
+        "poojari_id": user.poojari_id,
+        "items": items
+    }
 
 
 @router.post("/queue/complete-due")

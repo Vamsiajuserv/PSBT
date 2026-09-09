@@ -200,7 +200,7 @@ export default function RoleAccess() {
             <div className="space-y-3">
               <div>
                 <label className="label"><T>Role Name *</T></label>
-                <input autoFocus required className="input" placeholder={tr("Alphabets only")} value={creating.name} onChange={(e) => setCreating({ ...creating, name: sanitizeName(e.target.value) })} />
+                <input autoFocus required className="input" placeholder={tr("Role Name")} value={creating.name} onChange={(e) => setCreating({ ...creating, name: sanitizeName(e.target.value) })} />
               </div>
               <div>
                 <label className="label"><T>Description</T></label>

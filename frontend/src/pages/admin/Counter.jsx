@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
-import { Select, DateField, Combobox } from '../../components/common/Field.jsx'
+import { Select, DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { PoojasAPI, DevoteesAPI, BookingsAPI, PaymentsAPI, FestivalsAPI, PoojarisAPI, TithiAPI } from '../../api/client.js'
 import { promptDialog } from '../../components/common/Dialog.jsx'
 import { T, tr, useLang, personName, stamp, clock12 } from '../../i18n/LanguageContext.jsx'
@@ -18,12 +18,16 @@ const SLOTS = [
   '10:30 AM - 11:30 AM', '12:00 PM - 01:00 PM', '04:00 PM - 05:00 PM',
 ]
 
-// Common Hindu Gotras (Saptarishi lineages and others)
+// Complete list of Hindu Gotras (52 Gotras from across India)
 const GOTHRAMS = [
-  'Angirasa', 'Atri', 'Bharadwaja', 'Bhrigu', 'Gautama', 'Jamadagni', 'Kashyapa',
-  'Kaundinya', 'Moudgalya', 'Nidruva', 'Parashara', 'Sandilya', 'Srivatsa',
-  'Vashishtha', 'Vatsa', 'Vishwamitra', 'Harita', 'Agastya', 'Pulastya', 'Kratu',
-  'Marichi', 'Daksha', 'Kaushika', 'Mandavya', 'Garga', 'Kanva', 'Upamanyu',
+  'Agastya', 'Alambayana', 'Angirasa', 'Atri', 'Babhravya', 'Bharadwaja', 'Bhargava',
+  'Bhrigu', 'Daksha', 'Dhananjaya', 'Garga', 'Gautama', 'Harita', 'Jamadagni',
+  'Jamadagnya', 'Kanva', 'Kapi', 'Kapisthala', 'Kashyapa', 'Katyayana', 'Kaundinya',
+  'Kaushika', 'Kousika', 'Kratu', 'Kutsa', 'Lohita', 'Mandavya', 'Marichi', 'Matanga',
+  'Moudgalya', 'Mudgala', 'Nidruva', 'Parashara', 'Pulaha', 'Pulastya', 'Rouhitya',
+  'Salihotra', 'Sandilya', 'Sankritya', 'Saunaka', 'Savarni', 'Shandilya', 'Srivatsa',
+  'Upamanyu', 'Vadula', 'Vashishtha', 'Vatsa', 'Vatsya', 'Vishnu', 'Vishnuvriddha',
+  'Vishwamitra', 'Yaska',
 ]
 
 // 27 Nakshatras (Lunar Mansions) in order
@@ -182,13 +186,33 @@ export default function Counter() {
   const [cat, setCat] = useState('All')
   const filtered = useMemo(() => {
     const q = sevaQ.trim().toLowerCase()
-    return catalog.filter((s) =>
-      (cat === 'All' || s.category === cat) &&
-      (!q || `${s.pooja_name} ${s.name_te || ''} ${s.plan_name} ${s.category || ''}`.toLowerCase().includes(q)))
+    return catalog.filter((s) => {
+      // Filter by category/plan
+      let catMatch = false
+      if (cat === 'All') {
+        catMatch = true
+      } else if (cat === 'Daily') {
+        // Show only Daily plans (plan_name contains 'Daily' or is 'Per Day')
+        catMatch = s.category === 'Daily' && /daily|per day/i.test(s.plan_name || '')
+      } else if (cat === 'Monthly') {
+        // Show only Monthly plans
+        catMatch = /monthly/i.test(s.plan_name || '')
+      } else if (cat === 'Long-Term') {
+        // Show Long-Term plans (Life Long, Yearly, etc.)
+        catMatch = s.category === 'Long-Term' || /life|year|long/i.test(s.plan_name || '')
+      } else {
+        // For Occasion, Festival, Vehicle - filter by category
+        catMatch = s.category === cat
+      }
+      // Filter by search query
+      const queryMatch = !q || `${s.pooja_name} ${s.name_te || ''} ${s.plan_name} ${s.category || ''}`.toLowerCase().includes(q)
+      return catMatch && queryMatch
+    })
   }, [catalog, sevaQ, cat])
 
   // ── Devotee state (Phone-first flow) ──
   const [mobile, setMobile] = useState('')
+  const [countryCode, setCountryCode] = useState('+91')
   const [name, setName] = useState('')
   const [mobileResults, setMobileResults] = useState(null)  // Devotees matching mobile
   const [showMobileDropdown, setShowMobileDropdown] = useState(false)
@@ -324,6 +348,11 @@ export default function Counter() {
   // ── Duplicate warnings ──
   const [dupWarnings, setDupWarnings] = useState([])
   const [formDupWarning, setFormDupWarning] = useState(null)
+  const [dupConfirmed, setDupConfirmed] = useState({})  // { lineId: true/false } for cart mode
+  const [formDupConfirmed, setFormDupConfirmed] = useState(false)  // for form mode
+
+  // Check if all duplicate warnings are confirmed
+  const allDupConfirmed = dupWarnings.length === 0 || dupWarnings.every(w => dupConfirmed[w.lineId])
 
   const cartKey = cart.map(c => `${c.pooja_id}-${c.plan_id}`).join(',')
   useEffect(() => {
@@ -352,20 +381,21 @@ export default function Counter() {
         } catch { /* ignore */ }
       }
       setDupWarnings(warnings)
+      setDupConfirmed({})  // Reset confirmations when warnings change
     }
     checkAll()
   }, [devotee?.id, cartKey])
 
   useEffect(() => {
-    if (!devotee?.id || !selectedEntry || bookingMode === 'cart') { setFormDupWarning(null); return }
+    if (!devotee?.id || !selectedEntry || bookingMode === 'cart') { setFormDupWarning(null); setFormDupConfirmed(false); return }
     const plan = selectedPlan || selectedEntry
     const isLongTerm = selectedEntry.category === 'Monthly' || selectedEntry.category === 'Long-Term' ||
       /monthly|life|year/i.test(plan.plan_name || '')
-    if (!isLongTerm) { setFormDupWarning(null); return }
+    if (!isLongTerm) { setFormDupWarning(null); setFormDupConfirmed(false); return }
 
     BookingsAPI.checkDuplicate({ devotee_id: devotee.id, pooja_id: selectedEntry.pooja_id, plan_id: plan.plan_id || plan.id })
-      .then((res) => { setFormDupWarning(res.has_duplicate ? res : null) })
-      .catch(() => { setFormDupWarning(null) })
+      .then((res) => { setFormDupWarning(res.has_duplicate ? res : null); setFormDupConfirmed(false) })
+      .catch(() => { setFormDupWarning(null); setFormDupConfirmed(false) })
   }, [devotee?.id, selectedEntry?.pooja_id, selectedPlan?.id, bookingMode])
 
   // ── Handle pooja selection ──
@@ -530,6 +560,8 @@ export default function Counter() {
             seva_name: s.seva_name,
             plan_name: s.plan_name,
             amount: s.amount,
+            valid_until: s.valid_until,
+            scheduled_date: s.scheduled_date,
           },
         }
       })
@@ -702,22 +734,28 @@ export default function Counter() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-4 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-5">
         {/* ── Left Panel: Pooja Picker ── */}
-        <div className="lg:col-span-2 card p-5">
+        <div className="md:col-span-1 lg:col-span-2 card p-5 sm:p-6">
           {/* Phone-first devotee entry */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
             {/* Mobile FIRST */}
             <div className="relative">
               <label className="label"><T>Mobile</T> *</label>
-              <input
-                value={mobile}
-                onChange={(e) => handleMobileChange(e.target.value)}
-                placeholder={tr("10-digit mobile")}
-                maxLength={10}
-                className="input"
-                autoFocus
-              />
+              <div className="flex">
+                <CountryCodeSelect value={countryCode} onChange={(e) => setCountryCode(e.target.value)} />
+                <input
+                  value={mobile}
+                  onChange={(e) => handleMobileChange(e.target.value)}
+                  placeholder={tr("Enter Mobile Number")}
+                  maxLength={getCountryDigits(countryCode)}
+                  className="input flex-1 !rounded-l-none"
+                  autoFocus
+                  aria-label={tr("Mobile number")}
+                  aria-describedby="mobile-hint"
+                />
+              </div>
+              <p id="mobile-hint" className="text-[0.625rem] text-gray-400 mt-1"><T>Type to search existing devotees</T></p>
               {/* Dropdown showing matching devotees by mobile */}
               {showMobileDropdown && mobileResults && mobileResults.length > 0 && (
                 <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
@@ -751,29 +789,34 @@ export default function Counter() {
 
           {/* Linked devotee indicator */}
           {devotee && (
-            <div className="mb-4 flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-              <div className="flex items-center gap-2 text-sm text-emerald-800">
-                <User size={14} />
-                <span className="font-medium"><T>Linked</T>:</span>
-                <span>{personName(devotee, lang)}</span>
-                {devotee.gothram && <span className="text-emerald-600 text-xs">· {devotee.gothram}</span>}
+            <div className="mb-5 flex items-center justify-between bg-emerald-50 border-2 border-emerald-200 rounded-xl px-4 py-3">
+              <div className="flex items-center gap-3 text-sm text-emerald-800">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 grid place-items-center">
+                  <User size={16} className="text-emerald-600" />
+                </div>
+                <div>
+                  <span className="font-semibold">{personName(devotee, lang)}</span>
+                  {devotee.gothram && <span className="text-emerald-600 text-xs ml-2">· {devotee.gothram}</span>}
+                  <div className="text-[0.6875rem] text-emerald-600">{devotee.mobile}</div>
+                </div>
               </div>
-              <button onClick={clearDevotee} className="text-emerald-600 hover:text-red-600 text-xs font-medium"><T>Clear</T></button>
+              <button onClick={clearDevotee} className="text-emerald-600 hover:text-red-600 text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-red-50 transition"><T>Clear</T></button>
             </div>
           )}
 
           {/* Category chips */}
-          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-            <h3 className="font-bold text-gray-900"><T>Select Pooja</T></h3>
-            <div className="relative w-full sm:w-64">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={sevaQ} onChange={(e) => setSevaQ(e.target.value)} placeholder={tr("Search pooja / plan…")} className="input !pl-9 !py-2" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+            <h3 className="font-bold text-gray-900 text-lg"><T>Select Pooja</T></h3>
+            <div className="relative w-full sm:w-72">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={sevaQ} onChange={(e) => setSevaQ(e.target.value)} placeholder={tr("Search pooja / plan…")} className="input !pl-10 !py-2.5" aria-label={tr("Search poojas")} />
             </div>
           </div>
-          <div className="flex flex-wrap gap-1.5 mb-3">
+          <div className="flex gap-2 sm:gap-2.5 mb-5 overflow-x-auto pb-2 -mx-1 px-1 sm:flex-wrap sm:overflow-visible scrollbar-thin" role="group" aria-label="Pooja categories">
             {CATS.map((c) => (
               <button key={c} onClick={() => setCat(c)}
-                className={`px-3 py-1.5 rounded-full text-[0.75rem] font-semibold border transition ${cat === c ? 'bg-maroon-700 text-cream border-maroon-700' : 'bg-white text-gray-600 border-gray-200 hover:border-maroon-300'}`}>
+                aria-pressed={cat === c}
+                className={`px-4 py-2 rounded-full text-sm font-semibold border-2 transition whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1 ${cat === c ? 'bg-maroon-700 text-cream border-maroon-700 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:border-maroon-300 hover:bg-maroon-50'}`}>
                 {tr(c)}
               </button>
             ))}
@@ -781,85 +824,104 @@ export default function Counter() {
 
           {/* Category hints */}
           {cat === 'Occasion' && (
-            <div className="text-[0.6875rem] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2 flex items-start gap-2">
-              <Info size={13} className="shrink-0 mt-0.5" />
+            <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-3">
+              <Info size={16} className="shrink-0 mt-0.5" />
               <T>Ceremony poojas open a detailed form with date, time slot, sankalpam details and poojari selection.</T>
             </div>
           )}
           {cat === 'Festival' && (
-            <div className="text-[0.6875rem] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2 flex items-start gap-2">
-              <Info size={13} className="shrink-0 mt-0.5" />
+            <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-3">
+              <Info size={16} className="shrink-0 mt-0.5" />
               <T>Festival poojas are scheduled within their festival window from Festival Master.</T>
             </div>
           )}
           {cat === 'Monthly' && (
-            <div className="text-[0.6875rem] text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-2 flex items-start gap-2">
-              <Moon size={13} className="shrink-0 mt-0.5" />
+            <div className="text-[0.8125rem] text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-3">
+              <Moon size={16} className="shrink-0 mt-0.5" />
               <span><T>Monthly poojas like Sai Vratam are performed on Pournami days.</T>{' '}
               <span className="font-semibold"><T>Upcoming</T>: {pournamiDates.slice(0, 3).map(d => fmtDate(d)).join(', ')}</span></span>
             </div>
           )}
           {cat === 'Long-Term' && (
-            <div className="text-[0.6875rem] text-maroon-700 bg-maroon-50 border border-maroon-100 rounded-lg px-3 py-2 mb-2 flex items-start gap-2">
-              <ShieldCheck size={13} className="shrink-0 mt-0.5" />
+            <div className="text-[0.8125rem] text-maroon-700 bg-maroon-50 border border-maroon-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-3">
+              <ShieldCheck size={16} className="shrink-0 mt-0.5" />
               <T>Long-term poojas (Life Long, Yearly) require a registered devotee.</T>
             </div>
           )}
 
           {/* Pooja grid */}
-          <div className="grid sm:grid-cols-2 gap-2 max-h-[28rem] overflow-y-auto pr-1">
+          {catalogErr && <div className="text-red-600 text-sm text-center py-6" role="alert">{catalogErr}</div>}
+          {!catalogErr && catalog.length === 0 && (
+            <div className="flex items-center justify-center py-12 text-gray-400">
+              <Loader2 size={24} className="animate-spin mr-3" />
+              <span className="text-base"><T>Loading poojas...</T></span>
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[32rem] overflow-y-auto pr-1 scrollbar-thin" role="list" aria-label={tr("Available poojas")}>
             {filtered.map((s) => {
               const poojaMode = getBookingMode(s.category, s.plan_name)
               const isCartMode = poojaMode === 'cart'
               return (
-                <button key={s.key} onClick={() => selectPooja(s)} className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2.5 text-left hover:border-saffron-400 hover:bg-saffron-50 transition-colors">
+                <button key={s.key} onClick={() => selectPooja(s)}
+                  role="listitem"
+                  aria-label={`${s.pooja_name}, ${s.plan_name}, ₹${Number(s.fee || 0)}`}
+                  className="flex items-center justify-between border-2 border-gray-200 rounded-xl px-4 py-3.5 text-left hover:border-saffron-400 hover:bg-saffron-50 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-saffron-500 focus:ring-offset-1">
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-gray-800 leading-tight">{lang === 'te' && s.name_te ? s.name_te : tr(s.pooja_name)}</div>
-                    <div className="text-[0.6875rem] text-gray-400 leading-tight flex items-center gap-1.5">
-                      {s.category === 'Vehicle' && <Car size={10} />}
-                      {s.category === 'Festival' && <CalendarDays size={10} />}
-                      {s.category === 'Occasion' && <Flame size={10} />}
-                      {s.category === 'Monthly' && <Moon size={10} />}
+                    <div className="text-[0.9375rem] font-semibold text-gray-800 leading-tight">{lang === 'te' && s.name_te ? s.name_te : tr(s.pooja_name)}</div>
+                    <div className="text-[0.75rem] text-gray-500 leading-tight flex items-center gap-1.5 mt-1">
+                      {s.category === 'Vehicle' && <Car size={12} aria-hidden="true" />}
+                      {s.category === 'Festival' && <CalendarDays size={12} aria-hidden="true" />}
+                      {s.category === 'Occasion' && <Flame size={12} aria-hidden="true" />}
+                      {s.category === 'Monthly' && <Moon size={12} aria-hidden="true" />}
                       {tr(s.plan_name)}
                     </div>
                   </div>
-                  <span className="flex items-center gap-1 text-saffron-700 font-bold text-sm shrink-0">
-                    {isCartMode ? <Plus size={14} /> : <ArrowRight size={14} />}
+                  <span className="flex items-center gap-1.5 text-saffron-700 font-bold text-base shrink-0 ml-2">
+                    {isCartMode ? <Plus size={16} aria-hidden="true" /> : <ArrowRight size={16} aria-hidden="true" />}
                     {`₹${Number(s.fee || 0).toLocaleString('en-IN')}`}
                   </span>
                 </button>
               )
             })}
-            {filtered.length === 0 && <p className="text-sm text-gray-400 col-span-full text-center py-8"><T>No matching poojas.</T></p>}
+            {filtered.length === 0 && catalog.length > 0 && <p className="text-base text-gray-400 col-span-full text-center py-12"><T>No matching poojas.</T></p>}
           </div>
         </div>
 
         {/* ── Right Panel ── */}
-        <div className="card p-5 flex flex-col">
+        <div className="card p-5 sm:p-6 flex flex-col">
           {/* Cart Mode */}
           {(!selectedEntry || bookingMode === 'cart') && (
             <>
-              <div className="flex items-center gap-2 mb-1">
-                <ReceiptIcon size={18} className="text-saffron-600" />
-                <h3 className="font-bold text-gray-900">{lang === 'te' ? 'రసీదు' : 'Bill / రసీదు'}</h3>
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="w-9 h-9 rounded-full bg-saffron-100 grid place-items-center">
+                  <ReceiptIcon size={18} className="text-saffron-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-lg">{lang === 'te' ? 'రసీదు' : 'Bill / రసీదు'}</h3>
+                  <p className="text-[0.75rem] text-gray-400"><T>Add daily poojas or vehicle poojas to the bill</T></p>
+                </div>
               </div>
-              <p className="text-[0.6875rem] text-gray-400 mb-3"><T>Add daily poojas or vehicle poojas to the bill</T></p>
 
-              <div className="flex-1 space-y-2 min-h-[5rem] max-h-[18rem] overflow-y-auto">
-                {cart.length === 0 && <p className="text-sm text-gray-400 text-center py-6"><T>No items added. Select a pooja from the left.</T></p>}
+              <div className="flex-1 space-y-3 min-h-[6rem] max-h-[20rem] overflow-y-auto mt-4 mb-4">
+                {cart.length === 0 && (
+                  <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
+                    <ReceiptIcon size={32} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-sm text-gray-400"><T>No items added. Select a pooja from the left.</T></p>
+                  </div>
+                )}
                 {cart.map((x) => (
-                  <div key={x.lineId} className="flex items-center justify-between text-sm border-b border-dashed border-gray-100 pb-2">
+                  <div key={x.lineId} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
                     <div className="min-w-0">
-                      <div className="font-medium text-gray-800 leading-tight">{x.pooja_name}</div>
-                      <div className="text-[0.6875rem] text-gray-400 leading-tight">
+                      <div className="font-semibold text-gray-800 leading-tight">{x.pooja_name}</div>
+                      <div className="text-[0.75rem] text-gray-500 leading-tight mt-0.5">
                         {x.plan_name}
                         {x.vehicle_no && ` · ${x.vehicle_no}`}
                         {x.scheduled_date && x.scheduled_date !== todayISO() && ` · ${fmtDate(x.scheduled_date)}`}
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <span className="font-bold text-gray-700">₹{Number(x.amount || 0).toLocaleString('en-IN')}</span>
-                      <button onClick={() => removeFromCart(x.lineId)} className="text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
+                      <span className="font-bold text-gray-800 text-base">₹{Number(x.amount || 0).toLocaleString('en-IN')}</span>
+                      <button onClick={() => removeFromCart(x.lineId)} className="w-8 h-8 rounded-lg bg-white border border-gray-200 grid place-items-center text-gray-400 hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 ))}
@@ -868,17 +930,30 @@ export default function Counter() {
               {dupWarnings.length > 0 && (
                 <div className="mt-3 space-y-2">
                   {dupWarnings.map((w) => (
-                    <div key={w.lineId} className="bg-orange-100 border-2 border-orange-400 rounded-lg px-3 py-2.5 shadow-sm">
+                    <div key={w.lineId} className={`rounded-lg px-3 py-2.5 shadow-sm border-2 ${dupConfirmed[w.lineId] ? 'bg-emerald-50 border-emerald-400' : 'bg-orange-100 border-orange-400'}`}>
                       <div className="flex items-start gap-2">
-                        <AlertTriangle size={16} className="text-orange-600 shrink-0 mt-0.5" />
-                        <div className="text-xs">
-                          <div className="font-bold text-orange-900 text-sm"><T>Active Plan Exists</T></div>
+                        <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${dupConfirmed[w.lineId] ? 'text-emerald-600' : 'text-orange-600'}`} />
+                        <div className="text-xs flex-1">
+                          <div className={`font-bold text-sm ${dupConfirmed[w.lineId] ? 'text-emerald-800' : 'text-orange-900'}`}><T>Active Plan Exists</T></div>
                           <div className="font-semibold text-gray-800 mt-0.5">{w.pooja_name} ({w.plan_name})</div>
                           <div className="mt-1 space-y-0.5 text-gray-700">
                             {w.booked_on && <div><span className="font-medium text-gray-600"><T>Booked</T>:</span> {fmtDate(w.booked_on)}</div>}
                             {w.valid_until && <div><span className="font-medium text-gray-600"><T>Valid Until</T>:</span> {typeof w.valid_until === 'string' && w.valid_until.includes('-') ? fmtDate(w.valid_until) : w.valid_until}</div>}
                           </div>
                           {w.existing_ticket && <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Ticket</T>: {w.existing_ticket}</div>}
+
+                          {/* Confirmation checkbox */}
+                          <label className={`mt-2 flex items-start gap-2 cursor-pointer p-2 rounded-lg border ${dupConfirmed[w.lineId] ? 'bg-emerald-100 border-emerald-300' : 'bg-white border-orange-200 hover:bg-orange-50'}`}>
+                            <input
+                              type="checkbox"
+                              checked={!!dupConfirmed[w.lineId]}
+                              onChange={(e) => setDupConfirmed(prev => ({ ...prev, [w.lineId]: e.target.checked }))}
+                              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <span className={`text-[0.6875rem] leading-tight ${dupConfirmed[w.lineId] ? 'text-emerald-700' : 'text-gray-600'}`}>
+                              <T>I have informed the devotee about the existing active plan and they wish to proceed with a new booking.</T>
+                            </span>
+                          </label>
                         </div>
                       </div>
                     </div>
@@ -886,28 +961,47 @@ export default function Counter() {
                 </div>
               )}
 
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {['Cash', 'UPI/QR Code'].map((m) => (
-                  <button key={m} onClick={() => setMode(m)} className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm font-medium transition ${mode === m ? 'border-saffron-400 bg-saffron-50 text-saffron-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                    <IndianRupee size={14} /> {modeLabel(m)}
-                  </button>
-                ))}
+              {/* Payment Method Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-3"><T>Payment Method</T></label>
+                <div className="grid grid-cols-2 gap-3">
+                  {['Cash', 'UPI/QR Code'].map((m) => (
+                    <button key={m} onClick={() => setMode(m)}
+                      className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 py-4 px-3 font-semibold transition-all ${mode === m
+                        ? 'border-saffron-500 bg-saffron-50 text-saffron-800 shadow-sm'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}>
+                      <div className={`w-10 h-10 rounded-full grid place-items-center ${mode === m ? 'bg-saffron-200' : 'bg-gray-100'}`}>
+                        <IndianRupee size={20} />
+                      </div>
+                      <span className="text-sm">{modeLabel(m)}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
               {mode === 'UPI/QR Code' && (
-                <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("UTR / Transaction ID *")} className="input !py-2 text-sm mt-2" />
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-600 mb-2"><T>UTR / Transaction ID</T> *</label>
+                  <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("Enter UTR or Transaction ID")} className="input !py-3 text-base" />
+                </div>
               )}
 
-              <div className="border-t border-gray-200 mt-3 pt-3">
-                <div className="flex items-center justify-between font-extrabold text-lg">
-                  <span>{lang === 'te' ? 'మొత్తం' : 'Total / మొత్తం'}</span>
-                  <span className="text-maroon-700">{inr(total)}</span>
+              {/* Total & Checkout */}
+              <div className="border-t-2 border-gray-100 pt-4 mt-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-base font-semibold text-gray-600">{lang === 'te' ? 'మొత్తం' : 'Total / మొత్తం'}</span>
+                  <span className="text-2xl font-extrabold text-maroon-700">{inr(total)}</span>
                 </div>
-                {error && <p className="text-center text-xs text-red-600 font-semibold mt-2">{error}</p>}
-                <button onClick={checkout} disabled={busy || !cart.length || !canBill} className="btn-primary w-full mt-3 disabled:bg-gray-300 justify-center">
+                {error && <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-sm text-red-700 font-medium text-center">{error}</div>}
+                {dupWarnings.length > 0 && !allDupConfirmed && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-3 text-sm text-orange-700 font-medium text-center">
+                    <T>Please confirm the duplicate plan acknowledgement above to proceed.</T>
+                  </div>
+                )}
+                <button onClick={checkout} disabled={busy || !cart.length || !canBill || !allDupConfirmed} className="btn-primary w-full py-4 text-base disabled:bg-gray-300 justify-center rounded-xl">
                   {busy
-                    ? <><Loader2 size={16} className="animate-spin" /> {billingProgress ? `${tr('Processing')} ${billingProgress.current}/${billingProgress.total}…` : <T>Processing…</T>}</>
-                    : !canBill ? <><Eye size={16} /> <T>View Only</T></>
-                    : <><ReceiptIcon size={16} /> <T>Complete Billing</T></>}
+                    ? <><Loader2 size={18} className="animate-spin" /> {billingProgress ? `${tr('Processing')} ${billingProgress.current}/${billingProgress.total}…` : <T>Processing…</T>}</>
+                    : !canBill ? <><Eye size={18} /> <T>View Only</T></>
+                    : <><ReceiptIcon size={18} /> <T>Complete Billing</T></>}
                 </button>
               </div>
             </>
@@ -916,33 +1010,41 @@ export default function Counter() {
           {/* Form Mode */}
           {selectedEntry && bookingMode !== 'cart' && (
             <>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-maroon-700">
-                  {bookingMode === 'ceremony' && <Flame size={18} />}
-                  {bookingMode === 'festival' && <CalendarDays size={18} />}
-                  {bookingMode === 'registration' && <ShieldCheck size={18} />}
-                  {bookingMode === 'tithi' && <Moon size={18} />}
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
+                <div className="flex items-center gap-3 text-maroon-700">
+                  <div className={`w-10 h-10 rounded-full grid place-items-center ${
+                    bookingMode === 'ceremony' ? 'bg-orange-100' :
+                    bookingMode === 'festival' ? 'bg-amber-100' :
+                    bookingMode === 'registration' ? 'bg-maroon-100' : 'bg-blue-100'
+                  }`}>
+                    {bookingMode === 'ceremony' && <Flame size={20} />}
+                    {bookingMode === 'festival' && <CalendarDays size={20} />}
+                    {bookingMode === 'registration' && <ShieldCheck size={20} />}
+                    {bookingMode === 'tithi' && <Moon size={20} />}
+                  </div>
                   <h3 className="font-serif text-lg font-bold leading-tight">{tr(selectedEntry.pooja_name)}</h3>
                 </div>
-                <button onClick={clearSelection} className="text-gray-400 hover:text-red-600"><X size={18} /></button>
+                <button onClick={clearSelection} className="w-9 h-9 rounded-lg border border-gray-200 grid place-items-center text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition"><X size={18} /></button>
               </div>
 
               {/* Plan selection */}
               {selectedEntry.plans && selectedEntry.plans.length > 1 && (
-                <div className="mb-4">
-                  <label className="label"><T>Select Plan</T></label>
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                <div className="mb-5">
+                  <label className="label text-sm font-semibold"><T>Select Plan</T></label>
+                  <div className="space-y-2 max-h-36 overflow-y-auto mt-2">
                     {selectedEntry.plans.map((pl) => {
                       const isSelected = (selectedPlan?.id || selectedEntry.plan_id) === pl.id
                       return (
                         <button key={pl.id} onClick={() => setSelectedPlan(pl)}
-                          className={`w-full flex items-center justify-between border rounded-lg px-3 py-2 text-sm transition ${isSelected ? 'border-maroon-400 bg-maroon-50' : 'border-gray-200 hover:border-maroon-300'}`}>
-                          <div className="flex items-center gap-2">
-                            <span className={`w-3 h-3 rounded-full border-2 ${isSelected ? 'border-maroon-600 bg-maroon-600' : 'border-gray-300'}`} />
-                            <span className="font-medium">{tr(pl.plan_name)}</span>
-                            <span className="text-[0.6875rem] text-gray-400">{validityShort(pl.plan_name)}</span>
+                          className={`w-full flex items-center justify-between border-2 rounded-xl px-4 py-3 transition ${isSelected ? 'border-maroon-400 bg-maroon-50' : 'border-gray-200 hover:border-maroon-300 hover:bg-gray-50'}`}>
+                          <div className="flex items-center gap-3">
+                            <span className={`w-4 h-4 rounded-full border-2 ${isSelected ? 'border-maroon-600 bg-maroon-600' : 'border-gray-300'}`} />
+                            <div className="text-left">
+                              <span className="font-semibold text-gray-800">{tr(pl.plan_name)}</span>
+                              <span className="text-[0.75rem] text-gray-500 ml-2">{validityShort(pl.plan_name)}</span>
+                            </div>
                           </div>
-                          <span className="font-semibold text-gray-700">
+                          <span className="font-bold text-gray-800 text-base">
                             {`₹${Number(pl.fee || 0).toLocaleString('en-IN')}`}
                           </span>
                         </button>
@@ -1031,35 +1133,36 @@ export default function Counter() {
               )}
 
               {/* Date & Slot */}
-              <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="label"><T>Date</T> *</label>
+                  <label className="label text-sm font-medium"><T>Date</T> *</label>
                   <DateField value={schedDate}
                     min={bookingMode === 'festival' ? (festivalFor(selectedEntry)?.fest?.start_date || todayISO()) : todayISO()}
                     max={bookingMode === 'festival' ? festivalFor(selectedEntry)?.fest?.end_date : undefined}
-                    onChange={(e) => setSchedDate(e.target.value)} />
+                    onChange={(e) => setSchedDate(e.target.value)}
+                    className="!py-2.5" />
                 </div>
                 <div>
-                  <label className="label"><T>Time Slot</T> *</label>
-                  <Select value={slot} onChange={(e) => setSlot(e.target.value)}>
+                  <label className="label text-sm font-medium"><T>Time Slot</T> *</label>
+                  <Select value={slot} onChange={(e) => setSlot(e.target.value)} className="!py-2.5">
                     {SLOTS.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}
                   </Select>
                 </div>
               </div>
 
               {/* Poojari */}
-              <div className="mb-3">
-                <label className="label"><T>Assign Poojari</T></label>
-                <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)}>
+              <div className="mb-4">
+                <label className="label text-sm font-medium"><T>Assign Poojari</T></label>
+                <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)} className="!py-2.5">
                   <option value="">{tr("Not assigned (optional)")}</option>
                   {poojaris.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)}{p.specialization ? ` · ${tr(p.specialization)}` : ''}</option>)}
                 </Select>
               </div>
 
               {/* Validity */}
-              <div className="mb-3 p-2.5 bg-emerald-50 border border-emerald-100 rounded-lg text-sm">
+              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
                 <div className="flex items-center justify-between">
-                  <span className="text-emerald-700"><T>Validity</T></span>
+                  <span className="text-emerald-700 font-medium"><T>Validity</T></span>
                   <span className="font-semibold text-emerald-800">{validityRange((selectedPlan || selectedEntry).plan_name, schedDate)}</span>
                 </div>
               </div>
@@ -1081,47 +1184,77 @@ export default function Counter() {
 
               {/* Duplicate warning */}
               {formDupWarning && (
-                <div className="mb-3 bg-orange-100 border-2 border-orange-400 rounded-lg px-3 py-2.5 shadow-sm">
+                <div className={`mb-3 rounded-lg px-3 py-2.5 shadow-sm border-2 ${formDupConfirmed ? 'bg-emerald-50 border-emerald-400' : 'bg-orange-100 border-orange-400'}`}>
                   <div className="flex items-start gap-2">
-                    <AlertTriangle size={16} className="text-orange-600 shrink-0 mt-0.5" />
-                    <div className="text-xs">
-                      <div className="font-bold text-orange-900 text-sm"><T>Active Plan Exists</T></div>
+                    <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${formDupConfirmed ? 'text-emerald-600' : 'text-orange-600'}`} />
+                    <div className="text-xs flex-1">
+                      <div className={`font-bold text-sm ${formDupConfirmed ? 'text-emerald-800' : 'text-orange-900'}`}><T>Active Plan Exists</T></div>
                       <div className="font-semibold text-gray-800 mt-0.5">{tr(formDupWarning.message)}</div>
                       <div className="mt-1 space-y-0.5 text-gray-700">
                         {formDupWarning.booked_on && <div><span className="font-medium text-gray-600"><T>Booked</T>:</span> {fmtDate(formDupWarning.booked_on)}</div>}
                         {formDupWarning.valid_until && <div><span className="font-medium text-gray-600"><T>Valid Until</T>:</span> {typeof formDupWarning.valid_until === 'string' && formDupWarning.valid_until.includes('-') ? fmtDate(formDupWarning.valid_until) : formDupWarning.valid_until}</div>}
                       </div>
                       {formDupWarning.ticket_no && <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Ticket</T>: {formDupWarning.ticket_no}</div>}
+
+                      {/* Confirmation checkbox */}
+                      <label className={`mt-2 flex items-start gap-2 cursor-pointer p-2 rounded-lg border ${formDupConfirmed ? 'bg-emerald-100 border-emerald-300' : 'bg-white border-orange-200 hover:bg-orange-50'}`}>
+                        <input
+                          type="checkbox"
+                          checked={formDupConfirmed}
+                          onChange={(e) => setFormDupConfirmed(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className={`text-[0.6875rem] leading-tight ${formDupConfirmed ? 'text-emerald-700' : 'text-gray-600'}`}>
+                          <T>I have informed the devotee about the existing active plan and they wish to proceed with a new booking.</T>
+                        </span>
+                      </label>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Payment */}
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {['Cash', 'UPI/QR Code'].map((m) => (
-                  <button key={m} onClick={() => setMode(m)} className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm font-medium transition ${mode === m ? 'border-saffron-400 bg-saffron-50 text-saffron-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                    <IndianRupee size={14} /> {modeLabel(m)}
-                  </button>
-                ))}
+              {/* Payment Method */}
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-3"><T>Payment Method</T></label>
+                <div className="grid grid-cols-2 gap-3">
+                  {['Cash', 'UPI/QR Code'].map((m) => (
+                    <button key={m} onClick={() => setMode(m)}
+                      className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 py-4 px-3 font-semibold transition-all ${mode === m
+                        ? 'border-saffron-500 bg-saffron-50 text-saffron-800 shadow-sm'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}>
+                      <div className={`w-10 h-10 rounded-full grid place-items-center ${mode === m ? 'bg-saffron-200' : 'bg-gray-100'}`}>
+                        <IndianRupee size={20} />
+                      </div>
+                      <span className="text-sm">{modeLabel(m)}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
               {mode === 'UPI/QR Code' && (
-                <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("UTR / Transaction ID *")} className="input !py-2 text-sm mb-3" />
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-600 mb-2"><T>UTR / Transaction ID</T> *</label>
+                  <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("Enter UTR or Transaction ID")} className="input !py-3 text-base" />
+                </div>
               )}
 
               {/* Amount & Book */}
-              <div className="border-t border-gray-200 pt-3">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-bold text-maroon-800"><T>Total Amount</T></span>
-                  <span className="text-xl font-extrabold text-maroon-800">{inr(getCurrentFee())}</span>
+              <div className="border-t-2 border-gray-100 pt-4 mt-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="font-semibold text-gray-600"><T>Total Amount</T></span>
+                  <span className="text-2xl font-extrabold text-maroon-800">{inr(getCurrentFee())}</span>
                 </div>
-                {error && <p className="text-center text-xs text-red-600 font-semibold mb-2">{error}</p>}
-                <div className="flex gap-2">
-                  <button onClick={clearSelection} className="btn-outline flex-1 justify-center">
-                    <ArrowLeft size={15} /> <T>Back</T>
+                {error && <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-sm text-red-700 font-medium text-center">{error}</div>}
+                {formDupWarning && !formDupConfirmed && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-3 text-sm text-orange-700 font-medium text-center">
+                    <T>Please confirm the duplicate plan acknowledgement above to proceed.</T>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button onClick={clearSelection} className="btn-outline flex-1 justify-center py-3 rounded-xl">
+                    <ArrowLeft size={16} /> <T>Back</T>
                   </button>
-                  <button onClick={bookForm} disabled={busy || !canBill || (bookingMode === 'registration' && !devotee)} className="btn-maroon flex-1 justify-center disabled:opacity-50">
-                    {busy ? <><Loader2 size={16} className="animate-spin" /> <T>Processing…</T></> : <><Check size={16} /> <T>Book & Pay</T></>}
+                  <button onClick={bookForm} disabled={busy || !canBill || (bookingMode === 'registration' && !devotee) || (formDupWarning && !formDupConfirmed)} className="btn-maroon flex-1 justify-center py-3 rounded-xl disabled:opacity-50">
+                    {busy ? <><Loader2 size={18} className="animate-spin" /> <T>Processing…</T></> : <><Check size={18} /> <T>Book & Pay</T></>}
                   </button>
                 </div>
               </div>
@@ -1532,12 +1665,48 @@ function BillReceiptModal({ bill, onClose }) {
               </div>
             )}
 
-            {/* Validity Notice for Daily Plans */}
-            {isDailyOnly && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 col-span-2 text-center">
-                <div className="text-[0.6875rem] font-semibold text-amber-700">⚠️ <T>Valid for same day only</T></div>
-              </div>
-            )}
+            {/* Validity Notice based on Plan Type */}
+            {(() => {
+              const planName = (line.plan_name || booking?.plan_name || '').toLowerCase()
+              const validUntil = booking?.valid_until || line.booking?.valid_until
+              const schedDate = booking?.scheduled_date || line.booking?.scheduled_date || line._schedDate
+
+              // Life Long - no expiry
+              if (planName.includes('life')) {
+                return (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 col-span-2 text-center">
+                    <div className="text-[0.6875rem] font-semibold text-emerald-700">✨ <T>Validity</T>: <T>Lifetime</T></div>
+                  </div>
+                )
+              }
+
+              // Monthly/Yearly - show validity period
+              if ((planName.includes('month') || planName.includes('year')) && (validUntil || schedDate)) {
+                const fromDate = schedDate ? fmtDate(schedDate) : fmtDate(new Date())
+                const toDate = validUntil ? fmtDate(validUntil) : null
+                return (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 col-span-2">
+                    <div className="flex items-center justify-between text-[0.6875rem]">
+                      <span className="text-blue-600 font-medium"><T>Validity Period</T>:</span>
+                      <span className="font-semibold text-blue-800">
+                        {fromDate} → {toDate || <T>As per plan</T>}
+                      </span>
+                    </div>
+                  </div>
+                )
+              }
+
+              // Daily - same day only
+              if (isDailyOnly) {
+                return (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 col-span-2 text-center">
+                    <div className="text-[0.6875rem] font-semibold text-amber-700">⚠️ <T>Valid for same day only</T></div>
+                  </div>
+                )
+              }
+
+              return null
+            })()}
 
             {/* Terms & Conditions */}
             <div className="col-span-2 text-[0.5625rem] text-gray-500 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-1">

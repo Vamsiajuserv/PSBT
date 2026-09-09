@@ -146,6 +146,7 @@ export const HundiAPI = {
   verify: (id) => api.put(`/hundi/${id}/verify`),
   reject: (id, b) => api.put(`/hundi/${id}/reject`, b),
   deposit: (id, b) => api.put(`/hundi/${id}/deposit`, b),
+  store: (id, b) => api.put(`/hundi/${id}/store`, b),
 }
 export const AuctionAPI = {
   list: (params = {}) => api.get('/auctions' + qs(params)),
@@ -236,6 +237,8 @@ export const WasteAPI = {
   sales: (params = {}) => api.get('/waste/sales' + qs(params)),
   createSale: (b) => api.post('/waste/sales', b),
   removeSale: (id) => api.del(`/waste/sales/${id}`),
+  verify: (id, b = {}) => api.put(`/waste/sales/${id}/verify`, b),
+  reject: (id, b) => api.put(`/waste/sales/${id}/reject`, b),
 }
 
 export const TranslateAPI = {

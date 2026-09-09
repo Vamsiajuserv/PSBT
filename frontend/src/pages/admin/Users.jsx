@@ -8,7 +8,7 @@ import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { UsersAPI, RolesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { Select, Checkbox } from '../../components/common/Field.jsx'
+import { Select, Checkbox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { alertDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
@@ -72,8 +72,7 @@ export default function Users() {
   // Sortable table columns
   const sortColumns = [
     { key: 'name', label: 'User Name', type: 'text' },
-    { key: 'email', label: 'Email', type: 'text' },
-    { key: 'mobile', label: 'Mobile', type: 'text' },
+    { key: 'email', label: 'Email / Mobile', type: 'text' },
     { key: 'role', label: 'Role', type: 'text' },
     { key: 'is_active', label: 'Status', type: 'text' },
     { key: 'last_login', label: 'Last Login', type: 'date' },
@@ -251,10 +250,10 @@ export default function Users() {
                 <>
                   <div>
                     <label className="label"><T>Full Name *</T></label>
-                    <input required className={`input ${fieldErrors.name ? 'border-red-400' : ''}`} placeholder={tr("Alphabets only")} value={drawer.data.name} onChange={(e) => { setFieldErrors((p) => ({ ...p, name: null })); setD({ name: sanitizeName(e.target.value) }) }} />
+                    <input required className={`input ${fieldErrors.name ? 'border-red-400' : ''}`} placeholder={tr("Full Name")} value={drawer.data.name} onChange={(e) => { setFieldErrors((p) => ({ ...p, name: null })); setD({ name: sanitizeName(e.target.value) }) }} />
                     {fieldErrors.name && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.name}</div>}
                   </div>
-                  <div><label className="label"><T>Full Name (Telugu)</T></label><input className="input font-telugu" placeholder={tr("Telugu / Alphabets only (no numbers)")} value={drawer.data.name_te || ''} onChange={(e) => setD({ name_te: sanitizeName(e.target.value) })} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Shown when the user selects తెలుగు. Leave blank to keep the English spelling.</T></div></div>
+                  <div><label className="label"><T>Full Name (Telugu)</T></label><input className="input font-telugu" placeholder={tr("Full Name (Telugu)")} value={drawer.data.name_te || ''} onChange={(e) => setD({ name_te: sanitizeName(e.target.value) })} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Shown when the user selects తెలుగు. Leave blank to keep the English spelling.</T></div></div>
                   <div>
                     <label className="label"><T>Email ID *</T></label>
                     <input required type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} placeholder={tr("Enter email address")} value={drawer.data.email} onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setD({ email: e.target.value }) }} />
@@ -262,7 +261,7 @@ export default function Users() {
                   </div>
                   <div>
                     <label className="label"><T>Mobile Number *</T></label>
-                    <div className="flex gap-2"><Select className="input !w-24"><option>+91</option></Select><input required className={`input flex-1 ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("10 digits only")} maxLength={10} value={drawer.data.mobile} onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setD({ mobile: sanitizePhone(e.target.value) }) }} /></div>
+                    <div className="flex"><CountryCodeSelect value={drawer.data.country_code || '+91'} onChange={(e) => setD({ country_code: e.target.value })} /><input required className={`input flex-1 !rounded-l-none ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("Mobile Number")} maxLength={getCountryDigits(drawer.data.country_code || '+91')} value={drawer.data.mobile} onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setD({ mobile: sanitizePhone(e.target.value) }) }} /></div>
                     {fieldErrors.mobile && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.mobile}</div>}
                   </div>
                   <div><label className="label"><T>Role *</T></label><Select required className="input" value={drawer.data.role} onChange={(e) => setD({ role: e.target.value })}><option value="">{tr("Select Role")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>

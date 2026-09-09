@@ -11,9 +11,9 @@ import TempleLoader from './TempleLoader.jsx'
 function LangToggle({ className = '' }) {
   const { lang, setLang } = useLang()
   return (
-    <div className={`inline-flex items-center rounded-full border border-gold-400/60 overflow-hidden text-[0.6875rem] font-bold ${className}`}>
-      <button onClick={() => setLang('en')} className={`px-2 py-1 ${lang === 'en' ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}><T>EN</T></button>
-      <button onClick={() => setLang('te')} className={`px-2 py-1 font-telugu ${lang === 'te' ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}>తెలుగు</button>
+    <div className={`inline-flex items-center rounded-full border border-maroon-400/60 overflow-hidden text-[0.6875rem] font-bold ${className}`}>
+      <button onClick={() => setLang('en')} className={`px-2 py-1 ${lang === 'en' ? 'bg-maroon-700 text-gold-400' : 'text-current hover:bg-white/10'}`}><T>EN</T></button>
+      <button onClick={() => setLang('te')} className={`px-2 py-1 font-telugu ${lang === 'te' ? 'bg-maroon-700 text-gold-400' : 'text-current hover:bg-white/10'}`}>తెలుగు</button>
     </div>
   )
 }
@@ -291,9 +291,8 @@ export default function PublicLayout() {
         </div>
 
         <div className="border-t border-white/10">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[0.6875rem] text-cream/50">
-            <span>© {new Date().getFullYear()} {t(TEMPLE.name)}. {t('All Rights Reserved.')}</span>
-            <span>{t('Website designed and developed for Sri Shirdi Sai Baba Temple.')}</span>
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-center text-[0.875rem] text-white">
+            <span className="flex items-center gap-2">{t('Developed By')} <a href="https://tesync.in" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity"><img src="/images/tesync-logo.png" alt="TESYNC" className="h-4 brightness-110 saturate-150" /></a></span>
           </div>
         </div>
       </footer>

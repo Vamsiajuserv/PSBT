@@ -11,7 +11,7 @@ import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { Select, DateField, Checkbox, NumberField } from '../../components/common/Field.jsx'
+import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { T, tr, clock12, stamp, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName } from '../../lib/validation.js'
 
@@ -322,11 +322,14 @@ export default function Donations() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-4">
                 <div><label className="label"><T>Donor Name *</T></label>
-                  <input required className="input" placeholder={tr("Walk-in / donor name")} value={personName({ name: drawer.donor_name }, lang)} onChange={(e) => setDrawer({ ...drawer, donor_name: sanitizeName(e.target.value) })} /></div>
+                  <input required className="input" placeholder={tr("Donor Name")} value={personName({ name: drawer.donor_name }, lang)} onChange={(e) => setDrawer({ ...drawer, donor_name: sanitizeName(e.target.value) })} /></div>
                 <div><label className="label"><T>Mobile (Optional)</T></label>
-                  <input className="input" placeholder={tr("Mobile number")} maxLength={10} value={drawer.mobile} onChange={(e) => setDrawer({ ...drawer, mobile: sanitizePhone(e.target.value) })} /></div>
+                  <div className="flex">
+                    <CountryCodeSelect value={drawer.country_code || '+91'} onChange={(e) => setDrawer({ ...drawer, country_code: e.target.value })} />
+                    <input className="input flex-1 !rounded-l-none" placeholder={tr("Enter Mobile Number")} maxLength={getCountryDigits(drawer.country_code || '+91')} value={drawer.mobile} onChange={(e) => setDrawer({ ...drawer, mobile: sanitizePhone(e.target.value) })} />
+                  </div></div>
               </div>
 
               <div><label className="label"><T>Donation Category *</T></label>
@@ -365,7 +368,7 @@ export default function Donations() {
               <label className="flex items-center gap-2 text-sm text-gray-700"><Checkbox checked={drawer.g80} disabled={drawer.donation_type !== 'Cash'} onChange={(e) => { setDrawer({ ...drawer, g80: e.target.checked }); if (!e.target.checked) setPanErr('') }} /> {tr('Eligible for Tax Exemption (80G)')}</label>
 
               <div><label className="label">{tr("PAN")} {drawer.g80 && <span className="text-red-500">*</span>}{drawer.g80 && <span className="text-[0.6875rem] text-gray-400 font-normal"> <T>(required for 80G)</T></span>}</label>
-                <input className={`input uppercase ${panErr ? 'border-red-400 ring-1 ring-red-300' : drawer.g80 && !drawer.pan ? 'border-amber-400' : ''}`} placeholder={tr("ABCDE1234F")}
+                <input className={`input uppercase ${panErr ? 'border-red-400 ring-1 ring-red-300' : drawer.g80 && !drawer.pan ? 'border-amber-400' : ''}`} placeholder={tr("Enter PAN Card Number")}
                   value={drawer.pan} onChange={(e) => { setDrawer({ ...drawer, pan: e.target.value.toUpperCase() }); if (panErr) setPanErr('') }} />
                 {panErr && <div className="text-[0.71875rem] text-red-600 mt-1">{panErr}</div>}</div>
 

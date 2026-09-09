@@ -237,7 +237,7 @@ export default function Reports() {
 
       {/* Reports list + result */}
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 h-max">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto scrollbar-thin">
           <div className="font-serif text-lg font-bold text-maroon-800 mb-3"><T>Reports List</T></div>
           <div className="relative mb-3"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={rq} onChange={(e) => setRq(e.target.value)} placeholder={tr("Search reports…")} className="input !pl-9" /></div>

@@ -57,24 +57,25 @@ export function PageTitle({ title, subtitle, actions }) {
 
 export function KpiRow({ children, cols = 4 }) {
   const c = { 3: 'xl:grid-cols-3', 4: 'xl:grid-cols-4', 5: 'xl:grid-cols-5', 6: 'xl:grid-cols-6' }[cols] || 'xl:grid-cols-4'
-  return <div className={`grid grid-cols-2 md:grid-cols-3 ${c} gap-4 mb-6`}>{children}</div>
+  return <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${c} gap-3 sm:gap-4 mb-6`} role="region" aria-label="Key metrics">{children}</div>
 }
 
 export function KpiCard({ icon: Icon, iconBg = 'bg-blue-50', iconColor = '#2563eb', title, sub, value, footLabel, footValue, onClick }) {
   const clickable = typeof onClick === 'function'
   return (
     <div onClick={onClick} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
+      aria-label={clickable ? `${title}: ${value}` : undefined}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
-      className={`bg-white rounded-xl border border-gray-100 shadow-sm p-5 overflow-hidden ${clickable ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200' : ''}`}>
+      className={`bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5 overflow-hidden ${clickable ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-2' : ''}`}>
       <div className="flex items-start gap-3">
-        <div className={`w-11 h-11 rounded-full grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}><Icon size={20} /></div>
+        <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}><Icon size={18} aria-hidden="true" /></div>
         <div className="min-w-0 flex-1">
-          <div className="text-[0.78125rem] text-gray-500 leading-snug">{title}</div>
-          {sub && <div className="text-[0.6875rem] text-gray-400 leading-none">{sub}</div>}
-          <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 mt-1.5 leading-tight tabular-nums break-words">{value}</div>
+          <div className="text-[0.75rem] sm:text-[0.78125rem] text-gray-500 leading-snug">{title}</div>
+          {sub && <div className="text-[0.625rem] sm:text-[0.6875rem] text-gray-400 leading-none">{sub}</div>}
+          <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 mt-1 sm:mt-1.5 leading-tight tabular-nums break-words">{value}</div>
         </div>
       </div>
-      {footLabel && <div className="mt-3 pt-3 border-t border-gray-100 text-[0.75rem] text-gray-400 leading-tight">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>}
+      {footLabel && <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-gray-100 text-[0.6875rem] sm:text-[0.75rem] text-gray-400 leading-tight">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>}
     </div>
   )
 }
@@ -88,16 +89,17 @@ export function StatTile({ icon: Icon, color = '#8a1c1c', bg = 'bg-maroon-50', t
   const clickable = typeof onClick === 'function'
   return (
     <div onClick={onClick} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
+      aria-label={clickable ? `${title}: ${value}` : undefined}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
-      className={`bg-white rounded-xl border border-gray-100 shadow-sm p-5 overflow-hidden ${clickable ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200' : ''}`}>
+      className={`bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5 overflow-hidden ${clickable ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-2' : ''}`}>
       <div className="flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={20} /></div>
+        <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={18} aria-hidden="true" /></div>
         <div className="min-w-0 flex-1">
-          <div className="text-[0.6875rem] uppercase tracking-wide text-gray-600 font-semibold leading-tight">{title}</div>
-          <div className="text-lg sm:text-xl font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums break-words">{value}</div>
+          <div className="text-[0.625rem] sm:text-[0.6875rem] uppercase tracking-wide text-gray-600 font-semibold leading-tight">{title}</div>
+          <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums break-words">{value}</div>
         </div>
       </div>
-      {sub && <div className="text-[0.75rem] text-gray-600 mt-3 leading-tight">{sub}</div>}
+      {sub && <div className="text-[0.6875rem] sm:text-[0.75rem] text-gray-600 mt-2 sm:mt-3 leading-tight">{sub}</div>}
     </div>
   )
 }
@@ -117,12 +119,19 @@ export function Section({ title, actions, children, className = '', bodyClass = 
   )
 }
 
-export function SearchInput({ value, onChange, placeholder, onEnter, className = '' }) {
+export function SearchInput({ value, onChange, placeholder, onEnter, className = '', 'aria-label': ariaLabel }) {
+  const { t } = useLang()
   return (
     <div className={`relative ${className}`}>
-      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-      <input value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => onEnter && e.key === 'Enter' && onEnter()}
-        placeholder={placeholder} className="input !pl-9" />
+      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => onEnter && e.key === 'Enter' && onEnter()}
+        placeholder={placeholder}
+        aria-label={ariaLabel || t(placeholder) || t('Search')}
+        className="input !pl-9 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
+      />
     </div>
   )
 }
@@ -158,15 +167,15 @@ export function Pager({ page, size, total, onPage, unit = 'records' }) {
   const go = (p) => { onPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const from = total === 0 ? 0 : (page - 1) * size + 1
   const to = Math.min(page * size, total || 0)
-  const btn = 'px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-600 disabled:opacity-40 hover:border-maroon-300'
+  const btn = 'px-3 h-8 rounded-lg border border-gray-200 text-[0.75rem] sm:text-[0.8125rem] text-gray-600 disabled:opacity-40 hover:border-maroon-300 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1'
   return (
     <>
-      <span className="text-[0.8125rem] text-gray-500">{t('Showing')} {from} {t('to')} {to} {t('of')} {num(total)} {t(unit)}</span>
-      {total > 0 && <div className="flex items-center gap-1.5">
-        <button disabled={page <= 1} onClick={() => go(page - 1)} className={btn}>{t('Previous')}</button>
-        <span className="px-3 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.8125rem] font-semibold">{page} / {pageCount}</span>
-        <button disabled={page >= pageCount} onClick={() => go(page + 1)} className={btn}>{t('Next')}</button>
-      </div>}
+      <span className="text-[0.75rem] sm:text-[0.8125rem] text-gray-500">{t('Showing')} {from} {t('to')} {to} {t('of')} {num(total)} {t(unit)}</span>
+      {total > 0 && <nav className="flex items-center gap-1 sm:gap-1.5" role="navigation" aria-label={t('Pagination')}>
+        <button disabled={page <= 1} onClick={() => go(page - 1)} aria-label={t('Previous page')} className={btn}>{t('Previous')}</button>
+        <span className="px-2 sm:px-3 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.75rem] sm:text-[0.8125rem] font-semibold" aria-current="page">{page} / {pageCount}</span>
+        <button disabled={page >= pageCount} onClick={() => go(page + 1)} aria-label={t('Next page')} className={btn}>{t('Next')}</button>
+      </nav>}
     </>
   )
 }

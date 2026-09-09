@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import WasteVendor, WasteSale
-from ..security import RequireModule, require_admin, log_action, client_ip
+from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
 from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open
 
 router = APIRouter(prefix="/api/waste", tags=["waste"])
 # Waste sales is Admin/authorised only — gated behind the "Counter" write capability.
 read = RequireModule("Counter")
 write = RequireModule("Counter", write=True)
+committee = RequireRole("Committee")
 
 
 @router.get("/stats")
@@ -24,9 +25,22 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
     today_amount = float(db.query(func.coalesce(func.sum(WasteSale.amount), 0)).filter(WasteSale.status != "Void", stamp == today).scalar() or 0)
     today_txns = db.query(func.count(WasteSale.id)).filter(stamp == today).scalar() or 0
     total_records = db.query(func.count(WasteSale.id)).scalar() or 0
+    # Verification stats
+    pending = db.query(func.count(WasteSale.id)).filter(
+        WasteSale.status != "Void",
+        (WasteSale.verification_status == "Pending") | (WasteSale.verification_status.is_(None))
+    ).scalar() or 0
+    verified = db.query(func.count(WasteSale.id)).filter(
+        WasteSale.status != "Void", WasteSale.verification_status == "Verified"
+    ).scalar() or 0
+    rejected = db.query(func.count(WasteSale.id)).filter(
+        WasteSale.verification_status == "Rejected"
+    ).scalar() or 0
+    voided = db.query(func.count(WasteSale.id)).filter(WasteSale.status == "Void").scalar() or 0
     return {
         "total_amount": total_amount, "today_amount": today_amount,
         "today_transactions": today_txns, "total_records": total_records,
+        "pending": pending, "verified": verified, "rejected": rejected, "voided": voided,
     }
 
 
@@ -41,8 +55,12 @@ def _sale(s: WasteSale) -> dict:
             "weight_kg": float(s.weight_kg), "rate": float(s.rate), "amount": float(s.amount),
             "mode": s.mode, "txn_ref": s.txn_ref,
             "paid_at": s.paid_at.isoformat() if s.paid_at else None,
-            "verified_by": s.verified_by, "payment_ref": s.payment_ref, "status": s.status,
+            "verified_by": s.verified_by, "verification_status": s.verification_status or "Pending",
+            "verified_at": s.verified_at.isoformat() if s.verified_at else None,
+            "rejection_reason": s.rejection_reason,
+            "payment_ref": s.payment_ref, "status": s.status,
             "sold_on": str(s.sold_on) if s.sold_on else None,
+            "created_by": s.created_by,
             "created_at": s.created_at.isoformat() if s.created_at else None}
 
 
@@ -157,7 +175,7 @@ def create_sale(body: dict, request: Request, db: Session = Depends(get_db), use
                   unit=body.get("unit", "Kilogram (kg)"), weight_kg=weight, rate=rate, amount=amount,
                   mode=mode, txn_ref=(body.get("txn_ref") if mode != "Cash" else None),
                   paid_at=paid_dt, payment_ref=body.get("txn_ref"),
-                  verified_by=(body.get("verified_by") or None),
+                  verification_status="Pending",
                   status="Paid", created_by=user.username)
     db.add(s); db.commit(); db.refresh(s)
     log_action(db, username=user.username, action="CREATE", entity="WasteSale",
@@ -173,3 +191,51 @@ def delete_sale(sid: int, request: Request, db: Session = Depends(get_db), user=
     s.status = "Void"   # soft-void: keep the record, drop it from collections
     log_action(db, username=user.username, action="UPDATE", entity="WasteSale", detail=f"Voided {s.code}", ip=client_ip(request))
     db.commit()
+
+
+# ── Committee Verification ──────────────────────────────────────────────────
+@router.put("/sales/{sid}/verify")
+def verify_sale(sid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(committee)):
+    from datetime import datetime
+    s = db.get(WasteSale, sid)
+    if not s:
+        raise HTTPException(404, "Sale not found")
+    if s.status == "Void":
+        raise HTTPException(400, "Cannot verify a voided sale")
+    if s.verification_status == "Verified":
+        raise HTTPException(400, "Sale already verified")
+    # Creator cannot verify their own record
+    if s.created_by and s.created_by.lower() == user.username.lower():
+        raise HTTPException(403, "The person who recorded the sale cannot verify it — a different committee member must attest.")
+    s.verification_status = "Verified"
+    s.verified_by = user.username
+    s.verified_at = datetime.now()
+    s.rejection_reason = None
+    db.commit(); db.refresh(s)
+    log_action(db, username=user.username, action="VERIFY", entity="WasteSale",
+               detail=f"Verified {s.code} ₹{s.amount}", ip=client_ip(request))
+    return _sale(s)
+
+
+@router.put("/sales/{sid}/reject")
+def reject_sale(sid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(committee)):
+    from datetime import datetime
+    s = db.get(WasteSale, sid)
+    if not s:
+        raise HTTPException(404, "Sale not found")
+    if s.status == "Void":
+        raise HTTPException(400, "Cannot reject a voided sale")
+    reason = (body.get("reason") or "").strip()
+    if not reason:
+        raise HTTPException(422, "Rejection reason is required")
+    # Creator cannot reject their own record
+    if s.created_by and s.created_by.lower() == user.username.lower():
+        raise HTTPException(403, "The person who recorded the sale cannot reject it — a different committee member must review.")
+    s.verification_status = "Rejected"
+    s.verified_by = user.username
+    s.verified_at = datetime.now()
+    s.rejection_reason = reason
+    db.commit(); db.refresh(s)
+    log_action(db, username=user.username, action="REJECT", entity="WasteSale",
+               detail=f"Rejected {s.code}: {reason}", ip=client_ip(request))
+    return _sale(s)

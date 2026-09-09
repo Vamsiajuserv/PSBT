@@ -205,6 +205,8 @@ class Donation(Base):
     receipt_no = Column(String(30), unique=True, nullable=False, index=True)    # RCPT-1258
     devotee_id = Column(Integer, ForeignKey("devotees.id"), nullable=True)
     donor_name = Column(String(120), nullable=False)
+    mobile = Column(String(20), nullable=True)                         # donor mobile for contact
+    address = Column(Text, nullable=True)                              # donor address for 80G certificate
     donation_type = Column(String(20), default="Cash", nullable=False)  # Cash | Material | Sponsorship
     fund = Column(String(120), nullable=False)                          # category
     amount = Column(Numeric(12, 2), nullable=False)
@@ -255,12 +257,18 @@ class HundiCollection(Base):
     verification_status = Column(String(30), default="Pending Verification", nullable=False)  # Verified | Pending Verification
     verified_by = Column(String(120), nullable=True)
     verified_on = Column(DateTime, nullable=True)
-    # Deposit
+    # Cash Deposit (bank)
     deposit_status = Column(String(30), default="Pending Deposit", nullable=False)  # Deposited | Pending Deposit
     bank_name = Column(String(160), nullable=True)
     bank_ref = Column(String(60), nullable=True)            # deposit reference / challan no.
     deposited_on = Column(Date, nullable=True)              # deposit date
     attachment = Column(String(200), nullable=True)         # deposit slip / receipt filename
+    # Valuables Custody (store)
+    valuables_status = Column(String(30), nullable=True)    # "In Store" | "Pending Custody" | None (no valuables)
+    store_location = Column(String(160), nullable=True)     # e.g. "Main Vault", "Locker A"
+    valuables_custodian = Column(String(120), nullable=True)  # committee member holding custody
+    valuables_stored_on = Column(Date, nullable=True)       # custody date
+    custody_receipt = Column(String(200), nullable=True)    # custody receipt attachment
     status = Column(String(20), default="Verified", nullable=False)  # legacy combined status
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
@@ -302,6 +310,7 @@ class Auction(Base):
     current_amount = Column(Numeric(12, 2), default=0, nullable=False)  # highest bid
     bids = Column(Integer, default=0)                        # no. of bidders
     winner = Column(String(120), nullable=True)              # highest bidder
+    winner_mobile = Column(String(20), nullable=True)        # winner mobile for contact
     status = Column(String(20), default="Scheduled", nullable=False)   # Scheduled | In Progress | Completed
     auction_date = Column(Date, nullable=True)
     start_time = Column(String(20), nullable=True)
@@ -355,7 +364,8 @@ class Poojari(Base):
     phone = Column(String(20), nullable=True)
     email = Column(String(160), nullable=True)
     specialization = Column(String(160), nullable=True)   # e.g. Abhishekam, Homam
-    active = Column(Boolean, default=True, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)   # operational availability
+    deleted = Column(Boolean, default=False, nullable=False)  # soft-delete (distinct from inactive)
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -412,7 +422,10 @@ class WasteSale(Base):
     mode = Column(String(20), default="Cash", nullable=False)  # Cash | UPI/QR Code
     txn_ref = Column(String(60), nullable=True)
     paid_at = Column(DateTime, nullable=True)
-    verified_by = Column(String(160), nullable=True)         # committee verification
+    verified_by = Column(String(160), nullable=True)         # committee member who verified
+    verification_status = Column(String(20), default="Pending")  # Pending | Verified | Rejected
+    verified_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(String(300), nullable=True)
     payment_ref = Column(String(60), nullable=True)
     status = Column(String(20), default="Recorded", nullable=False)  # Recorded | Paid
     sold_on = Column(Date, server_default=func.current_date())

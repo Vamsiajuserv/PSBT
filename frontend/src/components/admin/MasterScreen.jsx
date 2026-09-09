@@ -4,7 +4,7 @@ import { PageTitle, StatTile, Pill, num } from './ui.jsx'
 import { useSortableTable, SortPanel } from '../common/SortableTable.jsx'
 import { TableStates, LOAD_ERROR } from '../common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { Select, DateField, Checkbox, NumberField } from '../common/Field.jsx'
+import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountryDigits } from '../common/Field.jsx'
 import { confirmDialog, toast } from '../common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
@@ -241,21 +241,24 @@ export default function MasterScreen({ config }) {
                   ) : f.type === 'name' ? (
                     <>
                       <input required={f.required} className={`input ${fieldErrors[f.k] ? 'border-red-400' : ''}`}
-                        placeholder={f.placeholder ? tr(f.placeholder) : tr("Alphabets only")} value={drawer.data[f.k] || ''}
+                        placeholder={f.placeholder ? tr(f.placeholder) : tr(f.label)} value={drawer.data[f.k] || ''}
                         onChange={(e) => { clearFieldError(f.k); setD({ [f.k]: sanitizeName(e.target.value) }) }} />
                       {fieldErrors[f.k] && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors[f.k]}</div>}
                     </>
                   ) : f.type === 'phone' ? (
                     <>
-                      <input className={`input ${fieldErrors[f.k] ? 'border-red-400' : ''}`}
-                        placeholder={tr("10 digits only")} maxLength={10} value={drawer.data[f.k] || ''}
-                        onChange={(e) => { clearFieldError(f.k); setD({ [f.k]: sanitizePhone(e.target.value) }) }} />
+                      <div className="flex">
+                        <CountryCodeSelect value={drawer.data[`${f.k}_country_code`] || '+91'} onChange={(e) => setD({ [`${f.k}_country_code`]: e.target.value })} />
+                        <input className={`input flex-1 !rounded-l-none ${fieldErrors[f.k] ? 'border-red-400' : ''}`}
+                          placeholder={tr("Enter Mobile Number")} maxLength={getCountryDigits(drawer.data[`${f.k}_country_code`] || '+91')} value={drawer.data[f.k] || ''}
+                          onChange={(e) => { clearFieldError(f.k); setD({ [f.k]: sanitizePhone(e.target.value) }) }} />
+                      </div>
                       {fieldErrors[f.k] && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors[f.k]}</div>}
                     </>
                   ) : f.type === 'email' ? (
                     <>
                       <input type="email" className={`input ${fieldErrors[f.k] ? 'border-red-400' : ''}`}
-                        value={drawer.data[f.k] || ''} onChange={(e) => { clearFieldError(f.k); setD({ [f.k]: e.target.value }) }} />
+                        placeholder={tr("Enter Email")} value={drawer.data[f.k] || ''} onChange={(e) => { clearFieldError(f.k); setD({ [f.k]: e.target.value }) }} />
                       {fieldErrors[f.k] && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors[f.k]}</div>}
                     </>
                   ) : f.type === 'custom' ? (

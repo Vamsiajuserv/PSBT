@@ -5,7 +5,7 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { CommitteeAPI, PoojasAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { Select, NumberField } from '../../components/common/Field.jsx'
+import { Select, NumberField, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
@@ -241,13 +241,13 @@ function MembersTab() {
             <div className="flex-1 px-6 py-5 space-y-4">
               <div>
                 <label className="label"><T>Full Name</T> *</label>
-                <input required className={`input ${fieldErrors.name ? 'border-red-400' : ''}`} value={drawer.data.name || ''}
+                <input required className={`input ${fieldErrors.name ? 'border-red-400' : ''}`} placeholder={tr("Full Name")} value={drawer.data.name || ''}
                   onChange={(e) => { setFieldErrors((p) => ({ ...p, name: null })); setDrawer({ ...drawer, data: { ...drawer.data, name: sanitizeName(e.target.value) } }) }} />
                 {fieldErrors.name && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.name}</div>}
               </div>
               <div>
                 <label className="label"><T>Full Name (Telugu)</T></label>
-                <input className="input" placeholder={tr("Telugu / Alphabets only (no numbers)")} value={drawer.data.name_te || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name_te: sanitizeName(e.target.value) } })} />
+                <input className="input" placeholder={tr("Full Name (Telugu)")} value={drawer.data.name_te || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name_te: sanitizeName(e.target.value) } })} />
               </div>
               <div>
                 <label className="label"><T>Designation</T></label>
@@ -261,13 +261,16 @@ function MembersTab() {
               </div>
               <div>
                 <label className="label"><T>Phone</T></label>
-                <input className={`input ${fieldErrors.phone ? 'border-red-400' : ''}`} value={drawer.data.phone || ''}
-                  onChange={(e) => { setFieldErrors((p) => ({ ...p, phone: null })); setDrawer({ ...drawer, data: { ...drawer.data, phone: sanitizePhone(e.target.value) } }) }} maxLength={10} />
+                <div className="flex">
+                  <CountryCodeSelect value={drawer.data.country_code || '+91'} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, country_code: e.target.value } })} />
+                  <input className={`input flex-1 !rounded-l-none ${fieldErrors.phone ? 'border-red-400' : ''}`} placeholder={tr("Enter Mobile Number")} value={drawer.data.phone || ''}
+                    onChange={(e) => { setFieldErrors((p) => ({ ...p, phone: null })); setDrawer({ ...drawer, data: { ...drawer.data, phone: sanitizePhone(e.target.value) } }) }} maxLength={getCountryDigits(drawer.data.country_code || '+91')} />
+                </div>
                 {fieldErrors.phone && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.phone}</div>}
               </div>
               <div>
                 <label className="label"><T>Email</T></label>
-                <input type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} value={drawer.data.email || ''}
+                <input type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} placeholder={tr("Enter Email Address")} value={drawer.data.email || ''}
                   onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setDrawer({ ...drawer, data: { ...drawer.data, email: e.target.value } }) }} />
                 {fieldErrors.email && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.email}</div>}
               </div>

@@ -11,7 +11,7 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { isAdminRole } from '../../auth/access.js'
-import { Select, DateField } from '../../components/common/Field.jsx'
+import { Select, DateField, CountryCodeSelect, Combobox, getCountryDigits } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
 import { useTemple } from '../../lib/SiteContext.jsx'
@@ -22,6 +22,39 @@ const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'One-Time': 'violet', 'Life
 const STATUS_TONE = { Confirmed: 'green', Completed: 'green', Pending: 'amber', Cancelled: 'red', Ongoing: 'amber', Live: 'green', Closed: 'gray' }
 
 const TABS = ['Overview', 'Pooja History', 'Donation History', 'Other Activities']
+
+// Gothram (Gotra) names - ancient sage lineages (52 Gotras - All India)
+const GOTHRAMS = [
+  'Agastya', 'Alambayana', 'Angirasa', 'Atri', 'Babhravya', 'Bharadwaja', 'Bhargava',
+  'Bhrigu', 'Daksha', 'Dhananjaya', 'Garga', 'Gautama', 'Harita', 'Jamadagni',
+  'Jamadagnya', 'Kanva', 'Kapi', 'Kapisthala', 'Kashyapa', 'Katyayana', 'Kaundinya',
+  'Kaushika', 'Kousika', 'Kratu', 'Kutsa', 'Lohita', 'Mandavya', 'Marichi', 'Matanga',
+  'Moudgalya', 'Mudgala', 'Nidruva', 'Parashara', 'Pulaha', 'Pulastya', 'Rouhitya',
+  'Salihotra', 'Sandilya', 'Sankritya', 'Saunaka', 'Savarni', 'Shandilya', 'Srivatsa',
+  'Upamanyu', 'Vadula', 'Vashishtha', 'Vatsa', 'Vatsya', 'Vishnu', 'Vishnuvriddha',
+  'Vishwamitra', 'Yaska'
+]
+
+// Nakshatram (Birth Star) names
+const NAKSHATRAMS = [
+  'Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu',
+  'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni', 'Hasta',
+  'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha', 'Mula', 'Purva Ashadha',
+  'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha', 'Purva Bhadrapada',
+  'Uttara Bhadrapada', 'Revati'
+]
+
+// Major cities in India
+const CITIES = [
+  'Hyderabad', 'Secunderabad', 'Warangal', 'Nizamabad', 'Karimnagar', 'Khammam',
+  'Mahbubnagar', 'Nalgonda', 'Adilabad', 'Medak', 'Rangareddy', 'Sangareddy',
+  'Siddipet', 'Mancherial', 'Ramagundam', 'Suryapet', 'Miryalaguda', 'Jagtial',
+  'Visakhapatnam', 'Vijayawada', 'Guntur', 'Tirupati', 'Nellore', 'Kakinada',
+  'Rajahmundry', 'Kadapa', 'Kurnool', 'Anantapur', 'Eluru', 'Ongole',
+  'Chennai', 'Bangalore', 'Mumbai', 'Pune', 'Delhi', 'Kolkata', 'Ahmedabad',
+  'Jaipur', 'Lucknow', 'Indore', 'Bhopal', 'Nagpur', 'Surat', 'Coimbatore',
+  'Madurai', 'Mysore', 'Mangalore', 'Kochi', 'Thiruvananthapuram', 'Other'
+]
 
 // Print devotee summary in new window
 function printDevoteeSummary(dev, stats, temple) {
@@ -223,7 +256,7 @@ export default function Devotees() {
       <PageTitle title={tr("Devotee Management")} subtitle={tr("Maintain devotee master and view their activity history across temple services.")}
         actions={canWrite && <button onClick={() => { setSaveErr(''); setModal({ mode: 'create', data: { ...EMPTY } }) }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Devotee</T></button>} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6" role="region" aria-label={tr("Devotee statistics")}>
         <StatTile icon={Users} color="#ea580c" bg="bg-orange-50" title={tr("Total Devotees")}
           value={stats ? num(stats.total) : '—'} sub={tr("All registered devotees")} />
         <StatTile icon={CalendarPlus} color="#059669" bg="bg-emerald-50" title={tr("Recent Registrations")}
@@ -235,19 +268,19 @@ export default function Devotees() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <div>
+        <div className="px-4 sm:px-5 py-4 sm:py-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 items-end">
+          <div className="sm:col-span-2 md:col-span-1">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee Name / Mobile Number</T></label>
-            <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search name or mobile number…")} className="input !pl-9" /></div>
+            <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search name or mobile number…")} aria-label={tr("Search devotees")} className="input !pl-9 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" /></div>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>City / Location</T></label>
-            <Select value={city} onChange={(e) => setCity(e.target.value)} className="input"><option value="">{tr("All Cities")}</option>{allCities.map((c) => <option key={c}>{c}</option>)}</Select>
+            <Select value={city} onChange={(e) => setCity(e.target.value)} className="input" aria-label={tr("Filter by city")}><option value="">{tr("All Cities")}</option>{allCities.map((c) => <option key={c}>{c}</option>)}</Select>
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input" aria-label={tr("Filter by status")}><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
           </div>
         </div>
 
@@ -287,8 +320,8 @@ export default function Devotees() {
                   <td className="px-4 py-3.5 text-gray-500 text-[0.8125rem]">{fmtDate(d.registered_on)}</td>
                   <td className="px-4 py-3.5"><Pill tone={d.status === 'Active' ? 'green' : 'gray'}>{d.status}</Pill></td>
                   <td className="px-4 py-3.5 flex gap-1">
-                    <button onClick={() => openDetail(d.id)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
-                    {isAdmin && <button onClick={() => { setSaveErr(''); setModal({ mode: 'edit', data: { ...d } }) }} title={tr("Edit devotee")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
+                    <button onClick={() => openDetail(d.id)} title={tr("View details")} aria-label={`${tr("View details for")} ${personName(d, lang)}`} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300 focus:outline-none focus:ring-2 focus:ring-maroon-500"><Eye size={14} aria-hidden="true" /></button>
+                    {isAdmin && <button onClick={() => { setSaveErr(''); setModal({ mode: 'edit', data: { ...d } }) }} title={tr("Edit devotee")} aria-label={`${tr("Edit")} ${personName(d, lang)}`} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300 focus:outline-none focus:ring-2 focus:ring-maroon-500"><Pencil size={14} aria-hidden="true" /></button>}
                   </td>
                 </tr>
               ))}
@@ -304,33 +337,39 @@ export default function Devotees() {
       {detail && <DevoteeDrawer d={detail} tab={tab} setTab={setTab} onClose={() => setDetail(null)} />}
 
       {modal && (
-        <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-4" onClick={() => setModal(null)}>
-          <form onClick={(e) => e.stopPropagation()} onSubmit={save} className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-3 sm:p-4" onClick={() => setModal(null)} role="dialog" aria-modal="true" aria-labelledby="devotee-modal-title">
+          <form onClick={(e) => e.stopPropagation()} onSubmit={save} className="bg-white rounded-xl shadow-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-serif text-xl font-bold text-maroon-800">{modal.mode === 'create' ? tr('Add New Devotee') : tr('Edit Devotee')}</h3>
-              <button type="button" onClick={() => setModal(null)} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
+              <h3 id="devotee-modal-title" className="font-serif text-lg sm:text-xl font-bold text-maroon-800">{modal.mode === 'create' ? tr('Add New Devotee') : tr('Edit Devotee')}</h3>
+              <button type="button" onClick={() => setModal(null)} aria-label={tr("Close")} className="text-gray-400 hover:text-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500 rounded-lg p-1"><X size={18} aria-hidden="true" /></button>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
                 <label className="label"><T>Full Name</T> *</label>
                 <input required className={`input ${fieldErrors.name ? 'border-red-400' : ''}`} value={modal.data.name || ''}
                   onChange={(e) => { setFieldErrors((p) => ({ ...p, name: null })); setModal({ ...modal, data: { ...modal.data, name: sanitizeName(e.target.value) } }) }}
-                  placeholder={tr("Alphabets only")} />
+                  placeholder={tr("Full Name")} />
                 {fieldErrors.name && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.name}</div>}
               </div>
               <div>
                 <label className="label"><T>Full Name (Telugu)</T></label>
-                <input className="input" placeholder={tr("Telugu / Alphabets only (no numbers)")} value={modal.data.name_te || ''}
+                <input className="input" placeholder={tr("Full Name")} value={modal.data.name_te || ''}
                   onChange={(e) => setModal({ ...modal, data: { ...modal.data, name_te: sanitizeName(e.target.value) } })} />
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="label"><T>Mobile</T> *</label>
-                <input required className={`input ${fieldErrors.mobile ? 'border-red-400' : ''}`} value={modal.data.mobile || ''}
-                  onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setModal({ ...modal, data: { ...modal.data, mobile: sanitizePhone(e.target.value) } }) }}
-                  placeholder={tr("10 digits only")} maxLength={10} />
+                <div className="flex">
+                  <CountryCodeSelect
+                    value={modal.data.country_code || '+91'}
+                    onChange={(e) => setModal({ ...modal, data: { ...modal.data, country_code: e.target.value } })}
+                  />
+                  <input required className={`input flex-1 !rounded-l-none ${fieldErrors.mobile ? 'border-red-400' : ''}`} value={modal.data.mobile || ''}
+                    onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setModal({ ...modal, data: { ...modal.data, mobile: sanitizePhone(e.target.value) } }) }}
+                    placeholder={tr("Mobile Number")} maxLength={getCountryDigits(modal.data.country_code || '+91')} />
+                </div>
                 {fieldErrors.mobile && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.mobile}</div>}
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="label"><T>Email</T></label>
                 <input type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} value={modal.data.email || ''}
                   onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setModal({ ...modal, data: { ...modal.data, email: e.target.value } }) }} />
@@ -338,17 +377,30 @@ export default function Devotees() {
               </div>
               <div>
                 <label className="label"><T>City</T></label>
-                <input className="input" placeholder={tr("Alphabets only")} value={modal.data.city || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, city: sanitizeName(e.target.value) } })} />
+                <Combobox
+                  value={modal.data.city || ''}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, city: e.target.value } })}
+                  options={CITIES}
+                  placeholder={tr("Select or type City")}
+                />
               </div>
               <div>
                 <label className="label"><T>Gothram</T></label>
-                <input className="input" value={modal.data.gothram || ''}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, gothram: sanitizeName(e.target.value) } })} />
+                <Combobox
+                  value={modal.data.gothram || ''}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, gothram: e.target.value } })}
+                  options={GOTHRAMS}
+                  placeholder={tr("Select or type Gothram")}
+                />
               </div>
               <div>
                 <label className="label"><T>Nakshatram</T></label>
-                <input className="input" value={modal.data.nakshatram || ''}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, nakshatram: sanitizeName(e.target.value) } })} />
+                <Combobox
+                  value={modal.data.nakshatram || ''}
+                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, nakshatram: e.target.value } })}
+                  options={NAKSHATRAMS}
+                  placeholder={tr("Select or type Nakshatram")}
+                />
               </div>
               <div><label className="label"><T>Date of Birth</T></label>
                 <DateField className="input" value={modal.data.dob || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dob: e.target.value } })} />

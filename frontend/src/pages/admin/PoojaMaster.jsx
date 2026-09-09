@@ -287,8 +287,8 @@ export default function PoojaMaster() {
               <div>
                 <div className="text-[0.8125rem] font-bold text-maroon-700 mb-3"><T>1. Basic Information</T></div>
                 <div className="space-y-3">
-                  <div><label className="label"><T>Pooja Name *</T></label><input required className="input" placeholder={tr("Alphabets only")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: sanitizeName(e.target.value) } })} /></div>
-                  <div><label className="label"><T>Pooja Code</T></label><input className="input" placeholder={tr("Auto-generated if blank")} value={drawer.data.code} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, code: e.target.value } })} /></div>
+                  <div><label className="label"><T>Pooja Name *</T></label><input required className="input" placeholder={tr("Pooja Name")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: sanitizeName(e.target.value) } })} /></div>
+                  <div><label className="label"><T>Pooja Code</T></label><input className="input" placeholder={tr("Pooja Code")} value={drawer.data.code} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, code: e.target.value } })} /></div>
                   <div><label className="label"><T>Category *</T></label><Select required className="input" value={drawer.data.category} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, category: e.target.value } })}>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</Select></div>
                   <div><label className="label"><T>Description</T></label><textarea className="input min-h-[4rem]" placeholder={tr("Enter description (optional)")} value={drawer.data.description} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
                   <div><label className="label"><T>Status</T></label>

@@ -17,6 +17,28 @@ hundi_router = APIRouter(prefix="/api/hundi", tags=["hundi"])
 h_read = RequireModule("Hundi")
 h_write = RequireModule("Hundi", write=True)
 
+# Item types classification for cash vs valuables tracking
+CASH_TYPES = {"Cash", "Coins"}
+VALUABLES_TYPES = {"Gold", "Silver", "Jewellery", "Valuables", "Foreign Currency"}
+
+
+def _calc_cash_valuables(items: list) -> tuple[Decimal, Decimal]:
+    """Calculate cash and valuables totals from item lines."""
+    cash_total = Decimal("0")
+    valuables_total = Decimal("0")
+    for item in items:
+        item_type = getattr(item, "item_type", None) or (item.get("item_type") if isinstance(item, dict) else None)
+        value = getattr(item, "value", None) or (item.get("value") if isinstance(item, dict) else 0)
+        value = Decimal(str(value or 0))
+        if item_type in CASH_TYPES:
+            cash_total += value
+        elif item_type in VALUABLES_TYPES:
+            valuables_total += value
+        else:
+            # Unknown type defaults to cash
+            cash_total += value
+    return cash_total, valuables_total
+
 
 @hundi_router.get("/stats")
 def hundi_stats(db: Session = Depends(get_db), user=Depends(h_read)):
@@ -34,6 +56,17 @@ def hundi_stats(db: Session = Depends(get_db), user=Depends(h_read)):
             q = q.filter(f)
         return int(q.scalar() or 0)
 
+    # Calculate cash vs valuables from item-wise breakdown for this month
+    month_collections = db.query(HundiCollection).filter(
+        func.date(HundiCollection.collected_on) >= month_start
+    ).all()
+    month_cash = Decimal("0")
+    month_valuables = Decimal("0")
+    for h in month_collections:
+        cash, valuables = _calc_cash_valuables(h.items)
+        month_cash += cash
+        month_valuables += valuables
+
     latest = db.query(HundiCollection).order_by(HundiCollection.collected_on.desc(),
                                                 HundiCollection.id.desc()).first()
     return {
@@ -41,10 +74,21 @@ def hundi_stats(db: Session = Depends(get_db), user=Depends(h_read)):
         "latest_date": str(latest.collected_on) if latest and latest.collected_on else None,
         "month_amount": msum(func.date(HundiCollection.collected_on) >= month_start),
         "month_count": mcount(func.date(HundiCollection.collected_on) >= month_start),
+        # Cash vs valuables breakdown
+        "month_cash": float(month_cash),
+        "month_valuables": float(month_valuables),
+        # Cash deposit stats
         "deposited_month_amount": msum(HundiCollection.deposit_status == "Deposited",
                                        func.date(HundiCollection.deposited_on) >= month_start),
         "deposited_month_count": mcount(HundiCollection.deposit_status == "Deposited",
                                         func.date(HundiCollection.deposited_on) >= month_start),
+        "pending_deposit_amount": msum(HundiCollection.deposit_status == "Pending Deposit"),
+        "pending_deposit_count": mcount(HundiCollection.deposit_status == "Pending Deposit"),
+        # Valuables custody stats
+        "stored_month_count": mcount(HundiCollection.valuables_status == "In Store",
+                                     func.date(HundiCollection.valuables_stored_on) >= month_start),
+        "pending_custody_count": mcount(HundiCollection.valuables_status == "Pending Custody"),
+        # Legacy keys for backward compatibility
         "pending_amount": msum(HundiCollection.deposit_status == "Pending Deposit"),
         "pending_count": mcount(HundiCollection.deposit_status == "Pending Deposit"),
     }
@@ -52,6 +96,7 @@ def hundi_stats(db: Session = Depends(get_db), user=Depends(h_read)):
 
 @hundi_router.get("", response_model=dict)
 def list_hundi(q: str = "", verification: str = "", deposit: str = "",
+               valuables: str = "",  # filter by valuables_status
                start: date | None = None, end: date | None = None,
                page: int = 1, size: int = 50,
                db: Session = Depends(get_db), user=Depends(h_read)):
@@ -62,6 +107,8 @@ def list_hundi(q: str = "", verification: str = "", deposit: str = "",
         query = query.filter(HundiCollection.verification_status == verification)
     if deposit:
         query = query.filter(HundiCollection.deposit_status == deposit)
+    if valuables:
+        query = query.filter(HundiCollection.valuables_status == valuables)
     if start:
         query = query.filter(func.date(HundiCollection.collected_on) >= start)
     if end:
@@ -69,8 +116,15 @@ def list_hundi(q: str = "", verification: str = "", deposit: str = "",
     total = query.count()
     # Order by collected_on descending (latest to old), then by id desc for same-day
     rows = query.order_by(HundiCollection.collected_on.desc().nullslast(), HundiCollection.id.desc()).offset((page - 1) * size).limit(size).all()
-    return {"total": total, "page": page, "size": size,
-            "items": [HundiOut.model_validate(r).model_dump() for r in rows]}
+    # Enrich each row with cash_amount and valuables_amount calculated from items
+    items = []
+    for r in rows:
+        data = HundiOut.model_validate(r).model_dump()
+        cash, valuables_amt = _calc_cash_valuables(r.items)
+        data["cash_amount"] = float(cash)
+        data["valuables_amount"] = float(valuables_amt)
+        items.append(data)
+    return {"total": total, "page": page, "size": size, "items": items}
 
 
 @hundi_router.post("", response_model=HundiOut, status_code=201)
@@ -83,7 +137,8 @@ def create_hundi(body: HundiCreate, request: Request,
     # pending deposit. Strip any client-sent status/attestation fields so a collection
     # can never be created already Verified/Deposited with a forged verifier.
     for k in ("verification_status", "deposit_status", "verified_by", "verified_on",
-              "deposited_on", "bank_ref", "bank_name", "status"):
+              "deposited_on", "bank_ref", "bank_name", "status",
+              "valuables_status", "store_location", "valuables_custodian", "valuables_stored_on"):
         data.pop(k, None)
     members = data.pop("committee_members", []) or []
     joined = ", ".join(m for m in members if m)
@@ -96,10 +151,16 @@ def create_hundi(body: HundiCreate, request: Request,
         raise HTTPException(422, "Provide the counted amount or an item-wise breakdown.")
     assert_positive(data.get("counted_amount"), "Counted amount")
     assert_txn_date_open(db, data.get("collected_on"), label="collection date")
+    # Determine if there are valuables in this collection
+    cash_total, valuables_total = _calc_cash_valuables(item_lines)
+    has_valuables = valuables_total > 0
+    has_cash = cash_total > 0
     h = HundiCollection(code=f"HUN-{year}-{str(seq).zfill(5)}", created_by=user.username,
                         committee_members=joined, committee_member=joined,
                         verification_status="Pending Verification",
-                        deposit_status="Pending Deposit", status="Pending Verification",
+                        deposit_status="Pending Deposit" if has_cash else "N/A",
+                        valuables_status="Pending Custody" if has_valuables else None,
+                        status="Pending Verification",
                         **data)
     for li in item_lines:
         h.items.append(HundiCollectionItem(
@@ -108,7 +169,7 @@ def create_hundi(body: HundiCreate, request: Request,
             unit=li.get("unit"), value=li.get("value") or 0, remarks=li.get("remarks")))
     db.add(h); db.commit(); db.refresh(h)
     log_action(db, username=user.username, action="CREATE", entity="Hundi",
-               detail=f"{h.code} ₹{h.counted_amount} ({len(item_lines)} items)", ip=client_ip(request))
+               detail=f"{h.code} ₹{h.counted_amount} ({len(item_lines)} items, cash: ₹{cash_total}, valuables: ₹{valuables_total})", ip=client_ip(request))
     return h
 
 
@@ -161,25 +222,66 @@ def reject_hundi(hid: int, body: dict, request: Request, db: Session = Depends(g
 @hundi_router.put("/{hid}/deposit", response_model=HundiOut)
 def deposit_hundi(hid: int, body: dict, request: Request, db: Session = Depends(get_db),
                   user=Depends(h_write)):
-    """Record the bank deposit of a collection. Only a VERIFIED collection may be
-    deposited — enforcing the Pending → Verified → Deposited order the audit requires."""
+    """Record the bank deposit of CASH items in a collection. Only a VERIFIED collection
+    may be deposited — enforcing the Pending → Verified → Deposited order the audit requires."""
     h = db.get(HundiCollection, hid)
     if not h:
         raise HTTPException(404, "Hundi collection not found")
     if h.verification_status != "Verified":
         raise HTTPException(409, "The collection must be verified by the committee before it can be deposited.")
     if h.deposit_status == "Deposited":
-        raise HTTPException(409, "This collection is already deposited.")
+        raise HTTPException(409, "Cash from this collection is already deposited.")
+    if h.deposit_status == "N/A":
+        raise HTTPException(409, "This collection has no cash items to deposit.")
     dep_on = body.get("deposited_on")
     h.deposited_on = date.fromisoformat(dep_on) if dep_on else date.today()
     assert_txn_date_open(db, h.deposited_on, label="deposit date")
     h.bank_ref = (body.get("bank_ref") or None)
     h.bank_name = (body.get("bank_name") or None)
     h.deposit_status = "Deposited"
-    h.status = "Deposited"
+    # Update status based on valuables_status
+    if h.valuables_status in (None, "In Store"):
+        h.status = "Deposited"
+    else:
+        h.status = "Partially Complete"
+    cash_amount, _ = _calc_cash_valuables(h.items)
     db.commit(); db.refresh(h)
     log_action(db, username=user.username, action="UPDATE", entity="Hundi",
-               detail=f"Deposited {h.code} ₹{h.counted_amount}", ip=client_ip(request))
+               detail=f"Cash deposited {h.code} ₹{cash_amount} → {h.bank_name or 'bank'}", ip=client_ip(request))
+    return h
+
+
+@hundi_router.put("/{hid}/store", response_model=HundiOut)
+def store_hundi_valuables(hid: int, body: dict, request: Request, db: Session = Depends(get_db),
+                          user=Depends(h_write)):
+    """Record the custody of VALUABLES (gold, silver, jewellery, etc.) from a collection.
+    Only a VERIFIED collection may have its valuables stored — enforcing the
+    Pending → Verified → In Store order the audit requires."""
+    h = db.get(HundiCollection, hid)
+    if not h:
+        raise HTTPException(404, "Hundi collection not found")
+    if h.verification_status != "Verified":
+        raise HTTPException(409, "The collection must be verified by the committee before valuables can be stored.")
+    if h.valuables_status == "In Store":
+        raise HTTPException(409, "Valuables from this collection are already in store custody.")
+    if h.valuables_status is None:
+        raise HTTPException(409, "This collection has no valuables to store.")
+    store_on = body.get("stored_on")
+    h.valuables_stored_on = date.fromisoformat(store_on) if store_on else date.today()
+    assert_txn_date_open(db, h.valuables_stored_on, label="custody date")
+    h.store_location = (body.get("store_location") or None)
+    h.valuables_custodian = (body.get("custodian") or None)
+    h.custody_receipt = (body.get("custody_receipt") or None)
+    h.valuables_status = "In Store"
+    # Update status based on deposit_status
+    if h.deposit_status in ("N/A", "Deposited"):
+        h.status = "Completed"
+    else:
+        h.status = "Partially Complete"
+    _, valuables_amount = _calc_cash_valuables(h.items)
+    db.commit(); db.refresh(h)
+    log_action(db, username=user.username, action="UPDATE", entity="Hundi",
+               detail=f"Valuables stored {h.code} ₹{valuables_amount} → {h.store_location or 'store'}", ip=client_ip(request))
     return h
 
 
@@ -289,6 +391,9 @@ def update_auction(aid: int, body: dict, request: Request,
         raise HTTPException(422, "The highest/winning bid cannot be below the base amount.")
     if (au.status or "") == "Completed" and not (au.winner or "").strip():
         raise HTTPException(422, "A completed auction must record the winning bidder.")
+    # Cannot record result for a future-dated auction
+    if (au.status or "") == "Completed" and au.auction_date and au.auction_date > date.today():
+        raise HTTPException(422, "Cannot record result for a future-dated auction. The auction must have occurred first.")
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
                detail=f"{au.code} {au.status} ₹{au.current_amount}", ip=client_ip(request))

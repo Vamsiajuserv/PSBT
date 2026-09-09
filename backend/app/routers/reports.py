@@ -333,20 +333,20 @@ def generate(report, start, end, db):
             "donor": d.donor_name or "-",
             "mobile": d.mobile or "-",
             "category": d.fund or "-",
-            "purpose": d.purpose or "-",
+            "notes": d.notes or "-",
             "amount": float(d.amount or 0),
             "mode": d.mode or "Cash",
             "txn_ref": d.txn_ref or "-",
             "g80": "Yes" if d.g80 else "No",
         } for d in rows]
         total = {"receipt": "Total", "date": "", "donor": "", "mobile": "", "category": "",
-                 "purpose": "", "amount": sum(r["amount"] for r in data), "mode": "", "txn_ref": "", "g80": ""}
+                 "notes": "", "amount": sum(r["amount"] for r in data), "mode": "", "txn_ref": "", "g80": ""}
         return {
             "title": "Donation Register",
             "subtitle": "Complete donation ledger with donor details and payment info.",
             "columns": [
                 T("receipt", "Receipt#"), T("date", "Date"), T("donor", "Donor"), T("mobile", "Mobile"),
-                T("category", "Category"), T("purpose", "Purpose"), M("amount", "Amount (₹)"),
+                T("category", "Category"), T("notes", "Notes"), M("amount", "Amount (₹)"),
                 T("mode", "Mode"), T("txn_ref", "UTR"), T("g80", "80G")
             ],
             "rows": data, "total": total

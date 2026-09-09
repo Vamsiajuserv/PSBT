@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import {
   Plus, X, Eye, Printer, Search, Minus, Check, User,
   IndianRupee, CalendarDays, ShoppingCart, FileText, Calculator, ArrowUp, ArrowDown,
+  CheckCircle, XCircle, Clock, Ban,
 } from 'lucide-react'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
@@ -11,11 +12,11 @@ import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI } from '../../api/clien
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
-import { Select, DateField, DateTimeField, NumberField } from '../../components/common/Field.jsx'
+import { Select, DateField, DateTimeField, NumberField, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone } from '../../lib/validation.js'
 
-const DEFAULT_MATERIALS = ['Coconut Shells', 'Flowers', 'Banana Leaves', 'Cardboard', 'Plastic', 'Waste Oil', 'Metal Scrap', 'Old Cloth']
+const DEFAULT_MATERIALS = ['Coconut Shells', 'Flowers', 'Banana Leaves', 'Cardboard', 'Plastic', 'Waste Oil', 'Metal Scrap', 'Old Cloth', 'Waste Papers']
 const UNITS = ['Kilogram (kg)', 'Tonne', 'Piece', 'Bundle']
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
 const fmtTime = (s) => (s ? clock12(new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) : '')
@@ -59,6 +60,12 @@ export default function WasteSales() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [vendors, setVendors] = useState([])
   const [committee, setCommittee] = useState([])
+  const [verifyModal, setVerifyModal] = useState(null)
+  const [rejectModal, setRejectModal] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
+
+  // Committee role check for verification
+  const isCommittee = user?.role === 'Committee' || user?.role === 'Admin'
 
   const [q, setQ] = useState('')
   const [material, setMaterial] = useState('')
@@ -71,13 +78,53 @@ export default function WasteSales() {
     { key: 'code', label: 'Receipt No.', type: 'text' },
     { key: 'paid_at', label: 'Date & Time', type: 'date' },
     { key: 'buyer_name', label: 'Buyer Name', type: 'text' },
-    { key: 'mobile', label: 'Mobile Number', type: 'text' },
     { key: 'material', label: 'Material Type', type: 'text' },
     { key: 'weight_kg', label: 'Quantity', type: 'num' },
-    { key: 'rate', label: 'Rate (₹/Unit)', type: 'money' },
     { key: 'amount', label: 'Amount (₹)', type: 'money' },
     { key: 'mode', label: 'Payment Mode', type: 'text' },
+    { key: 'verification_status', label: 'Verification', type: 'text' },
   ]
+
+  // Verification status badge
+  const statusBadge = (status) => {
+    const s = status || 'Pending'
+    if (s === 'Verified') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold bg-emerald-50 text-emerald-700"><CheckCircle size={12} /> {tr('Verified')}</span>
+    if (s === 'Rejected') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold bg-red-50 text-red-700"><XCircle size={12} /> {tr('Rejected')}</span>
+    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold bg-amber-50 text-amber-700"><Clock size={12} /> {tr('Pending')}</span>
+  }
+
+  // Verify sale handler
+  const handleVerify = async () => {
+    if (!verifyModal) return
+    try {
+      await WasteAPI.verify(verifyModal.id, {})
+      setVerifyModal(null)
+      load()
+    } catch (ex) {
+      alert(ex?.detail || 'Verification failed')
+    }
+  }
+
+  // Reject sale handler
+  const handleReject = async () => {
+    if (!rejectModal || !rejectReason.trim()) return
+    try {
+      await WasteAPI.reject(rejectModal.id, { reason: rejectReason.trim() })
+      setRejectModal(null); setRejectReason('')
+      load()
+    } catch (ex) {
+      alert(ex?.detail || 'Rejection failed')
+    }
+  }
+
+  // Check if user can verify a sale (not creator)
+  const canVerifySale = (sale) => {
+    if (!isCommittee) return false
+    if (sale.status === 'Void') return false
+    if (sale.verification_status === 'Verified') return false
+    if (sale.created_by?.toLowerCase() === user?.username?.toLowerCase()) return false
+    return true
+  }
   const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'paid_at', direction: 'desc' }])
 
   const load = useCallback(async () => {
@@ -184,11 +231,12 @@ export default function WasteSales() {
       <PageTitle title={tr("Waste Material Sales Management")} subtitle={tr("Record waste material sales, accept payments and generate receipt.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Waste Material Sales Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => setDrawer(emptyForm())} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Waste Material Sale</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <StatTile icon={IndianRupee} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Sales Amount")} value={stats ? inr(stats.total_amount) : '—'} sub={tr("All Time")} />
         <StatTile icon={CalendarDays} color="#059669" bg="bg-emerald-50" title={tr("Today's Sales Amount")} value={stats ? inr(stats.today_amount) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
-        <StatTile icon={ShoppingCart} color="#7c3aed" bg="bg-violet-50" title={tr("Today's Transactions")} value={stats ? num(stats.today_transactions) : '—'} sub={tr("Sales recorded today")} />
-        <StatTile icon={FileText} color="#2563eb" bg="bg-blue-50" title={tr("Total Sale Records")} value={stats ? num(stats.total_records) : '—'} sub={tr("All Time")} />
+        <StatTile icon={Clock} color="#d97706" bg="bg-amber-50" title={tr("Pending Verification")} value={stats ? num(stats.pending) : '—'} sub={tr("Awaiting committee review")} />
+        <StatTile icon={CheckCircle} color="#059669" bg="bg-emerald-50" title={tr("Verified")} value={stats ? num(stats.verified) : '—'} sub={tr("Committee approved")} />
+        <StatTile icon={Ban} color="#6b7280" bg="bg-gray-50" title={tr("Voided / Rejected")} value={stats ? num((stats.voided || 0) + (stats.rejected || 0)) : '—'} sub={tr("Cancelled records")} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -244,25 +292,29 @@ export default function WasteSales() {
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {sortedRows.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50/60">
+                <tr key={s.id} className={`hover:bg-gray-50/60 ${s.status === 'Void' ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{s.code}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(s.paid_at || s.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(s.paid_at || s.created_at)}</div></td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{tr(s.buyer_name)}</td>
-                  <td className="px-4 py-3 text-gray-600">{s.mobile || '—'}</td>
+                  <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(s.buyer_name)}</div><div className="text-[0.6875rem] text-gray-400">{s.mobile || ''}</div></td>
                   <td className="px-4 py-3 text-gray-600">{tr(s.material)}</td>
                   <td className="px-4 py-3 text-gray-700">{money2(s.weight_kg)} {tr(unitShort(s.unit))}</td>
-                  <td className="px-4 py-3 text-gray-700">{money2(s.rate)}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{money2(s.amount)}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">₹{money2(s.amount)}</td>
                   <td className="px-4 py-3 text-gray-600">{modeLabel(s.mode)}</td>
+                  <td className="px-4 py-3">{s.status === 'Void' ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold bg-gray-100 text-gray-500"><Ban size={12} /> {tr('Voided')}</span> : statusBadge(s.verification_status)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 text-gray-800">
+                    <div className="flex items-center gap-1.5 text-gray-800">
                       <button onClick={() => setPrintDoc(s)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
-                      <button onClick={() => setPrintDoc(s)} title={tr("Print receipt")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
+                      {canVerifySale(s) && (
+                        <>
+                          <button onClick={() => setVerifyModal(s)} title={tr("Verify")} className="w-8 h-8 grid place-items-center rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400"><CheckCircle size={15} /></button>
+                          <button onClick={() => { setRejectModal(s); setRejectReason('') }} title={tr("Reject")} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400"><XCircle size={15} /></button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={10} loading={loading} error={loadErr} onRetry={load} empty={tr("No sales records found.")} />}
+              {rows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty={tr("No sales records found.")} />}
             </tbody>
           </table>
         </div>
@@ -328,15 +380,18 @@ export default function WasteSales() {
                       </div>
                       <p className="text-[0.6875rem] text-gray-400 mt-1"><T>Or enter details manually below</T></p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4">
                       <div>
                         <label className="label"><T>Buyer Name *</T></label>
-                        <input required className={`input ${fieldErrors.buyer_name ? 'border-red-400' : ''}`} placeholder={tr("Alphabets only")} value={drawer.buyer_name} onChange={(e) => { setFieldErrors((p) => ({ ...p, buyer_name: null })); setM({ buyer_name: sanitizeName(e.target.value) }) }} />
+                        <input required className={`input ${fieldErrors.buyer_name ? 'border-red-400' : ''}`} placeholder={tr("Buyer Name")} value={drawer.buyer_name} onChange={(e) => { setFieldErrors((p) => ({ ...p, buyer_name: null })); setM({ buyer_name: sanitizeName(e.target.value) }) }} />
                         {fieldErrors.buyer_name && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.buyer_name}</div>}
                       </div>
                       <div>
                         <label className="label"><T>Mobile Number *</T></label>
-                        <input required className={`input ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("10 digits only")} maxLength={10} value={drawer.mobile} onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setM({ mobile: sanitizePhone(e.target.value) }) }} />
+                        <div className="flex">
+                          <CountryCodeSelect value={drawer.country_code || '+91'} onChange={(e) => setM({ country_code: e.target.value })} />
+                          <input required className={`input flex-1 !rounded-l-none ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("Mobile Number")} maxLength={getCountryDigits(drawer.country_code || '+91')} value={drawer.mobile} onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setM({ mobile: sanitizePhone(e.target.value) }) }} />
+                        </div>
                         {fieldErrors.mobile && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.mobile}</div>}
                       </div>
                     </div>
@@ -432,12 +487,71 @@ export default function WasteSales() {
                   { en: 'Rate', value: `₹${money2(printDoc.rate)} / ${unitShort(printDoc.unit)}` },
                   { en: 'Payment Mode', value: modeLabel(printDoc.mode) },
                   ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref }] : []),
+                  { en: 'Verification', value: printDoc.verification_status || 'Pending' },
+                  ...(printDoc.verified_by ? [{ en: 'Verified By', value: `${printDoc.verified_by} on ${fmtDate(printDoc.verified_at)}` }] : []),
+                  ...(printDoc.rejection_reason ? [{ en: 'Rejection Reason', value: printDoc.rejection_reason }] : []),
                 ]}
                 footerNote={toWords(printDoc.amount)} />
             </div>
             <div className="flex gap-2 justify-center mt-4 no-print">
               <button onClick={() => window.print()} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>
               <button onClick={() => setPrintDoc(null)} className="btn-outline"><T>Close</T></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Verify Modal ── */}
+      {verifyModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 grid place-items-center"><CheckCircle size={20} /></div>
+              <div>
+                <h3 className="font-serif text-lg font-bold text-gray-800"><T>Verify Waste Sale</T></h3>
+                <p className="text-[0.8125rem] text-gray-500">{verifyModal.code}</p>
+              </div>
+            </div>
+            <div className="px-6 py-5">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-[0.8125rem]">
+                <div className="flex justify-between"><span className="text-gray-500"><T>Buyer</T>:</span><span className="font-semibold text-gray-800">{verifyModal.buyer_name}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{verifyModal.material} — {money2(verifyModal.weight_kg)} {unitShort(verifyModal.unit)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Amount</T>:</span><span className="font-semibold text-gray-800">₹{money2(verifyModal.amount)} ({verifyModal.mode})</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Recorded by</T>:</span><span className="text-gray-700">{verifyModal.created_by || '—'}</span></div>
+              </div>
+              <p className="text-[0.8125rem] text-gray-600 mt-4"><T>By verifying, you confirm that this sale transaction is accurate and complete.</T></p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setVerifyModal(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <button onClick={handleVerify} className="btn-maroon flex-1 justify-center !bg-emerald-600 hover:!bg-emerald-700"><CheckCircle size={15} /> <T>Verify Sale</T></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject Modal ── */}
+      {rejectModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 grid place-items-center"><XCircle size={20} /></div>
+              <div>
+                <h3 className="font-serif text-lg font-bold text-gray-800"><T>Reject Waste Sale</T></h3>
+                <p className="text-[0.8125rem] text-gray-500">{rejectModal.code}</p>
+              </div>
+            </div>
+            <div className="px-6 py-5">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-[0.8125rem] mb-4">
+                <div className="flex justify-between"><span className="text-gray-500"><T>Buyer</T>:</span><span className="font-semibold text-gray-800">{rejectModal.buyer_name}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{rejectModal.material} — {money2(rejectModal.weight_kg)} {unitShort(rejectModal.unit)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Amount</T>:</span><span className="font-semibold text-gray-800">₹{money2(rejectModal.amount)}</span></div>
+              </div>
+              <label className="label"><T>Rejection Reason *</T></label>
+              <textarea className="input min-h-[80px]" placeholder={tr("Enter reason for rejection…")} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => { setRejectModal(null); setRejectReason('') }} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <button onClick={handleReject} disabled={!rejectReason.trim()} className="btn-maroon flex-1 justify-center !bg-red-600 hover:!bg-red-700 disabled:opacity-50"><XCircle size={15} /> <T>Reject Sale</T></button>
             </div>
           </div>
         </div>

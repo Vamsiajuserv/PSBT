@@ -95,12 +95,12 @@ function FontSizeToggle() {
   const pick = (l) => setLevel(setFontScale(l))
   const btn = (l, node, title) => (
     <button onClick={() => pick(l)} title={title} aria-label={title}
-      className={`px-2 py-1 leading-none ${level === l ? 'bg-maroon-700 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+      className={`px-2 py-1 leading-none focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-inset ${level === l ? 'bg-maroon-700 text-gold-400' : 'text-maroon-700 hover:bg-maroon-50'}`}>
       {node}
     </button>
   )
   return (
-    <div className="inline-flex items-stretch rounded-full border border-gray-300 overflow-hidden font-bold">
+    <div className="inline-flex items-stretch rounded-full border border-maroon-300 overflow-hidden font-bold">
       {btn('small', <span className="text-[0.625rem]">A−</span>, 'Smaller text')}
       {btn('normal', <span className="text-[0.8125rem]">A</span>, 'Default text size')}
       {btn('large', <span className="text-[1rem]">A+</span>, 'Larger text')}
@@ -189,7 +189,7 @@ export default function AdminLayout() {
   const [open, setOpen] = useState(false)          // mobile overlay
   const [collapsed, setCollapsed] = useState(false) // desktop slide-away
   const { user, logout } = useAuth()
-  const { t, lang, toggle: toggleLang } = useLang()
+  const { t, lang, setLang } = useLang()
   const navigate = useNavigate()
   const name = personName(user, lang) || tr('Administrator')
   const role = user?.role || 'Admin'
@@ -230,35 +230,37 @@ export default function AdminLayout() {
         </button>
       )}
 
-      {open && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setOpen(false)} />}
+      {open && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setOpen(false)} role="button" aria-label="Close navigation menu" tabIndex={0} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)} />}
 
       {/* ── Main ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <header className="h-[4.5rem] min-h-[4.5rem] shrink-0 bg-white border-b border-gray-200 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-30">
-          <div className="flex items-center gap-5">
-            <button className="lg:hidden text-gray-500 hover:text-maroon-700" title={tr("Menu")} aria-label={tr("Menu")}
-              onClick={() => setOpen((o) => !o)}><Menu size={26} /></button>
-            <span className="font-serif font-bold text-maroon-800 text-[1.5rem] hidden sm:block"><T>Sri Shirdi Sai Baba Temple</T></span>
+        <header className="h-[4.25rem] min-h-[4.25rem] shrink-0 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
+          {/* Left: Menu + Temple Name */}
+          <div className="flex items-center gap-2">
+            <button className="lg:hidden text-gray-500 hover:text-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1 rounded p-1" title={tr("Menu")} aria-label={tr("Open navigation menu")}
+              onClick={() => setOpen((o) => !o)}><Menu size={22} /></button>
+            <span className="font-serif font-bold text-maroon-800 text-[1.375rem] whitespace-nowrap"><T>Sri Shirdi Sai Baba Temple</T></span>
           </div>
 
-          <div className="flex items-center gap-5 lg:gap-6">
-            <span className="hidden md:flex items-center gap-2.5 text-[0.9375rem] text-gray-600"><Calendar size={18} className="text-gray-400" /> {todayLabel()}</span>
-            <span className="hidden md:flex items-center gap-2.5 text-[0.9375rem] text-gray-600"><Clock size={18} className="text-gray-400" /> {timeLabel()}</span>
-            <button onClick={toggleLang} title={tr("Switch language / భాష మార్చండి")}
-              className="px-3.5 py-1.5 rounded-full border border-gold-300 text-[0.875rem] font-bold text-maroon-700 hover:bg-gold-50">
-              {lang === 'en' ? 'తెలుగు' : tr('English')}
-            </button>
-            <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label={tr("Notifications")} className="relative text-gray-500 hover:text-maroon-700">
-              <Bell size={24} />
+          {/* Right: All controls in one line */}
+          <div className="flex items-center gap-2 lg:gap-4">
+            <span className="hidden md:flex items-center gap-1.5 text-[0.875rem] text-maroon-700 whitespace-nowrap"><Calendar size={15} className="text-maroon-500" /> {todayLabel()}</span>
+            <span className="hidden lg:flex items-center gap-1.5 text-[0.875rem] text-maroon-700 whitespace-nowrap"><Clock size={15} className="text-maroon-500" /> {timeLabel()}</span>
+            <div className="inline-flex items-center rounded-full border border-maroon-300 overflow-hidden text-[0.6875rem] font-bold" role="group" aria-label="Language selection">
+              <button onClick={() => setLang('en')} title="English" aria-label="Switch to English" aria-pressed={lang === 'en'} className={`px-2 py-1 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-inset ${lang === 'en' ? 'bg-maroon-700 text-gold-400' : 'text-maroon-700 hover:bg-maroon-50'}`}>EN</button>
+              <button onClick={() => setLang('te')} title="తెలుగు" aria-label="Switch to Telugu" aria-pressed={lang === 'te'} className={`px-2 py-1 font-telugu focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-inset ${lang === 'te' ? 'bg-maroon-700 text-gold-400' : 'text-maroon-700 hover:bg-maroon-50'}`}>తెలుగు</button>
+            </div>
+            <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label={tr("Notifications")} className="text-maroon-500 hover:text-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1 rounded-full p-1">
+              <Bell size={18} />
             </button>
             <FontSizeToggle />
-            <div className="flex items-center gap-3 pl-5 border-l border-gray-200">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 text-white grid place-items-center text-lg font-bold shadow-sm">{initials}</div>
-              <div className="hidden sm:block leading-snug">
-                <div className="text-base font-bold text-gray-800">{name}</div>
-                <div className="text-[0.875rem] text-gray-500">{t(roleLabel)}</div>
+            <div className="flex items-center gap-2 pl-2 lg:pl-3 border-l border-gray-200">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 text-white grid place-items-center text-xs font-bold shadow-sm">{initials}</div>
+              <div className="hidden md:block text-right leading-tight">
+                <div className="text-[0.875rem] font-bold text-gray-800 whitespace-nowrap">{name}</div>
+                <div className="text-[0.75rem] text-gray-500 whitespace-nowrap">{t(roleLabel)}</div>
               </div>
-              <button onClick={signOut} title={tr("Sign out")} className="text-gray-400 hover:text-maroon-700 ml-2"><LogOut size={20} /></button>
+              <button onClick={signOut} title={tr("Sign out")} aria-label={tr("Sign out")} className="text-gray-400 hover:text-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1 rounded p-1"><LogOut size={16} /></button>
             </div>
           </div>
         </header>

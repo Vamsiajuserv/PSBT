@@ -671,13 +671,14 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
         if not data.get("plan_name"):
             data["plan_name"] = plan.plan_name
 
-    # Seva lookup
-    if data.get("pooja_id"):
-        sv = db.get(Seva, data["pooja_id"])
-        if sv and not data.get("seva_name"):
-            data["seva_name"] = sv.pooja_name
-        if sv and sv.amount and float(data.get("amount") or 0) < float(sv.amount):
-            raise HTTPException(422, f"Amount is below this service's fee (₹{sv.amount}).")
+    # Pooja name lookup (for seva_name field if not provided)
+    if data.get("pooja_id") and not data.get("seva_name"):
+        pj = db.get(Pooja, data["pooja_id"])
+        if pj:
+            data["seva_name"] = pj.name
+
+    # Fee validation: use plan fee (not legacy Seva table)
+    # The plan.fee is already set above from PoojaPlan lookup
 
     assert_positive(data.get("amount"), "Amount")
 
@@ -764,6 +765,7 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
         "plan_name": b.plan_name,
         "amount": float(b.amount) if b.amount else 0,
         "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
+        "valid_until": str(b.valid_until) if b.valid_until else None,
         "devotee_name": b.devotee_name,
         "mobile": b.mobile,
         "status": b.status,
@@ -811,11 +813,11 @@ def bulk_quick_create(body: dict, request: Request, db: Session = Depends(get_db
                 if plan and not data.get("plan_name"):
                     data["plan_name"] = plan.plan_name
 
-            # Seva lookup
-            if data.get("pooja_id"):
-                sv = db.get(Seva, data["pooja_id"])
-                if sv and not data.get("seva_name"):
-                    data["seva_name"] = sv.pooja_name
+            # Pooja name lookup (for seva_name field if not provided)
+            if data.get("pooja_id") and not data.get("seva_name"):
+                pj = db.get(Pooja, data["pooja_id"])
+                if pj:
+                    data["seva_name"] = pj.name
 
             if not data.get("amount") or float(data.get("amount", 0)) <= 0:
                 raise ValueError("Invalid amount")
@@ -869,6 +871,8 @@ def bulk_quick_create(body: dict, request: Request, db: Session = Depends(get_db
                 "seva_name": b.seva_name,
                 "plan_name": b.plan_name,
                 "amount": float(b.amount) if b.amount else 0,
+                "valid_until": str(b.valid_until) if b.valid_until else None,
+                "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
             })
 
         except Exception as e:

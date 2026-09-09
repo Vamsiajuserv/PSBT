@@ -36,8 +36,8 @@ function StatTile({ icon: Icon, color, bg, title, value, sub }) {
 
 export default function DonationMaster() {
   const { user } = useAuth()
-  const canWrite = user?.role !== 'Accountant'
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
+  // Only Admin can add/edit/delete categories - backend uses require_admin
   const [items, setItems] = useState([])
   const [stats, setStats] = useState(null)
   const [q, setQ] = useState(''); const [type, setType] = useState(''); const [status, setStatus] = useState('')
@@ -84,7 +84,7 @@ export default function DonationMaster() {
   return (
     <div>
       <PageTitle title={tr("Donation Master")} subtitle={tr("Maintain and configure donation categories used for cash donations, material donations and sponsorships.")}
-        actions={canWrite && <button onClick={() => setDrawer({ mode: 'create', data: emptyCat() })} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Category</T></button>} />
+        actions={isAdmin && <button onClick={() => setDrawer({ mode: 'create', data: emptyCat() })} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Category</T></button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={HandHeart} color="#059669" bg="bg-emerald-50" title={tr("Total Categories")} value={stats ? num(stats.total) : '—'} sub={tr("Active Donation Categories")} />
@@ -160,7 +160,7 @@ export default function DonationMaster() {
                   <td className="px-5 py-3.5"><Pill tone={c.active ? 'green' : 'gray'}>{c.active ? tr('Active') : tr('Inactive')}</Pill></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      {canWrite && <button onClick={() => setDrawer({ mode: 'edit', data: { ...c } })} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Pencil size={15} /></button>}
+                      {isAdmin && <button onClick={() => setDrawer({ mode: 'edit', data: { ...c } })} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Pencil size={15} /></button>}
                       {isAdmin && <button onClick={() => remove(c)} title={tr("Delete")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-300"><Trash2 size={15} /></button>}
                     </div>
                   </td>
@@ -190,7 +190,7 @@ export default function DonationMaster() {
                 <div className="flex gap-5 mt-1">{['Cash', 'Material', 'Sponsorship'].map((t) => (
                   <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="ctype" className="accent-maroon-700" checked={dtype === t} onChange={() => setType2(t)} /> {t === 'Cash' ? 'Cash Donation' : t === 'Material' ? 'Material Donation' : 'Sponsorship'}</label>
                 ))}</div></div>
-              <div><label className="label"><T>Category Name *</T></label><input required className="input" placeholder={tr("Alphabets only")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: sanitizeName(e.target.value) } })} /></div>
+              <div><label className="label"><T>Category Name *</T></label><input required className="input" placeholder={tr("Category Name")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: sanitizeName(e.target.value) } })} /></div>
               <div><label className="label"><T>Description (Optional)</T></label><textarea className="input min-h-[4.5rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.data.description || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
               <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Fields below will change based on the category type selected.</T></div>
               {dtype !== 'Material' && (

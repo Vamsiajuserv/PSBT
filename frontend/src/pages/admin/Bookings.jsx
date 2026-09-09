@@ -181,19 +181,21 @@ export default function Bookings() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-6">
         <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
           <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
             <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()}
-              placeholder={tr("Search by Pooja Name, Devotee Name or Booking ID")} className="input !pl-9" />
+              placeholder={tr("Search by Pooja Name, Devotee Name or Booking ID")}
+              aria-label={tr("Search bookings")}
+              className="input !pl-9 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" />
           </div>
           <div className="flex gap-2">
-            <button onClick={clear} className="btn-outline !py-2.5"><RotateCcw size={15} />{' '}<T>Clear</T></button>
-            <button onClick={search} className="btn-maroon !py-2.5"><Search size={15} />{' '}<T>Search</T></button>
+            <button onClick={clear} className="btn-outline !py-2.5 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1" aria-label={tr("Clear filters")}><RotateCcw size={15} aria-hidden="true" />{' '}<T>Clear</T></button>
+            <button onClick={search} className="btn-maroon !py-2.5 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1" aria-label={tr("Search bookings")}><Search size={15} aria-hidden="true" />{' '}<T>Search</T></button>
           </div>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-7 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4 mt-4">
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
             <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
@@ -317,12 +319,12 @@ export default function Bookings() {
                   <td className="px-3 py-3.5 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
                   <td className="px-3 py-3.5 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.created_at)}</td>
                   <td className="px-3 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
-                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("Ticket")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Ticket size={15} /></button>
-                      {canOperate && b.status === 'Confirmed' && <button onClick={() => complete(b)} title={tr("Mark Completed")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300"><CheckCircle2 size={15} /></button>}
-                      {canOperate && b.status === 'Confirmed' && b.payment_status === 'Paid' && !(b.performances_done > 0) && <button onClick={() => reschedule(b)} title={tr("Reschedule")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"><CalendarClock size={15} /></button>}
-                      {isAdmin && b.status !== 'Cancelled' && <button onClick={() => cancel(b)} title={tr("Cancel")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-300"><Ban size={15} /></button>}
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("View")} aria-label={`${tr("View booking")} ${b.booking_code}`} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300 focus:outline-none focus:ring-2 focus:ring-maroon-500"><Eye size={14} aria-hidden="true" /></button>
+                      <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("Ticket")} aria-label={`${tr("View ticket")} ${b.booking_code}`} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50 focus:outline-none focus:ring-2 focus:ring-maroon-500"><Ticket size={14} aria-hidden="true" /></button>
+                      {canOperate && b.status === 'Confirmed' && <button onClick={() => complete(b)} title={tr("Mark Completed")} aria-label={`${tr("Mark completed")} ${b.booking_code}`} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"><CheckCircle2 size={14} aria-hidden="true" /></button>}
+                      {canOperate && b.status === 'Confirmed' && b.payment_status === 'Paid' && !(b.performances_done > 0) && <button onClick={() => reschedule(b)} title={tr("Reschedule")} aria-label={`${tr("Reschedule")} ${b.booking_code}`} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"><CalendarClock size={14} aria-hidden="true" /></button>}
+                      {isAdmin && b.status !== 'Cancelled' && <button onClick={() => cancel(b)} title={tr("Cancel")} aria-label={`${tr("Cancel")} ${b.booking_code}`} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-500"><Ban size={14} aria-hidden="true" /></button>}
                     </div>
                   </td>
                 </tr>
@@ -332,14 +334,14 @@ export default function Bookings() {
           </table>
         </div>
         <div className="px-4 py-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-[0.8125rem] text-gray-500">{tr('Showing')} {from} {tr('to')} {to} {tr('of')} {total} {tr('bookings')}{sorts.length > 0 && <span className="text-blue-600 ml-2">• {tr('Sorted')}</span>}</div>
-          <div className="flex items-center gap-1.5">
-            <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-40 hover:border-maroon-300"><ChevronLeft size={15} /></button>
+          <div className="text-[0.75rem] sm:text-[0.8125rem] text-gray-500">{tr('Showing')} {from} {tr('to')} {to} {tr('of')} {total} {tr('bookings')}{sorts.length > 0 && <span className="text-blue-600 ml-2">• {tr('Sorted')}</span>}</div>
+          <nav className="flex items-center gap-1 sm:gap-1.5" role="navigation" aria-label={tr('Pagination')}>
+            <button disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label={tr('Previous page')} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-40 hover:border-maroon-300 focus:outline-none focus:ring-2 focus:ring-maroon-500"><ChevronLeft size={14} aria-hidden="true" /></button>
             {pageNums.map((n, i) => n === '…'
-              ? <span key={`e${i}`} className="px-1 text-gray-400">…</span>
-              : <button key={n} onClick={() => setPage(n)} className={`w-8 h-8 grid place-items-center rounded-lg text-[0.8125rem] font-semibold ${n === page ? 'bg-maroon-700 text-cream' : 'border border-gray-200 text-gray-600 hover:border-maroon-300'}`}>{n}</button>)}
-            <button disabled={page >= pageCount} onClick={() => setPage(page + 1)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-40 hover:border-maroon-300"><ChevronRight size={15} /></button>
-          </div>
+              ? <span key={`e${i}`} className="px-1 text-gray-400" aria-hidden="true">…</span>
+              : <button key={n} onClick={() => setPage(n)} aria-label={`${tr('Page')} ${n}`} aria-current={n === page ? 'page' : undefined} className={`w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg text-[0.75rem] sm:text-[0.8125rem] font-semibold focus:outline-none focus:ring-2 focus:ring-maroon-500 ${n === page ? 'bg-maroon-700 text-cream' : 'border border-gray-200 text-gray-600 hover:border-maroon-300'}`}>{n}</button>)}
+            <button disabled={page >= pageCount} onClick={() => setPage(page + 1)} aria-label={tr('Next page')} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-40 hover:border-maroon-300 focus:outline-none focus:ring-2 focus:ring-maroon-500"><ChevronRight size={14} aria-hidden="true" /></button>
+          </nav>
         </div>
       </div>
 

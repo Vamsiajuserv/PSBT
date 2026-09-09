@@ -348,12 +348,20 @@ class HundiOut(ORM):
     verification_status: str = "Pending Verification"
     verified_by: Optional[str] = None
     verified_on: Optional[datetime] = None
+    # Cash deposit (bank)
     deposit_status: str = "Pending Deposit"
     bank_name: Optional[str] = None
     bank_ref: Optional[str] = None
     deposited_on: Optional[date] = None
-    items: list[HundiItemLineOut] = []
     attachment: Optional[str] = None
+    # Valuables custody (store)
+    valuables_status: Optional[str] = None
+    store_location: Optional[str] = None
+    valuables_custodian: Optional[str] = None
+    valuables_stored_on: Optional[date] = None
+    custody_receipt: Optional[str] = None
+    # Items and status
+    items: list[HundiItemLineOut] = []
     status: str
 
 
