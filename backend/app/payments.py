@@ -6,7 +6,7 @@ counter/demo works end-to-end. On a verified payment the originating entity
 (seva booking / donation) is finalized.
 """
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -109,7 +109,7 @@ def verify_and_confirm(db: Session, *, po: PaymentOrder, provider_payment_id: st
     if method:
         po.method = method
     po.status = "PAID"
-    po.paid_at = datetime.utcnow()
+    po.paid_at = datetime.now(timezone.utc)
     _confirm_entity(db, po)
     return po
 

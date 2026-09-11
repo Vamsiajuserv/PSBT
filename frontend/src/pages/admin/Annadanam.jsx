@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   Plus, X, Eye, Printer, Search, RotateCcw, Minus, Check, User,
-  UtensilsCrossed, Users, IndianRupee, HeartHandshake, ArrowUp, ArrowDown,
+  UtensilsCrossed, Users, IndianRupee, HeartHandshake,
 } from 'lucide-react'
-import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { toast } from '../../components/common/Dialog.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
@@ -11,7 +12,7 @@ import { AnnadanamAPI, DevoteesAPI, SettingsAPI, FestivalsAPI } from '../../api/
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
-import { Select, DateField, DateTimeField, NumberField } from '../../components/common/Field.jsx'
+import { Select, DateField, DateTimeField, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const RATE = 50
@@ -132,7 +133,7 @@ export default function Annadanam() {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
 
-  // Sortable table columns
+  // Sortable table columns with filtering support
   const sortColumns = [
     { key: 'code', label: 'Receipt No.', type: 'text' },
     { key: 'paid_at', label: 'Date & Time', type: 'date' },
@@ -140,9 +141,13 @@ export default function Annadanam() {
     { key: 'mobile', label: 'Mobile Number', type: 'text' },
     { key: 'plates', label: 'No. of Persons', type: 'num' },
     { key: 'amount', label: 'Donation Amount (₹)', type: 'money' },
-    { key: 'mode', label: 'Payment Mode', type: 'text' },
+    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', 'UPI/QR Code'] },
   ]
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'paid_at', direction: 'desc' }])
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
+  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'paid_at', direction: 'desc' }])
 
   // configurable rate + festival names for the occasion dropdown
   const [defaultRate, setDefaultRate] = useState(RATE)
@@ -179,19 +184,13 @@ export default function Annadanam() {
   const [results, setResults] = useState([])
   const picked = drawer?.devotee
   useEffect(() => {
-    if (!drawer || picked || dq.trim().length < 1) { setResults([]); return }
-    const t = setTimeout(() => DevoteesAPI.list({ q: dq, size: 6 }).then((r) => setResults(r.items)).catch(() => {}), 250)
+    if (!drawer || picked || dq.trim().length < 4) { setResults([]); return }
+    const t = setTimeout(() => DevoteesAPI.list({ q: dq, size: 6 }).then((r) => setResults(r.items)).catch(() => toast('Failed to search devotees', 'error')), 250)
     return () => clearTimeout(t)
   }, [dq, picked, drawer])
 
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
   const amount = drawer ? Number(drawer.persons) * (Number(drawer.rate) || 0) : 0
-
-  // occasion dropdown → common occasions + festival names, with a custom "Other"
-  const onOccasionSelect = (val) => {
-    if (val === '__other__') setM({ occasionChoice: '__other__', occasion: '' })
-    else setM({ occasionChoice: val, occasion: val })
-  }
 
   async function save(e) {
     e.preventDefault()
@@ -242,11 +241,11 @@ export default function Annadanam() {
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
           <div className="min-w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
@@ -254,34 +253,40 @@ export default function Annadanam() {
           </div>
         </div>
 
-        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={sortColumns}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-              {sortColumns.map((col) => {
-                const sortIdx = getSortIndex(col.key)
-                const sortDir = getSortDirection(col.key)
-                const isSorted = sortIdx >= 0
-                return (
-                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
-                      {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                        </span>
-                      )}
-                    </span>
-                  </th>
-                )
-              })}
+              {sortColumns.map((col) => (
+                <SortableFilterableTh
+                  key={col.key}
+                  colKey={col.key}
+                  label={tr(col.label)}
+                  type={col.type}
+                  filterable={col.filterable}
+                  filterOptions={col.filterOptions}
+                  onSort={handleColumnClick}
+                  sortIndex={getSortIndex(col.key)}
+                  sortDirection={getSortDirection(col.key)}
+                  multiSort={sorts.length > 1}
+                  filterValues={getFilterValues(col.key)}
+                  onToggleFilter={toggleFilterValue}
+                  onClearFilter={clearFilter}
+                />
+              ))}
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRows.map((a) => (
+              {filteredSortedRows.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{a.code}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.paid_at || a.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(a.paid_at || a.created_at)}</div></td>
@@ -370,14 +375,13 @@ export default function Annadanam() {
                 </div>
                 <div className="mt-4">
                   <label className="label"><T>Occasion *</T></label>
-                  <Select className="input" value={drawer.occasionChoice} onChange={(e) => onOccasionSelect(e.target.value)}>
-                    {OCCASIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                    {festivals.length > 0 && <optgroup label={tr("Festivals")}>{festivals.map((f) => <option key={f.id ?? f.name} value={f.name}>{f.name}</option>)}</optgroup>}
-                    <option value="__other__">{tr("Other (enter manually)")}</option>
-                  </Select>
-                  {drawer.occasionChoice === '__other__' && (
-                    <input required className="input mt-2" placeholder={tr("Enter occasion")} value={drawer.occasion} onChange={(e) => setM({ occasion: e.target.value })} />
-                  )}
+                  <Combobox
+                    value={drawer.occasion}
+                    onChange={(e) => setM({ occasion: e.target.value, occasionChoice: e.target.value })}
+                    options={[...OCCASIONS, ...festivals.map((f) => f.name)]}
+                    placeholder={tr("Select or type occasion")}
+                    className="input"
+                  />
                 </div>
                 <div className="mt-4">
                   <label className="label"><T>Scheduled On (Optional)</T></label>

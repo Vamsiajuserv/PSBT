@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, X, RotateCcw, Info, Save, Trash,
-  Flame, Layers, CalendarCheck, Clock, LayoutGrid, ArrowUp, ArrowDown,
+  Flame, Layers, CalendarCheck, Clock, LayoutGrid, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
 import { PageTitle, SearchInput, Pill, num } from '../../components/admin/ui.jsx'
 import { PoojasAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { Select, Toggle, NumberField } from '../../components/common/Field.jsx'
+import { Select, Toggle, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
@@ -20,6 +20,7 @@ const CAT_OPTIONS = [
 const CAT_LABEL = Object.fromEntries(CAT_OPTIONS.map((c) => [c.value, c.label]))
 const VALIDITY_TYPES = ['Days', 'Months', 'One-Time', 'Life Long', 'Years']
 const UNITS = ['Days', 'Months', 'Years']
+const FREQUENCY_TYPES = ['Per Day', 'Per Month', 'Per Year', 'One-Time', 'Per Visit']
 
 // ── derivations (match the reference) ────────────────────────────────────────
 function catsOf(p) {
@@ -104,21 +105,60 @@ export default function PoojaMaster() {
   function openCreate() { setDrawer({ mode: 'create', data: { name: '', code: '', category: 'Daily', description: '', active: true, plans: [emptyPlan()] } }) }
   function openEdit(p) {
     setDrawer({ mode: 'edit', data: {
-      id: p.id, name: p.name, code: p.code, category: p.category, description: p.description || '', active: p.active,
+      id: p.id, name: p.name, code: p.code, category: p.category, description: p.description || '',
+      active: p.active,
       plans: p.plans.map((pl) => ({ plan_name: pl.plan_name, frequency: pl.frequency || '', rate_type: pl.committee_decided ? 'Committee' : 'Fixed', fee: pl.fee ?? '', validity_type: pl.validity_type || '', validity_value: pl.validity_value ?? '', validity_unit: pl.validity_unit || '', active: pl.active }))
     } })
   }
-  async function remove(p) {
-    if (!(await confirmDialog({ title: `Delete pooja "${p.name}"?`, message: 'This cannot be undone. Poojas with bookings must be marked Inactive instead.', tone: 'danger', confirmLabel: tr('Delete') }))) return
-    try { await PoojasAPI.remove(p.id); toast('Pooja deleted.'); load() }
-    catch (ex) { toast(ex?.detail || 'Could not delete this pooja.', 'error') }
+  async function remove(p, force = false) {
+    const message = force
+      ? 'WARNING: This will permanently delete the pooja AND all associated bookings. This cannot be undone!'
+      : 'This cannot be undone. Poojas with bookings must be marked Inactive instead.'
+    if (!(await confirmDialog({
+      title: force ? `Force Delete "${p.name}"?` : `Delete pooja "${p.name}"?`,
+      message,
+      tone: 'danger',
+      confirmLabel: force ? tr('Force Delete') : tr('Delete')
+    }))) return
+    try {
+      await PoojasAPI.remove(p.id, force)
+      toast(force ? 'Pooja and associated bookings deleted.' : 'Pooja deleted.')
+      load()
+    } catch (ex) {
+      // If blocked due to bookings, offer force delete option
+      if (ex?.detail?.includes('booking(s) reference')) {
+        const forceDelete = await confirmDialog({
+          title: `Cannot delete "${p.name}"`,
+          message: `${ex.detail}\n\nWould you like to FORCE DELETE the pooja and all its associated bookings? This is typically used for test data cleanup.`,
+          tone: 'danger',
+          confirmLabel: tr('Force Delete All')
+        })
+        if (forceDelete) {
+          remove(p, true)
+        }
+      } else {
+        toast(ex?.detail || 'Could not delete this pooja.', 'error')
+      }
+    }
   }
 
   async function save(e) {
     e.preventDefault()
     const d = drawer.data
+    // Validate required fields
+    if (!d.name?.trim()) { toast('Pooja name is required.', 'error'); return }
+    for (let i = 0; i < d.plans.length; i++) {
+      const pl = d.plans[i]
+      if (!pl.plan_name?.trim()) { toast(`Plan ${i + 1}: Plan name is required.`, 'error'); return }
+      if (!pl.frequency?.trim()) { toast(`Plan ${i + 1}: Frequency / Type is required.`, 'error'); return }
+      if (pl.rate_type !== 'Committee' && (pl.fee === '' || pl.fee === null || pl.fee === undefined)) {
+        toast(`Plan ${i + 1}: Rate amount is required (or select Committee Decided).`, 'error'); return
+      }
+      if (!pl.validity_type?.trim()) { toast(`Plan ${i + 1}: Validity Type is required.`, 'error'); return }
+    }
     const payload = {
-      name: d.name, code: d.code || undefined, category: d.category, description: d.description, active: d.active,
+      name: d.name, code: d.code || undefined, category: d.category, description: d.description,
+      active: d.active,
       plans: d.plans.map((pl) => ({
         plan_name: pl.plan_name, frequency: pl.frequency,
         committee_decided: pl.rate_type === 'Committee',
@@ -179,14 +219,18 @@ export default function PoojaMaster() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -201,14 +245,18 @@ export default function PoojaMaster() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr('Rate')}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -223,14 +271,18 @@ export default function PoojaMaster() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr('Status')}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -312,7 +364,16 @@ export default function PoojaMaster() {
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div><label className="label"><T>Plan Name *</T></label><input required className="input" placeholder={tr("Daily / Monthly…")} value={pl.plan_name} onChange={(e) => setPlan(i, { plan_name: sanitizeName(e.target.value) })} /></div>
-                        <div><label className="label"><T>Frequency / Type *</T></label><input className="input" placeholder={tr("Per Day…")} value={pl.frequency} onChange={(e) => setPlan(i, { frequency: sanitizeName(e.target.value) })} /></div>
+                        <div>
+                          <label className="label"><T>Frequency / Type *</T></label>
+                          <Combobox
+                            value={pl.frequency || ''}
+                            onChange={(e) => setPlan(i, { frequency: e.target.value })}
+                            options={FREQUENCY_TYPES}
+                            placeholder={tr("Select or type frequency")}
+                            className="input"
+                          />
+                        </div>
                         <div><label className="label"><T>Rate Amount (₹) *</T></label><NumberField required prefix="₹" placeholder={tr("Amount")} value={pl.fee} onChange={(e) => setPlan(i, { fee: e.target.value, rate_type: 'Fixed' })} /></div>
                         <div></div>
                         <div><label className="label"><T>Validity Type *</T></label><Select className="input" value={pl.validity_type} onChange={(e) => setPlan(i, { validity_type: e.target.value })}><option value="">{tr("Select")}</option>{VALIDITY_TYPES.map((v) => <option key={v}>{v}</option>)}</Select></div>

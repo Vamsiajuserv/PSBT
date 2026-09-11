@@ -1,7 +1,8 @@
 """Reports — generate tabular reports across all temple activities (doc §Reports)."""
 from datetime import date, datetime
 from collections import OrderedDict
-from fastapi import APIRouter, Depends
+from decimal import Decimal, ROUND_HALF_UP
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,30 @@ from ..security import RequireModule
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 read = RequireModule("Reports")
+
+# Report row limits to prevent OOM with large datasets
+MAX_REPORT_ROWS = 10000  # Maximum rows per report
+MAX_DATE_RANGE_DAYS = 366  # Maximum date range for reports (1 year)
+
+
+def _to_decimal(val) -> Decimal:
+    """Convert a value to Decimal for precise financial calculations.
+    Handles None, Decimal, float, int, and string inputs."""
+    if val is None:
+        return Decimal(0)
+    if isinstance(val, Decimal):
+        return val
+    try:
+        return Decimal(str(val))
+    except (TypeError, ValueError):
+        return Decimal(0)
+
+
+def _to_money(val) -> float:
+    """Convert to money value (2 decimal places) for JSON serialization.
+    Uses Decimal internally for precision, then rounds to float for output."""
+    d = _to_decimal(val).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return float(d)
 
 # Report catalog — 4 consolidated categories for cleaner UI
 CATALOG = [
@@ -112,10 +137,11 @@ def _live_cond(model):
     return ()
 
 
-def _range(model, start, end, db):
+def _range(model, start, end, db, limit=MAX_REPORT_ROWS):
+    """Query model records within date range with limit to prevent OOM."""
     stamp = _stamp(model)
     return (db.query(model).filter(stamp.between(start, end), *_live_cond(model))
-            .order_by(model.id.desc()).all())
+            .order_by(model.id.desc()).limit(limit).all())
 
 
 def generate(report, start, end, db):
@@ -932,6 +958,17 @@ def generate_report(report: str, start: date | None = None, end: date | None = N
                     db: Session = Depends(get_db), user=Depends(read)):
     end = end or date.today()
     start = start or end.replace(day=1)
+
+    # Validate date range to prevent excessively large queries
+    if start > end:
+        raise HTTPException(422, "Start date cannot be after end date.")
+    days = (end - start).days
+    if days > MAX_DATE_RANGE_DAYS:
+        raise HTTPException(422,
+                            f"Date range too large ({days} days). Maximum is {MAX_DATE_RANGE_DAYS} days. "
+                            "Please narrow your date range or use Monthly Trends for longer periods.")
+
     out = generate(report, start, end, db)
     out["range"] = {"start": str(start), "end": str(end)}
+    out["limits"] = {"max_rows": MAX_REPORT_ROWS, "max_days": MAX_DATE_RANGE_DAYS}
     return out

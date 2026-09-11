@@ -64,6 +64,16 @@ class Settings(BaseSettings):
     WHATSAPP_API_URL: str = ""     # generic HTTP WhatsApp gateway (POST {to, message})
     WHATSAPP_API_KEY: str = ""
 
+    # Prokerala Official API — Telugu Panchang data (https://api.prokerala.com)
+    # Get your credentials at: https://api.prokerala.com/dashboard
+    # Free tier: 5,000 credits/month, 5 requests/minute
+    PROKERALA_CLIENT_ID: str = ""
+    PROKERALA_CLIENT_SECRET: str = ""
+
+    @property
+    def prokerala_available(self) -> bool:
+        return bool(self.PROKERALA_CLIENT_ID and self.PROKERALA_CLIENT_SECRET)
+
     @property
     def email_provider(self) -> str:
         return "smtp" if self.SMTP_HOST else "none"

@@ -91,13 +91,46 @@ function Modal({ dlg, finish }) {
   const [vals, setVals] = useState(() => Object.fromEntries(fields.map((f) => [f.k, f.defaultValue ?? (f.type === 'checkbox' ? false : '')])))
   const firstRef = useRef(null)
   const submitRef = useRef(null)
+  const modalRef = useRef(null)
+
   // Focus the first text input; with none (confirm/alert), focus the primary
   // button so Enter confirms and Escape cancels straight away.
   useEffect(() => { setTimeout(() => (firstRef.current || submitRef.current)?.focus(), 0) }, [])
 
   // Escape cancels; backdrop click cancels (never accidental-confirms).
+  // Focus trap: Tab cycles through focusable elements within the modal.
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') finish(kind === 'confirm' ? false : kind === 'prompt' ? null : undefined) }
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        finish(kind === 'confirm' ? false : kind === 'prompt' ? null : undefined)
+        return
+      }
+
+      // Focus trap: keep Tab within the modal
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        if (focusable.length === 0) return
+
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+
+        if (e.shiftKey) {
+          // Shift+Tab: if at first, go to last
+          if (document.activeElement === first) {
+            e.preventDefault()
+            last.focus()
+          }
+        } else {
+          // Tab: if at last, go to first
+          if (document.activeElement === last) {
+            e.preventDefault()
+            first.focus()
+          }
+        }
+      }
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -113,9 +146,9 @@ function Modal({ dlg, finish }) {
   const cancel = () => finish(kind === 'confirm' ? false : kind === 'prompt' ? null : undefined)
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/45" onClick={cancel} />
-      <form onSubmit={submit} className="relative w-full max-w-md rounded-2xl bg-white border border-gold-200 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+      <div className="absolute inset-0 bg-black/45" onClick={cancel} aria-hidden="true" />
+      <form ref={modalRef} onSubmit={submit} className="relative w-full max-w-md rounded-2xl bg-white border border-gold-200 shadow-2xl overflow-hidden">
         <div className={`h-1 ${danger ? 'bg-red-600' : 'bg-gradient-to-r from-gold-400 to-gold-500'}`} />
         <div className="p-5">
           <div className="flex items-start gap-3">
@@ -123,7 +156,7 @@ function Modal({ dlg, finish }) {
               {danger ? <AlertTriangle size={18} /> : kind === 'alert' ? <Info size={18} /> : <CheckCircle2 size={18} />}
             </div>
             <div className="min-w-0 flex-1">
-              {title && <div className="font-serif font-bold text-maroon-800 text-[0.9375rem] leading-snug">{t(title)}</div>}
+              {title && <div id="dialog-title" className="font-serif font-bold text-maroon-800 text-[0.9375rem] leading-snug">{t(title)}</div>}
               {message && <div className="text-[0.8125rem] text-gray-600 mt-1 whitespace-pre-line">{t(message)}</div>}
             </div>
           </div>

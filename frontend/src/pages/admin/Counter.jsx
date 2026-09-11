@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import {
   Printer, Plus, Trash2, Receipt as ReceiptIcon, Search, User, X, IndianRupee, Loader2, Eye, AlertTriangle,
-  ArrowRight, ArrowLeft, Check, Flame, CalendarDays, Moon, Car, Info, ShieldCheck, FileText, Edit3,
+  ArrowRight, ArrowLeft, Check, Flame, CalendarDays, Moon, Car, Info, ShieldCheck, FileText, Edit3, Clock,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { Select, DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
-import { PoojasAPI, DevoteesAPI, BookingsAPI, PaymentsAPI, FestivalsAPI, PoojarisAPI, TithiAPI } from '../../api/client.js'
-import { promptDialog } from '../../components/common/Dialog.jsx'
+import { PoojasAPI, DevoteesAPI, BookingsAPI, PaymentsAPI, FestivalsAPI, PoojarisAPI, TithiAPI, SettingsAPI } from '../../api/client.js'
+import { QRCodeSVG } from 'qrcode.react'
+import { promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, useLang, personName, stamp, clock12 } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName } from '../../lib/validation.js'
 
@@ -65,6 +66,19 @@ const fmtDate = (d) => {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+
+// Generate UPI payment URL for QR code
+const buildUpiUrl = (upiId, payeeName, amount, note = 'Temple Booking') => {
+  if (!upiId) return ''
+  const params = new URLSearchParams({
+    pa: upiId,
+    pn: payeeName || 'Temple',
+    am: String(Number(amount) || 0),
+    cu: 'INR',
+    tn: note,
+  })
+  return `upi://pay?${params.toString()}`
+}
 
 // Calculate validity duration in days from plan name
 const durDays = (planName) => {
@@ -128,6 +142,14 @@ export default function Counter() {
   const { role } = useOutletContext()
   const canBill = role !== 'Accountant'
 
+  // ── UPI Config for QR code ──
+  const [upiConfig, setUpiConfig] = useState({ upi_id: '', upi_payee_name: '' })
+  useEffect(() => {
+    SettingsAPI.config()
+      .then((c) => setUpiConfig({ upi_id: c?.upi_id || '', upi_payee_name: c?.upi_payee_name || '' }))
+      .catch(() => toast('Failed to load UPI settings', 'error'))
+  }, [])
+
   // ── Pooja catalogue ──
   const [catalog, setCatalog] = useState([])
   const [poojas, setPoojas] = useState([])
@@ -159,13 +181,13 @@ export default function Counter() {
   // Festival windows
   const [festivals, setFestivals] = useState([])
   useEffect(() => {
-    FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => {})
+    FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => toast('Failed to load festivals', 'error'))
   }, [])
 
   // Poojaris for assignment
   const [poojaris, setPoojaris] = useState([])
   useEffect(() => {
-    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => {})
+    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast('Failed to load poojaris', 'error'))
   }, [])
 
   const festivalFor = (entry) => {
@@ -228,10 +250,10 @@ export default function Counter() {
   const [specialNotes, setSpecialNotes] = useState('')
   const [showSankalpamModal, setShowSankalpamModal] = useState(false)
 
-  // Search devotees by mobile number (when 6+ digits)
+  // Search devotees by mobile number (when 4+ digits)
   useEffect(() => {
     const m = mobile.trim()
-    if (m.length < 6 || devotee) { setMobileResults(null); setShowMobileDropdown(false); return }
+    if (m.length < 4 || devotee) { setMobileResults(null); setShowMobileDropdown(false); return }
     const seq = ++searchRef.current
     const t = setTimeout(() => {
       DevoteesAPI.list({ q: m, size: 8 })
@@ -261,6 +283,7 @@ export default function Counter() {
     setDevotee(null)
     setMobile('')
     setName('')
+    setEmail('')
     setGothram('')
     setNakshatram('')
     setRasi('')
@@ -290,7 +313,8 @@ export default function Counter() {
   }
 
   // Auto-create devotee on successful booking (if new mobile+name combination)
-  const autoCreateDevotee = async (bookingMobile, bookingName) => {
+  // Includes gothram/nakshatram from form if provided
+  const autoCreateDevotee = async (bookingMobile, bookingName, bookingGothram, bookingNakshatram) => {
     if (!bookingMobile || !bookingName || bookingMobile.length !== 10) return null
     try {
       // Check if this exact mobile+name combination exists
@@ -298,12 +322,16 @@ export default function Counter() {
       const exact = (existing.items || []).find(d =>
         d.mobile === bookingMobile && d.name.toLowerCase() === bookingName.toLowerCase()
       )
-      if (exact) return exact  // Already exists
+      if (exact) {
+        return exact
+      }
 
-      // Create new devotee
+      // Create new devotee with Sankalpam details
       const newDev = await DevoteesAPI.create({
         name: bookingName,
         mobile: bookingMobile,
+        gothram: bookingGothram || undefined,
+        nakshatram: bookingNakshatram || undefined,
       })
       return newDev
     } catch {
@@ -355,8 +383,9 @@ export default function Counter() {
   const allDupConfirmed = dupWarnings.length === 0 || dupWarnings.every(w => dupConfirmed[w.lineId])
 
   const cartKey = cart.map(c => `${c.pooja_id}-${c.plan_id}`).join(',')
+  const mobileFor10 = mobile.trim().length === 10 ? mobile.trim() : null
   useEffect(() => {
-    if (!devotee?.id || !cart.length) { setDupWarnings([]); return }
+    if ((!devotee?.id && !mobileFor10) || !cart.length) { setDupWarnings([]); return }
     const monthlyItems = cart.filter((x) =>
       x.category === 'Monthly' || x.category === 'Long-Term' ||
       /monthly|life|year/i.test(x.plan_name || '')
@@ -367,7 +396,7 @@ export default function Counter() {
       const warnings = []
       for (const item of monthlyItems) {
         try {
-          const res = await BookingsAPI.checkDuplicate({ devotee_id: devotee.id, pooja_id: item.pooja_id, plan_id: item.plan_id })
+          const res = await BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobileFor10, pooja_id: item.pooja_id, plan_id: item.plan_id })
           if (res.has_duplicate) {
             warnings.push({
               lineId: item.lineId,
@@ -384,19 +413,19 @@ export default function Counter() {
       setDupConfirmed({})  // Reset confirmations when warnings change
     }
     checkAll()
-  }, [devotee?.id, cartKey])
+  }, [devotee?.id, mobileFor10, cartKey])
 
   useEffect(() => {
-    if (!devotee?.id || !selectedEntry || bookingMode === 'cart') { setFormDupWarning(null); setFormDupConfirmed(false); return }
+    if ((!devotee?.id && !mobileFor10) || !selectedEntry || bookingMode === 'cart') { setFormDupWarning(null); setFormDupConfirmed(false); return }
     const plan = selectedPlan || selectedEntry
     const isLongTerm = selectedEntry.category === 'Monthly' || selectedEntry.category === 'Long-Term' ||
       /monthly|life|year/i.test(plan.plan_name || '')
     if (!isLongTerm) { setFormDupWarning(null); setFormDupConfirmed(false); return }
 
-    BookingsAPI.checkDuplicate({ devotee_id: devotee.id, pooja_id: selectedEntry.pooja_id, plan_id: plan.plan_id || plan.id })
+    BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobileFor10, pooja_id: selectedEntry.pooja_id, plan_id: plan.plan_id || plan.id })
       .then((res) => { setFormDupWarning(res.has_duplicate ? res : null); setFormDupConfirmed(false) })
       .catch(() => { setFormDupWarning(null); setFormDupConfirmed(false) })
-  }, [devotee?.id, selectedEntry?.pooja_id, selectedPlan?.id, bookingMode])
+  }, [devotee?.id, mobileFor10, selectedEntry?.pooja_id, selectedPlan?.id, bookingMode])
 
   // ── Handle pooja selection ──
   const selectPooja = async (entry) => {
@@ -423,7 +452,7 @@ export default function Counter() {
 
   // ── Add to cart ──
   const addToCart = async (entry) => {
-    let amount = entry.fee
+    let amount = Number(entry.fee) || 0
     let scheduled_date
     let vehicle_no
 
@@ -434,8 +463,11 @@ export default function Counter() {
         return
       }
       if (fw?.date) scheduled_date = fw.date
-      const festFee = Number(fw?.fest?.plan_fees?.[String(entry.plan_id)] || 0)
-      if (festFee > 0) amount = festFee
+      // Only override with festival fee if it's set and current fee is 0
+      if (!(amount > 0)) {
+        const festFee = Number(fw?.fest?.plan_fees?.[String(entry.plan_id)] || 0)
+        if (festFee > 0) amount = festFee
+      }
     }
 
     if (entry.category === 'Vehicle') {
@@ -448,22 +480,16 @@ export default function Counter() {
       vehicle_no = res.vehicle.trim().toUpperCase() || undefined
     }
 
-    if ((entry.committee || entry.fee == null) && !(Number(amount) > 0)) {
-      const res = await promptDialog({
-        title: `${entry.pooja_name} · ${entry.plan_name}`,
-        message: 'Please enter the amount for this pooja.',
-        confirmLabel: tr('Add to Bill'),
-        fields: [{ k: 'amount', label: tr('Amount (₹)'), type: 'number', required: true }],
-      })
-      if (!res) return
-      amount = Number(res.amount)
-      if (!(amount > 0)) { setError('Enter a valid amount.'); return }
-      setError('')
+    // Block if committee hasn't decided the price yet
+    if ((entry.committee || entry.fee == null) && !(amount > 0)) {
+      setError(tr('Awaiting committee decision on pricing. This pooja cannot be booked until the committee sets the price.'))
+      return
     }
 
-    if (devotee?.id && (entry.category === 'Monthly' || entry.category === 'Long-Term' || /monthly|life|year/i.test(entry.plan_name || ''))) {
+    const mobCheck = mobile.trim().length === 10 ? mobile.trim() : null
+    if ((devotee?.id || mobCheck) && (entry.category === 'Monthly' || entry.category === 'Long-Term' || /monthly|life|year/i.test(entry.plan_name || ''))) {
       try {
-        const dupCheck = await BookingsAPI.checkDuplicate({ devotee_id: devotee.id, pooja_id: entry.pooja_id, plan_id: entry.plan_id })
+        const dupCheck = await BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobCheck, pooja_id: entry.pooja_id, plan_id: entry.plan_id })
         if (dupCheck.has_duplicate) {
           const proceed = await promptDialog({
             title: tr('Duplicate Booking Found'),
@@ -507,12 +533,6 @@ export default function Counter() {
     if (!cart.length) { setError('Add at least one pooja to the bill.'); return }
     if (mode === 'UPI/QR Code' && !utr.trim()) { setError('Enter the UTR / Transaction ID.'); return }
 
-    const lt = cart.find((x) => /life|year/i.test(x.plan_name || ''))
-    if (lt && !devotee) {
-      setError(`"${lt.pooja_name} · ${lt.plan_name}" requires a registered devotee.`)
-      return
-    }
-
     setBusy(true)
     setBillingProgress({ current: 1, total: cart.length })
 
@@ -535,6 +555,13 @@ export default function Counter() {
         amount: Number(item.amount),
         scheduled_date: item.scheduled_date || todayISO(),
         vehicle_no: item.vehicle_no,
+        // Include Sankalpam details if available
+        gothram: gothram.trim() || undefined,
+        nakshatram: nakshatram.trim() || undefined,
+        rasi: rasi.trim() || undefined,
+        beneficiary_name: beneficiary.trim() || undefined,
+        participants: participants.length > 0 ? JSON.stringify(participants) : undefined,
+        special_notes: specialNotes.trim() || undefined,
         source: 'Counter',
       }))
 
@@ -582,7 +609,7 @@ export default function Counter() {
 
       // Auto-create devotee if new mobile+name (only if booking succeeded)
       if (done.length > 0 && !devotee) {
-        autoCreateDevotee(mobile.trim(), name.trim())  // Fire and forget
+        autoCreateDevotee(mobile.trim(), name.trim(), gothram.trim(), nakshatram.trim())  // Fire and forget
       }
 
       if (failedCount) {
@@ -611,23 +638,23 @@ export default function Counter() {
     if (!schedDate) { setError('Select a booking date.'); return }
     if (mode === 'UPI/QR Code' && !utr.trim()) { setError('Enter the UTR / Transaction ID.'); return }
 
-    if (bookingMode === 'registration' && !devotee) {
-      setError('Long-term poojas require a registered devotee.')
-      return
-    }
-
     const plan = selectedPlan || selectedEntry
-    let amount = plan.fee
+    let amount = Number(plan.fee) || 0
 
-    if (plan.committee || plan.fee == null) {
+    // If fee is already set (by admin or committee), use it
+    if (amount > 0) {
+      // amount is already set from plan.fee
+    } else if (plan.committee || plan.fee == null) {
+      // Check festival fee override
       if (selectedEntry.category === 'Festival') {
         const fw = festivalFor(selectedEntry)
         const festFee = Number(fw?.fest?.plan_fees?.[String(plan.plan_id || plan.id)] || 0)
         if (festFee > 0) amount = festFee
       }
+      // Block if committee hasn't decided the price
       if (!(Number(amount) > 0)) {
-        amount = Number(committeeAmt)
-        if (!(amount > 0)) { setError('Enter the committee-decided amount.'); return }
+        setError(tr('Awaiting committee decision on pricing. This pooja cannot be booked until the committee sets the price.'))
+        return
       }
     }
 
@@ -648,7 +675,10 @@ export default function Counter() {
         time_slot: slot,
         gothram: gothram.trim() || undefined,
         nakshatram: nakshatram.trim() || undefined,
+        rasi: rasi.trim() || undefined,
         beneficiary_name: beneficiary.trim() || undefined,
+        participants: participants.length > 0 ? JSON.stringify(participants) : undefined,
+        special_notes: specialNotes.trim() || undefined,
         source: 'Counter',
         payment_method: mode,
       })
@@ -687,9 +717,9 @@ export default function Counter() {
         isFormBooking: true,
       })
 
-      // Auto-create devotee if new mobile+name (only for non-registration bookings)
-      if (!devotee && bookingMode !== 'registration') {
-        autoCreateDevotee(mobile.trim(), name.trim())  // Fire and forget
+      // Auto-create devotee if new mobile+name
+      if (!devotee) {
+        autoCreateDevotee(mobile.trim(), name.trim(), gothram.trim(), nakshatram.trim())  // Fire and forget
       }
 
       clearSelection()
@@ -707,15 +737,36 @@ export default function Counter() {
   const getCurrentFee = () => {
     if (!selectedEntry) return 0
     const plan = selectedPlan || selectedEntry
+    // If plan has a fee set (by admin or committee), use it
+    if (Number(plan.fee) > 0) return Number(plan.fee)
+    // For committee-decided plans without fee, check festival override first
     if (plan.committee || plan.fee == null) {
       if (selectedEntry.category === 'Festival') {
         const fw = festivalFor(selectedEntry)
         const festFee = Number(fw?.fest?.plan_fees?.[String(plan.plan_id || plan.id)] || 0)
         if (festFee > 0) return festFee
       }
-      return Number(committeeAmt) || 0
+      return 0
     }
-    return Number(plan.fee) || 0
+    return 0
+  }
+
+  // Check if booking is blocked due to pending committee decision
+  const isPendingCommitteeDecision = () => {
+    if (!selectedEntry) return false
+    const plan = selectedPlan || selectedEntry
+    // If fee is already set, not blocked
+    if (Number(plan.fee) > 0) return false
+    // If not committee-decided, not blocked
+    if (!plan.committee && plan.fee != null) return false
+    // Check for festival fee override
+    if (selectedEntry.category === 'Festival') {
+      const fw = festivalFor(selectedEntry)
+      const festFee = Number(fw?.fest?.plan_fees?.[String(plan.plan_id || plan.id)] || 0)
+      if (festFee > 0) return false
+    }
+    // No fee set and no override - blocked
+    return true
   }
 
   return (
@@ -980,6 +1031,21 @@ export default function Counter() {
               </div>
               {mode === 'UPI/QR Code' && (
                 <div className="mb-4">
+                  {/* UPI QR Code */}
+                  {upiConfig.upi_id && total > 0 && (
+                    <div className="flex flex-col items-center bg-white border border-gray-200 rounded-xl p-4 mb-4">
+                      <div className="bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
+                        <QRCodeSVG
+                          value={buildUpiUrl(upiConfig.upi_id, upiConfig.upi_payee_name, total, 'Temple Seva Booking')}
+                          size={160}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-3 text-center"><T>Scan with any UPI app to pay</T></p>
+                      <p className="text-[0.7rem] text-gray-400 mt-1 font-mono">{upiConfig.upi_id}</p>
+                    </div>
+                  )}
                   <label className="block text-sm font-medium text-gray-600 mb-2"><T>UTR / Transaction ID</T> *</label>
                   <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("Enter UTR or Transaction ID")} className="input !py-3 text-base" />
                 </div>
@@ -1051,15 +1117,6 @@ export default function Counter() {
                       )
                     })}
                   </div>
-                </div>
-              )}
-
-              {/* Registration: require devotee */}
-              {bookingMode === 'registration' && !devotee && (
-                <div className="border-2 border-dashed border-maroon-200 rounded-xl p-4 text-center mb-4">
-                  <User size={28} className="mx-auto text-maroon-300 mb-2" />
-                  <div className="font-semibold text-maroon-700 text-sm"><T>Devotee Required</T></div>
-                  <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Search and link a devotee above.</T></div>
                 </div>
               )}
 
@@ -1167,17 +1224,24 @@ export default function Counter() {
                 </div>
               </div>
 
-              {/* Committee amount */}
-              {((selectedPlan || selectedEntry).committee || (selectedPlan || selectedEntry).fee == null) && (() => {
+              {/* Committee pending - show warning if no fee is set */}
+              {((selectedPlan || selectedEntry).committee || (selectedPlan || selectedEntry).fee == null) && !(Number((selectedPlan || selectedEntry).fee) > 0) && (() => {
                 if (selectedEntry.category === 'Festival') {
                   const fw = festivalFor(selectedEntry)
                   const festFee = Number(fw?.fest?.plan_fees?.[String((selectedPlan || selectedEntry).plan_id || (selectedPlan || selectedEntry).id)] || 0)
                   if (festFee > 0) return null
                 }
                 return (
-                  <div className="mb-3">
-                    <label className="label"><T>Amount</T> (₹) *</label>
-                    <input type="number" value={committeeAmt} onChange={(e) => setCommitteeAmt(e.target.value.replace(/[^\d.]/g, ''))} placeholder={tr("Enter amount")} className="input" />
+                  <div className="mb-3 p-4 bg-amber-50 border-2 border-amber-300 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-200 text-amber-700 grid place-items-center shrink-0">
+                        <Clock size={20} />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-amber-800 text-sm"><T>Awaiting Committee Decision</T></div>
+                        <div className="text-[0.75rem] text-amber-700 mt-0.5"><T>The committee has not yet set the price for this pooja. Please check back later.</T></div>
+                      </div>
+                    </div>
                   </div>
                 )
               })()}
@@ -1232,6 +1296,21 @@ export default function Counter() {
               </div>
               {mode === 'UPI/QR Code' && (
                 <div className="mb-4">
+                  {/* UPI QR Code */}
+                  {upiConfig.upi_id && getCurrentFee() > 0 && (
+                    <div className="flex flex-col items-center bg-white border border-gray-200 rounded-xl p-4 mb-4">
+                      <div className="bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
+                        <QRCodeSVG
+                          value={buildUpiUrl(upiConfig.upi_id, upiConfig.upi_payee_name, getCurrentFee(), 'Temple Seva Booking')}
+                          size={160}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-3 text-center"><T>Scan with any UPI app to pay</T></p>
+                      <p className="text-[0.7rem] text-gray-400 mt-1 font-mono">{upiConfig.upi_id}</p>
+                    </div>
+                  )}
                   <label className="block text-sm font-medium text-gray-600 mb-2"><T>UTR / Transaction ID</T> *</label>
                   <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("Enter UTR or Transaction ID")} className="input !py-3 text-base" />
                 </div>
@@ -1253,7 +1332,7 @@ export default function Counter() {
                   <button onClick={clearSelection} className="btn-outline flex-1 justify-center py-3 rounded-xl">
                     <ArrowLeft size={16} /> <T>Back</T>
                   </button>
-                  <button onClick={bookForm} disabled={busy || !canBill || (bookingMode === 'registration' && !devotee) || (formDupWarning && !formDupConfirmed)} className="btn-maroon flex-1 justify-center py-3 rounded-xl disabled:opacity-50">
+                  <button onClick={bookForm} disabled={busy || !canBill || (formDupWarning && !formDupConfirmed) || isPendingCommitteeDecision()} className="btn-maroon flex-1 justify-center py-3 rounded-xl disabled:opacity-50">
                     {busy ? <><Loader2 size={18} className="animate-spin" /> <T>Processing…</T></> : <><Check size={18} /> <T>Book & Pay</T></>}
                   </button>
                 </div>

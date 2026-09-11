@@ -36,7 +36,7 @@ DEFAULTS = {
     "address_te": "ద్వారకాపురి కాలనీ, పంజాగుట్ట, హైదరాబాద్, తెలంగాణ 500082",
     # Contact Details
     "phone": "+91 040 2335 3589",
-    "email": "info@saibabatemple.org",
+    "email": "saibabatemple.punjagutta@gmail.com",
     "website": "www.saibabatemple.org",
     # Social links (blank = icon hidden on the public site until configured)
     "social_facebook": "",
@@ -62,6 +62,9 @@ DEFAULTS = {
     "receipt_footer_note": "Thank you for your contribution. || Om Sai Ram ||",
     # Security Settings
     "max_login_attempts": "5",
+    # UPI Payment Settings
+    "upi_id": "ssst@sbi",
+    "upi_payee_name": "Sri Shirdi Sai Premsamaj",
     # Backup Settings
     # Audit
     "created_by": "Administrator",
@@ -81,7 +84,13 @@ def operational_config(db: Session = Depends(get_db), user=Depends(get_current_u
     except (TypeError, ValueError):
         rate = 50.0
     banks = [b.strip() for b in (cfg.get("bank_list") or "").split(",") if b.strip()]
-    return {"annadanam_rate": rate, "banks": banks, "currency": cfg.get("currency", "₹ INR")}
+    return {
+        "annadanam_rate": rate,
+        "banks": banks,
+        "currency": cfg.get("currency", "₹ INR"),
+        "upi_id": cfg.get("upi_id", ""),
+        "upi_payee_name": cfg.get("upi_payee_name", cfg.get("trust_name", "Temple")),
+    }
 
 
 @router.get("")

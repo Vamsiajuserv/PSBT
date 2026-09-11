@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   Plus, X, Eye, Printer, Search, Minus, Check, User,
-  IndianRupee, CalendarDays, ShoppingCart, FileText, Calculator, ArrowUp, ArrowDown,
+  IndianRupee, CalendarDays, ShoppingCart, FileText, Calculator,
   CheckCircle, XCircle, Clock, Ban,
 } from 'lucide-react'
-import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { toast } from '../../components/common/Dialog.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
@@ -12,7 +13,7 @@ import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI } from '../../api/clien
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
-import { Select, DateField, DateTimeField, NumberField, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
+import { Select, DateField, DateTimeField, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone } from '../../lib/validation.js'
 
@@ -63,6 +64,7 @@ export default function WasteSales() {
   const [verifyModal, setVerifyModal] = useState(null)
   const [rejectModal, setRejectModal] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [saving, setSaving] = useState(false)
 
   // Committee role check for verification
   const isCommittee = user?.role === 'Committee' || user?.role === 'Admin'
@@ -73,7 +75,7 @@ export default function WasteSales() {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
 
-  // Sortable table columns
+  // Sortable table columns with filtering support
   const sortColumns = [
     { key: 'code', label: 'Receipt No.', type: 'text' },
     { key: 'paid_at', label: 'Date & Time', type: 'date' },
@@ -81,8 +83,8 @@ export default function WasteSales() {
     { key: 'material', label: 'Material Type', type: 'text' },
     { key: 'weight_kg', label: 'Quantity', type: 'num' },
     { key: 'amount', label: 'Amount (₹)', type: 'money' },
-    { key: 'mode', label: 'Payment Mode', type: 'text' },
-    { key: 'verification_status', label: 'Verification', type: 'text' },
+    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', 'UPI/QR Code'] },
+    { key: 'verification_status', label: 'Verification', type: 'text', filterable: true, filterOptions: ['Verified', 'Pending', 'Rejected'] },
   ]
 
   // Verification status badge
@@ -125,7 +127,11 @@ export default function WasteSales() {
     if (sale.created_by?.toLowerCase() === user?.username?.toLowerCase()) return false
     return true
   }
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'paid_at', direction: 'desc' }])
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
+  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'paid_at', direction: 'desc' }])
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
@@ -148,17 +154,17 @@ export default function WasteSales() {
   useEffect(() => {
     VendorsAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setVendors(arr) })
-      .catch(() => {})
+      .catch(() => toast('Failed to load vendors', 'error'))
     CommitteeAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setCommittee(arr.filter((c) => c.active)) })
-      .catch(() => {})
+      .catch(() => toast('Failed to load committee members', 'error'))
   }, [])
 
   // Devotee search for registered devotees who can also buy waste materials (Item 33)
   const [devQ, setDevQ] = useState('')
   const [devResults, setDevResults] = useState([])
   useEffect(() => {
-    if (!drawer || drawer.devotee_id || devQ.trim().length < 2) { setDevResults([]); return }
+    if (!drawer || drawer.devotee_id || devQ.trim().length < 4) { setDevResults([]); return }
     const t = setTimeout(() => {
       DevoteesAPI.list({ q: devQ.trim(), size: 8 })
         .then((r) => setDevResults(Array.isArray(r) ? r : (r.items || [])))
@@ -176,7 +182,8 @@ export default function WasteSales() {
 
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
   const amount = drawer ? (Number(drawer.quantity) || 0) * (Number(drawer.rate) || 0) : 0
-  const committeeNames = committee.map((c) => c.name)
+  // DEF-009: Use language-aware names for committee members
+  const committeeNames = committee.map((c) => personName(c, lang))
   const selectedVendor = drawer && drawer.vendor_id ? vendors.find((v) => String(v.id) === String(drawer.vendor_id)) : null
   const materialOptions = selectedVendor && selectedVendor.material_types
     ? selectedVendor.material_types.split(',').map((s) => s.trim()).filter(Boolean)
@@ -191,6 +198,7 @@ export default function WasteSales() {
 
   async function save(e) {
     e.preventDefault()
+    if (saving) return
     const m = drawer
 
     // Validate fields only for walk-in buyers (not vendor or devotee selected)
@@ -209,16 +217,21 @@ export default function WasteSales() {
     }
     setFieldErrors({})
 
-    const created = await WasteAPI.createSale({
-      vendor_id: m.vendor_id || null,
-      vendor_name: m.vendor_name || m.buyer_name || null,
-      devotee_id: m.devotee_id || null,
-      buyer_name: m.buyer_name, mobile: m.mobile, material: m.material, unit: m.unit,
-      weight_kg: Number(m.quantity), rate: Number(m.rate), amount,
-      mode: m.mode, txn_ref: m.mode === 'UPI/QR Code' ? (m.txn_ref || null) : null, paid_at: m.paid_at || null,
-      verified_by: m.verified_by || null,
-    })
-    setDrawer(null); setDevQ(''); load(); setPrintDoc(created)
+    setSaving(true)
+    try {
+      const created = await WasteAPI.createSale({
+        vendor_id: m.vendor_id || null,
+        vendor_name: m.vendor_name || m.buyer_name || null,
+        devotee_id: m.devotee_id || null,
+        buyer_name: m.buyer_name, mobile: m.mobile, material: m.material, unit: m.unit,
+        weight_kg: Number(m.quantity), rate: Number(m.rate), amount,
+        mode: m.mode, txn_ref: m.mode === 'UPI/QR Code' ? (m.txn_ref || null) : null, paid_at: m.paid_at || null,
+        verified_by: m.verified_by || null,
+      })
+      setDrawer(null); setDevQ(''); load(); setPrintDoc(created)
+    } catch (ex) {
+      // Error is already handled by API client with toast
+    } finally { setSaving(false) }
   }
 
   const EXPORT_COLS = [{ key: 'code', label: tr('Sale ID') }, { key: 'vendor_name', label: tr('Buyer / Vendor') }, { key: 'material', label: tr('Material') },
@@ -248,11 +261,11 @@ export default function WasteSales() {
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
           <div className="min-w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Material Type</T></label>
@@ -264,34 +277,40 @@ export default function WasteSales() {
           </div>
         </div>
 
-        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={sortColumns}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-              {sortColumns.map((col) => {
-                const sortIdx = getSortIndex(col.key)
-                const sortDir = getSortDirection(col.key)
-                const isSorted = sortIdx >= 0
-                return (
-                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
-                      {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                        </span>
-                      )}
-                    </span>
-                  </th>
-                )
-              })}
+              {sortColumns.map((col) => (
+                <SortableFilterableTh
+                  key={col.key}
+                  colKey={col.key}
+                  label={tr(col.label)}
+                  type={col.type}
+                  filterable={col.filterable}
+                  filterOptions={col.filterOptions}
+                  onSort={handleColumnClick}
+                  sortIndex={getSortIndex(col.key)}
+                  sortDirection={getSortDirection(col.key)}
+                  multiSort={sorts.length > 1}
+                  filterValues={getFilterValues(col.key)}
+                  onToggleFilter={toggleFilterValue}
+                  onClearFilter={clearFilter}
+                />
+              ))}
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRows.map((s) => (
+              {filteredSortedRows.map((s) => (
                 <tr key={s.id} className={`hover:bg-gray-50/60 ${s.status === 'Void' ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{s.code}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(s.paid_at || s.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(s.paid_at || s.created_at)}</div></td>
@@ -404,11 +423,13 @@ export default function WasteSales() {
                 <div className="text-maroon-700 font-semibold text-[0.875rem] mb-3"><T>2. Material Details</T></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="label"><T>Material Type *</T></label>
-                    <Select className="input" value={drawer.materialCustom ? '__other__' : drawer.material} onChange={(e) => { const v = e.target.value; if (v === '__other__') setM({ materialCustom: true, material: '' }); else setM({ materialCustom: false, material: v }) }}>
-                      {materialOptions.map((m) => <option key={m}>{m}</option>)}
-                      <option value="__other__">{tr("Other")}</option>
-                    </Select>
-                    {drawer.materialCustom && <input required className="input mt-2" placeholder={tr("Enter material")} value={drawer.material} onChange={(e) => setM({ material: e.target.value })} />}
+                    <Combobox
+                      value={drawer.material}
+                      onChange={(e) => setM({ material: e.target.value, materialCustom: false })}
+                      options={materialOptions}
+                      placeholder={tr("Select or type material")}
+                      className="input"
+                    />
                   </div>
                   <div><label className="label"><T>Unit *</T></label><Select className="input" value={drawer.unit} onChange={(e) => setM({ unit: e.target.value })}>{UNITS.map((u) => <option key={u}>{u}</option>)}</Select></div>
                 </div>
@@ -450,9 +471,13 @@ export default function WasteSales() {
                 <div className="mb-4"><label className="label"><T>Sale / Payment Date & Time *</T></label>
                   <DateTimeField required value={drawer.paid_at} onChange={(e) => setM({ paid_at: e.target.value })} /></div>
                 <div className="mb-4"><label className="label"><T>Verified By</T></label>
-                  <Select className="input" value={personName({ name: drawer.verified_by }, lang)} onChange={(e) => setM({ verified_by: e.target.value })}>
-                    <option value="">{tr("Select…")}</option>{committeeNames.map((n) => <option key={n}>{n}</option>)}
-                  </Select></div>
+                  <Combobox
+                    value={drawer.verified_by || ''}
+                    onChange={(e) => setM({ verified_by: e.target.value })}
+                    options={committeeNames}
+                    placeholder={tr("Select or type name")}
+                    className="input"
+                  /></div>
                 <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl px-4 py-3.5 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center shrink-0"><IndianRupee size={17} /></div>
                   <div className="flex-1">
@@ -468,7 +493,7 @@ export default function WasteSales() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button className="btn-maroon flex-1 justify-center">{tr('Save Payment & Generate Receipt')} <Printer size={15} /></button>
+              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{tr('Save Payment & Generate Receipt')} <Printer size={15} /></>}</button>
             </div>
           </form>
         </div>

@@ -9,9 +9,17 @@ import { Search } from 'lucide-react'
 // show 2-digit paise (₹ 2,37,884.30 — never a dangling "₹ 2,37,884.3").
 export const inr = (n) => {
   const v = Number(n || 0)
-  return '₹ ' + v.toLocaleString('en-IN', Number.isInteger(v) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return '₹' + v.toLocaleString('en-IN', Number.isInteger(v) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 export const num = (n) => Number(n || 0).toLocaleString('en-IN')
+
+// Safe money arithmetic - avoids floating point precision issues by working
+// with integers (paise) internally. Use for summing/subtracting money amounts.
+export const sumMoney = (...amounts) => {
+  const total = amounts.reduce((acc, n) => acc + Math.round(Number(n || 0) * 100), 0)
+  return total / 100
+}
+export const roundMoney = (n) => Math.round(Number(n || 0) * 100) / 100
 // Dates keep their numerals — only the month token is language-dependent, so
 // translate that and leave the digits alone.
 const localiseMonth = (out) => out.replace(/[A-Za-z]{3,}/g, (mon) => tr(mon))
@@ -91,15 +99,15 @@ export function StatTile({ icon: Icon, color = '#8a1c1c', bg = 'bg-maroon-50', t
     <div onClick={onClick} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
       aria-label={clickable ? `${title}: ${value}` : undefined}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
-      className={`bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5 overflow-hidden ${clickable ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-2' : ''}`}>
-      <div className="flex items-center gap-3">
+      className={`bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5 overflow-hidden h-full flex flex-col ${clickable ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-2' : ''}`}>
+      <div className="flex items-center gap-3 flex-1">
         <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={18} aria-hidden="true" /></div>
         <div className="min-w-0 flex-1">
           <div className="text-[0.625rem] sm:text-[0.6875rem] uppercase tracking-wide text-gray-600 font-semibold leading-tight">{title}</div>
-          <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums break-words">{value}</div>
+          <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums whitespace-nowrap">{value}</div>
         </div>
       </div>
-      {sub && <div className="text-[0.6875rem] sm:text-[0.75rem] text-gray-600 mt-2 sm:mt-3 leading-tight">{sub}</div>}
+      <div className="text-[0.6875rem] sm:text-[0.75rem] text-gray-600 mt-2 sm:mt-3 leading-tight min-h-[1rem]">{sub || '\u00A0'}</div>
     </div>
   )
 }

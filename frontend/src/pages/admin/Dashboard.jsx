@@ -11,7 +11,7 @@ import { DateField } from '../../components/common/Field.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
-const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
+const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
 const DON_COLORS = ['#8a1c1c', '#ea580c', '#059669', '#2563eb', '#7c3aed', '#9ca3af']
 const OVERVIEW_ICONS = {
@@ -52,24 +52,31 @@ const ALERT_ROUTE = { hundi: '/admin/hundi', auction: '/admin/auction', donation
 
 function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, footValue, to }) {
   const inner = (
-    <div className={`bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5 h-full overflow-hidden flex flex-col ${to ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200 focus-within:ring-2 focus-within:ring-maroon-500 focus-within:ring-offset-2' : ''}`}>
-      <div className="flex items-start gap-2 sm:gap-3 flex-1">
-        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}><Icon size={18} aria-hidden="true" /></div>
+    <div className={`bg-gradient-to-br from-white to-gray-50/50 rounded-xl border border-gray-100 shadow-sm p-4 h-full overflow-hidden flex flex-col ${to ? 'cursor-pointer transition-all duration-300 hover:shadow-lg hover:border-maroon-200 hover:-translate-y-0.5 focus-within:ring-2 focus-within:ring-maroon-500 focus-within:ring-offset-2' : ''}`}>
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-xl grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}>
+          <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
+        </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[0.6875rem] sm:text-[0.78125rem] text-gray-500 leading-snug">{title}</div>
-          {sub && <div className="text-[0.5625rem] sm:text-[0.6875rem] text-gray-400 leading-none">{sub}</div>}
-          <div className="text-sm sm:text-base lg:text-lg xl:text-xl font-extrabold text-gray-800 mt-1 sm:mt-1.5 leading-tight tabular-nums break-words">{value}</div>
+          <div className="text-[0.8125rem] font-semibold text-gray-600 leading-tight">{title}</div>
+          {sub && <div className="text-[0.6875rem] text-gray-400 mt-0.5">{sub}</div>}
         </div>
       </div>
-      <div className="mt-auto pt-2 sm:pt-3 border-t border-gray-100 text-[0.6875rem] sm:text-[0.75rem] text-gray-400 leading-tight">{footLabel} <span className="font-semibold text-gray-700 tabular-nums">{footValue}</span></div>
+      <div className="flex-1 flex items-end mt-3">
+        <div className="text-xl sm:text-2xl font-extrabold text-gray-800 leading-none tabular-nums whitespace-nowrap">{value}</div>
+      </div>
+      {footLabel && <div className="mt-3 pt-2.5 border-t border-gray-100/80 text-[0.6875rem] text-gray-500 flex items-center justify-between">
+        <span>{footLabel}</span>
+        <span className="font-bold text-gray-700 tabular-nums">{footValue}</span>
+      </div>}
     </div>
   )
   return to ? <Link to={to} className="block h-full focus:outline-none" aria-label={`${title}: ${value}`}>{inner}</Link> : inner
 }
 
-function BarChart({ days }) {
-  const max = Math.max(...days.map((d) => d.count), 1)
-  if (!days.length || days.every((d) => !d.count)) {
+function BarChart({ days = [] }) {
+  const max = Math.max(...(days || []).map((d) => d.count), 1)
+  if (!days?.length || days.every((d) => !d.count)) {
     return (
       <div className="mt-4 h-44 flex flex-col items-center justify-center text-gray-400">
         <BarChart3 size={28} className="mb-2 opacity-50" />

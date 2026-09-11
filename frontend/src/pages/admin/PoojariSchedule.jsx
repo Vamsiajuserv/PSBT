@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   Plus, Pencil, X, Save, RotateCcw, Search, Clock, Info, CalendarDays, List,
-  CalendarCheck, UserCheck, CalendarClock, UserX, ArrowUp, ArrowDown,
+  CalendarCheck, UserCheck, CalendarClock, UserX, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
 import { PageTitle, Pill, num } from '../../components/admin/ui.jsx'
+import { toast } from '../../components/common/Dialog.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { SchedulesAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -60,15 +61,15 @@ export default function PoojariSchedule() {
   // Sorting
   const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'schedule_date', direction: 'desc' }])
 
-  const loadStats = useCallback(() => SchedulesAPI.stats().then(setStats).catch(() => {}), [])
+  const loadStats = useCallback(() => SchedulesAPI.stats().then(setStats).catch(() => toast('Failed to load schedule stats', 'error')), [])
   const loadList = useCallback(async (f, pg) => {
     const d = await SchedulesAPI.list({ ...f, page: pg, size: SIZE })
     setRows(d.items); setTotal(d.total)
   }, [])
   useEffect(() => {
     loadStats()
-    PoojasAPI.admin().then((d) => setPoojas(d.items)).catch(() => {})
-    PoojarisAPI.list().then(setPoojaris).catch(() => {})
+    PoojasAPI.admin().then((d) => setPoojas(d.items)).catch(() => toast('Failed to load poojas', 'error'))
+    PoojarisAPI.list().then(setPoojaris).catch(() => toast('Failed to load poojaris', 'error'))
   }, [loadStats])
   useEffect(() => { loadList(applied, page) }, [applied, page, loadList])
 
@@ -76,10 +77,33 @@ export default function PoojariSchedule() {
   const clear = () => { setQ(''); setPooja(''); setPoojari(''); setStatus(''); setStart(''); setEnd(''); setPage(1); setApplied({}) }
   const pageCount = Math.max(1, Math.ceil(total / SIZE))
 
+  const [saveErr, setSaveErr] = useState('')
+
   async function save(e) {
     e.preventDefault()
+    setSaveErr('')
     const d = drawer.data
     const poojaIds = d.pooja_ids || []
+
+    // DEF-002: Validate that the selected time slot has not expired for today's date
+    const today = new Date().toISOString().slice(0, 10)
+    if (d.schedule_date === today && d.start_time) {
+      // Parse the start time (e.g., "07:30 AM")
+      const timeMatch = d.start_time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1], 10)
+        const minutes = parseInt(timeMatch[2], 10)
+        const period = timeMatch[3].toUpperCase()
+        if (period === 'PM' && hours !== 12) hours += 12
+        if (period === 'AM' && hours === 12) hours = 0
+        const slotTime = new Date()
+        slotTime.setHours(hours, minutes, 0, 0)
+        if (slotTime < new Date()) {
+          setSaveErr(tr('Cannot assign to an expired time slot. Please select a future time slot or date.'))
+          return
+        }
+      }
+    }
 
     // Create a schedule for each selected pooja
     for (const poojaId of poojaIds) {
@@ -139,9 +163,9 @@ export default function PoojariSchedule() {
               <div className="flex-[2_1_12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
                 <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} placeholder={tr("Poojari or Pooja name")} className="input !pl-9" /></div></div>
               <div className="flex-[1_1_8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-                <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
+                <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" /></div>
               <div className="flex-[1_1_8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-                <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></div>
+                <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" /></div>
               <div className="flex-[1_1_9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
                 <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">{tr("All Poojas")}</option>{uniquePoojaNames.map((n) => <option key={n}>{n}</option>)}</Select></div>
               <div className="flex-[1_1_9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
@@ -164,14 +188,18 @@ export default function PoojariSchedule() {
                     const isSorted = sortIdx >= 0
                     return (
                       <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                        className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                        title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                        <span className="inline-flex items-center gap-1">
+                        className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                        title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                        <span className="inline-flex items-center gap-0.5">
                           {tr(col.label)}
-                          {isSorted && (
-                            <span className="inline-flex items-center gap-0.5 text-blue-600">
-                              {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                              {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                          {isSorted ? (
+                            <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                              {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                              {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <ChevronsUpDown size={14} strokeWidth={2} />
                             </span>
                           )}
                         </span>
@@ -186,14 +214,18 @@ export default function PoojariSchedule() {
                     const isSorted = sortIdx >= 0
                     return (
                       <th onClick={(e) => handleColumnClick(col.key, e)}
-                        className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                        title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                        <span className="inline-flex items-center gap-1">
+                        className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                        title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                        <span className="inline-flex items-center gap-0.5">
                           {tr(col.label)}
-                          {isSorted && (
-                            <span className="inline-flex items-center gap-0.5 text-blue-600">
-                              {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                              {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                          {isSorted ? (
+                            <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                              {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                              {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <ChevronsUpDown size={14} strokeWidth={2} />
                             </span>
                           )}
                         </span>
@@ -209,14 +241,18 @@ export default function PoojariSchedule() {
                     const isSorted = sortIdx >= 0
                     return (
                       <th onClick={(e) => handleColumnClick(col.key, e)}
-                        className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                        title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                        <span className="inline-flex items-center gap-1">
+                        className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                        title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                        <span className="inline-flex items-center gap-0.5">
                           {tr(col.label)}
-                          {isSorted && (
-                            <span className="inline-flex items-center gap-0.5 text-blue-600">
-                              {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                              {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                          {isSorted ? (
+                            <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                              {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                              {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <ChevronsUpDown size={14} strokeWidth={2} />
                             </span>
                           )}
                         </span>
@@ -304,7 +340,7 @@ export default function PoojariSchedule() {
                     <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="stype" className="accent-maroon-700" checked={drawer.data.schedule_type === t} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, schedule_type: t } })} /> {t}</label>
                   ))}
                 </div></div>
-              <div><label className="label"><T>Schedule Date *</T></label><DateField required className="input" value={drawer.data.schedule_date} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, schedule_date: e.target.value } })} /></div>
+              <div><label className="label"><T>Schedule Date *</T></label><DateField required className="input" value={drawer.data.schedule_date} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, schedule_date: e.target.value } })} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label"><T>Start Time *</T></label><div className="relative"><input required className="input !pr-8" value={drawer.data.start_time} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, start_time: e.target.value } })} /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
                 <div><label className="label"><T>End Time *</T></label><div className="relative"><input required className="input !pr-8" value={drawer.data.end_time} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, end_time: e.target.value } })} /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
@@ -315,8 +351,9 @@ export default function PoojariSchedule() {
               <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-amber-500 shrink-0 mt-0.5" />{' '}<T>Select multiple poojas to assign them all to the same poojari. Use "Select All Poojas" to assign all poojas at once.</T></div>
             </div>
 
+            {saveErr && <div className="px-6 py-2 text-[0.8125rem] text-red-600 bg-red-50 border-t border-red-100">{saveErr}</div>}
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-              <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <button type="button" onClick={() => { setDrawer(null); setSaveErr('') }} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
               <button disabled={selectedPoojaIds.length === 0} className="btn-maroon flex-1 justify-center disabled:opacity-50"><Save size={15} />{' '}{selectedPoojaIds.length > 1 ? tr('Save') + ` (${selectedPoojaIds.length})` : tr('Save Schedule')}</button>
             </div>
           </form>

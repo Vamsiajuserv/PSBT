@@ -11,6 +11,30 @@ from ..models import AuctionItem, HundiItem, CommitteeMember, Festival, Pooja
 from ..security import RequireModule, require_admin, log_action, client_ip
 
 
+def _require_field(body: dict, field: str, max_len: int = 200) -> str:
+    """Validate and return a required string field."""
+    val = body.get(field)
+    if val is None:
+        raise HTTPException(400, f"'{field}' is required")
+    val = str(val).strip()
+    if not val:
+        raise HTTPException(400, f"'{field}' cannot be empty")
+    if len(val) > max_len:
+        raise HTTPException(400, f"'{field}' cannot exceed {max_len} characters")
+    return val
+
+
+def _optional_field(body: dict, field: str, max_len: int = 500) -> str | None:
+    """Validate and return an optional string field."""
+    val = body.get(field)
+    if val is None:
+        return None
+    val = str(val).strip()
+    if len(val) > max_len:
+        raise HTTPException(400, f"'{field}' cannot exceed {max_len} characters")
+    return val if val else None
+
+
 def _base_stats(db, model):
     total = db.query(func.count(model.id)).scalar() or 0
     active = db.query(func.count(model.id)).filter(model.active.is_(True)).scalar() or 0
@@ -53,9 +77,10 @@ def ai_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
 
 @auction_items_router.post("")
 def ai_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
-    x = AuctionItem(code=_next_code(db, AuctionItem, "AITM-"), name=body["name"], category=body.get("category"),
-                    base_price=Decimal(str(body.get("base_price") or 0)), unit=body.get("unit"),
-                    description=body.get("description"), active=body.get("active", True))
+    name = _require_field(body, "name")
+    x = AuctionItem(code=_next_code(db, AuctionItem, "AITM-"), name=name, category=_optional_field(body, "category"),
+                    base_price=Decimal(str(body.get("base_price") or 0)), unit=_optional_field(body, "unit", 50),
+                    description=_optional_field(body, "description"), active=body.get("active", True))
     db.add(x); db.commit(); db.refresh(x)
     log_action(db, username=user.username, action="CREATE", entity="AuctionItem", detail=x.name, ip=client_ip(request))
     return _ai(x)
@@ -114,8 +139,9 @@ def hi_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
 
 @hundi_items_router.post("")
 def hi_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
-    x = HundiItem(code=_next_code(db, HundiItem, "HITM-"), name=body["name"], item_type=body.get("item_type"),
-                  unit=body.get("unit"), description=body.get("description"), active=body.get("active", True))
+    name = _require_field(body, "name")
+    x = HundiItem(code=_next_code(db, HundiItem, "HITM-"), name=name, item_type=_optional_field(body, "item_type", 100),
+                  unit=_optional_field(body, "unit", 50), description=_optional_field(body, "description"), active=body.get("active", True))
     db.add(x); db.commit(); db.refresh(x)
     log_action(db, username=user.username, action="CREATE", entity="HundiItem", detail=x.name, ip=client_ip(request))
     return _hi(x)
@@ -173,9 +199,10 @@ def cm_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
 
 @committee_router.post("")
 def cm_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
-    x = CommitteeMember(code=_next_code(db, CommitteeMember, "CM-"), name=body["name"],
-                        designation=body.get("designation"), phone=body.get("phone"),
-                        email=body.get("email"), active=body.get("active", True))
+    name = _require_field(body, "name")
+    x = CommitteeMember(code=_next_code(db, CommitteeMember, "CM-"), name=name,
+                        designation=_optional_field(body, "designation", 100), phone=_optional_field(body, "phone", 20),
+                        email=_optional_field(body, "email", 100), active=body.get("active", True))
     db.add(x); db.commit(); db.refresh(x)
     log_action(db, username=user.username, action="CREATE", entity="CommitteeMember", detail=x.name, ip=client_ip(request))
     return _cm(x)
@@ -247,8 +274,16 @@ def fe_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
 
 @festivals_router.post("")
 def fe_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
-    ids = ",".join(str(int(i)) for i in body.get("pooja_ids", []))
-    x = Festival(code=_next_code(db, Festival, "FEST-"), name=body["name"],
+    # Validate required name field
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Festival name is required")
+    # Safely convert pooja_ids to integers
+    try:
+        ids = ",".join(str(int(i)) for i in body.get("pooja_ids", []))
+    except (ValueError, TypeError):
+        raise HTTPException(400, "Invalid pooja_ids - must be integers")
+    x = Festival(code=_next_code(db, Festival, "FEST-"), name=name,
                  start_date=body.get("start_date") or None, end_date=body.get("end_date") or None,
                  pooja_ids=ids, status=body.get("status", "Active"), description=body.get("description"),
                  plan_fees=(json.dumps(body["plan_fees"]) if body.get("plan_fees") else None))
@@ -270,7 +305,10 @@ def fe_update(iid: int, body: dict, request: Request, db: Session = Depends(get_
     if "end_date" in body:
         x.end_date = body["end_date"] or None
     if "pooja_ids" in body:
-        x.pooja_ids = ",".join(str(int(i)) for i in body["pooja_ids"])
+        try:
+            x.pooja_ids = ",".join(str(int(i)) for i in body["pooja_ids"])
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Invalid pooja_ids - must be integers")
     if "plan_fees" in body:
         x.plan_fees = json.dumps(body["plan_fees"]) if body["plan_fees"] else None
     db.commit(); db.refresh(x)

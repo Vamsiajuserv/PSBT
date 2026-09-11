@@ -1,4 +1,5 @@
 """Pooja Master + Plans — configurable poojas, plans and rates."""
+import decimal
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
@@ -27,18 +28,36 @@ def _plan_dict(p: PoojaPlan) -> dict:
 def _pooja_dict(pj: Pooja, all_plans: bool = False) -> dict:
     return {"id": pj.id, "code": pj.code, "name": pj.name, "name_te": pj.name_te,
             "category": pj.category, "description": pj.description,
-            "docs_required": pj.docs_required, "active": pj.active,
+            "docs_required": pj.docs_required,
+            "materials": pj.materials, "materials_by": pj.materials_by or "temple",
+            "active": pj.active,
             "plans": [_plan_dict(p) for p in pj.plans if all_plans or p.active]}
 
 
 def _add_plan(pl: dict) -> PoojaPlan:
+    plan_name = (pl.get("plan_name") or "").strip()
+    if not plan_name:
+        raise HTTPException(400, "Plan name is required")
+    # Safely convert fee and validity_value
+    fee = None
+    if pl.get("fee") not in (None, ""):
+        try:
+            fee = Decimal(str(pl["fee"]))
+        except (ValueError, TypeError, decimal.InvalidOperation):
+            raise HTTPException(400, "Invalid fee value")
+    validity_value = None
+    if pl.get("validity_value") not in (None, ""):
+        try:
+            validity_value = int(pl["validity_value"])
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Invalid validity_value - must be an integer")
     return PoojaPlan(
-        plan_name=pl["plan_name"], frequency=pl.get("frequency"),
-        fee=Decimal(str(pl["fee"])) if pl.get("fee") not in (None, "") else None,
+        plan_name=plan_name, frequency=pl.get("frequency"),
+        fee=fee,
         committee_decided=bool(pl.get("committee_decided")),
         duration_days=pl.get("duration_days"),
         validity_type=pl.get("validity_type"),
-        validity_value=int(pl["validity_value"]) if pl.get("validity_value") not in (None, "") else None,
+        validity_value=validity_value,
         validity_unit=pl.get("validity_unit"),
         tithi_type=pl.get("tithi_type"),
         active=pl.get("active", True))
@@ -92,13 +111,19 @@ def get_pooja(pid: int, db: Session = Depends(get_db)):
 # ── Admin: configure poojas & plans ──────────────────────────────────────────
 @router.post("")
 def create_pooja(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    # Validate required name field
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Pooja name is required")
     # Use atomic counter to avoid duplicate code issues after deletions
     max_id = db.query(func.max(Pooja.id)).scalar() or 0
     seq = next_code_seq(db, "pooja", max_id)
     code = body.get("code") or gen_code("PJ", seq, 3)
-    p = Pooja(code=code, name=body["name"], name_te=body.get("name_te"),
+    p = Pooja(code=code, name=name, name_te=body.get("name_te"),
               category=body.get("category", "Daily"), description=body.get("description"),
-              docs_required=body.get("docs_required"), active=body.get("active", True))
+              docs_required=body.get("docs_required"),
+              materials=body.get("materials"), materials_by=body.get("materials_by", "temple"),
+              active=body.get("active", True))
     for pl in body.get("plans", []):
         p.plans.append(_add_plan(pl))
     db.add(p); db.commit(); db.refresh(p)
@@ -112,9 +137,9 @@ def update_pooja(pid: int, body: dict, request: Request, db: Session = Depends(g
     p = db.get(Pooja, pid)
     if not p:
         raise HTTPException(404, "Pooja not found")
-    for f in ("name", "name_te", "category", "description", "docs_required"):
-        if f in body and body[f] is not None:
-            setattr(p, f, body[f])
+    for f in ("name", "name_te", "category", "description", "docs_required", "materials", "materials_by"):
+        if f in body:
+            setattr(p, f, body[f] if body[f] is not None else None)
     if "active" in body:
         p.active = bool(body["active"])
     if "plans" in body:
@@ -181,7 +206,8 @@ def update_plan(plan_id: int, body: dict, request: Request, db: Session = Depend
 
 
 @router.delete("/{pid}", status_code=204)
-def delete_pooja(pid: int, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+def delete_pooja(pid: int, request: Request, force: bool = False,
+                 db: Session = Depends(get_db), user=Depends(require_admin)):
     p = db.get(Pooja, pid)
     if not p:
         raise HTTPException(404, "Pooja not found")
@@ -189,7 +215,12 @@ def delete_pooja(pid: int, request: Request, db: Session = Depends(get_db), user
     # hard-deleted (the FK made this a silent 500 before — DEF-006).
     refs = db.query(func.count(Booking.id)).filter(Booking.pooja_id == pid).scalar() or 0
     if refs:
-        raise HTTPException(409, f"Cannot delete — {refs} booking(s) reference this pooja. Mark it Inactive instead.")
+        if not force:
+            raise HTTPException(409, f"Cannot delete — {refs} booking(s) reference this pooja. Mark it Inactive instead.")
+        # Force delete: cascade delete all associated bookings (ADMIN ONLY - for test data cleanup)
+        db.query(Booking).filter(Booking.pooja_id == pid).delete(synchronize_session=False)
+        log_action(db, username=user.username, action="DELETE", entity="Booking",
+                   detail=f"Force-deleted {refs} booking(s) for pooja {p.name}", ip=client_ip(request))
     # Roster entries are pure planning — remove them with the pooja.
     db.query(Schedule).filter(Schedule.pooja_id == pid).delete(synchronize_session=False)
     log_action(db, username=user.username, action="DELETE", entity="Pooja", detail=p.name, ip=client_ip(request))

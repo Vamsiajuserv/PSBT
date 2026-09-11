@@ -3,9 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   Search, Eye, Ticket, RotateCcw, SlidersHorizontal, Ban, CheckCircle2,
   ChevronLeft, ChevronRight, CalendarClock, CalendarPlus, Users, X,
-  ArrowUp, ArrowDown,
 } from 'lucide-react'
-import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { BookingsAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -68,19 +67,23 @@ export default function Bookings() {
   const [bulkPoojari, setBulkPoojari] = useState('')
   const [assigning, setAssigning] = useState(false)
 
-  // Sortable table columns
+  // Sortable table columns with filtering support
   const sortColumns = [
     { key: 'booking_code', label: 'Booking ID', type: 'text' },
     { key: 'seva_name', label: 'Pooja Name', type: 'text' },
     { key: 'devotee_name', label: 'Devotee Name', type: 'text' },
-    { key: 'plan_name', label: 'Plan', type: 'text' },
+    { key: 'plan_name', label: 'Plan', type: 'text', filterable: true, filterOptions: ['One-Time', 'Daily', 'Monthly', 'Life Long'] },
     { key: 'scheduled_date', label: 'Date & Time', type: 'date' },
     { key: 'amount', label: 'Amount (₹)', type: 'money' },
-    { key: 'status', label: 'Status', type: 'text' },
+    { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['Confirmed', 'Pending', 'Cancelled', 'Completed'] },
     { key: 'ticket_no', label: 'Ticket No.', type: 'text' },
     { key: 'created_at', label: 'Booked On', type: 'date' },
   ]
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'scheduled_date', direction: 'desc' }])
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues, hasFilter,
+  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'scheduled_date', direction: 'desc' }])
 
   const loadList = useCallback(async (f, pg) => {
     setLoading(true); setLoadErr('')
@@ -93,8 +96,8 @@ export default function Bookings() {
   }, [])
 
   useEffect(() => {
-    PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => {})
-    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => {})
+    PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => toast('Failed to load poojas', 'error'))
+    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast('Failed to load poojaris', 'error'))
   }, [])
   useEffect(() => { loadList(applied, page); setSelected(new Set()) }, [applied, page, loadList])
 
@@ -148,9 +151,11 @@ export default function Bookings() {
     if (!(b.status === 'Confirmed' && b.payment_status === 'Paid' && !(b.performances_done > 0))) {
       toast('Only a paid booking that has not yet started can be rescheduled.', 'info'); return
     }
+    // DEF-004: Block past dates - only allow rescheduling to today or future dates
+    const today = new Date().toISOString().slice(0, 10)
     const res = await promptDialog({
       title: `Reschedule ${b.booking_code}`,
-      fields: [{ k: 'date', label: tr('New date'), type: 'date', required: true, defaultValue: b.scheduled_date || '' }],
+      fields: [{ k: 'date', label: tr('New date'), type: 'date', required: true, defaultValue: b.scheduled_date || '', min: today }],
       confirmLabel: tr('Reschedule'),
     })
     if (!res) return
@@ -163,7 +168,7 @@ export default function Bookings() {
     catch (ex) { toast(ex.detail || 'Could not complete this booking.', 'error') }
   }
 
-  const planOptions = [...new Set(poojas.flatMap((p) => (p.plans || []).map((pl) => pl.plan_name)))]
+  const planOptions = [...new Set((poojas || []).flatMap((p) => (p.plans || []).map((pl) => pl.plan_name)))]
   const pageCount = Math.max(1, Math.ceil(total / SIZE))
   const from = total === 0 ? 0 : (page - 1) * SIZE + 1
   const to = Math.min(page * SIZE, total)
@@ -198,11 +203,11 @@ export default function Bookings() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4 mt-4">
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
@@ -272,7 +277,16 @@ export default function Bookings() {
             </button>
           )}
         </div>
-        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={sortColumns}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -280,31 +294,28 @@ export default function Bookings() {
                 <th className="px-3 py-3 w-10">
                   <Checkbox checked={allSelected && rows.length > 0} onChange={allSelected ? deselectAll : selectAll} />
                 </th>
-                {sortColumns.map((col) => {
-                  const sortIdx = getSortIndex(col.key)
-                  const sortDir = getSortDirection(col.key)
-                  const isSorted = sortIdx >= 0
-                  return (
-                    <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                      className={`px-3 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                      title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                      <span className="inline-flex items-center gap-1">
-                        {tr(col.label)}
-                        {isSorted && (
-                          <span className="inline-flex items-center gap-0.5 text-blue-600">
-                            {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                            {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                          </span>
-                        )}
-                      </span>
-                    </th>
-                  )
-                })}
+                {sortColumns.map((col) => (
+                  <SortableFilterableTh
+                    key={col.key}
+                    colKey={col.key}
+                    label={tr(col.label)}
+                    type={col.type}
+                    filterable={col.filterable}
+                    filterOptions={col.filterOptions}
+                    onSort={handleColumnClick}
+                    sortIndex={getSortIndex(col.key)}
+                    sortDirection={getSortDirection(col.key)}
+                    multiSort={sorts.length > 1}
+                    filterValues={getFilterValues(col.key)}
+                    onToggleFilter={toggleFilterValue}
+                    onClearFilter={clearFilter}
+                  />
+                ))}
                 <th className="px-3 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRows.map((b) => (
+              {filteredSortedRows.map((b) => (
                 <tr key={b.id} className={`hover:bg-gray-50/60 ${selected.has(b.id) ? 'bg-maroon-50/40' : ''}`}>
                   <td className="px-3 py-3.5">
                     <Checkbox checked={selected.has(b.id)} onChange={() => toggleSelect(b.id)} />
@@ -334,7 +345,11 @@ export default function Bookings() {
           </table>
         </div>
         <div className="px-4 py-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-[0.75rem] sm:text-[0.8125rem] text-gray-500">{tr('Showing')} {from} {tr('to')} {to} {tr('of')} {total} {tr('bookings')}{sorts.length > 0 && <span className="text-blue-600 ml-2">• {tr('Sorted')}</span>}</div>
+          <div className="text-[0.75rem] sm:text-[0.8125rem] text-gray-500">
+            {tr('Showing')} {from} {tr('to')} {to} {tr('of')} {total} {tr('bookings')}
+            {sorts.length > 0 && <span className="text-maroon-600 ml-2">• {tr('Sorted')}</span>}
+            {Object.keys(filters).length > 0 && <span className="text-blue-600 ml-2">• {tr('Filtered')}</span>}
+          </div>
           <nav className="flex items-center gap-1 sm:gap-1.5" role="navigation" aria-label={tr('Pagination')}>
             <button disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label={tr('Previous page')} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-40 hover:border-maroon-300 focus:outline-none focus:ring-2 focus:ring-maroon-500"><ChevronLeft size={14} aria-hidden="true" /></button>
             {pageNums.map((n, i) => n === '…'

@@ -43,10 +43,14 @@ def list_categories(q: str = "", type: str = "", status: str = "",
 
 @router.post("")
 def create_category(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    # Validate required name field
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Category name is required")
     # Use atomic counter to avoid duplicate code issues after deletions
     max_id = db.query(func.max(DonationCategory.id)).scalar() or 0
     seq = next_code_seq(db, "donation_category", max_id)
-    c = DonationCategory(code=body.get("code") or gen_code("CAT-", seq, 4), name=body["name"],
+    c = DonationCategory(code=body.get("code") or gen_code("CAT-", seq, 4), name=name,
                          type=body.get("type", "Cash"), unit=body.get("unit"),
                          quantity_required=bool(body.get("quantity_required")),
                          description=body.get("description"), active=body.get("active", True))

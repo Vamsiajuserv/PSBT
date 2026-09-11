@@ -20,10 +20,16 @@ COLUMN_MIGRATIONS = {
         ("last_performed_on", "DATE"),
         ("festival_id", "INTEGER"),
         ("gothram", "VARCHAR(80)"), ("nakshatram", "VARCHAR(40)"),
-        ("beneficiary_name", "VARCHAR(120)"), ("vehicle_no", "VARCHAR(20)"),
+        ("rasi", "VARCHAR(40)"), ("beneficiary_name", "VARCHAR(120)"),
+        ("participants", "TEXT"), ("special_notes", "TEXT"),
+        ("vehicle_no", "VARCHAR(20)"),
     ],
     "festivals": [
         ("plan_fees", "TEXT"),
+    ],
+    "poojas": [
+        ("materials", "TEXT"),
+        ("materials_by", "VARCHAR(20) DEFAULT 'temple'"),
     ],
     "donations": [
         ("donation_type", "VARCHAR(20) DEFAULT 'Cash'"), ("unit", "VARCHAR(20)"),
@@ -61,6 +67,7 @@ COLUMN_MIGRATIONS = {
     "devotees": [
         ("name_te", "VARCHAR(160)"),
         ("preferred_language", "VARCHAR(20) DEFAULT 'English'"),
+        ("pan_number", "VARCHAR(10)"),  # PAN for 80G receipts
     ],
     "annadanam": [
         ("devotee_id", "INTEGER"), ("mobile", "VARCHAR(20)"), ("rate", "NUMERIC(12,2) DEFAULT 50"),
@@ -77,7 +84,10 @@ COLUMN_MIGRATIONS = {
         ("rejection_reason", "VARCHAR(300)"),
     ],
     "users": [
-        ("name_te", "VARCHAR(160)"), ("mobile", "VARCHAR(20)"), ("poojari_id", "INTEGER")],
+        ("name_te", "VARCHAR(160)"), ("mobile", "VARCHAR(20)"), ("poojari_id", "INTEGER"),
+        ("must_change_password", "BOOLEAN DEFAULT FALSE"),  # DEF-012: Existing users don't need to change password
+        ("password_changed_at", "TIMESTAMP"),  # Session invalidation: tokens issued before this are rejected
+    ],
     "poojaris": [
         ("name_te", "VARCHAR(160)"),("email", "VARCHAR(160)"),
         ("deleted", "BOOLEAN DEFAULT FALSE")],
@@ -137,6 +147,24 @@ def run_migrations(engine) -> None:
         for table, cols in COLUMN_MIGRATIONS.items():
             for col, ddl in cols:
                 conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}'))
+        # Check if unique index on devotees.mobile already exists
+        idx_exists = conn.execute(text(
+            "SELECT 1 FROM pg_indexes WHERE indexname = 'uq_devotees_mobile'"
+        )).fetchone()
+        if not idx_exists:
+            # Check for duplicates before creating unique index
+            dups = conn.execute(text(
+                "SELECT mobile, COUNT(*) FROM devotees "
+                "WHERE mobile IS NOT NULL AND mobile != '' "
+                "GROUP BY mobile HAVING COUNT(*) > 1 LIMIT 1"
+            )).fetchone()
+            if dups:
+                print(f"[migrate] Skipping uq_devotees_mobile index - duplicate mobiles exist (e.g. {dups[0]})")
+            else:
+                conn.execute(text(
+                    'CREATE UNIQUE INDEX IF NOT EXISTS uq_devotees_mobile ON devotees (mobile) '
+                    'WHERE mobile IS NOT NULL AND mobile != \'\''
+                ))
         # Atomic code-number allocator (see helpers.next_code_seq). Replaces the
         # old COUNT(*)+1 scheme that reused receipt numbers after a row was deleted.
         conn.execute(text(
@@ -182,6 +210,16 @@ def run_migrations(engine) -> None:
             "UPDATE users SET modules = modules || ',Auction' "
             "WHERE role = 'Counter Staff' AND modules NOT LIKE '%Auction%'"
         ))
+        # Add Counter module to Committee role for waste sales verification
+        conn.execute(text(
+            "UPDATE roles SET modules = modules || ',Counter' "
+            "WHERE code = 'COMMITTEE' AND modules NOT LIKE '%Counter%'"
+        ))
+        # Also update users with Committee role
+        conn.execute(text(
+            "UPDATE users SET modules = modules || ',Counter' "
+            "WHERE role = 'Committee' AND modules NOT LIKE '%Counter%'"
+        ))
         # Fill in the devotional descriptions, but only where the row still has the
         # seeded placeholder — never clobber copy written through the admin screen.
         for _name, _desc in POOJA_DESCRIPTIONS.items():
@@ -212,7 +250,7 @@ _ROLE_CANON = {
     "COUNTER_STAFF": ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter"],
     "POOJARI": ["Sevas", "Bookings"],
     "ACCOUNTANT": ["Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"],
-    "COMMITTEE": ["Hundi", "Auction", "Reports"],
+    "COMMITTEE": ["Hundi", "Auction", "Reports", "Counter"],
 }
 _CANON = set(_ROLE_CANON["ADMINISTRATOR"])
 

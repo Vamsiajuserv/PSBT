@@ -2,13 +2,13 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   MessageSquare, Mail, Send, CheckCircle2, XCircle, MinusCircle, Ban, Info,
-  BellRing, Smartphone, ArrowUp, ArrowDown,
+  BellRing, Smartphone, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { NotificationsAPI } from '../../api/client.js'
 import { Select } from '../../components/common/Field.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
-import { promptDialog } from '../../components/common/Dialog.jsx'
+import { promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
 
 const CH_ICON = { SMS: Smartphone, Email: Mail, WhatsApp: MessageSquare }
@@ -38,12 +38,12 @@ export default function Notifications() {
   const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'ts', direction: 'desc' }])
 
   const loadConfig = useCallback(() => {
-    NotificationsAPI.config().then((c) => setChannels(c.channels)).catch(() => {})
-    NotificationsAPI.stats().then(setStats).catch(() => {})
+    NotificationsAPI.config().then((c) => setChannels(c.channels)).catch(() => toast('Failed to load notification config', 'error'))
+    NotificationsAPI.stats().then(setStats).catch(() => toast('Failed to load notification stats', 'error'))
   }, [])
   const loadLogs = useCallback(() => {
     NotificationsAPI.logs({ channel, status, page, size: SIZE })
-      .then((d) => { setRows(d.items); setTotal(d.total) }).catch(() => {})
+      .then((d) => { setRows(d.items); setTotal(d.total) }).catch(() => toast('Failed to load notification logs', 'error'))
   }, [channel, status, page])
 
   useEffect(() => { loadConfig() }, [loadConfig])
@@ -158,14 +158,18 @@ export default function Notifications() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -182,14 +186,18 @@ export default function Notifications() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr('Status')}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>

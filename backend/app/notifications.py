@@ -181,7 +181,9 @@ def notify(db, event: str, ctx: dict, **kwargs):
     """Best-effort entry point — never raises into the caller's business flow."""
     try:
         return dispatch(db, event, ctx, **kwargs)
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).warning(f"Notification dispatch failed for event '{event}': {e}")
         try:
             db.rollback()
         except Exception:  # noqa: BLE001

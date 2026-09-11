@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import {
   Plus, Pencil, MoreVertical, X, Search, RotateCcw, Eye, EyeOff, Save, Info, Trash2,
-  Users as UsersIcon, UserCheck, UserX, ShieldCheck, ArrowUp, ArrowDown,
+  Users as UsersIcon, UserCheck, UserX, ShieldCheck,
 } from 'lucide-react'
-import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { UsersAPI, RolesAPI } from '../../api/client.js'
@@ -11,7 +11,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Checkbox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { alertDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
-import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
+import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail, validatePassword, getPasswordStrength } from '../../lib/validation.js'
 
 const AVATAR_TONES = ['bg-maroon-700', 'bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600']
 const initials = (n) => (n || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
@@ -69,15 +69,19 @@ export default function Users() {
   const from = filtered.length ? (pageNum - 1) * perPage + 1 : 0
   const to = Math.min(pageNum * perPage, filtered.length)
 
-  // Sortable table columns
-  const sortColumns = [
+  // Sortable table columns with filtering support
+  const sortColumns = useMemo(() => [
     { key: 'name', label: 'User Name', type: 'text' },
     { key: 'email', label: 'Email / Mobile', type: 'text' },
-    { key: 'role', label: 'Role', type: 'text' },
-    { key: 'is_active', label: 'Status', type: 'text' },
+    { key: 'role', label: 'Role', type: 'text', filterable: true, filterOptions: roles },
+    { key: 'is_active', label: 'Status', type: 'text', filterable: true, filterOptions: ['Active', 'Inactive'] },
     { key: 'last_login', label: 'Last Login', type: 'date' },
-  ]
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(paged, sortColumns, [{ key: 'last_login', direction: 'desc' }])
+  ], [roles])
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
+  } = useFilterableSortableTable(paged, sortColumns, [{ key: 'last_login', direction: 'desc' }])
 
   async function openCreate() {
     setTab('details'); setErr(''); setDrawer({ mode: 'create', data: emptyUser() })
@@ -105,6 +109,12 @@ export default function Users() {
     const emailResult = validateEmail(d.email)
     if (!emailResult.valid) errors.email = emailResult.error
 
+    // Password validation (DEF-011: must have letters AND numbers)
+    if (drawer.mode === 'create' || d.password) {
+      const pwdResult = validatePassword(d.password, { required: drawer.mode === 'create' })
+      if (!pwdResult.valid) errors.password = pwdResult.error
+    }
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
       setErr(tr('Please fix the errors above.'))
@@ -112,7 +122,7 @@ export default function Users() {
     }
     setFieldErrors({})
 
-    if (drawer.mode === 'create' && d.password !== d.confirm) { setErr('Passwords do not match.'); return }
+    if ((drawer.mode === 'create' || d.password) && d.password !== d.confirm) { setErr('Passwords do not match.'); return }
     try {
       const payload = { name: d.name, email: d.email, mobile: d.mobile, role: d.role, is_active: d.is_active, modules: d.modules }
       if (drawer.mode === 'create') await UsersAPI.create({ ...payload, password: d.password })
@@ -144,35 +154,41 @@ export default function Users() {
           {isAdmin && <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New User</T></button>}
         </div>
 
-        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={sortColumns}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-amber-50/40 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('#')}</th>
-              {sortColumns.map((col) => {
-                const sortIdx = getSortIndex(col.key)
-                const sortDir = getSortDirection(col.key)
-                const isSorted = sortIdx >= 0
-                return (
-                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
-                      {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                        </span>
-                      )}
-                    </span>
-                  </th>
-                )
-              })}
+              {sortColumns.map((col) => (
+                <SortableFilterableTh
+                  key={col.key}
+                  colKey={col.key}
+                  label={tr(col.label)}
+                  type={col.type}
+                  filterable={col.filterable}
+                  filterOptions={col.filterOptions}
+                  onSort={handleColumnClick}
+                  sortIndex={getSortIndex(col.key)}
+                  sortDirection={getSortDirection(col.key)}
+                  multiSort={sorts.length > 1}
+                  filterValues={getFilterValues(col.key)}
+                  onToggleFilter={toggleFilterValue}
+                  onClearFilter={clearFilter}
+                />
+              ))}
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRows.map((u, i) => (
+              {filteredSortedRows.map((u, i) => (
                 <tr key={u.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 text-gray-400">{(pageNum - 1) * perPage + i + 1}</td>
                   <td className="px-4 py-3">
@@ -267,8 +283,11 @@ export default function Users() {
                   <div><label className="label"><T>Role *</T></label><Select required className="input" value={drawer.data.role} onChange={(e) => setD({ role: e.target.value })}><option value="">{tr("Select Role")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>
                   <div><label className="label"><T>Status *</T></label><Select className="input" value={drawer.data.is_active ? tr('Active') : tr('Inactive')} onChange={(e) => setD({ is_active: e.target.value === 'Active' })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
                   <div><label className="label">{tr("Password")} {drawer.mode === 'create' && '*'}</label>
-                    <div className="relative"><input required={drawer.mode === 'create'} type={showPw ? 'text' : 'password'} className="input pr-9" placeholder={drawer.mode === 'edit' ? tr('Leave blank to keep unchanged') : tr('Enter password')} value={drawer.data.password} onChange={(e) => setD({ password: e.target.value })} />
+                    <div className="relative"><input required={drawer.mode === 'create'} type={showPw ? 'text' : 'password'} className={`input pr-9 ${fieldErrors.password ? 'border-red-400' : ''}`} placeholder={drawer.mode === 'edit' ? tr('Leave blank to keep unchanged') : tr('Enter password')} value={drawer.data.password} onChange={(e) => { setFieldErrors((p) => ({ ...p, password: null })); setD({ password: e.target.value }) }} />
                       <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPw ? <EyeOff size={15} /> : <Eye size={15} />}</button></div>
+                    {fieldErrors.password && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.password}</div>}
+                    {drawer.data.password && !fieldErrors.password && <div className={`text-[0.6875rem] mt-0.5 ${getPasswordStrength(drawer.data.password).color}`}><T>Password strength:</T> {getPasswordStrength(drawer.data.password).label}</div>}
+                    <div className="text-[0.6875rem] text-gray-400 mt-1"><T>Password must be at least 6 characters with letters and numbers.</T></div>
                   </div>
                   <div><label className="label">{tr("Confirm Password")} {drawer.mode === 'create' && '*'}</label>
                     <div className="relative"><input required={drawer.mode === 'create'} type={showPw ? 'text' : 'password'} className="input pr-9" placeholder={tr("Confirm password")} value={drawer.data.confirm} onChange={(e) => setD({ confirm: e.target.value })} />

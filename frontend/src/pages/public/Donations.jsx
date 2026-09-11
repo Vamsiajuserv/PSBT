@@ -4,312 +4,371 @@ import {
   HeartHandshake, Gift, Star, Landmark, HeartPulse, Utensils, Building2,
   PiggyBank, Sparkles, Flame, Sun, ClipboardList, CreditCard, Banknote,
   QrCode, Globe, Phone, IndianRupee, Users, ReceiptText, BadgeCheck,
+  ArrowRight, Gem, CircleDot, Box,
 } from 'lucide-react'
-import { CountUp } from '../../components/common/UI.jsx'
+import { CountUp, Flourish } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang, tr } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr, T } from '../../i18n/LanguageContext.jsx'
 
-/* ── Static fallbacks (used until donation categories are configured) ──────── */
-const CASH_FALLBACK = [
-  { name: 'General Donation (Hundi)', desc: 'Support the daily needs and maintenance of the temple.' },
-  { name: 'Medical Donation', desc: 'Help provide charitable medical services.' },
-  { name: 'Annadanam Donation', desc: 'Contribute towards free meals for devotees.' },
-  { name: 'Temple Development Donation', desc: 'Support temple renovation and expansion.' },
-  { name: 'Corpus / Endowment Donation', desc: 'Create a permanent fund for temple activities.' },
-]
-const MATERIAL_FALLBACK = [
-  { name: 'Gold', unit: 'Grams' }, { name: 'Silver', unit: 'Grams' },
-  { name: 'Rice Bags', unit: 'Bags / Kg' }, { name: 'Grocery', unit: 'Kg / Packs' },
-  { name: 'Oil', unit: 'Liters' }, { name: 'Ghee', unit: 'Liters / Kg' },
-  { name: 'Flowers', unit: 'Kg / Garlands' }, { name: 'Fruits', unit: 'Kg' },
-  { name: 'Pooja Materials', unit: 'Item-wise' }, { name: 'Utensils', unit: 'Piece-wise' },
-]
-const SPONSOR_FALLBACK = [
-  { name: 'Festival Sponsorship', desc: 'Sponsor a temple festival celebration.' },
-  { name: 'Annadanam Sponsorship', desc: 'Sponsor free meals for devotees.' },
-  { name: 'Pooja Sponsorship', desc: 'Sponsor a special pooja in your name.' },
-  { name: 'Aarti Sponsorship', desc: 'Sponsor the sacred aarti ceremony.' },
+/* ── Custom SVG Icons for better visuals ── */
+const TempleIcon = ({ size = 24, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 2L3 9h18L12 2z" />
+    <path d="M5 9v10h14V9" />
+    <path d="M9 19v-6h6v6" />
+    <path d="M3 19h18" />
+    <circle cx="12" cy="6" r="1" fill="currentColor" />
+  </svg>
+)
+
+const TreasureIcon = ({ size = 24, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M3 10h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V10z" />
+    <path d="M3 10l2-6h14l2 6" />
+    <circle cx="12" cy="15" r="2" />
+    <path d="M12 13v-1" />
+  </svg>
+)
+
+const HundiIcon = ({ size = 24, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <ellipse cx="12" cy="6" rx="8" ry="3" />
+    <path d="M4 6v12c0 1.66 3.58 3 8 3s8-1.34 8-3V6" />
+    <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+    <path d="M10 9h4" />
+  </svg>
+)
+
+const GoldBarIcon = ({ size = 24, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M4 18h16l2-8H2l2 8z" />
+    <path d="M6 10l1-4h10l1 4" />
+    <path d="M8 14h8" />
+    <path d="M9 6h6" />
+  </svg>
+)
+
+const SilverCoinIcon = ({ size = 24, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <path d="M12 7v1" />
+    <path d="M12 16v1" />
+    <path d="M7 12h1" />
+    <path d="M16 12h1" />
+  </svg>
+)
+
+const FestivalIcon = ({ size = 24, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 2v3" />
+    <path d="M12 5c-3 0-6 2-6 6v8h12v-8c0-4-3-6-6-6z" />
+    <path d="M6 19h12" />
+    <path d="M8 2l2 3" />
+    <path d="M16 2l-2 3" />
+    <circle cx="12" cy="11" r="2" fill="currentColor" />
+  </svg>
+)
+
+const DiyaIcon = ({ size = 24, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 6c-1 0-2-.5-2-2s1-2 2-2 2 .5 2 2-1 2-2 2z" fill="currentColor" />
+    <path d="M12 6v2" />
+    <ellipse cx="12" cy="14" rx="7" ry="4" />
+    <path d="M5 14c0 3 3 6 7 6s7-3 7-6" />
+    <path d="M9 14c0 1.5 1.5 3 3 3s3-1.5 3-3" />
+  </svg>
+)
+
+/* ── Static fallbacks ──────── */
+const CASH_CARDS = [
+  { name: 'Temple Development Donation', desc: 'Support temple renovation and expansion.', Icon: TempleIcon },
+  { name: 'Corpus / Endowment Donation', desc: 'Create a permanent fund for temple activities.', Icon: TreasureIcon },
 ]
 
-/* Icon / emoji pickers — keyword-matched so admin-added categories get a
-   sensible visual without a code change. */
-function cashIcon(name) {
-  const n = (name || '').toLowerCase()
-  if (n.includes('hundi') || n.includes('general')) return Landmark
-  if (n.includes('medical')) return HeartPulse
-  if (n.includes('annadanam') || n.includes('food')) return Utensils
-  if (n.includes('development') || n.includes('construction')) return Building2
-  if (n.includes('corpus') || n.includes('endowment')) return PiggyBank
-  return HeartHandshake
-}
-function materialEmoji(name) {
-  const n = (name || '').toLowerCase()
-  if (n.includes('gold')) return '🪙'
-  if (n.includes('silver')) return '🥈'
-  if (n.includes('rice')) return '🌾'
-  if (n.includes('grocery')) return '🛒'
-  if (n.includes('oil')) return '🛢️'
-  if (n.includes('ghee')) return '🧈'
-  if (n.includes('flower')) return '🌸'
-  if (n.includes('fruit')) return '🍎'
-  if (n.includes('pooja')) return '🪔'
-  if (n.includes('utensil')) return '🍽️'
-  return '🎁'
-}
-function sponsorIcon(name) {
-  const n = (name || '').toLowerCase()
-  if (n.includes('festival')) return Sparkles
-  if (n.includes('annadanam')) return Utensils
-  if (n.includes('pooja')) return Flame
-  if (n.includes('aarti')) return Sun
-  return Star
-}
+const MATERIAL_CARDS = [
+  { name: 'General Donation (Hundi)', unit: 'Grams', Icon: HundiIcon },
+  { name: 'Gold', unit: 'Grams', Icon: GoldBarIcon },
+  { name: 'Silver', unit: 'Grams', Icon: SilverCoinIcon },
+]
+
+const SPONSOR_CARDS = [
+  { name: 'Festival Sponsorship', desc: 'Sponsor a temple festival celebration.', Icon: FestivalIcon },
+  { name: 'Pooja Sponsorship', desc: 'Sponsor a special pooja in your name.', Icon: DiyaIcon },
+]
 
 const STEPS = [
-  'Visit the Temple Counter',
-  'Register Name and Mobile',
-  'Select Donation Category',
-  'Enter Amount or Hand Over Material',
-  'Pay by Cash or UPI',
-  'Receive Official Receipt',
+  { title: 'Visit Temple Counter', desc: 'Come to our donation desk during temple hours' },
+  { title: 'Register Details', desc: 'Provide your name and mobile number' },
+  { title: 'Select Category', desc: 'Choose from cash, material, or sponsorship' },
+  { title: 'Make Donation', desc: 'Pay by cash or UPI / scan QR code' },
+  { title: 'Get Receipt', desc: 'Receive official receipt instantly' },
 ]
+
 const PAYMENTS = [
-  { icon: Banknote, title: 'Cash' },
-  { icon: QrCode, title: 'UPI / QR Code' },
-  { icon: Globe, title: 'Online Payment', note: 'Future Enhancement' },
+  { icon: Banknote, title: 'Cash', desc: 'At temple counter' },
+  { icon: QrCode, title: 'UPI / QR', desc: 'Scan & pay instantly' },
+  { icon: Globe, title: 'Online', desc: 'Coming soon', disabled: true },
 ]
-const ASSIST = [
-  'Donation Registration', 'Material Donations', 'Sponsorship Booking',
-  'Receipt Generation', '80G Tax Guidance',
-]
-
-function Ribbon({ icon: Icon, title, color }) {
-  return (
-    <div className="flex items-center justify-center gap-2.5 mx-auto mb-4 w-fit rounded-full px-5 py-1.5 shadow-md" style={{ backgroundColor: color }}>
-      <Icon size={18} className="text-white" strokeWidth={2} />
-      <h2 className="font-serif text-white text-base md:text-xl font-bold tracking-wide uppercase">{title}</h2>
-    </div>
-  )
-}
-
-const cardBase =
-  'bg-white border border-[#EADFC0] rounded-[1.125rem] shadow-[0_10px_30px_rgba(90,30,30,0.06)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_18px_44px_rgba(90,30,30,0.13)]'
 
 export default function Donations() {
   const { t } = useLang()
   const site = useSite()
   const TEMPLE = site?.temple || {}
   const impact = site?.donations_impact || {}
-  const funds = site?.funds || []
-
-  // Live categories by type; graceful fallback to the curated lists.
-  const byType = (ty) => funds.filter((f) => f.type === ty)
-  const cash = byType('Cash').length ? byType('Cash') : CASH_FALLBACK
-  const material = byType('Material').length ? byType('Material') : MATERIAL_FALLBACK
-  const sponsor = byType('Sponsorship').length ? byType('Sponsorship') : SPONSOR_FALLBACK
 
   const IMPACT = [
-    { icon: IndianRupee, value: impact.year_amount || 0, prefix: '₹ ', label: `${t('Donations in')} ${impact.year || new Date().getFullYear()}`, sub: 'Cash & sponsorships received' },
-    { icon: ReceiptText, value: impact.year_count || 0, label: 'Receipts This Year', sub: 'Every donation is recorded' },
-    { icon: Users, value: impact.donor_count || 0, label: 'Generous Donors', sub: 'Devotees who gave with faith' },
+    { icon: IndianRupee, value: impact.year_amount || 0, prefix: '₹', label: `${t('Donations in')} ${impact.year || new Date().getFullYear()}`, sub: 'Cash & sponsorships received' },
+    { icon: ReceiptText, value: impact.year_count || 0, label: 'Receipts Issued', sub: 'Every donation recorded' },
+    { icon: Users, value: impact.donor_count || 0, label: 'Generous Donors', sub: 'Devotees who contributed' },
   ]
 
   return (
-    <div className="bg-[#FAF7F2] min-h-screen">
-
-      {/* ── Page banner ── */}
-      <header
-        className="relative w-full overflow-hidden flex items-center"
-        style={{ minHeight: '50px', background: 'linear-gradient(90deg,#4A0F0F 0%,#5E1918 50%,#4A0F0F 100%)' }}
-      >
-        <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 50%, rgba(212,175,55,0.18) 0%, rgba(212,175,55,0) 62%)' }} />
-        <div className="pointer-events-none absolute inset-0" style={{ boxShadow: 'inset 0 0 130px rgba(0,0,0,0.55)' }} />
-        <div className="relative w-full px-5 sm:px-8 md:px-12 py-2">
-          <h1 className="font-serif font-normal text-white leading-none tracking-[0.5px] text-[1.0625rem] sm:text-[1.25rem] md:text-[1.5rem]"
-              style={{ textShadow: '0 3px 14px rgba(0,0,0,0.4)' }}>
-            {t('Donations')}
+    <div className="bg-cream min-h-screen">
+      {/* ── Minimal Banner ── */}
+      <header className="relative bg-gradient-to-r from-maroon-900 via-maroon-800 to-maroon-900 overflow-hidden">
+        <div className="absolute inset-0 bg-mandala opacity-10" />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <h1 className="font-serif text-xl md:text-2xl font-bold text-gold-200 tracking-wide">
+            <T>Donations</T>
           </h1>
-          <nav aria-label="Breadcrumb" className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-poppins text-[0.625rem] sm:text-[0.6875rem] md:text-xs font-medium">
-            <Link to="/" className="text-white hover:text-[#D4AF37] transition-colors">{t('Home')}</Link>
-            <span className="text-white/70">›</span>
-            <span className="text-[#D4AF37]">{t('Donations')}</span>
+          <nav className="flex items-center gap-2 text-xs text-cream/70 mt-1">
+            <Link to="/" className="hover:text-gold-300 transition-colors"><T>Home</T></Link>
+            <span>›</span>
+            <span className="text-gold-300"><T>Donations</T></span>
           </nav>
         </div>
       </header>
 
-      {/* ── Impact hero — live numbers from the donation ledger ── */}
-      <section className="relative bg-maroon-900 text-cream overflow-hidden">
-        <div className="absolute inset-0 bg-mandala" />
-        <div className="relative max-w-5xl mx-auto px-4 py-12 text-center">
-          <div className="font-script text-2xl text-gold-300">{t('Shraddha · Saburi')}</div>
-          <h2 className="font-serif text-2xl md:text-3xl font-bold text-gold-200 mt-1">{t('Every Offering Becomes Seva')}</h2>
-          <p className="text-cream/85 text-sm leading-relaxed max-w-2xl mx-auto mt-3">
-            {t('Donations sustain the daily poojas, annadanam, free medical services and the upkeep of the temple. Every rupee and every offering is receipted and accounted for.')}
-          </p>
-          <div className="grid sm:grid-cols-3 gap-4 mt-8">
+      {/* ── Impact Stats Hero ── */}
+      <section className="relative bg-gradient-to-br from-maroon-800 to-maroon-900 overflow-hidden">
+        <div className="absolute inset-0 bg-mandala opacity-5" />
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-10 md:py-14">
+          <div className="text-center mb-8">
+            <div className="font-script text-2xl md:text-3xl text-gold-300"><T>Shraddha · Saburi</T></div>
+            <h2 className="font-serif text-2xl md:text-3xl font-bold text-gold-100 mt-2">
+              <T>Every Offering Becomes Seva</T>
+            </h2>
+            <p className="text-cream/80 text-sm md:text-base max-w-2xl mx-auto mt-3 leading-relaxed">
+              <T>Donations sustain the daily poojas, annadanam, free medical services and the upkeep of the temple.</T>
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-4 md:gap-6">
             {IMPACT.map((s) => {
               const Icon = s.icon
               return (
-                <div key={s.label} className="rounded-2xl border border-gold-400/30 bg-white/[0.06] px-6 py-5">
-                  <div className="w-10 h-10 mx-auto rounded-full bg-gold-400/15 border border-gold-400/40 text-gold-300 grid place-items-center"><Icon size={18} /></div>
-                  <div className="font-serif text-2xl md:text-3xl font-bold text-gold-200 mt-2.5 tabular-nums">
+                <div key={s.label} className="bg-white/5 backdrop-blur-sm border border-gold-400/20 rounded-2xl p-5 md:p-6 text-center hover:bg-white/10 transition-colors">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-gold-400/10 border border-gold-400/30 text-gold-300 grid place-items-center">
+                    <Icon size={22} />
+                  </div>
+                  <div className="font-serif text-2xl md:text-3xl font-bold text-gold-200 mt-3 tabular-nums">
                     {s.prefix || ''}<CountUp value={s.value} />
                   </div>
-                  <div className="font-bold text-sm mt-1">{t(s.label)}</div>
-                  <div className="text-[0.6875rem] text-cream/60 mt-0.5">{t(s.sub)}</div>
+                  <div className="font-semibold text-cream text-sm mt-1">{t(s.label)}</div>
+                  <div className="text-xs text-cream/60 mt-0.5">{t(s.sub)}</div>
                 </div>
               )
             })}
           </div>
-          <div className="inline-flex items-center gap-2 mt-6 bg-emerald-500/10 border border-emerald-400/30 text-emerald-200 rounded-full px-4 py-1.5 text-[0.75rem] font-semibold">
-            <BadgeCheck size={14} /> {t('Medical donations are eligible for 80G tax benefit')}
+
+          <div className="flex justify-center mt-6">
+            <div className="inline-flex items-center gap-2 bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 rounded-full px-4 py-2 text-sm font-medium">
+              <BadgeCheck size={16} /> <T>Medical donations are eligible for 80G tax benefit</T>
+            </div>
           </div>
         </div>
       </section>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 md:py-10">
+      {/* ── Three Columns: Cash | Material | Sponsorships ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-12">
+        <div className="grid md:grid-cols-3 gap-6">
 
-        {/* ── Section 1 — Cash Donations (live categories) ── */}
-        <section>
-          <Ribbon icon={HeartHandshake} title={t('Cash Donations')} color="#6E2C2C" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {cash.map((c) => {
-              const Icon = cashIcon(c.name)
-              const is80g = /medical/i.test(c.name)
-              return (
-                <div key={c.name} className={`${cardBase} p-4 text-center`}>
-                  <div className="w-12 h-12 mx-auto rounded-full grid place-items-center bg-[#F7EFE3] text-[#6E2C2C] mb-3">
-                    <Icon size={22} strokeWidth={1.8} />
-                  </div>
-                  <h3 className="font-serif text-[#5A1E1E] font-bold text-base leading-snug">{t(c.name)}</h3>
-                  {is80g && (
-                    <span className="inline-block mt-2 text-[0.625rem] font-semibold uppercase tracking-wide text-[#3D5A34] bg-[#EAF0E5] rounded-full px-2 py-0.5">
-                      {t('80G Eligible')}
-                    </span>
-                  )}
-                  <p className="font-poppins text-[0.8125rem] text-[#666] mt-2 leading-relaxed">{t(c.desc)}</p>
+          {/* ── Cash Donations Column ── */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-maroon-700 to-maroon-800 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 grid place-items-center text-white">
+                  <HeartHandshake size={20} />
                 </div>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* ── Section 2 — Material Donations (live categories) ── */}
-        <section className="mt-8">
-          <Ribbon icon={Gift} title={t('Material Donations')} color="#3D5A34" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
-            {material.map((m) => (
-              <div key={m.name} className={`${cardBase} p-3.5 text-center`}>
-                <div className="text-3xl mb-1.5 leading-none">{materialEmoji(m.name)}</div>
-                <h3 className="font-serif text-[#5A1E1E] font-semibold">{t(m.name)}</h3>
-                <p className="font-poppins text-xs text-[#8a8a8a] mt-0.5">({t(m.unit || 'Item-wise')})</p>
+                <h3 className="font-serif text-lg font-bold text-gold-100"><T>Cash Donations</T></h3>
               </div>
-            ))}
-          </div>
-          <p className="text-center font-poppins text-[0.75rem] text-[#8a8a8a] mt-4">
-            {t('Material offerings are weighed / counted at the counter and receipted in your name.')}
-          </p>
-        </section>
-
-        {/* ── Section 3 — Sponsorships (live categories) ── */}
-        <section className="mt-8">
-          <Ribbon icon={Star} title={t('Sponsorships')} color="#5B3B7A" />
-          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${sponsor.length >= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3 max-w-4xl mx-auto'}`}>
-            {sponsor.map((s) => {
-              const Icon = sponsorIcon(s.name)
-              return (
-                <div key={s.name} className={`${cardBase} p-4 text-center`}>
-                  <div className="w-12 h-12 mx-auto rounded-full grid place-items-center bg-[#F1ECF6] text-[#5B3B7A] mb-2.5">
-                    <Icon size={22} strokeWidth={1.8} />
-                  </div>
-                  <h3 className="font-serif text-[#5A1E1E] font-bold">{t(s.name)}</h3>
-                  <p className="font-poppins text-[0.8125rem] text-[#666] mt-1.5 leading-relaxed">{t(s.desc || 'Arranged at the temple counter.')}</p>
-                </div>
-              )
-            })}
-          </div>
-          <div className="text-center mt-5">
-            <Link to="/annadanam" className="btn-primary !py-2.5 text-xs">{t('Sponsor Annadanam')} →</Link>
-          </div>
-        </section>
-
-        {/* ── Bottom — How to Donate + Payments ── */}
-        <section className="mt-10 grid md:grid-cols-2 gap-5">
-
-          {/* Left — How to Donate */}
-          <div className={`${cardBase} hover:translate-y-0 p-5 sm:p-6`}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 rounded-full grid place-items-center bg-[#FBEEE0] text-[#C2611F] shrink-0">
-                <ClipboardList size={22} strokeWidth={1.9} />
-              </div>
-              <h3 className="font-serif text-xl font-bold text-[#5A1E1E] uppercase tracking-wide">{t('How to Donate')}</h3>
             </div>
-            <ol className="space-y-2.5">
-              {STEPS.map((step, i) => (
-                <li key={step} className="flex items-start gap-3">
-                  <span className="mt-0.5 w-6 h-6 shrink-0 rounded-full grid place-items-center bg-[#C2611F] text-white text-xs font-semibold font-poppins">
-                    {i + 1}
-                  </span>
-                  <span className="font-poppins text-[0.875rem] text-[#555] leading-relaxed">{t(step)}</span>
-                </li>
-              ))}
-            </ol>
-            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-dashed border-[#EADFC0]">
-              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-[#3D5A34] bg-[#EAF0E5] rounded-full px-2.5 py-1">
-                <BadgeCheck size={12} /> {t('Medical donations eligible for 80G')}
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-[#6E2C2C] bg-[#F7EFE3] rounded-full px-2.5 py-1">
-                <ReceiptText size={12} /> {t('Every donation is recorded by the temple')}
-              </span>
-            </div>
-          </div>
-
-          {/* Right — Payments + Assistance */}
-          <div className="space-y-5">
-            <div className={`${cardBase} hover:translate-y-0 overflow-hidden`}>
-              <div className="flex items-center gap-3 px-5 sm:px-6 py-3 bg-[#2F5C8F]">
-                <CreditCard size={20} className="text-white" strokeWidth={1.9} />
-                <h3 className="font-serif text-base font-bold text-white uppercase tracking-wide">{t('Accepted Payment Methods')}</h3>
-              </div>
-              <div className="grid grid-cols-3 gap-3 p-5 sm:p-6">
-                {PAYMENTS.map((p) => (
-                  <div key={p.title} className="text-center">
-                    <div className="w-12 h-12 mx-auto rounded-full grid place-items-center bg-[#EAF1F9] text-[#2F5C8F] mb-2">
-                      <p.icon size={24} strokeWidth={1.8} />
+            <div className="p-4 space-y-3">
+              {CASH_CARDS.map((c) => {
+                const Icon = c.Icon
+                return (
+                  <div key={c.name} className="group p-4 rounded-xl border border-maroon-100 hover:border-maroon-300 hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-maroon-50/50 to-white">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-600 to-maroon-700 text-gold-200 grid place-items-center shrink-0 shadow-md group-hover:scale-110 group-hover:shadow-lg transition-all duration-300">
+                        <Icon size={24} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-serif font-bold text-maroon-800 text-[0.9375rem] leading-tight">{t(c.name)}</h4>
+                        <p className="text-gray-600 text-xs mt-1.5 leading-relaxed">{t(c.desc)}</p>
+                      </div>
                     </div>
-                    <p className="font-poppins text-[0.8125rem] font-medium text-[#444] leading-tight">{t(p.title)}</p>
-                    {p.note && <p className="font-poppins text-[0.625rem] text-[#999] mt-0.5">({t(p.note)})</p>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ── Material Donations Column ── */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 grid place-items-center text-white">
+                  <Gift size={20} />
+                </div>
+                <h3 className="font-serif text-lg font-bold text-white"><T>Material Donations</T></h3>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              {MATERIAL_CARDS.map((m) => {
+                const Icon = m.Icon
+                return (
+                  <div key={m.name} className="group p-4 rounded-xl border border-emerald-100 hover:border-emerald-300 hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-emerald-50/50 to-white">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-emerald-100 grid place-items-center shrink-0 shadow-md group-hover:scale-110 group-hover:shadow-lg transition-all duration-300">
+                        <Icon size={24} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-serif font-bold text-gray-800 text-[0.9375rem]">{t(m.name)}</h4>
+                        <p className="text-emerald-600 text-xs mt-0.5 font-medium">({t(m.unit)})</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="px-4 pb-4">
+              <p className="text-emerald-700 text-xs text-center bg-emerald-50 rounded-lg py-2 px-3">
+                <T>Material offerings are weighed at the counter.</T>
+              </p>
+            </div>
+          </div>
+
+          {/* ── Sponsorships Column ── */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-violet-600 to-violet-700 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 grid place-items-center text-white">
+                  <Star size={20} />
+                </div>
+                <h3 className="font-serif text-lg font-bold text-white"><T>Sponsorships</T></h3>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              {SPONSOR_CARDS.map((s) => {
+                const Icon = s.Icon
+                return (
+                  <div key={s.name} className="group p-4 rounded-xl border border-violet-100 hover:border-violet-300 hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-violet-50/50 to-white">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600 to-violet-700 text-violet-100 grid place-items-center shrink-0 shadow-md group-hover:scale-110 group-hover:shadow-lg transition-all duration-300">
+                        <Icon size={24} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-serif font-bold text-gray-800 text-[0.9375rem] leading-tight">{t(s.name)}</h4>
+                        <p className="text-gray-600 text-xs mt-1.5 leading-relaxed">{t(s.desc)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="px-4 pb-4">
+              <Link to="/annadanam" className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors w-full">
+                <T>Sponsor Annadanam</T> <ArrowRight size={14} />
+              </Link>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── How to Donate + Payment Methods ── */}
+        <div className="grid lg:grid-cols-2 gap-6 mt-10">
+
+          {/* How to Donate */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 grid place-items-center text-white">
+                  <ClipboardList size={20} />
+                </div>
+                <h3 className="font-serif text-lg font-bold text-white"><T>How to Donate</T></h3>
+              </div>
+            </div>
+            <div className="p-5">
+              <div className="space-y-4">
+                {STEPS.map((step, i) => (
+                  <div key={step.title} className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 grid place-items-center text-sm font-bold shrink-0">
+                      {i + 1}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-800 text-sm">{t(step.title)}</div>
+                      <div className="text-gray-500 text-xs mt-0.5">{t(step.desc)}</div>
+                    </div>
                   </div>
                 ))}
               </div>
+              <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-gray-100">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1">
+                  <BadgeCheck size={12} /> <T>80G for medical</T>
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-maroon-700 bg-maroon-50 border border-maroon-200 rounded-full px-2.5 py-1">
+                  <ReceiptText size={12} /> <T>Instant receipts</T>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Methods + Contact */}
+          <div className="space-y-5">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white/20 grid place-items-center text-white">
+                    <CreditCard size={20} />
+                  </div>
+                  <h3 className="font-serif text-lg font-bold text-white"><T>Payment Methods</T></h3>
+                </div>
+              </div>
+              <div className="p-5">
+                <div className="grid grid-cols-3 gap-3">
+                  {PAYMENTS.map((p) => (
+                    <div key={p.title} className={`text-center p-3 rounded-xl ${p.disabled ? 'opacity-50' : 'bg-gray-50'}`}>
+                      <div className="w-12 h-12 mx-auto rounded-full bg-blue-100 text-blue-600 grid place-items-center mb-2">
+                        <p.icon size={22} />
+                      </div>
+                      <div className="font-semibold text-gray-800 text-sm">{t(p.title)}</div>
+                      <div className="text-gray-500 text-xs mt-0.5">{t(p.desc)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div className="bg-[#EAF1F9] border border-[#CFE0F0] rounded-[1.125rem] p-5 sm:p-6">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-5">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full grid place-items-center bg-[#2F5C8F] text-white shrink-0">
-                  <Phone size={18} strokeWidth={2} />
+                <div className="w-11 h-11 rounded-full bg-blue-600 text-white grid place-items-center shrink-0">
+                  <Phone size={20} />
                 </div>
                 <div>
-                  <h4 className="font-serif text-lg font-bold text-[#1F3A5C]">{t('Need Assistance?')}</h4>
-                  <p className="font-poppins text-xs text-[#3F5A78]">{t('Temple Office')}</p>
+                  <h4 className="font-serif text-lg font-bold text-blue-900"><T>Need Assistance?</T></h4>
+                  <p className="text-blue-700 text-xs"><T>Temple Office</T></p>
                 </div>
               </div>
-              <p className="font-poppins text-[0.8125rem] text-[#3F5A78] mb-3">{t('Our staff will help you with:')}</p>
-              <ul className="space-y-1.5">
-                {ASSIST.map((a) => (
-                  <li key={a} className="flex items-center gap-2 font-poppins text-[0.8125rem] text-[#2F5C8F]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#2F5C8F]" />
-                    {t(a)}
-                  </li>
-                ))}
-              </ul>
+              <p className="text-blue-800 text-sm mb-3"><T>Our staff will help you with donation registration, receipt generation, and 80G tax guidance.</T></p>
               {TEMPLE.phone && (
-                <a href={`tel:${TEMPLE.phone}`} className="btn-maroon !py-2 text-xs mt-4"><Phone size={13} /> {TEMPLE.phone}</a>
+                <a href={`tel:${TEMPLE.phone}`} className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+                  <Phone size={14} /> {TEMPLE.phone}
+                </a>
               )}
             </div>
           </div>
-        </section>
-
+        </div>
       </div>
     </div>
   )

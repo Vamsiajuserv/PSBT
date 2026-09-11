@@ -2,15 +2,15 @@ import React, { useEffect, useState, useCallback } from 'react'
 import {
   Plus, X, Eye, Search, RotateCcw, Calendar, Info, ChevronDown, Trash2, Upload,
   HandCoins, IndianRupee, Landmark, CalendarClock, FileText, Calculator, Users, ShieldCheck, Building2,
-  Package, CheckCircle2, ArrowUp, ArrowDown, Gem, Lock,
+  Package, CheckCircle2, Gem, Lock,
 } from 'lucide-react'
-import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { HundiAPI, HundiItemsAPI, DevoteesAPI, CommitteeAPI, SettingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
-import { Select, DateField, DateTimeField, Checkbox, NumberField } from '../../components/common/Field.jsx'
+import { Select, DateField, DateTimeField, Checkbox, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeItemName } from '../../lib/validation.js'
@@ -56,18 +56,23 @@ export default function Hundi() {
   const [deposit, setDeposit] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  // Sortable table columns
+  // Sortable table columns with filtering support
   const sortColumns = [
     { key: 'code', label: 'Hundi ID', type: 'text' },
     { key: 'collected_on', label: 'Date', type: 'date' },
     { key: 'cash_amount', label: 'Cash (₹)', type: 'money' },
     { key: 'valuables_amount', label: 'Valuables (₹)', type: 'money' },
-    { key: 'verification_status', label: 'Verification', type: 'text' },
-    { key: 'deposit_status', label: 'Cash Status', type: 'text' },
-    { key: 'valuables_status', label: 'Valuables Status', type: 'text' },
+    { key: 'verification_status', label: 'Verification', type: 'text', filterable: true, filterOptions: ['Verified', 'Pending Verification', 'Rejected'] },
+    { key: 'deposit_status', label: 'Cash Status', type: 'text', filterable: true, filterOptions: ['Deposited', 'Pending Deposit', 'N/A'] },
+    { key: 'valuables_status', label: 'Valuables Status', type: 'text', filterable: true, filterOptions: ['In Store', 'Pending Custody'] },
   ]
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'collected_on', direction: 'desc' }])
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
+  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'collected_on', direction: 'desc' }])
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
@@ -90,16 +95,17 @@ export default function Hundi() {
   useEffect(() => {
     CommitteeAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setCommittee(arr.filter((c) => c.active)) })
-      .catch(() => {})
+      .catch(() => toast('Failed to load committee members', 'error'))
     SettingsAPI.config()
       .then((c) => setBanks(Array.isArray(c?.banks) ? c.banks : []))
-      .catch(() => {})
+      .catch(() => toast('Failed to load bank settings', 'error'))
     HundiItemsAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setItemMaster(arr.filter((i) => i.active)) })
-      .catch(() => {})
+      .catch(() => toast('Failed to load hundi items', 'error'))
   }, [])
 
-  const committeeNames = committee.map((c) => c.name)
+  // DEF-009: Use language-aware names for committee members
+  const committeeNames = committee.map((c) => personName(c, lang))
   const openCreate = () => setDrawer({ ...emptyForm(), bank_name: banks[0] || '' })
   const toggleMember = (name) => setDrawer((d) => ({ ...d, members: d.members.includes(name) ? d.members.filter((x) => x !== name) : [...d.members, name] }))
 
@@ -108,10 +114,10 @@ export default function Hundi() {
   // Add new item at the top so the form appears first (Item 24)
   const addLine = () => setDrawer((d) => ({ ...d, lines: [emptyLine(), ...d.lines] }))
   const removeLine = (i) => setDrawer((d) => ({ ...d, lines: d.lines.length > 1 ? d.lines.filter((_, idx) => idx !== i) : d.lines }))
-  const pickItem = (i, id) => {
-    const it = itemMaster.find((x) => String(x.id) === String(id))
-    if (!it) { setLine(i, { hundi_item_id: '', item_name: '', item_type: '', unit: '' }); return }
-    setLine(i, { hundi_item_id: it.id, item_name: it.name, item_type: it.item_type || '', unit: it.unit || '' })
+  const pickItem = (i, name) => {
+    const it = itemMaster.find((x) => x.name === name)
+    if (it) setLine(i, { hundi_item_id: it.id, item_name: it.name, item_type: it.item_type || '', unit: it.unit || '' })
+    else setLine(i, { hundi_item_id: null, item_name: name, item_type: '', unit: '' })
   }
 
   async function depositCollection(h) {
@@ -162,7 +168,17 @@ export default function Hundi() {
 
   async function save(e) {
     e.preventDefault()
+    if (saving) return
     const m = drawer
+
+    // Validate committee members - at least one must be selected
+    const members = m.members.map((x) => x.trim()).filter(Boolean)
+    if (members.length === 0) {
+      toast(tr('Please select at least one committee member who was present during counting.'), 'error')
+      return
+    }
+
+    // Filter and validate items - value must be positive
     const items = m.lines
       .filter((l) => l.item_name.trim() && l.value !== '')
       .map((l) => ({
@@ -174,7 +190,27 @@ export default function Hundi() {
         value: Number(l.value || 0),
         remarks: l.remarks || null,
       }))
-    if (items.length === 0) { toast(tr('Add at least one counted item line with a value.'), 'error'); return }
+
+    if (items.length === 0) {
+      toast(tr('Add at least one counted item line with a value.'), 'error')
+      return
+    }
+
+    // Validate all items have positive values
+    const invalidItems = items.filter((item) => item.value <= 0)
+    if (invalidItems.length > 0) {
+      toast(tr('All item values must be greater than zero.'), 'error')
+      return
+    }
+
+    // Validate quantity is not negative
+    const negativeQty = items.filter((item) => item.quantity !== null && item.quantity < 0)
+    if (negativeQty.length > 0) {
+      toast(tr('Quantity cannot be negative.'), 'error')
+      return
+    }
+
+    setSaving(true)
     try {
       // Verification/deposit fields are server-controlled (always born Pending) —
       // only the actual collection data is sent.
@@ -185,10 +221,11 @@ export default function Hundi() {
         denomination: m.denomination || null,
         officer: m.officer || null,
         items,
-        committee_members: m.members.map((x) => x.trim()).filter(Boolean),
+        committee_members: members,
       })
       setDrawer(null); load()
     } catch (ex) { toast(ex.detail || tr('Could not save this collection.'), 'error') }
+    finally { setSaving(false) }
   }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
 
@@ -231,11 +268,11 @@ export default function Hundi() {
         <div className="px-5 py-5 flex flex-wrap items-end gap-4">
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
           <div className="min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Verification Status</T></label>
@@ -252,34 +289,40 @@ export default function Hundi() {
           </div>
         </div>
 
-        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={sortColumns}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-              {sortColumns.map((col) => {
-                const sortIdx = getSortIndex(col.key)
-                const sortDir = getSortDirection(col.key)
-                const isSorted = sortIdx >= 0
-                return (
-                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
-                      {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                        </span>
-                      )}
-                    </span>
-                  </th>
-                )
-              })}
+              {sortColumns.map((col) => (
+                <SortableFilterableTh
+                  key={col.key}
+                  colKey={col.key}
+                  label={tr(col.label)}
+                  type={col.type}
+                  filterable={col.filterable}
+                  filterOptions={col.filterOptions}
+                  onSort={handleColumnClick}
+                  sortIndex={getSortIndex(col.key)}
+                  sortDirection={getSortDirection(col.key)}
+                  multiSort={sorts.length > 1}
+                  filterValues={getFilterValues(col.key)}
+                  onToggleFilter={toggleFilterValue}
+                  onClearFilter={clearFilter}
+                />
+              ))}
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRows.map((h) => (
+              {filteredSortedRows.map((h) => (
                 <tr key={h.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{h.code}</td>
                   <td className="px-4 py-3 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDate(h.collected_on)}</td>
@@ -342,22 +385,20 @@ export default function Hundi() {
                     {drawer.lines.map((l, i) => (
                       <div key={i} className="border border-gray-200 rounded-lg p-2.5 space-y-2 bg-gray-50/40">
                         <div className="flex items-center gap-2">
-                          <Select className="input !py-1.5 text-[0.78125rem] flex-1" value={l.hundi_item_id} onChange={(e) => { if (e.target.value === 'custom') { setLine(i, { hundi_item_id: 'custom', item_name: '', item_type: '', unit: '' }) } else { pickItem(i, e.target.value) } }}>
-                            <option value="">{tr("Select item…")}</option>
-                            {itemMaster.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}
-                            <option value="custom">{tr("Custom (Enter manually)")}</option>
-                          </Select>
+                          <Combobox
+                            value={l.item_name}
+                            onChange={(e) => pickItem(i, e.target.value)}
+                            options={itemMaster.map((it) => it.name)}
+                            placeholder={tr("Select or type item")}
+                            className="!py-1.5 text-[0.78125rem] flex-1"
+                          />
                           <button type="button" onClick={() => removeLine(i)} disabled={drawer.lines.length <= 1} title={tr("Remove line")}
                             className="w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-200 disabled:opacity-40"><Trash2 size={14} /></button>
                         </div>
-                        {(l.hundi_item_id === 'custom' || (l.item_name && !l.hundi_item_id)) && (
-                          <input className="input !py-1.5 text-[0.78125rem]" placeholder={tr("Enter custom item name")} value={l.item_name}
-                            onChange={(e) => setLine(i, { item_name: sanitizeItemName(e.target.value) })} autoFocus />
-                        )}
                         <div className="grid grid-cols-3 gap-2">
-                          <NumberField min="0" step="any" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Qty")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
+                          <NumberField min="0" max="999999" step="0.01" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Qty")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
                           <input className="input !py-1.5 text-[0.78125rem]" placeholder={tr("Unit")} value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />
-                          <NumberField required min="0" step="any" prefix="₹" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Value *")} value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} />
+                          <NumberField required min="0.01" max="99999999" step="0.01" prefix="₹" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Value *")} value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} />
                         </div>
                       </div>
                     ))}
@@ -371,9 +412,13 @@ export default function Hundi() {
                 <div><label className="label"><T>Denomination *</T></label>
                   <Select className="input" value={drawer.denomination} onChange={(e) => setM({ denomination: e.target.value })}>{DENOMINATIONS.map((d) => <option key={d} value={d}>{tr(d)}</option>)}</Select></div>
                 <div className="col-span-2"><label className="label"><T>Officer</T></label>
-                  <Select className="input" value={drawer.officer} onChange={(e) => setM({ officer: e.target.value })}>
-                    <option value="">{tr('Select…')}</option>{committeeNames.map((n) => <option key={n}>{n}</option>)}
-                  </Select></div>
+                  <Combobox
+                    value={drawer.officer || ''}
+                    onChange={(e) => setM({ officer: e.target.value })}
+                    options={committeeNames}
+                    placeholder={tr("Select or type name")}
+                    className="input"
+                  /></div>
               </DSection>
 
               <div>
@@ -408,7 +453,7 @@ export default function Hundi() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button className="btn-maroon flex-1 justify-center"><T>Save Collection</T>{' '}<ChevronDown size={14} /></button>
+              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <><T>Save Collection</T>{' '}<ChevronDown size={14} /></>}</button>
             </div>
           </form>
         </div>

@@ -146,7 +146,10 @@ def list_closings(db: Session = Depends(get_db), user=Depends(read)):
 @router.post("/close")
 def close_day(body: dict, request: Request, db: Session = Depends(get_db),
               user=Depends(RequireModule("Reports", write=True))):
-    on = date.fromisoformat(body["date"]) if body.get("date") else date.today()
+    try:
+        on = date.fromisoformat(body["date"]) if body.get("date") else date.today()
+    except (ValueError, TypeError):
+        raise HTTPException(400, "Invalid date format - use YYYY-MM-DD")
     if on > date.today():
         raise HTTPException(422, "A future day cannot be closed.")
     if db.query(DailyClosing).filter(DailyClosing.closing_date == on).first():
@@ -174,7 +177,10 @@ def reopen_day(body: dict, request: Request, db: Session = Depends(get_db),
     if user.role not in ("Admin", "Administrator"):
         raise HTTPException(403, "Only Admin can reopen a closed day.")
 
-    on = date.fromisoformat(body["date"]) if body.get("date") else date.today()
+    try:
+        on = date.fromisoformat(body["date"]) if body.get("date") else date.today()
+    except (ValueError, TypeError):
+        raise HTTPException(400, "Invalid date format - use YYYY-MM-DD")
     existing = db.query(DailyClosing).filter(DailyClosing.closing_date == on).first()
     if not existing:
         raise HTTPException(404, "This day is not closed.")

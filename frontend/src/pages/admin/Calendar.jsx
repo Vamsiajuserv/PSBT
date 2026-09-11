@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, X, Moon, Sun, Star, Sunrise, Sunset, AlertTriangle, Clock, Sparkles } from 'lucide-react'
 import { Flourish } from '../../components/common/UI.jsx'
-import { BookingsAPI, FestivalsAPI, TithiAPI, PanchangamAPI } from '../../api/client.js'
+import { BookingsAPI, FestivalsAPI, TithiAPI, PanchangamAPI, ProkeralaAPI } from '../../api/client.js'
 import { fmtDate } from '../../components/admin/ui.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
@@ -21,7 +21,7 @@ const LEGEND = [
   { label: 'Cancelled', color: '#dc2626' },
 ]
 const TITHI_CONFIG = {
-  Pournami: { label: 'Pournami', labelTe: 'పౌర్ణమి', color: '#f59e0b', bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' },
+  Pournami: { label: 'Pournami', labelTe: 'పౌర్ణమి', color: '#f59e0b', bg: 'bg-gradient-to-r from-amber-200 to-yellow-300', text: 'text-amber-800', border: 'border-amber-400', highlight: true, glow: 'shadow-[0_0_8px_rgba(251,191,36,0.8)]' },
   Amavasya: { label: 'Amavasya', labelTe: 'అమావాస్య', color: '#6b7280', bg: 'bg-gray-200', text: 'text-gray-700', border: 'border-gray-400' },
   Ekadashi: { label: 'Ekadashi', labelTe: 'ఏకాదశి', color: '#8b5cf6', bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-300' },
   Chaturthi: { label: 'Chaturthi', labelTe: 'చతుర్థి', color: '#ec4899', bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300' },
@@ -48,6 +48,8 @@ export default function Calendar() {
   const [festivals, setFestivals] = useState([])
   const [tithis, setTithis] = useState([])
   const [panchangam, setPanchangam] = useState({}) // { day: panchangamData }
+  const [prokeralaFestivals, setProkeralaFestivals] = useState([]) // Festivals from Prokerala
+  const [prokeralaPournami, setProkeralaPournami] = useState([]) // Pournami days from Prokerala
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [service, setService] = useState('')
@@ -63,12 +65,13 @@ export default function Calendar() {
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      // Fetch bookings, festivals, tithis, and panchangam in parallel
-      const [bookingsRes, festivalsRes, tithisRes, panchangamRes] = await Promise.all([
+      // Fetch bookings, festivals, tithis, panchangam, and Prokerala data in parallel
+      const [bookingsRes, festivalsRes, tithisRes, panchangamRes, prokeralaRes] = await Promise.all([
         BookingsAPI.list({ size: 500 }),
         FestivalsAPI.list().catch(() => ({ items: [] })),
         TithiAPI.list({ year }).catch(() => ({ items: [] })),
         PanchangamAPI.month(year, month + 1).catch(() => ({ panchangam: [] })),
+        ProkeralaAPI.festivals(year, month + 1).catch(() => ({ festivals: [], pournami: [] })),
       ])
       setBookings(Array.isArray(bookingsRes?.items) ? bookingsRes.items : [])
       setFestivals(Array.isArray(festivalsRes?.items) ? festivalsRes.items : [])
@@ -82,6 +85,9 @@ export default function Calendar() {
         }
       }
       setPanchangam(panchMap)
+      // Set Prokerala festivals and pournami
+      setProkeralaFestivals(Array.isArray(prokeralaRes?.festivals) ? prokeralaRes.festivals : [])
+      setProkeralaPournami(Array.isArray(prokeralaRes?.pournami) ? prokeralaRes.pournami : [])
     } catch (ex) {
       setError(ex?.detail || 'Could not load calendar events.')
       setBookings([])
@@ -136,9 +142,10 @@ export default function Calendar() {
     return stats
   }, [byDay])
 
-  // Festivals falling on each day of the month
+  // Festivals falling on each day of the month (from database + Prokerala)
   const festivalsByDay = useMemo(() => {
     const map = {}
+    // Database festivals (temple-specific)
     for (const f of festivals) {
       if (!f.start_date) continue
       const start = new Date(f.start_date)
@@ -152,16 +159,34 @@ export default function Calendar() {
             isStart: d.getTime() === start.getTime(),
             isEnd: d.getTime() === end.getTime(),
             isSingle: start.getTime() === end.getTime(),
+            source: 'temple',
+          })
+        }
+      }
+    }
+    // Prokerala festivals (Telugu calendar)
+    for (const f of prokeralaFestivals) {
+      if (!f.day && !f.date) continue
+      const day = f.day || parseInt(f.date?.split('-')[2], 10)
+      if (day && day >= 1 && day <= 31) {
+        // Avoid duplicates - check if festival with same name exists
+        const existing = map[day] || []
+        if (!existing.some(e => e.name?.toLowerCase() === f.name?.toLowerCase())) {
+          ;(map[day] ||= []).push({
+            name: f.name,
+            isSingle: true,
+            source: 'prokerala',
           })
         }
       }
     }
     return map
-  }, [festivals, year, month])
+  }, [festivals, prokeralaFestivals, year, month])
 
-  // Tithis for each day of the month
+  // Tithis for each day of the month (from database + Prokerala Pournami)
   const tithisByDay = useMemo(() => {
     const map = {}
+    // Database tithis
     for (const t of tithis) {
       if (!t.tithi_date) continue
       const [y, m, d] = String(t.tithi_date).split('-').map(Number)
@@ -169,8 +194,14 @@ export default function Calendar() {
         map[d] = { type: t.tithi_type, name: t.name || t.tithi_type }
       }
     }
+    // Add Prokerala Pournami dates (if not already present)
+    for (const day of prokeralaPournami) {
+      if (!map[day]) {
+        map[day] = { type: 'Pournami', name: 'Pournami', source: 'prokerala' }
+      }
+    }
     return map
-  }, [tithis, year, month])
+  }, [tithis, prokeralaPournami, year, month])
 
   // Service dropdown options come from all fetched bookings (not just the month).
   const serviceOptions = useMemo(
@@ -224,6 +255,9 @@ export default function Calendar() {
           <span key={l.label} className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />{tr(l.label)}</span>
         ))}
         <span className="border-l border-gray-200 h-4 mx-1" />
+        <span className="flex items-center gap-1.5 px-2 py-0.5 bg-gradient-to-r from-amber-200 to-yellow-300 rounded-full text-amber-800 font-semibold shadow-sm">
+          <span>🌕</span> {tr('Pournami')}
+        </span>
         <button
           onClick={() => setShowTithis(!showTithis)}
           className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition ${showTithis ? 'bg-amber-50 text-amber-700' : 'text-gray-400 hover:text-gray-600'}`}
@@ -272,12 +306,14 @@ export default function Calendar() {
             const isSelected = selectedDay === day
             const hasFestival = showFestivals && dayFestivals.length > 0
             const tithiConf = showTithis && tithi ? TITHI_CONFIG[tithi.type] : null
+            const isPournami = tithiConf?.highlight
             return (
               <button
                 key={i}
                 type="button"
                 onClick={() => setSelectedDay(isSelected ? null : day)}
                 className={`min-h-[6.875rem] border-b border-r border-gold-100 p-1.5 text-left transition relative ${
+                  isPournami ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 ring-2 ring-inset ring-amber-300' :
                   hasFestival ? 'bg-gradient-to-br from-rose-50 to-orange-50' : ''
                 } ${isSelected ? 'bg-gold-50/60 ring-1 ring-inset ring-maroon-200' : 'hover:bg-gold-50/30'}`}
               >
@@ -288,13 +324,29 @@ export default function Calendar() {
                   </div>
                 )}
 
-                <div className={`flex items-center justify-between mb-1 ${hasFestival ? 'mt-3' : ''}`}>
+                {/* Pournami banner */}
+                {isPournami && !hasFestival && (
+                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 text-amber-900 text-[0.5rem] font-bold px-1 py-0.5 flex items-center gap-1">
+                    <span>🌕</span>
+                    <span>{lang === 'te' ? 'పౌర్ణమి' : 'Pournami'}</span>
+                  </div>
+                )}
+
+                <div className={`flex items-center justify-between mb-1 ${hasFestival || isPournami ? 'mt-3' : ''}`}>
                   <div className="flex items-center gap-1">
                     <div className={`text-[0.6875rem] font-bold w-6 h-6 grid place-items-center rounded-full ${isToday ? 'bg-maroon-700 text-cream' : 'text-gray-500'}`}>{day}</div>
                     {/* Tithi marker - colored dot with moon icon */}
                     {tithiConf && (
-                      <div className={`flex items-center gap-0.5 px-1 py-0.5 rounded text-[0.5rem] font-semibold ${tithiConf.bg} ${tithiConf.text}`} title={tithi.name}>
-                        <Moon size={8} />
+                      <div
+                        className={`flex items-center gap-0.5 rounded font-semibold ${tithiConf.bg} ${tithiConf.text} ${tithiConf.glow || ''} ${
+                          tithiConf.highlight
+                            ? 'px-1.5 py-1 text-[0.6rem] border-2 border-amber-400 animate-pulse'
+                            : 'px-1 py-0.5 text-[0.5rem]'
+                        }`}
+                        title={tithi.name}
+                      >
+                        <Moon size={tithiConf.highlight ? 12 : 8} className={tithiConf.highlight ? 'fill-amber-500' : ''} />
+                        {tithiConf.highlight && <span className="font-bold">🌕</span>}
                       </div>
                     )}
                   </div>

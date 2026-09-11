@@ -11,14 +11,37 @@ const HEADER_TEXT = 'FFFFFFFF'
 const TOTAL_FILL = 'FFFDF3E0'
 const MUTED = 'FF6B7280'
 const BORDER = 'FFE5E7EB'
-const MON = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 }
-const DMY = /^(\d{2}) ([A-Za-z]{3}) (\d{4})$/   // the backend's consistent "%d %b %Y" date format
+// English month abbreviations
+const MON_EN = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 }
+// Telugu month abbreviations (from LanguageContext)
+const MON_TE = { జన: 0, ఫిబ్ర: 1, మార్చి: 2, ఏప్రి: 3, మే: 4, జూన్: 5, జూలై: 6, ఆగ: 7, సెప్టె: 8, అక్టో: 9, నవ: 10, డిసె: 11 }
+// Combined lookup
+const MON = { ...MON_EN, ...MON_TE }
+
+// Date pattern - matches English or Telugu month names
+const DMY = /^(\d{1,2}) ([A-Za-z\u0C00-\u0C7F]{2,5}) (\d{4})$/   // supports English and Telugu month names
 
 const parseDMY = (s) => {
-  const m = DMY.exec(String(s ?? ''))
-  if (!m || MON[m[2]] == null) return null
+  const m = DMY.exec(String(s ?? '').trim())
+  if (!m) return null
+
+  // Try to find the month in our lookup (handles both English and Telugu)
+  const monthStr = m[2]
+  let monthNum = MON[monthStr]
+
+  // If not found directly, try partial matches for Telugu (3-char prefixes)
+  if (monthNum == null) {
+    for (const [key, val] of Object.entries(MON)) {
+      if (key.startsWith(monthStr.slice(0, 3)) || monthStr.startsWith(key.slice(0, 3))) {
+        monthNum = val
+        break
+      }
+    }
+  }
+
+  if (monthNum == null) return null
   // noon UTC avoids any timezone off-by-one when ExcelJS serialises the date
-  return new Date(Date.UTC(Number(m[3]), MON[m[2]], Number(m[1]), 12))
+  return new Date(Date.UTC(Number(m[3]), monthNum, Number(m[1]), 12))
 }
 const isBlank = (v) => v === '' || v == null
 const fmtISO = (iso) => {

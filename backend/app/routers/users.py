@@ -1,4 +1,5 @@
 """Staff user & role management — Admin only."""
+from datetime import datetime, timezone
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -95,6 +96,7 @@ def update_user(uid: int, body: UserUpdate, request: Request,
     if "password" in data and data["password"]:
         u.password_hash = hash_password(data.pop("password"))
         u.must_change_password = True  # Force password change after admin reset
+        u.password_changed_at = datetime.now(timezone.utc)  # Invalidates old sessions
     else:
         data.pop("password", None)
     if "modules" in data and data["modules"] is not None:

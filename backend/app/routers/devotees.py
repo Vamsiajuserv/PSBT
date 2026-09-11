@@ -8,7 +8,7 @@ from ..database import get_db
 from ..models import Devotee, FamilyMember, Booking, Donation, Annadanam, Auction
 from ..schemas import DevoteeCreate, DevoteeUpdate, DevoteeOut
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import next_seq, gen_code
+from ..helpers import next_seq, gen_code, validate_pagination
 
 router = APIRouter(prefix="/api/devotees", tags=["devotees"])
 
@@ -38,6 +38,8 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
 def list_devotees(q: str = "", status: str = "", city: str = "",
                   page: int = 1, size: int = 20,
                   db: Session = Depends(get_db), user=Depends(read)):
+    # Validate pagination parameters (DoS prevention)
+    page, size = validate_pagination(page, size)
     query = db.query(Devotee)
     order = [Devotee.id.desc()]
     if q:

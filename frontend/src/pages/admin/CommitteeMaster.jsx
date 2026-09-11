@@ -1,16 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Users, UserCog, ShieldCheck, Pencil, X, IndianRupee, Flame, Search, RotateCcw, Plus, Trash2, Save, ArrowUp, ArrowDown } from 'lucide-react'
+import { Users, UserCog, ShieldCheck, Pencil, X, IndianRupee, Flame, Search, RotateCcw, Plus, Trash2, Save, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num, inr } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { CommitteeAPI, PoojasAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { Select, NumberField, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
+import { Select, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
 
 const DESIG_TONE = { Chairman: 'maroon', Secretary: 'blue', Treasurer: 'violet', Member: 'gray' }
+const DESIGNATIONS = ['Chairman', 'Secretary', 'Treasurer', 'Member', 'Vice Chairman', 'Joint Secretary', 'Trustee']
 
 // Sortable columns configuration for Members tab
 const SORT_COLUMNS = [
@@ -165,14 +166,18 @@ function MembersTab() {
                   const isSorted = sortIdx >= 0
                   return (
                     <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                      className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                      title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                      <span className="inline-flex items-center gap-1">
+                      className={`group px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                      title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                      <span className="inline-flex items-center gap-0.5">
                         {tr(col.label)}
-                        {isSorted && (
-                          <span className="inline-flex items-center gap-0.5 text-blue-600">
-                            {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                            {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        {isSorted ? (
+                          <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                            {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                            {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ChevronsUpDown size={14} strokeWidth={2} />
                           </span>
                         )}
                       </span>
@@ -188,14 +193,18 @@ function MembersTab() {
                   const isSorted = sortIdx >= 0
                   return (
                     <th onClick={(e) => handleColumnClick(col.key, e)}
-                      className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                      title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                      <span className="inline-flex items-center gap-1">
+                      className={`group px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                      title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                      <span className="inline-flex items-center gap-0.5">
                         {tr('Status')}
-                        {isSorted && (
-                          <span className="inline-flex items-center gap-0.5 text-blue-600">
-                            {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                            {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        {isSorted ? (
+                          <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                            {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                            {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ChevronsUpDown size={14} strokeWidth={2} />
                           </span>
                         )}
                       </span>
@@ -251,13 +260,13 @@ function MembersTab() {
               </div>
               <div>
                 <label className="label"><T>Designation</T></label>
-                <Select className="input" value={drawer.data.designation || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, designation: e.target.value } })}>
-                  <option value="">{tr("Select…")}</option>
-                  <option value="Chairman">{tr("Chairman")}</option>
-                  <option value="Secretary">{tr("Secretary")}</option>
-                  <option value="Treasurer">{tr("Treasurer")}</option>
-                  <option value="Member">{tr("Member")}</option>
-                </Select>
+                <Combobox
+                  value={drawer.data.designation || ''}
+                  onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, designation: e.target.value } })}
+                  options={DESIGNATIONS}
+                  placeholder={tr("Select or type designation")}
+                  className="input"
+                />
               </div>
               <div>
                 <label className="label"><T>Phone</T></label>

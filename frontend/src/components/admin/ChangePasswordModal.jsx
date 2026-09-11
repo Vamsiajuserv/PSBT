@@ -7,9 +7,10 @@ import { AuthAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { useLang, T, tr } from '../../i18n/LanguageContext.jsx'
 import { toast } from '../common/Dialog.jsx'
+import { validatePassword, getPasswordStrength } from '../../lib/validation.js'
 
 export default function ChangePasswordModal() {
-  const { user, updateUser } = useAuth()
+  const { user, completeLogin } = useAuth()
   const { t } = useLang()
   const [form, setForm] = useState({ current: '', newPwd: '', confirm: '' })
   const [showCurrent, setShowCurrent] = useState(false)
@@ -20,10 +21,12 @@ export default function ChangePasswordModal() {
   // If user doesn't need to change password, don't render
   if (!user?.must_change_password) return null
 
+  // Password validation (DEF-011: must have letters AND numbers)
+  const pwdValidation = validatePassword(form.newPwd, { required: false })
+  const pwdStrength = getPasswordStrength(form.newPwd)
   const pwdMatch = form.newPwd && form.confirm && form.newPwd === form.confirm
   const pwdMismatch = form.newPwd && form.confirm && form.newPwd !== form.confirm
-  const pwdMinLength = form.newPwd.length >= 6
-  const canSubmit = form.current && form.newPwd && form.confirm && pwdMatch && pwdMinLength && !saving
+  const canSubmit = form.current && form.newPwd && pwdValidation.valid && form.confirm && pwdMatch && !saving
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -32,8 +35,9 @@ export default function ChangePasswordModal() {
     setError('')
     setSaving(true)
     try {
-      const updated = await AuthAPI.changePassword(form.current, form.newPwd)
-      updateUser(updated)
+      // Response includes new token + updated user (old token is invalidated after password change)
+      const res = await AuthAPI.changePassword(form.current, form.newPwd)
+      completeLogin(res)  // Stores new token and updates user state
       toast(tr('Password changed successfully'), 'success')
     } catch (err) {
       setError(err.detail || err.message || tr('Failed to change password'))
@@ -64,7 +68,7 @@ export default function ChangePasswordModal() {
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-5 flex items-start gap-2">
             <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
             <p className="text-[0.75rem] text-amber-800 leading-snug">
-              <T>For security, you must change your password on first login. Your new password must be at least 6 characters.</T>
+              <T>For security, you must change your password on first login. Password must be at least 6 characters and contain both letters and numbers.</T>
             </p>
           </div>
 
@@ -108,7 +112,7 @@ export default function ChangePasswordModal() {
               <div className="relative">
                 <input
                   type={showNew ? 'text' : 'password'}
-                  className={`input pr-10 ${form.newPwd && !pwdMinLength ? 'border-amber-400 focus:ring-amber-300' : ''}`}
+                  className={`input pr-10 ${form.newPwd && !pwdValidation.valid ? 'border-amber-400 focus:ring-amber-300' : form.newPwd && pwdValidation.valid ? 'border-emerald-400 focus:ring-emerald-300' : ''}`}
                   value={form.newPwd}
                   onChange={(e) => setForm((f) => ({ ...f, newPwd: e.target.value }))}
                   placeholder={tr('Enter new password')}
@@ -125,8 +129,13 @@ export default function ChangePasswordModal() {
                   {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              {form.newPwd && !pwdMinLength && (
-                <p className="text-[0.6875rem] text-amber-600 mt-1"><T>Password must be at least 6 characters</T></p>
+              {form.newPwd && !pwdValidation.valid && (
+                <p className="text-[0.6875rem] text-amber-600 mt-1">{pwdValidation.error}</p>
+              )}
+              {form.newPwd && pwdValidation.valid && pwdStrength.label && (
+                <p className={`text-[0.6875rem] mt-1 ${pwdStrength.color}`}>
+                  <T>Password strength:</T> {pwdStrength.label}
+                </p>
               )}
             </div>
 

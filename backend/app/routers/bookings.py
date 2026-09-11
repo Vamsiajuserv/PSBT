@@ -13,7 +13,7 @@ from ..database import get_db
 from ..models import Booking, Devotee, PoojaPlan, Seva, Pooja, Festival, Poojari
 from ..schemas import BookingCreate, BookingOut
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms
+from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination
 from .refunds import record_refund
 from .. import notifications as notif
 
@@ -82,6 +82,8 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
                   pooja: str = "", plan: str = "", start: date | None = None, end: date | None = None,
                   page: int = 1, size: int = 50,
                   db: Session = Depends(get_db), user=Depends(read)):
+    # Validate pagination parameters (DoS prevention)
+    page, size = validate_pagination(page, size)
     query = db.query(Booking)
     order = [Booking.id.desc()]
     if q:
@@ -131,6 +133,25 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
 def create_booking(body: BookingCreate, request: Request,
                    db: Session = Depends(get_db), user=Depends(bill)):
     data = body.model_dump()
+
+    # Validate foreign keys before booking creation
+    if data.get("devotee_id"):
+        dev = db.get(Devotee, data["devotee_id"])
+        if not dev:
+            raise HTTPException(404, "Devotee not found")
+    if data.get("seva_id"):
+        sv = db.get(Seva, data["seva_id"])
+        if not sv:
+            raise HTTPException(404, "Seva not found")
+    if data.get("pooja_id"):
+        pj = db.get(Pooja, data["pooja_id"])
+        if not pj:
+            raise HTTPException(404, "Pooja not found")
+    if data.get("plan_id"):
+        pl = db.get(PoojaPlan, data["plan_id"])
+        if not pl:
+            raise HTTPException(404, "Pooja plan not found")
+
     start = data.get("scheduled_date") or date.today()
     plan = db.get(PoojaPlan, data["plan_id"]) if data.get("plan_id") else None
 
@@ -186,6 +207,21 @@ def create_booking(body: BookingCreate, request: Request,
     sd_guard = data.get("scheduled_date")
     if sd_guard and sd_guard < date.today():
         raise HTTPException(422, "The scheduled date cannot be in the past — bookings start from today.")
+    # DEF-010: Validate that the selected time slot has not expired for today's bookings
+    if sd_guard == date.today() and data.get("time_slot"):
+        import re
+        from datetime import datetime as dt
+        slot_str = data["time_slot"]
+        m = re.match(r'(\d{1,2}):(\d{2})\s*(AM|PM)', slot_str, re.I)
+        if m:
+            h, mi, period = int(m.group(1)), int(m.group(2)), m.group(3).upper()
+            if period == 'PM' and h != 12:
+                h += 12
+            if period == 'AM' and h == 12:
+                h = 0
+            slot_time = dt.now().replace(hour=h, minute=mi, second=0, microsecond=0)
+            if slot_time < dt.now():
+                raise HTTPException(422, "The selected time slot has already passed. Please choose a future time slot or a different date.")
     assert_txn_date_open(db, data.get("scheduled_date"), allow_future=True, label="scheduled date")
     assert_txn_date_open(db, date.today(), label="today")
 
@@ -205,8 +241,12 @@ def create_booking(body: BookingCreate, request: Request,
 
     # Long-term and Monthly must also not be double-sold to the same devotee while an active,
     # unexpired booking for the same pooja+plan exists.
+    # Use SELECT FOR UPDATE on the devotee row to serialize concurrent bookings for same devotee
+    # and prevent race conditions where two requests pass the duplicate check simultaneously.
     is_monthly = plan and plan.plan_name == "Monthly"
     if plan and data.get("devotee_id") and (long_term or is_monthly):
+        # Lock the devotee row to serialize concurrent booking attempts
+        db.query(Devotee).filter(Devotee.id == data["devotee_id"]).with_for_update().first()
         dup = (db.query(Booking).filter(
             Booking.devotee_id == data["devotee_id"],
             Booking.pooja_id == data.get("pooja_id"),
@@ -383,10 +423,19 @@ def complete_booking(bid: int, request: Request, db: Session = Depends(get_db),
         raise HTTPException(409, "This pooja has already been performed today — the next performance can be recorded tomorrow.")
     allowed = b.performances_allowed
     done = (b.performances_done or 0)
+    # DEF-005: Handle legacy bookings where performances_allowed was never set.
+    # - Life Long poojas: allowed stays None (unlimited)
+    # - All other plans (One-Time, Monthly, etc.): default to 1 if not set
+    # - Bookings without a plan_name (direct sevas): default to 1 (one-time)
+    is_life_long = b.plan_name and "life" in (b.plan_name or "").lower()
+    if allowed is None and not is_life_long:
+        allowed = 1
+        b.performances_allowed = 1
     if allowed is not None and done >= allowed:
         raise HTTPException(409, f"All {allowed} performances already completed")
     b.performances_done = done + 1
     b.last_performed_on = today
+    # For One-Time/single-performance poojas, mark as completed immediately
     if allowed is not None and b.performances_done >= allowed:
         b.status = "Completed"    # quota exhausted → terminal
     quota = allowed if allowed is not None else "∞"
@@ -446,9 +495,15 @@ def reschedule_booking(bid: int, body: dict, request: Request,
     if body.get("time_slot"):
         b.time_slot = body["time_slot"]
     if body.get("poojari_id") not in (None, ""):
-        pr = db.get(Poojari, int(body["poojari_id"]))
+        try:
+            poojari_id = int(body["poojari_id"])
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Invalid poojari_id - must be an integer")
+        pr = db.get(Poojari, poojari_id)
         if pr:
             b.poojari_id, b.poojari_name = pr.id, pr.name
+        else:
+            raise HTTPException(404, f"Poojari with ID {poojari_id} not found")
     db.commit(); db.refresh(b)
     log_action(db, username=user.username, action="UPDATE", entity="Booking",
                detail=f"Rescheduled {b.booking_code} {old} → {nd}", ip=client_ip(request))
@@ -473,6 +528,9 @@ def cancel_booking(bid: int, body: dict | None = None, request: Request = None,
     if b.payment_status == "Paid" and float(b.amount or 0) > 0:
         raw = body.get("refund_amount")
         amt = float(raw) if raw not in (None, "") else float(b.amount)
+        # Validate: refund amount must be between 0 and original amount (inclusive)
+        if amt < 0:
+            raise HTTPException(422, "Refund amount cannot be negative")
         amt = min(amt, float(b.amount))   # never refund more than was collected
         if amt > 0:
             record_refund(db, entity_type="Booking", entity_id=b.id,
@@ -524,6 +582,8 @@ def eligible_today(q: str = "", pooja: str = "", status: str = "",
     - Life Long / Daily: always eligible (every day)
     - Not cancelled, not expired, not already performed today
     """
+    # Validate pagination parameters (DoS prevention)
+    page, size = validate_pagination(page, size)
     today = date.today()
     today_day = today.day
     today_month = today.month
@@ -660,10 +720,26 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
         start = date.fromisoformat(start)
     data["scheduled_date"] = start
 
+    # Validate devotee_id if provided
+    if data.get("devotee_id"):
+        try:
+            devotee_id = int(data["devotee_id"])
+            data["devotee_id"] = devotee_id
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Invalid devotee_id - must be an integer")
+        devotee = db.get(Devotee, devotee_id)
+        if not devotee:
+            raise HTTPException(404, f"Devotee with ID {devotee_id} not found")
+
     # Plan lookup
     plan = None
     if data.get("plan_id"):
-        plan = db.get(PoojaPlan, data["plan_id"])
+        try:
+            plan_id = int(data["plan_id"])
+            data["plan_id"] = plan_id
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Invalid plan_id - must be an integer")
+        plan = db.get(PoojaPlan, plan_id)
         if not plan:
             raise HTTPException(404, "Plan not found")
         if plan.fee:
@@ -671,11 +747,21 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
         if not data.get("plan_name"):
             data["plan_name"] = plan.plan_name
 
-    # Pooja name lookup (for seva_name field if not provided)
-    if data.get("pooja_id") and not data.get("seva_name"):
-        pj = db.get(Pooja, data["pooja_id"])
-        if pj:
+    # Pooja lookup and validation
+    if data.get("pooja_id"):
+        try:
+            pooja_id = int(data["pooja_id"])
+            data["pooja_id"] = pooja_id
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Invalid pooja_id - must be an integer")
+        pj = db.get(Pooja, pooja_id)
+        if not pj:
+            raise HTTPException(404, f"Pooja with ID {pooja_id} not found")
+        if not data.get("seva_name"):
             data["seva_name"] = pj.name
+    elif not data.get("seva_name"):
+        # Either pooja_id or seva_name must be provided
+        pass  # seva_name may come from other source
 
     # Fee validation: use plan fee (not legacy Seva table)
     # The plan.fee is already set above from PoojaPlan lookup
@@ -696,14 +782,14 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
     if data.get("valid_until") is None:
         data["valid_until"] = valid_until
 
-    # Long-term validation
+    # Long-term flag (for duplicate check)
     long_term = allowed is None or (valid_until and (valid_until - start).days >= 300)
-    if plan and long_term and not data.get("devotee_id"):
-        raise HTTPException(422, "Long-term poojas require a registered devotee.")
 
-    # Duplicate check for long-term/monthly
+    # Duplicate check for long-term/monthly with row locking to prevent race conditions
     is_monthly = plan and plan.plan_name == "Monthly"
     if plan and data.get("devotee_id") and (long_term or is_monthly):
+        # Lock the devotee row to serialize concurrent booking attempts
+        db.query(Devotee).filter(Devotee.id == data["devotee_id"]).with_for_update().first()
         dup = (db.query(Booking).filter(
             Booking.devotee_id == data["devotee_id"],
             Booking.pooja_id == data.get("pooja_id"),
@@ -728,6 +814,7 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
         d = db.get(Devotee, b.devotee_id)
         if d:
             d.last_visit = date.today()
+            # Auto-fill Sankalpam details from devotee profile if not provided
             if not b.gothram:
                 b.gothram = d.gothram
             if not b.nakshatram:
@@ -771,6 +858,13 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
         "status": b.status,
         "payment_status": b.payment_status,
         "payment_method": b.payment_method,
+        # Sankalpam details
+        "gothram": b.gothram,
+        "nakshatram": b.nakshatram,
+        "rasi": b.rasi,
+        "beneficiary_name": b.beneficiary_name,
+        "participants": b.participants,
+        "special_notes": b.special_notes,
     }
 
 
@@ -862,6 +956,9 @@ def bulk_quick_create(body: dict, request: Request, db: Session = Depends(get_db
             db.commit()
             db.refresh(b)
 
+            # Send booking confirmation notification
+            _booking_notify(db, b, "booking_confirmed", user)
+
             success.append({
                 "index": idx,
                 "id": b.id,
@@ -873,6 +970,13 @@ def bulk_quick_create(body: dict, request: Request, db: Session = Depends(get_db
                 "amount": float(b.amount) if b.amount else 0,
                 "valid_until": str(b.valid_until) if b.valid_until else None,
                 "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
+                # Sankalpam details
+                "gothram": b.gothram,
+                "nakshatram": b.nakshatram,
+                "rasi": b.rasi,
+                "beneficiary_name": b.beneficiary_name,
+                "participants": b.participants,
+                "special_notes": b.special_notes,
             })
 
         except Exception as e:

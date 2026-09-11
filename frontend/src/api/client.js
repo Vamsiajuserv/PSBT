@@ -9,45 +9,146 @@ const TOKEN_KEY = 'psbt_token'
 // calls stay relative ("/api") and go through the Vite proxy → 127.0.0.1:8099.
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '')
 
+// ── Configuration ──
+const REQUEST_TIMEOUT_MS = 30000 // 30 seconds timeout
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 1000 // Initial retry delay (doubles each attempt)
+const RETRIABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504] // Status codes that trigger retry
+
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
 export const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY))
 
 export class ApiError extends Error {
-  constructor(status, detail) {
+  constructor(status, detail, isNetworkError = false, isTimeout = false) {
     super(detail || `Request failed (${status})`)
     this.status = status
     this.detail = detail
+    this.isNetworkError = isNetworkError
+    this.isTimeout = isTimeout
   }
 }
 
-async function request(path, { method = 'GET', body, auth = true } = {}) {
+// ── User-friendly error messages ──
+function getNetworkErrorMessage(error) {
+  if (error.name === 'AbortError') {
+    return 'Request timed out. Please check your connection and try again.'
+  }
+  if (!navigator.onLine) {
+    return 'You appear to be offline. Please check your internet connection.'
+  }
+  if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+    return 'Unable to connect to the server. Please check your connection or try again later.'
+  }
+  return 'A network error occurred. Please try again.'
+}
+
+function getHttpErrorMessage(status) {
+  switch (status) {
+    case 400: return 'Invalid request. Please check your input and try again.'
+    case 401: return 'Your session has expired. Please log in again.'
+    case 403: return 'You do not have permission to perform this action.'
+    case 404: return 'The requested resource was not found.'
+    case 408: return 'Request timed out. Please try again.'
+    case 409: return 'This operation conflicts with existing data.'
+    case 422: return 'Invalid data provided. Please check your input.'
+    case 429: return 'Too many requests. Please wait a moment and try again.'
+    case 500: return 'Server error. Our team has been notified.'
+    case 502: return 'Server temporarily unavailable. Please try again shortly.'
+    case 503: return 'Service temporarily unavailable. Please try again shortly.'
+    case 504: return 'Server timeout. Please try again.'
+    default: return `Request failed (${status})`
+  }
+}
+
+// ── Sleep helper for retry delays ──
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// ── Core request function with timeout, retry, and error handling ──
+async function request(path, { method = 'GET', body, auth = true, retries = 0 } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  // Create AbortController for timeout
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
-  if (res.status === 204) return null
-  const data = await res.json().catch(() => null)
-  if (!res.ok) {
-    // Auto sign-out on auth failure: an expired/invalid session must clear BOTH
-    // the token and the cached user, then bounce to the staff login — otherwise
-    // the admin shell keeps rendering tokenless and every call 401s into a
-    // permanent "Loading…". Guard the redirect so the login page (which 401s on
-    // bad credentials) doesn't loop.
-    if (res.status === 401) {
-      setToken(null)
-      localStorage.removeItem('psbt_user')
-      if (!window.location.pathname.startsWith('/staff-login')) {
-        window.location.replace('/staff-login')
+  let res
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    clearTimeout(timeoutId)
+
+    // Handle timeout (AbortError)
+    if (error.name === 'AbortError') {
+      // Retry on timeout for GET requests
+      if (method === 'GET' && retries < MAX_RETRIES) {
+        await sleep(RETRY_DELAY_MS * Math.pow(2, retries))
+        return request(path, { method, body, auth, retries: retries + 1 })
       }
+      throw new ApiError(408, getNetworkErrorMessage(error), false, true)
     }
-    throw new ApiError(res.status, data?.detail || res.statusText)
+
+    // Handle network errors (no response at all)
+    // Retry on network error for idempotent methods (GET, PUT, DELETE)
+    if (['GET', 'PUT', 'DELETE'].includes(method) && retries < MAX_RETRIES) {
+      await sleep(RETRY_DELAY_MS * Math.pow(2, retries))
+      return request(path, { method, body, auth, retries: retries + 1 })
+    }
+
+    throw new ApiError(0, getNetworkErrorMessage(error), true, false)
+  } finally {
+    clearTimeout(timeoutId)
   }
-  return data
+
+  // Handle 204 No Content
+  if (res.status === 204) return null
+
+  // Parse JSON response safely
+  let data = null
+  try {
+    const text = await res.text()
+    if (text) {
+      data = JSON.parse(text)
+    }
+  } catch {
+    // If response is not valid JSON but status is OK, return null
+    if (res.ok) return null
+    // JSON parse failed for non-OK response - continue to error handling below
+  }
+
+  // Handle success
+  if (res.ok) return data
+
+  // Handle retriable errors with automatic retry
+  if (RETRIABLE_STATUS_CODES.includes(res.status) && retries < MAX_RETRIES) {
+    // Don't retry POST requests as they may not be idempotent
+    if (method !== 'POST') {
+      await sleep(RETRY_DELAY_MS * Math.pow(2, retries))
+      return request(path, { method, body, auth, retries: retries + 1 })
+    }
+  }
+
+  // Handle 401 - auto sign-out
+  // An expired/invalid session must clear BOTH the token and the cached user,
+  // then bounce to the staff login — otherwise the admin shell keeps rendering
+  // tokenless and every call 401s into a permanent "Loading…".
+  // Guard the redirect so the login page (which 401s on bad credentials) doesn't loop.
+  if (res.status === 401) {
+    setToken(null)
+    localStorage.removeItem('psbt_user')
+    if (!window.location.pathname.startsWith('/staff-login')) {
+      window.location.replace('/staff-login')
+    }
+  }
+
+  // Build user-friendly error message
+  const detail = data?.detail || getHttpErrorMessage(res.status)
+  throw new ApiError(res.status, detail)
 }
 
 export const api = {
@@ -88,7 +189,7 @@ export const PoojasAPI = {
   updatePlan: (planId, b) => api.put(`/poojas/plans/${planId}`, b),
   create: (b) => api.post('/poojas', b),
   update: (id, b) => api.put(`/poojas/${id}`, b),
-  remove: (id) => api.del(`/poojas/${id}`),
+  remove: (id, force = false) => api.del(`/poojas/${id}${force ? '?force=true' : ''}`),
   // Festival Pricing - for Committee role
   allPlans: () => api.get('/poojas/plans/all'),
   updateCommitteeFee: (planId, fee) => api.put(`/poojas/plans/${planId}/committee-fee`, { fee }),
@@ -315,6 +416,16 @@ export const PanchangamAPI = {
   date: (dt) => api.get(`/panchangam/date/${dt}`),
   month: (year, month) => api.get(`/panchangam/month/${year}/${month}`),
   range: (start, end) => api.get('/panchangam/range' + qs({ start, end })),
+}
+
+export const ProkeralaAPI = {
+  status: () => api.get('/prokerala/status'),
+  panchang: (date) => api.get('/prokerala/panchang' + qs({ date })),
+  calendar: (year, month) => api.get('/prokerala/calendar' + qs({ year, month })),
+  festivals: (year, month) => api.get('/prokerala/festivals' + qs({ year, month })),
+  pournami: (year, count) => api.get('/prokerala/pournami' + qs({ year, count })),
+  today: () => api.get('/prokerala/today'),
+  clearCache: () => api.get('/prokerala/clear-cache'),
 }
 
 function qs(params) {

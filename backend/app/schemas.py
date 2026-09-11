@@ -1,9 +1,81 @@
 """Pydantic v2 schemas for request/response bodies."""
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from enum import Enum
+from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 import re
+
+
+# ── Enums for status field validation ─────────────────────────────────────────
+class BookingStatus(str, Enum):
+    PENDING = "Pending"
+    CONFIRMED = "Confirmed"
+    COMPLETED = "Completed"
+    CANCELLED = "Cancelled"
+
+
+class PaymentStatus(str, Enum):
+    PENDING = "Pending"
+    PAID = "Paid"
+    REFUNDED = "Refunded"
+    FAILED = "Failed"
+
+
+class BookingSource(str, Enum):
+    COUNTER = "Counter"
+    ONLINE = "Online"
+    KIOSK = "Kiosk"
+
+
+class PaymentMode(str, Enum):
+    CASH = "Cash"
+    UPI_QR = "UPI/QR Code"
+    CARD = "Card"
+    BANK_TRANSFER = "Bank Transfer"
+    CHEQUE = "Cheque"
+    ONLINE = "Online"
+
+
+class DonationType(str, Enum):
+    CASH = "Cash"
+    MATERIAL = "Material"
+    SPONSORSHIP = "Sponsorship"
+
+
+class HundiVerificationStatus(str, Enum):
+    PENDING = "Pending Verification"
+    VERIFIED = "Verified"
+    REJECTED = "Rejected"
+
+
+class HundiDepositStatus(str, Enum):
+    PENDING = "Pending Deposit"
+    DEPOSITED = "Deposited"
+    PARTIAL = "Partial"
+
+
+class AuctionStatus(str, Enum):
+    SCHEDULED = "Scheduled"
+    IN_PROGRESS = "In Progress"
+    COMPLETED = "Completed"
+    VOID = "Void"
+
+
+# ── Pagination ────────────────────────────────────────────────────────────────
+# Centralized pagination parameters with validation
+MAX_PAGE_SIZE = 200  # Maximum items per page
+MAX_PAGE_NUMBER = 10000  # Maximum page number (prevents absurd skip values)
+
+
+class PaginationParams(BaseModel):
+    """Validated pagination parameters to prevent DoS via extreme skip/limit values."""
+    page: int = Field(default=1, ge=1, le=MAX_PAGE_NUMBER)
+    size: int = Field(default=20, ge=1, le=MAX_PAGE_SIZE)
+
+    @property
+    def skip(self) -> int:
+        return (self.page - 1) * self.size
 
 
 class ORM(BaseModel):
@@ -12,18 +84,33 @@ class ORM(BaseModel):
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
 class LoginIn(BaseModel):
-    username: str
-    password: str
+    """Login credentials with length limits to prevent DoS attacks."""
+    username: str = Field(..., min_length=1, max_length=100)
+    password: str = Field(..., min_length=1, max_length=200)
 
 
 class TwoFAIn(BaseModel):
-    challenge_token: str
-    code: str
+    """2FA verification with length limits."""
+    challenge_token: str = Field(..., max_length=500)  # JWT tokens are typically ~200-400 chars
+    code: str = Field(..., min_length=6, max_length=6)  # TOTP codes are exactly 6 digits
 
 
 class PasswordChangeIn(BaseModel):
     current_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=6)
+
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, v):
+        """DEF-011: Password must have letters and numbers, not just special characters."""
+        import re
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters long')
+        if not re.search(r'[A-Za-z]', v):
+            raise ValueError('Password must contain at least one letter')
+        if not re.search(r'[0-9]', v):
+            raise ValueError('Password must contain at least one number')
+        return v
 
 
 class TokenOut(BaseModel):
@@ -59,9 +146,22 @@ class UserCreate(BaseModel):
     employee_id: Optional[str] = None
     role: str
     modules: list[str] = []
-    password: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=6)
     is_active: bool = True
     twofa_enabled: bool = False
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        """DEF-011: Password must have letters and numbers, not just special characters."""
+        import re
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters long')
+        if not re.search(r'[A-Za-z]', v):
+            raise ValueError('Password must contain at least one letter')
+        if not re.search(r'[0-9]', v):
+            raise ValueError('Password must contain at least one number')
+        return v
 
 
 class UserUpdate(BaseModel):
@@ -74,6 +174,21 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     twofa_enabled: Optional[bool] = None
     password: Optional[str] = None
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        """DEF-011: Password must have letters and numbers, not just special characters."""
+        if v is None:
+            return v
+        import re
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters long')
+        if not re.search(r'[A-Za-z]', v):
+            raise ValueError('Password must contain at least one letter')
+        if not re.search(r'[0-9]', v):
+            raise ValueError('Password must contain at least one number')
+        return v
 
 
 # ── Devotees ─────────────────────────────────────────────────────────────────
@@ -101,6 +216,7 @@ class DevoteeBase(BaseModel):
     city: Optional[str] = None
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
+    pan_number: Optional[str] = None  # PAN for 80G receipts
     dob: Optional[date] = None
     preferred_language: str = "English"
     status: str = "Active"
@@ -119,6 +235,17 @@ class DevoteeBase(BaseModel):
             raise ValueError('Invalid mobile number. Must be 10 digits starting with 6-9')
         return v
 
+    @field_validator('pan_number')
+    @classmethod
+    def validate_pan(cls, v: Optional[str]) -> Optional[str]:
+        """Validate Indian PAN number format: ABCDE1234F (5 letters, 4 digits, 1 letter)."""
+        if v is None or not v.strip():
+            return None
+        v = v.strip().upper()
+        if not re.match(r'^[A-Z]{5}[0-9]{4}[A-Z]$', v):
+            raise ValueError('Invalid PAN format. Must be 5 letters + 4 digits + 1 letter (e.g., ABCDE1234F)')
+        return v
+
 
 class DevoteeCreate(DevoteeBase):
     family: list[FamilyMemberIn] = []
@@ -133,6 +260,7 @@ class DevoteeUpdate(BaseModel):
     city: Optional[str] = None
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
+    pan_number: Optional[str] = None
     dob: Optional[date] = None
     preferred_language: Optional[str] = None
     status: Optional[str] = None
@@ -151,6 +279,17 @@ class DevoteeUpdate(BaseModel):
             raise ValueError('Invalid mobile number. Must be 10 digits starting with 6-9')
         return v
 
+    @field_validator('pan_number')
+    @classmethod
+    def validate_pan(cls, v: Optional[str]) -> Optional[str]:
+        """Validate Indian PAN number format if provided: ABCDE1234F."""
+        if v is None or not v.strip():
+            return None
+        v = v.strip().upper()
+        if not re.match(r'^[A-Z]{5}[0-9]{4}[A-Z]$', v):
+            raise ValueError('Invalid PAN format. Must be 5 letters + 4 digits + 1 letter (e.g., ABCDE1234F)')
+        return v
+
 
 class DevoteeOut(ORM):
     id: int
@@ -163,6 +302,7 @@ class DevoteeOut(ORM):
     city: Optional[str] = None
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
+    pan_number: Optional[str] = None
     dob: Optional[date] = None
     preferred_language: Optional[str] = "English"
     status: str
@@ -212,11 +352,14 @@ class BookingCreate(BaseModel):
     time_slot: Optional[str] = None
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
+    rasi: Optional[str] = None
     beneficiary_name: Optional[str] = None
+    participants: Optional[str] = None      # JSON array of {name, relation}
+    special_notes: Optional[str] = None
     vehicle_no: Optional[str] = None
-    status: str = "Pending"
-    payment_status: str = "Pending"
-    source: str = "Counter"
+    status: BookingStatus = BookingStatus.PENDING
+    payment_status: PaymentStatus = PaymentStatus.PENDING
+    source: BookingSource = BookingSource.COUNTER
 
 
 class BookingOut(ORM):
@@ -236,7 +379,10 @@ class BookingOut(ORM):
     festival_id: Optional[int] = None
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
+    rasi: Optional[str] = None
     beneficiary_name: Optional[str] = None
+    participants: Optional[str] = None
+    special_notes: Optional[str] = None
     vehicle_no: Optional[str] = None
     time_slot: Optional[str] = None
     status: str
@@ -252,12 +398,12 @@ class BookingOut(ORM):
 class DonationCreate(BaseModel):
     devotee_id: Optional[int] = None
     donor_name: str
-    donation_type: str = "Cash"          # Cash | Material | Sponsorship
+    donation_type: DonationType = DonationType.CASH
     fund: str
     amount: Decimal = Decimal(0)
     unit: Optional[str] = None
     quantity: Optional[Decimal] = None
-    mode: str = "Cash"                    # Cash | UPI/QR Code
+    mode: PaymentMode = PaymentMode.CASH
     txn_ref: Optional[str] = None
     pan: Optional[str] = None
     g80: bool = False
@@ -267,7 +413,7 @@ class DonationCreate(BaseModel):
     @model_validator(mode='after')
     def validate_utr_for_upi(self):
         """UTR/Transaction reference is required for UPI payments."""
-        if self.mode == "UPI/QR Code" and not (self.txn_ref and self.txn_ref.strip()):
+        if self.mode == PaymentMode.UPI_QR and not (self.txn_ref and self.txn_ref.strip()):
             raise ValueError("UTR/Transaction ID is required for UPI payments")
         return self
 
@@ -325,10 +471,10 @@ class HundiCreate(BaseModel):
     officer: Optional[str] = None
     committee_members: list[str] = []                      # names present at counting
     notes: Optional[str] = None
-    verification_status: str = "Pending Verification"
+    verification_status: HundiVerificationStatus = HundiVerificationStatus.PENDING
     verified_by: Optional[str] = None
     verified_on: Optional[datetime] = None
-    deposit_status: str = "Pending Deposit"
+    deposit_status: HundiDepositStatus = HundiDepositStatus.PENDING
     bank_name: Optional[str] = None
     bank_ref: Optional[str] = None                         # deposit reference / challan no.
     deposited_on: Optional[date] = None                    # deposit date
@@ -373,7 +519,7 @@ class AuctionCreate(BaseModel):
     current_amount: Optional[Decimal] = None
     bids: int = 0
     winner: Optional[str] = None
-    status: str = "Scheduled"
+    status: AuctionStatus = AuctionStatus.SCHEDULED
     auction_date: Optional[date] = None
     start_time: Optional[str] = None
     notes: Optional[str] = None
@@ -416,7 +562,7 @@ class AnnadanamCreate(BaseModel):
     plates: int
     rate: Decimal = Decimal(50)
     amount: Decimal
-    mode: str = "Cash"
+    mode: PaymentMode = PaymentMode.CASH
     txn_ref: Optional[str] = None
     paid_at: Optional[datetime] = None
     scheduled_on: Optional[date] = None

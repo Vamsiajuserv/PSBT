@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   Search, RotateCcw, FileText, FileSpreadsheet, Flame, HandCoins,
   Wallet, FileBarChart, CalendarCheck, CalendarDays,
-  ArrowUp, ArrowDown, X,
+  ArrowUp, ArrowDown, X, ChevronsUpDown,
 } from 'lucide-react'
+import { toast } from '../../components/common/Dialog.jsx'
 import { PageTitle, num } from '../../components/admin/ui.jsx'
 import { LOAD_ERROR } from '../../components/common/states.jsx'
 import { ReportsAPI } from '../../api/client.js'
@@ -42,7 +43,7 @@ export default function Reports() {
     setSorts((prev) => {
       const idx = prev.findIndex((s) => s.key === colKey)
       if (e.shiftKey) {
-        // Shift+Click: add or toggle secondary sort
+        // Shift+Click: add or toggle secondary sort (two-state for multi-sort)
         if (idx >= 0) {
           // Toggle direction
           return prev.map((s, i) => i === idx ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' } : s)
@@ -50,12 +51,17 @@ export default function Reports() {
         // Add as new sort
         return [...prev, { key: colKey, direction: 'desc' }]
       }
-      // Regular click: single column sort or toggle
+      // Regular click: three-state cycle (desc → asc → unsorted)
       if (idx === 0 && prev.length === 1) {
-        // Toggle direction if already primary
-        return [{ key: colKey, direction: prev[0].direction === 'asc' ? 'desc' : 'asc' }]
+        if (prev[0].direction === 'desc') {
+          // desc → asc
+          return [{ key: colKey, direction: 'asc' }]
+        } else {
+          // asc → unsorted (clear sort)
+          return []
+        }
       }
-      // Set as primary sort
+      // New column or replacing multi-sort: start with desc
       return [{ key: colKey, direction: 'desc' }]
     })
   }
@@ -140,7 +146,7 @@ export default function Reports() {
         }
       }
     } catch (ex) {
-      console.error('Report generation failed:', ex)
+      toast('Report generation failed', 'error')
       setLoadErr(ex?.detail || ex?.message || LOAD_ERROR)
     } finally { setLoading(false) }
   }
@@ -202,7 +208,7 @@ export default function Reports() {
           <button onClick={setToday} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>Today</T></button>
           <button onClick={() => { setStart(thisWeekStart()); setEnd(today()) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>This Week</T></button>
           <button onClick={() => { setStart(firstOfMonth()); setEnd(today()) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>This Month</T></button>
-          <button onClick={() => { const d = new Date(); d.setMonth(d.getMonth() - 1); setStart(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`); const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0); setEnd(lastDay.toISOString().slice(0, 10)) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>Last Month</T></button>
+          <button onClick={() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); setStart(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`); const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0); setEnd(lastDay.toISOString().slice(0, 10)) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>Last Month</T></button>
           <button onClick={() => { const d = new Date(); setStart(`${d.getFullYear()}-01-01`); setEnd(today()) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>This Year</T></button>
         </div>
 
@@ -210,11 +216,11 @@ export default function Reports() {
         <div className="flex flex-wrap items-end gap-4">
           <div className="min-w-[7rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
           <div className="min-w-[7rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
           <div className="flex-1 min-w-[12rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Report Category</T></label>
@@ -264,22 +270,22 @@ export default function Reports() {
           </div>
           {/* Sort Panel */}
           {sorts.length > 0 && (
-            <div className="px-5 py-3 bg-blue-50/50 border-b border-blue-100 flex flex-wrap items-center gap-2">
+            <div className="px-5 py-3 bg-maroon-50/50 border-b border-maroon-100 flex flex-wrap items-center gap-2">
               <span className="text-[0.75rem] text-gray-500 font-medium"><T>Sorted by</T>:</span>
               {sorts.map((s, i) => {
                 const col = result?.columns?.find((c) => c.key === s.key)
                 return (
-                  <span key={s.key} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-blue-200 text-[0.75rem] font-medium text-blue-700">
-                    <span className="w-4 h-4 rounded-full bg-blue-100 text-[0.625rem] font-bold grid place-items-center">{i + 1}</span>
+                  <span key={s.key} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-maroon-200 text-[0.75rem] font-medium text-maroon-700 shadow-sm">
+                    {sorts.length > 1 && <span className="w-4 h-4 rounded-full bg-maroon-100 text-[0.625rem] font-bold grid place-items-center">{i + 1}</span>}
                     {tr(col?.label || s.key)}
-                    <button onClick={() => handleColumnClick(s.key, { shiftKey: true })} className="hover:text-blue-900">
+                    <button onClick={() => handleColumnClick(s.key, { shiftKey: true })} className="hover:text-maroon-900 p-0.5 rounded hover:bg-maroon-100 transition-colors" title={tr("Toggle direction")}>
                       {s.direction === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
                     </button>
-                    <button onClick={() => removeSort(s.key)} className="hover:text-red-600 ml-0.5"><X size={12} /></button>
+                    <button onClick={() => removeSort(s.key)} className="hover:text-red-600 p-0.5 rounded hover:bg-red-50 transition-colors ml-0.5" title={tr("Remove sort")}><X size={12} /></button>
                   </span>
                 )
               })}
-              <button onClick={clearSorts} className="text-[0.75rem] text-gray-500 hover:text-red-600 ml-2"><T>Clear All</T></button>
+              <button onClick={clearSorts} className="text-[0.75rem] text-gray-500 hover:text-red-600 ml-2 transition-colors"><T>Clear All</T></button>
             </div>
           )}
           <div className="overflow-x-auto">
@@ -292,14 +298,18 @@ export default function Reports() {
                   return (
                     <th key={c.key}
                       onClick={(e) => handleColumnClick(c.key, e)}
-                      className={`px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${c.type !== 'text' ? 'text-right' : ''} ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                      title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                      <span className="inline-flex items-center gap-1">
+                      className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${c.type !== 'text' ? 'text-right' : ''} ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                      title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                      <span className="inline-flex items-center gap-0.5">
                         {tr(c.label)}
-                        {isSorted && (
-                          <span className="inline-flex items-center gap-0.5 text-blue-600">
-                            {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                            {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                        {isSorted ? (
+                          <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                            {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                            {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ChevronsUpDown size={14} strokeWidth={2} />
                           </span>
                         )}
                       </span>
@@ -330,7 +340,7 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
-          {result?.rows && <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">{tr('Showing')} 1 {tr('to')} {sortedRows.length} {tr('of')} {sortedRows.length} {tr('records')}{sorts.length > 0 && <span className="text-blue-600 ml-2">• {tr('Sorted')}</span>}</div>}
+          {result?.rows && <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">{tr('Showing')} 1 {tr('to')} {sortedRows.length} {tr('of')} {sortedRows.length} {tr('records')}{sorts.length > 0 && <span className="text-maroon-600 ml-2">• {tr('Sorted')}</span>}</div>}
         </div>
       </div>
     </div>

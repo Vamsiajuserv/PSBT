@@ -4,7 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import or_, func
 
-from ..helpers import next_code_seq, assert_positive, assert_txn_date_open
+from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, validate_pagination
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -58,6 +58,8 @@ def list_donations(q: str = "", type: str = "", category: str = "", mode: str = 
                    start: date | None = None, end: date | None = None,
                    page: int = 1, size: int = 50,
                    db: Session = Depends(get_db), user=Depends(read)):
+    # Validate pagination parameters (DoS prevention)
+    page, size = validate_pagination(page, size)
     query = db.query(Donation).filter(Donation.voided.isnot(True))
     if q:
         like = f"%{q}%"

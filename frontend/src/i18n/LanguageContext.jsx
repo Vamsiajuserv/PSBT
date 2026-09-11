@@ -128,7 +128,8 @@ const UI_TE = {
   'Quantity': 'పరిమాణం', 'Rate': 'రేటు', 'Notes': 'గమనికలు', 'Reason': 'కారణం',
   'Module': 'మాడ్యూల్', 'Transactions': 'లావాదేవీలు', 'Description': 'వివరణ',
   'Category': 'వర్గం', 'Item': 'వస్తువు', 'Winner': 'విజేత', 'Vendor': 'విక్రేత',
-  'Gothram': 'గోత్రం', 'Nakshatram': 'నక్షత్రం', 'City': 'నగరం', 'Address': 'చిరునామా',
+  'Gothram': 'గోత్రం', 'Nakshatram': 'నక్షత్రం', 'PAN Number': 'పాన్ నంబర్', 'PAN': 'పాన్', 'City': 'నగరం', 'Address': 'చిరునామా',
+  'e.g. ABCDE1234F': 'ఉదా. ABCDE1234F', 'Required for 80G receipts above ₹50,000': '₹50,000 పైన 80G రసీదులకు అవసరం',
   'Mobile': 'మొబైల్', 'Refund': 'వాపసు', 'Refunds': 'వాపసులు',
   'Validity': 'చెల్లుబాటు', 'Persons': 'వ్యక్తులు', 'Occasion': 'సందర్భం',
   'Festival': 'పండుగ', 'Collection Date': 'వసూలు తేదీ', 'Denomination': 'డినామినేషన్',
@@ -407,6 +408,7 @@ const UI_TE = {
   'Time Slot *': 'సమయ స్లాట్ *',
   'Type': 'రకం',
   'UPI Transaction ID / UTR *': 'యుపిఐ లావాదేవీ ఐడి / UTR *',
+  'Scan with any UPI app to pay': 'చెల్లించడానికి ఏదైనా యుపిఐ యాప్‌తో స్కాన్ చేయండి',
   'UTR / Transaction ID': 'UTR / లావాదేవీ ఐడి',
   'UTR / Transaction ID *': 'UTR / లావాదేవీ ఐడి *',
   'Unit': 'యూనిట్',
@@ -577,6 +579,18 @@ const UI_TE = {
   'Select a plan first.': 'మొదట ఒక ప్లాన్ ఎంచుకోండి.',
   'Select a plan for details': 'వివరాల కోసం ఒక ప్లాన్ ఎంచుకోండి',
   'Select a pooja to view available plans.': 'అందుబాటులో ఉన్న ప్లాన్‌లను చూడటానికి పూజను ఎంచుకోండి.',
+  'Select or type Gothram': 'గోత్రం ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type Nakshatram': 'నక్షత్రం ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type city': 'నగరం ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type occasion': 'సందర్భం ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type material': 'పదార్థం ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type name': 'పేరు ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type item name': 'వస్తువు పేరు ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type item': 'వస్తువు ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type category': 'వర్గం ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type frequency': 'ఫ్రీక్వెన్సీ ఎంచుకోండి లేదా టైప్ చేయండి',
+  'Select or type designation': 'హోదా ఎంచుకోండి లేదా టైప్ చేయండి',
+  'e.g. bags, kg': 'ఉదా. బస్తాలు, కేజీలు',
   'Calculated Amount': 'గణించిన మొత్తం',
   'Calculated Donation Amount': 'గణించిన విరాళ మొత్తం',
   'UPI / QR Code': 'యుపిఐ / క్యూఆర్ కోడ్',
@@ -2061,6 +2075,16 @@ const UI_TE = {
   'Festivals Poojas': 'పండుగ పూజలు',
   'Special Poojas': 'ప్రత్యేక పూజలు',
   'Vehicle Poojas': 'వాహన పూజలు',
+  // DEF-002, DEF-010: Time slot validation messages
+  'Cannot assign to an expired time slot. Please select a future time slot or date.': 'గడువు ముగిసిన సమయ స్లాట్‌కు కేటాయించలేరు. దయచేసి భవిష్యత్ సమయ స్లాట్ లేదా తేదీని ఎంచుకోండి.',
+  'The selected time slot has already passed. Please choose a future time slot or a different date.': 'ఎంచుకున్న సమయ స్లాట్ ఇప్పటికే గడిచిపోయింది. దయచేసి భవిష్యత్ సమయ స్లాట్ లేదా వేరే తేదీని ఎంచుకోండి.',
+  // DEF-011: Password validation messages
+  'Password must be at least 6 characters long': 'పాస్‌వర్డ్ కనీసం 6 అక్షరాలు ఉండాలి',
+  'Password must contain at least one letter': 'పాస్‌వర్డ్‌లో కనీసం ఒక అక్షరం ఉండాలి',
+  'Password must contain at least one number': 'పాస్‌వర్డ్‌లో కనీసం ఒక సంఖ్య ఉండాలి',
+  // DEF-003: Email validation messages
+  'Email contains invalid special characters': 'ఇమెయిల్‌లో చెల్లని ప్రత్యేక అక్షరాలు ఉన్నాయి',
+  'Invalid email format': 'చెల్లని ఇమెయిల్ ఫార్మాట్',
 }
 
 const LangCtx = createContext(null)

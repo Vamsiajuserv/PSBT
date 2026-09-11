@@ -1,5 +1,5 @@
 """Poojari master + daily pooja schedule + assignment."""
-from datetime import date
+from datetime import date, datetime, time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import func, or_, and_
@@ -239,6 +239,38 @@ def complete_due(body: dict | None = None, request: Request = None,
     return {"completed": completed, "skipped": skipped}
 
 
+def _parse_time_slot(slot: str | None) -> time | None:
+    """Parse a time slot string like '6:00 AM - 8:00 AM' to get the end time.
+    Returns None if parsing fails or slot is None."""
+    if not slot:
+        return None
+    try:
+        # Extract end time from slot (e.g., "6:00 AM - 8:00 AM" -> "8:00 AM")
+        parts = slot.split(' - ')
+        if len(parts) == 2:
+            end_str = parts[1].strip()
+        else:
+            end_str = parts[0].strip()  # Single time like "6:00 AM"
+        return datetime.strptime(end_str, "%I:%M %p").time()
+    except (ValueError, IndexError):
+        return None
+
+
+def _is_slot_expired(booking: "Booking") -> bool:
+    """Check if a booking's time slot has expired.
+    DEF-002: Prevent poojari assignment for expired slots."""
+    today = date.today()
+    # If scheduled in the past, it's expired
+    if booking.scheduled_date and booking.scheduled_date < today:
+        return True
+    # If scheduled today, check if time slot has passed
+    if booking.scheduled_date == today and booking.time_slot:
+        slot_end = _parse_time_slot(booking.time_slot)
+        if slot_end and datetime.now().time() > slot_end:
+            return True
+    return False
+
+
 class AssignIn(BaseModel):
     booking_id: int
     poojari_id: int | None = None
@@ -262,9 +294,14 @@ def assign_bulk(body: BulkAssignIn, request: Request, db: Session = Depends(get_
             raise HTTPException(404, "Poojari not found")
 
     assigned = 0
+    skipped_expired = 0
     for bid in body.booking_ids:
         b = db.get(Booking, bid)
         if not b:
+            continue
+        # DEF-002: Skip expired time slots when assigning (allow unassigning)
+        if body.poojari_id and _is_slot_expired(b):
+            skipped_expired += 1
             continue
         if body.poojari_id and p:
             b.poojari_id = p.id
@@ -277,7 +314,8 @@ def assign_bulk(body: BulkAssignIn, request: Request, db: Session = Depends(get_
     db.commit()
     log_action(db, username=user.username, action="UPDATE", entity="Booking",
                detail=f"Bulk assigned {p.name if p else 'none'} → {assigned} bookings", ip=client_ip(request))
-    return {"ok": True, "assigned": assigned, "poojari_name": p.name if p else None}
+    return {"ok": True, "assigned": assigned, "poojari_name": p.name if p else None,
+            "skipped_expired": skipped_expired}
 
 
 @router.post("/assign")
@@ -285,6 +323,9 @@ def assign(body: AssignIn, request: Request, db: Session = Depends(get_db), user
     b = db.get(Booking, body.booking_id)
     if not b:
         raise HTTPException(404, "Booking not found")
+    # DEF-002: Prevent assignment to expired time slots
+    if body.poojari_id and _is_slot_expired(b):
+        raise HTTPException(400, "Cannot assign poojari to an expired time slot")
     if body.poojari_id:
         p = db.get(Poojari, body.poojari_id)
         if not p:

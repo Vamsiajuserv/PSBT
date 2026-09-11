@@ -70,8 +70,10 @@ def _get_sunrise_jd(year: int, month: int, day: int) -> Optional[float]:
         result = swe.rise_trans(jd_midnight, swe.SUN, SE_CALC_RISE, geopos)
         if result[0] == 0:  # Success
             return result[1][0]  # Julian day of sunrise
-    except Exception:
-        pass
+    except Exception as e:
+        # Log sunrise calculation failure - non-critical, fallback to None
+        import logging
+        logging.getLogger(__name__).debug(f"Sunrise calculation failed for {year}-{month}-{day}: {e}")
 
     return None
 
@@ -683,8 +685,9 @@ def _get_sunset_jd(year: int, month: int, day: int) -> Optional[float]:
         result = swe.rise_trans(jd_midnight, swe.SUN, SE_CALC_RISE + 1, geopos)
         if result[0] == 0:
             return result[1][0]
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"Sunset calculation failed for {year}-{month}-{day}: {e}")
 
     return None
 

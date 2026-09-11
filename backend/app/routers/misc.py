@@ -1,5 +1,5 @@
 """Hundi, Auction and Annadanam routers (grouped)."""
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
@@ -189,7 +189,7 @@ def verify_hundi(hid: int, request: Request, db: Session = Depends(get_db),
         raise HTTPException(403, "The person who recorded the collection cannot verify it — a different committee member must attest.")
     h.verification_status = "Verified"
     h.verified_by = user.name or user.username
-    h.verified_on = datetime.utcnow()
+    h.verified_on = datetime.now(timezone.utc)
     h.status = "Verified"
     db.commit(); db.refresh(h)
     log_action(db, username=user.username, action="UPDATE", entity="Hundi",
@@ -430,7 +430,7 @@ def verify_auction(aid: int, request: Request,
         raise HTTPException(403, "The person who recorded the auction cannot verify it.")
     au.verification_status = "Verified"
     au.verified_by = user.name or user.username
-    au.verified_at = datetime.utcnow()
+    au.verified_at = datetime.now(timezone.utc)
     au.rejection_reason = None
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
@@ -455,7 +455,7 @@ def reject_auction(aid: int, body: dict, request: Request,
     au.verification_status = "Rejected"
     au.rejection_reason = reason
     au.verified_by = user.name or user.username
-    au.verified_at = datetime.utcnow()
+    au.verified_at = datetime.now(timezone.utc)
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
                detail=f"Rejected {au.code}: {reason[:80]}", ip=client_ip(request))
@@ -487,7 +487,7 @@ def collect_auction_payment(aid: int, body: dict, request: Request,
     au.payment_mode = mode
     au.payment_ref = (body.get("txn_ref") or "").strip() or None
     au.receipt_no = f"AUCR-{year}-{str(seq).zfill(4)}"
-    au.paid_at = datetime.utcnow()
+    au.paid_at = datetime.now(timezone.utc)
     au.paid_by = user.username
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction",

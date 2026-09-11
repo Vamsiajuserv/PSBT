@@ -528,3 +528,128 @@ export function DemoNote({ children }) {
     </div>
   )
 }
+
+// ── Loading States ───────────────────────────────────────────────────────────
+
+// Spinning loader indicator
+export function Spinner({ size = 'md', className = '' }) {
+  const sizes = { sm: 'w-4 h-4', md: 'w-6 h-6', lg: 'w-8 h-8', xl: 'w-10 h-10' }
+  return (
+    <div className={`animate-spin ${sizes[size] || sizes.md} ${className}`} role="status" aria-label="Loading">
+      <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+    </div>
+  )
+}
+
+// Full-page loading overlay
+export function LoadingOverlay({ message }) {
+  const { t } = useLang()
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-3">
+        <Spinner size="xl" className="text-maroon-600" />
+        {message && <p className="text-sm text-gray-600">{t(message)}</p>}
+      </div>
+    </div>
+  )
+}
+
+// Inline loading indicator for buttons
+export function ButtonSpinner() {
+  return <Spinner size="sm" className="text-current" />
+}
+
+// Skeleton loader for content placeholders
+export function Skeleton({ className = '', width, height, rounded = 'rounded' }) {
+  const style = {}
+  if (width) style.width = width
+  if (height) style.height = height
+  return (
+    <div
+      className={`animate-pulse bg-gray-200 ${rounded} ${className}`}
+      style={style}
+      aria-hidden="true"
+    />
+  )
+}
+
+// Skeleton row for tables
+export function SkeletonRow({ columns = 5, className = '' }) {
+  return (
+    <tr className={className}>
+      {Array.from({ length: columns }).map((_, i) => (
+        <td key={i} className="px-4 py-3">
+          <Skeleton className="h-4" />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
+// Skeleton card
+export function SkeletonCard({ className = '' }) {
+  return (
+    <div className={`card p-5 ${className}`}>
+      <Skeleton className="h-4 w-24 mb-3" />
+      <Skeleton className="h-8 w-20 mb-2" />
+      <Skeleton className="h-3 w-16" />
+    </div>
+  )
+}
+
+// ── Error States ─────────────────────────────────────────────────────────────
+
+// Error message display
+export function ErrorMessage({ error, onRetry, className = '' }) {
+  const { t } = useLang()
+  if (!error) return null
+  const message = typeof error === 'string' ? error : (error?.detail || error?.message || 'An error occurred')
+  return (
+    <div className={`bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 flex items-start gap-3 ${className}`} role="alert">
+      <span className="text-red-500 mt-0.5">⚠️</span>
+      <div className="flex-1 text-sm">
+        <p>{t(message)}</p>
+        {onRetry && (
+          <button onClick={onRetry} className="mt-2 text-red-800 underline hover:no-underline text-xs font-medium">
+            {t('Try again')}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Empty state display
+export function EmptyState({ icon: Icon, title, message, action }) {
+  const { t } = useLang()
+  return (
+    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+      {Icon && (
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <Icon size={28} className="text-gray-400" />
+        </div>
+      )}
+      {title && <h3 className="font-serif font-bold text-gray-700 text-lg mb-1">{t(title)}</h3>}
+      {message && <p className="text-sm text-gray-500 max-w-sm">{t(message)}</p>}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  )
+}
+
+// Success message toast-like inline display
+export function SuccessMessage({ message, onDismiss, className = '' }) {
+  const { t } = useLang()
+  if (!message) return null
+  return (
+    <div className={`bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg px-4 py-3 flex items-center gap-3 ${className}`} role="status">
+      <span className="text-emerald-500">✓</span>
+      <p className="flex-1 text-sm">{t(message)}</p>
+      {onDismiss && (
+        <button onClick={onDismiss} className="text-emerald-600 hover:text-emerald-800" aria-label="Dismiss">×</button>
+      )}
+    </div>
+  )
+}

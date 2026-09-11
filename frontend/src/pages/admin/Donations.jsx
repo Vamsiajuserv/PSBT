@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import {
   Plus, X, Printer, Eye, Search, RotateCcw, Calendar, Info, ChevronDown,
-  Sprout, CalendarDays, Package, HandHeart, User, ArrowUp, ArrowDown,
+  Sprout, CalendarDays, Package, HandHeart, User,
 } from 'lucide-react'
-import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { toast } from '../../components/common/Dialog.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
@@ -11,7 +12,7 @@ import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
+import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, stamp, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName } from '../../lib/validation.js'
 
@@ -58,18 +59,22 @@ export default function Donations() {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
 
-  // Sortable table columns
+  // Sortable table columns with filtering support
   const sortColumns = [
     { key: 'code', label: 'Donation ID', type: 'text' },
     { key: 'donor_name', label: 'Devotee', type: 'text' },
-    { key: 'donation_type', label: 'Donation Type', type: 'text' },
+    { key: 'donation_type', label: 'Donation Type', type: 'text', filterable: true, filterOptions: ['Cash', 'Material', 'Sponsorship'] },
     { key: 'category_name', label: 'Category', type: 'text' },
     { key: 'amount', label: 'Amount / Material', type: 'money' },
-    { key: 'mode', label: 'Payment Mode', type: 'text' },
+    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', 'UPI/QR Code'] },
     { key: 'donated_on', label: 'Donated On', type: 'date' },
     { key: 'receipt_no', label: 'Receipt No.', type: 'text' },
   ]
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'donated_on', direction: 'desc' }])
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
+  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'donated_on', direction: 'desc' }])
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
@@ -87,12 +92,12 @@ export default function Donations() {
   useEffect(() => { setPage(1) }, [q, type, category, mode, start, end])
 
   useEffect(() => {
-    DonationCategoriesAPI.list().then((r) => setCats(r.items.filter((c) => c.active))).catch(() => {})
+    DonationCategoriesAPI.list().then((r) => setCats(r.items.filter((c) => c.active))).catch(() => toast('Failed to load donation categories', 'error'))
   }, [])
 
   // debounced devotee type-ahead (only while the drawer is open and none picked yet)
   useEffect(() => {
-    if (!drawer || drawer.devotee_id || dq.trim().length < 1) { setDevResults([]); return }
+    if (!drawer || drawer.devotee_id || dq.trim().length < 4) { setDevResults([]); return }
     const t = setTimeout(
       () => DevoteesAPI.list({ q: dq, size: 6 }).then((r) => setDevResults(r.items || [])).catch(() => setDevResults([])),
       250,
@@ -106,7 +111,7 @@ export default function Donations() {
   )
 
   function setDType(t) {
-    const first = cats.find((c) => c.type === t)
+    const first = (cats || []).find((c) => c.type === t)
     setDrawer((m) => ({
       ...m, donation_type: t, fund: first?.name || '',
       unit: t === 'Material' ? (first?.unit || '') : '', quantity: '', amount: t === 'Material' ? '' : m.amount,
@@ -114,7 +119,7 @@ export default function Donations() {
     }))
   }
   function setFund(name) {
-    const c = cats.find((x) => x.name === name)
+    const c = (cats || []).find((x) => x.name === name)
     // Auto-enable 80G for Medical donations (case-insensitive check)
     const isMedical = (name || '').toLowerCase().includes('medical')
     setDrawer((m) => ({ ...m, fund: name, unit: m.donation_type === 'Material' ? (c?.unit || '') : m.unit,
@@ -133,10 +138,47 @@ export default function Donations() {
     e.preventDefault()
     if (saving) return
     const m = drawer
+
+    // Validate amount/quantity based on donation type
+    if (m.donation_type === 'Material') {
+      const qty = Number(m.quantity || 0)
+      if (qty <= 0) {
+        setPanErr(tr('Quantity must be greater than zero for material donations.'))
+        return
+      }
+    } else {
+      const amt = Number(m.amount || 0)
+      if (amt <= 0) {
+        setPanErr(tr('Amount must be greater than zero.'))
+        return
+      }
+    }
+
     // 80G receipts require a PAN — block submit when eligible but PAN is missing.
     if (m.g80 && !(m.pan || '').trim()) {
-      setPanErr('PAN is required for tax-exemption (80G) receipts.')
+      setPanErr(tr('PAN is required for tax-exemption (80G) receipts.'))
       return
+    }
+
+    // UTR is required for UPI/QR Code payments (non-material donations)
+    if (m.donation_type !== 'Material' && m.mode === 'UPI/QR Code') {
+      const trimmedUtr = (m.txn_ref || '').trim()
+      if (!trimmedUtr) {
+        setPanErr(tr('UTR / Transaction ID is required for UPI payments.'))
+        return
+      }
+      if (trimmedUtr.length < 12) {
+        setPanErr(tr('UTR must be at least 12 characters.'))
+        return
+      }
+      if (trimmedUtr.length > 22) {
+        setPanErr(tr('UTR cannot exceed 22 characters.'))
+        return
+      }
+      if (!/^[A-Za-z0-9]+$/.test(trimmedUtr)) {
+        setPanErr(tr('UTR must contain only letters and numbers.'))
+        return
+      }
     }
     setPanErr(''); setSaving(true)
     const payload = {
@@ -202,11 +244,11 @@ export default function Donations() {
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
           <div className="min-w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Donation Type</T></label>
@@ -222,34 +264,40 @@ export default function Donations() {
           </div>
         </div>
 
-        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={sortColumns}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-              {sortColumns.map((col) => {
-                const sortIdx = getSortIndex(col.key)
-                const sortDir = getSortDirection(col.key)
-                const isSorted = sortIdx >= 0
-                return (
-                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
-                      {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                        </span>
-                      )}
-                    </span>
-                  </th>
-                )
-              })}
+              {sortColumns.map((col) => (
+                <SortableFilterableTh
+                  key={col.key}
+                  colKey={col.key}
+                  label={tr(col.label)}
+                  type={col.type}
+                  filterable={col.filterable}
+                  filterOptions={col.filterOptions}
+                  onSort={handleColumnClick}
+                  sortIndex={getSortIndex(col.key)}
+                  sortDirection={getSortDirection(col.key)}
+                  multiSort={sorts.length > 1}
+                  filterValues={getFilterValues(col.key)}
+                  onToggleFilter={toggleFilterValue}
+                  onClearFilter={clearFilter}
+                />
+              ))}
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRows.map((d) => (
+              {filteredSortedRows.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-maroon-600">{d.donation_code || d.receipt_no}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: d.donor_name, name_te: d.donor_name_te }, lang)}</td>
@@ -333,15 +381,21 @@ export default function Donations() {
               </div>
 
               <div><label className="label"><T>Donation Category *</T></label>
-                <Select required value={drawer.fund} onChange={(e) => setFund(e.target.value)} className="input"><option value="">{tr("Select category…")}</option>{drawerCats.map((c) => <option key={c.id}>{c.name}</option>)}</Select></div>
+                <Combobox
+                  value={drawer.fund}
+                  onChange={(e) => setFund(e.target.value)}
+                  options={drawerCats.map((c) => c.name)}
+                  placeholder={tr("Select or type category")}
+                  className="input"
+                /></div>
 
               {drawer.donation_type === 'Material' ? (
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="label"><T>Quantity *</T></label><NumberField required step="0.01" min="0" value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
-                  <div><label className="label"><T>Unit</T></label><input className="input bg-gray-50" value={drawer.unit || ''} readOnly /></div>
+                  <div><label className="label"><T>Quantity *</T></label><NumberField required step="0.01" min="0.01" max="999999" value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
+                  <div><label className="label"><T>Unit</T></label><input className="input" placeholder={tr("e.g. bags, kg")} value={drawer.unit || ''} onChange={(e) => setDrawer({ ...drawer, unit: e.target.value })} /></div>
                 </div>
               ) : (
-                <div><label className="label"><T>Amount (₹) *</T></label><NumberField required min="1" prefix="₹" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>
+                <div><label className="label"><T>Amount (₹) *</T></label><NumberField required min="1" max="99999999" step="0.01" prefix="₹" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>
               )}
 
               {drawer.donation_type !== 'Material' && (

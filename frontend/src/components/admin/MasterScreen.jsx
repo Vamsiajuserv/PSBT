@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Plus, Pencil, Trash2, X, Save, RotateCcw, Search, Info, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Save, RotateCcw, Search, Info, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num } from './ui.jsx'
-import { useSortableTable, SortPanel } from '../common/SortableTable.jsx'
+import { useSortableTable, SortPanel, SortIndicator, UnsortedIndicator } from '../common/SortableTable.jsx'
 import { TableStates, LOAD_ERROR } from '../common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountryDigits } from '../common/Field.jsx'
@@ -136,16 +136,14 @@ export default function MasterScreen({ config }) {
                   const isSorted = sortIdx >= 0
                   return (
                     <th key={c.key} onClick={(e) => handleColumnClick(c.key, e)}
-                      className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                      title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                      <span className="inline-flex items-center gap-1">
+                      className={`group px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                      title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                      <span className="inline-flex items-center gap-0.5">
                         {tr(c.label)}
-                        {isSorted && (
-                          <span className="inline-flex items-center gap-0.5 text-blue-600">
-                            {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                            {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                          </span>
-                        )}
+                        {isSorted
+                          ? <SortIndicator index={sortIdx} direction={sortDir} multiSort={sorts.length > 1} />
+                          : <UnsortedIndicator />
+                        }
                       </span>
                     </th>
                   )
@@ -160,16 +158,14 @@ export default function MasterScreen({ config }) {
                   const isSorted = sortIdx >= 0
                   return (
                     <th onClick={(e) => handleColumnClick(sortCol.key, e)}
-                      className={`px-4 py-3 font-semibold cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                      title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                      <span className="inline-flex items-center gap-1">
+                      className={`group px-4 py-3 font-semibold cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                      title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                      <span className="inline-flex items-center gap-0.5">
                         <T>Status</T>
-                        {isSorted && (
-                          <span className="inline-flex items-center gap-0.5 text-blue-600">
-                            {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                            {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                          </span>
-                        )}
+                        {isSorted
+                          ? <SortIndicator index={sortIdx} direction={sortDir} multiSort={sorts.length > 1} />
+                          : <UnsortedIndicator />
+                        }
                       </span>
                     </th>
                   )

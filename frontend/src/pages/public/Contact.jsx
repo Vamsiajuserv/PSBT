@@ -132,20 +132,18 @@ export default function Contact() {
                     onChange={(e) => { const v = e.target.value.replace(/[^a-zA-Z\s.]/g, ''); setForm((f) => ({ ...f, name: v })) }} />
                 </div>
               </div>
-              <div className="grid sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="label">{t('Mobile')}</label>
-                  <div className="flex">
-                    <CountryCodeSelect value={form.countryCode} onChange={(e) => setForm((f) => ({ ...f, countryCode: e.target.value, mobile: '' }))} />
-                    <input className="input !rounded-l-none flex-1" inputMode="tel" placeholder={tr("Enter mobile number")} value={form.mobile}
-                      maxLength={getCountryDigits(form.countryCode)}
-                      onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setForm((f) => ({ ...f, mobile: v })) }} />
-                  </div>
+              <div>
+                <label className="label">{t('Mobile')}</label>
+                <div className="flex w-full">
+                  <CountryCodeSelect value={form.countryCode} onChange={(e) => setForm((f) => ({ ...f, countryCode: e.target.value, mobile: '' }))} />
+                  <input className="input !rounded-l-none flex-1 min-w-0 w-full placeholder:text-gray-500" inputMode="tel" placeholder={tr("Enter mobile number")} value={form.mobile}
+                    maxLength={getCountryDigits(form.countryCode)}
+                    onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setForm((f) => ({ ...f, mobile: v })) }} />
                 </div>
-                <div>
-                  <label className="label">{t('Email')}</label>
-                  <input className="input" type="email" placeholder={tr("you@example.com")} value={form.email} onChange={set('email')} />
-                </div>
+              </div>
+              <div>
+                <label className="label">{t('Email')}</label>
+                <input className="input" type="email" placeholder={tr("you@example.com")} value={form.email} onChange={set('email')} />
               </div>
               <div>
                 <label className="label">{t('Subject')}</label>

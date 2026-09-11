@@ -1,21 +1,21 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { ScrollText, Activity, LogIn, Users, Search, RotateCcw, ArrowUp, ArrowDown } from 'lucide-react'
+import { ScrollText, Activity, LogIn, Users, Search, RotateCcw } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { AuditAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { T, tr, auditDetail, personName, useLang } from '../../i18n/LanguageContext.jsx'
 
 const ACTION_TONE = { LOGIN: 'blue', CREATE: 'green', UPDATE: 'amber', DELETE: 'red', DENIED: 'red', LOGOUT: 'gray' }
 const ACTIONS = ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'DENIED']
 
-// Sortable columns configuration
+// Sortable columns configuration with filtering support
 const SORT_COLUMNS = [
   { key: 'ts', label: 'Timestamp', type: 'date' },
   { key: 'username', label: 'User', type: 'text' },
-  { key: 'action', label: 'Action', type: 'text' },
-  { key: 'status', label: 'Status', type: 'text' },
+  { key: 'action', label: 'Action', type: 'text', filterable: true, filterOptions: ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'DENIED', 'LOGOUT'] },
+  { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['SUCCESS', 'FAILED'] },
 ]
 
 export default function AuditTrail() {
@@ -34,8 +34,12 @@ export default function AuditTrail() {
   const [loadErr, setLoadErr] = useState('')
   const size = 20
 
-  // Sorting
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'ts', direction: 'desc' }])
+  // Sorting with filtering
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
+  } = useFilterableSortableTable(rows, SORT_COLUMNS, [{ key: 'ts', direction: 'desc' }])
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
@@ -78,13 +82,22 @@ export default function AuditTrail() {
             <Select value={action} onChange={(e) => setAction(e.target.value)} className="input"><option value="">{tr("All")}</option>{ACTIONS.map((a) => <option key={a}>{a}</option>)}</Select></div>
           <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Entity</T></label>
             <Select value={entity} onChange={(e) => setEntity(e.target.value)} className="input"><option value="">{tr("All")}</option>{entities.map((e) => <option key={e}>{e}</option>)}</Select></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label><DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
+          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label><DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" /></div>
           <div className="flex gap-2 items-end">
-            <div className="flex-1"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label><DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></div>
+            <div className="flex-1"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label><DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" /></div>
             <button type="button" onClick={() => { setQ(''); setAction(''); setEntity(''); setStart(''); setEnd(''); setPage(1) }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
           </div>
         </div>
-        <SortPanel sorts={sorts} columns={SORT_COLUMNS} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={SORT_COLUMNS}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -96,14 +109,18 @@ export default function AuditTrail() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -119,14 +136,18 @@ export default function AuditTrail() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr('Status')}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -136,7 +157,7 @@ export default function AuditTrail() {
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('IP Address')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRows.map((r) => (
+              {filteredSortedRows.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(r.ts)}</td>
                   <td className="px-4 py-3">
@@ -154,7 +175,7 @@ export default function AuditTrail() {
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-400">{r.ip || '—'}</td>
                 </tr>
               ))}
-              {sortedRows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No audit events found.")} />}
+              {filteredSortedRows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No audit events found.")} />}
             </tbody>
           </table>
         </div>

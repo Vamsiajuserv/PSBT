@@ -2,10 +2,10 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, RotateCcw, Eye, X, Printer, Calendar, Flame, CalendarCheck, Users, Infinity as InfinityIcon,
-  FileText, User, Sparkles, ClipboardList, StickyNote, Info, CheckCircle2, XCircle, Clock, ArrowUp, ArrowDown,
-  Download,
+  FileText, User, Sparkles, ClipboardList, StickyNote, Info, CheckCircle2, XCircle, Clock, Download,
 } from 'lucide-react'
-import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { toast } from '../../components/common/Dialog.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
@@ -107,8 +107,11 @@ export default function PoojaHistory() {
   }
 
   // Handle manual date change - switch to custom
+  // DEF-006: Clear end date if new start is after current end
   const handleStartChange = (e) => {
-    setStart(e.target.value)
+    const newStart = e.target.value
+    setStart(newStart)
+    if (end && newStart > end) setEnd('')
     setDatePreset('custom')
   }
   const handleEndChange = (e) => {
@@ -145,18 +148,22 @@ export default function PoojaHistory() {
     URL.revokeObjectURL(url)
   }
 
-  // Sortable table columns
+  // Sortable table columns with filtering support
   const sortColumns = [
     { key: 'booking_code', label: 'Booking ID', type: 'text' },
     { key: 'devotee_name', label: 'Devotee Name', type: 'text' },
     { key: 'pooja_name', label: 'Pooja Name', type: 'text' },
-    { key: 'plan_name', label: 'Plan', type: 'text' },
+    { key: 'plan_name', label: 'Plan', type: 'text', filterable: true, filterOptions: ['One-Time', 'Daily', 'Monthly', 'Life Long'] },
     { key: 'poojari_name', label: 'Poojari Name', type: 'text' },
     { key: 'scheduled_date', label: 'Performed On', type: 'date' },
     { key: 'ticket_no', label: 'Ticket No.', type: 'text' },
-    { key: 'completion', label: 'Status', type: 'text' },
+    { key: 'completion', label: 'Status', type: 'text', filterable: true, filterOptions: ['Completed', 'Ongoing', 'Cancelled'] },
   ]
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'scheduled_date', direction: 'desc' }])
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
+  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'scheduled_date', direction: 'desc' }])
 
   const load = useCallback(async () => {
     const [d, s] = await Promise.all([
@@ -168,7 +175,7 @@ export default function PoojaHistory() {
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
   useEffect(() => { setPage(1) }, [q, pooja, plan, status, start, end])
 
-  useEffect(() => { PoojasAPI.admin().then((r) => setPoojas(r.items || [])).catch(() => {}) }, [])
+  useEffect(() => { PoojasAPI.admin().then((r) => setPoojas(r.items || [])).catch(() => toast('Failed to load poojas', 'error')) }, [])
   const planNames = [...new Set(poojas.flatMap((p) => (p.plans || []).map((pl) => pl.plan_name)))]
 
   function open(id) { nav(`/admin/pooja-history/${id}`) }
@@ -230,7 +237,7 @@ export default function PoojaHistory() {
           </div>
           <div className="flex-[1_1_8rem] min-w-0">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={handleEndChange} className="input" />
+            <DateField value={end} onChange={handleEndChange} min={start} className="input" />
           </div>
           <div className="flex-[1_1_10rem] min-w-0">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
@@ -247,34 +254,40 @@ export default function PoojaHistory() {
           <button onClick={() => { setQ(''); setPooja(''); setPlan(''); setStatus(''); setStart(todayISO()); setEnd(todayISO()); setDatePreset('today') }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
 
-        <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={sortColumns}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-              {sortColumns.map((col) => {
-                const sortIdx = getSortIndex(col.key)
-                const sortDir = getSortDirection(col.key)
-                const isSorted = sortIdx >= 0
-                return (
-                  <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
-                      {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                        </span>
-                      )}
-                    </span>
-                  </th>
-                )
-              })}
+              {sortColumns.map((col) => (
+                <SortableFilterableTh
+                  key={col.key}
+                  colKey={col.key}
+                  label={tr(col.label)}
+                  type={col.type}
+                  filterable={col.filterable}
+                  filterOptions={col.filterOptions}
+                  onSort={handleColumnClick}
+                  sortIndex={getSortIndex(col.key)}
+                  sortDirection={getSortDirection(col.key)}
+                  multiSort={sorts.length > 1}
+                  filterValues={getFilterValues(col.key)}
+                  onToggleFilter={toggleFilterValue}
+                  onClearFilter={clearFilter}
+                />
+              ))}
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRows.map((b) => (
+              {filteredSortedRows.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>

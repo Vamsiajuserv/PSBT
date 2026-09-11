@@ -444,9 +444,9 @@ export default function Analytics() {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input !py-1.5 !text-sm w-36" />
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input !py-1.5 !text-sm w-36" />
             <span className="text-gray-400">–</span>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input !py-1.5 !text-sm w-36" />
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input !py-1.5 !text-sm w-36" />
           </div>
           <Select value={granularity} onChange={(e) => setGranularity(e.target.value)} className="input !py-1.5 !text-sm w-32">
             <option value="daily">{tr('Daily')}</option>

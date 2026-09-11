@@ -1,5 +1,6 @@
 """Waste Material Sales — vendor register, weighing, sale, payment."""
 from datetime import date, timedelta
+import decimal
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import WasteVendor, WasteSale
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
-from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open
+from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open, validate_pagination
 
 router = APIRouter(prefix="/api/waste", tags=["waste"])
 # Waste sales is Admin/authorised only — gated behind the "Counter" write capability.
@@ -93,10 +94,14 @@ def list_vendors_master(q: str = "", status: str = "", db: Session = Depends(get
 
 @router.post("/vendors")
 def create_vendor(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    # Validate required fields
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Vendor name is required")
     # Use atomic counter to avoid duplicate code issues after deletions
     max_id = db.query(func.max(WasteVendor.id)).scalar() or 0
     seq = next_code_seq(db, "waste_vendor", max_id)
-    v = WasteVendor(code=gen_code("WV", seq, 2), name=body["name"], phone=body.get("phone"),
+    v = WasteVendor(code=gen_code("WV", seq, 2), name=name, phone=body.get("phone"),
                     material_types=body.get("material_types"), active=body.get("active", True))
     db.add(v); db.commit(); db.refresh(v)
     log_action(db, username=user.username, action="CREATE", entity="WasteVendor", detail=v.name, ip=client_ip(request))
@@ -132,6 +137,8 @@ def list_sales(q: str = "", material: str = "", mode: str = "",
                start: date | None = None, end: date | None = None,
                page: int = 1, size: int = 50,
                db: Session = Depends(get_db), user=Depends(read)):
+    # Validate pagination parameters (DoS prevention)
+    page, size = validate_pagination(page, size)
     query = db.query(WasteSale)
     if q:
         like = f"%{q}%"
@@ -155,8 +162,18 @@ def list_sales(q: str = "", material: str = "", mode: str = "",
 @router.post("/sales")
 def create_sale(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(write)):
     from datetime import datetime
-    weight = Decimal(str(body["weight_kg"]))
-    rate = Decimal(str(body["rate"]))
+    # Validate required fields
+    if body.get("weight_kg") is None:
+        raise HTTPException(400, "Weight is required")
+    if body.get("rate") is None:
+        raise HTTPException(400, "Rate is required")
+    if not body.get("material"):
+        raise HTTPException(400, "Material type is required")
+    try:
+        weight = Decimal(str(body["weight_kg"]))
+        rate = Decimal(str(body["rate"]))
+    except (ValueError, TypeError, decimal.InvalidOperation):
+        raise HTTPException(400, "Invalid weight or rate value")
     assert_positive(weight, "Weight")
     assert_positive(rate, "Rate")
     # Amount is always weight × rate — never trusted from the client.
@@ -196,7 +213,7 @@ def delete_sale(sid: int, request: Request, db: Session = Depends(get_db), user=
 # ── Committee Verification ──────────────────────────────────────────────────
 @router.put("/sales/{sid}/verify")
 def verify_sale(sid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(committee)):
-    from datetime import datetime
+    from datetime import datetime, timezone
     s = db.get(WasteSale, sid)
     if not s:
         raise HTTPException(404, "Sale not found")
@@ -209,7 +226,7 @@ def verify_sale(sid: int, body: dict, request: Request, db: Session = Depends(ge
         raise HTTPException(403, "The person who recorded the sale cannot verify it — a different committee member must attest.")
     s.verification_status = "Verified"
     s.verified_by = user.username
-    s.verified_at = datetime.now()
+    s.verified_at = datetime.now(timezone.utc)
     s.rejection_reason = None
     db.commit(); db.refresh(s)
     log_action(db, username=user.username, action="VERIFY", entity="WasteSale",
@@ -219,7 +236,7 @@ def verify_sale(sid: int, body: dict, request: Request, db: Session = Depends(ge
 
 @router.put("/sales/{sid}/reject")
 def reject_sale(sid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(committee)):
-    from datetime import datetime
+    from datetime import datetime, timezone
     s = db.get(WasteSale, sid)
     if not s:
         raise HTTPException(404, "Sale not found")
@@ -233,7 +250,7 @@ def reject_sale(sid: int, body: dict, request: Request, db: Session = Depends(ge
         raise HTTPException(403, "The person who recorded the sale cannot reject it — a different committee member must review.")
     s.verification_status = "Rejected"
     s.verified_by = user.username
-    s.verified_at = datetime.now()
+    s.verified_at = datetime.now(timezone.utc)
     s.rejection_reason = reason
     db.commit(); db.refresh(s)
     log_action(db, username=user.username, action="REJECT", entity="WasteSale",

@@ -1,14 +1,26 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import {
   Clock, User, Phone, CheckCircle2, RotateCcw, Repeat, Flame, Loader2, Download, Printer, X,
+  ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
+import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { PoojarisAPI, BookingsAPI, ApiError } from '../../api/client.js'
 import { DateField } from '../../components/common/Field.jsx'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
+
+// Sortable columns for the queue
+const SORT_COLUMNS = [
+  { key: 'time_slot', label: 'Time Slot', type: 'text' },
+  { key: 'pooja', label: 'Pooja', type: 'text' },
+  { key: 'devotee_name', label: 'Devotee', type: 'text' },
+  { key: 'amount', label: 'Amount', type: 'money' },
+  { key: 'status', label: 'Status', type: 'text' },
+  { key: 'performed_on', label: 'Performed On', type: 'date' },
+]
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const yesterdayISO = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10) }
@@ -56,6 +68,13 @@ export default function PoojariQueue() {
   const [busyId, setBusyId] = useState(null)
   const [showPrintModal, setShowPrintModal] = useState(false)
 
+  // Sorting
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(
+    data?.items || [],
+    SORT_COLUMNS,
+    [{ key: 'time_slot', direction: 'asc' }]
+  )
+
   // Handle preset selection
   const selectPreset = (preset) => {
     setDatePreset(preset.key)
@@ -70,10 +89,13 @@ export default function PoojariQueue() {
   }
 
   // Handle manual date change - switch to custom
+  // DEF-006: Clear end date if it becomes earlier than start date
   const handleStartChange = (e) => {
-    setStartDate(e.target.value)
+    const newStart = e.target.value
+    setStartDate(newStart)
     setDatePreset('custom')
     setIsRangeMode(true)
+    if (endDate && newStart > endDate) setEndDate(newStart)
   }
   const handleEndChange = (e) => {
     setEndDate(e.target.value)
@@ -150,6 +172,7 @@ export default function PoojariQueue() {
   }
 
   const items = data?.items || []
+  const displayItems = sortedRows // Use sorted rows for display
   const pending = items.filter((i) => !i.done_today && i.status === 'Confirmed' && (i.remaining === null || i.remaining > 0)).length
   const done = items.filter((i) => i.done_today || i.status === 'Completed').length
 
@@ -184,7 +207,7 @@ export default function PoojariQueue() {
         </div>
         <div>
           <label className="label"><T>To</T></label>
-          <DateField value={endDate} onChange={handleEndChange} className="mt-1" />
+          <DateField value={endDate} onChange={handleEndChange} min={startDate} className="mt-1" />
         </div>
         {linked && (
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
@@ -219,41 +242,93 @@ export default function PoojariQueue() {
         <span className="text-emerald-700 font-semibold">{done} {tr('done')}</span>
       </div>
 
+      {/* Sort Panel */}
+      {items.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-4 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-3">
+            <span className="text-[0.75rem] text-gray-500 font-medium"><T>Sort by</T>:</span>
+            {SORT_COLUMNS.map((col) => {
+              const sortIdx = getSortIndex(col.key)
+              const sortDir = getSortDirection(col.key)
+              const isSorted = sortIdx >= 0
+              return (
+                <button
+                  key={col.key}
+                  onClick={(e) => handleColumnClick(col.key, e)}
+                  className={`group inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[0.75rem] font-medium border transition ${
+                    isSorted
+                      ? 'bg-maroon-50 border-maroon-200 text-maroon-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-maroon-300 hover:text-maroon-700'
+                  }`}
+                  title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}
+                >
+                  {tr(col.label)}
+                  {isSorted ? (
+                    <span className="inline-flex items-center gap-0.5 text-maroon-600">
+                      {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                      {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                    </span>
+                  ) : (
+                    <ChevronsUpDown size={12} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
+                </button>
+              )
+            })}
+            {sorts.length > 0 && (
+              <button onClick={clearSorts} className="text-[0.75rem] text-gray-500 hover:text-red-600 ml-2 transition-colors">
+                <T>Clear</T>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <LoadingBlock label={tr("Loading pooja queue…")} />
       ) : error ? (
         <ErrorBlock message={error} onRetry={load} />
-      ) : items.length === 0 ? (
+      ) : displayItems.length === 0 ? (
         <div className="card p-10 text-center text-gray-500">
           <Flame size={32} className="mx-auto text-gold-300 mb-3" />
           {mine ? tr('No poojas assigned to you for') : tr('No poojas for')} {isRangeMode ? `${fmtDate(startDate)} - ${fmtDate(endDate)}` : fmtDate(startDate)}.
         </div>
       ) : (
         <div className="space-y-3">
-          {items.map((b) => (
-            <div key={b.id} className={`card p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${b.done_today || b.status === 'Completed' || b.remaining === 0 || b.performed_on ? 'opacity-75 bg-emerald-50/40 border-emerald-100' : ''}`}>
-              {/* Time / Date */}
-              <div className="w-24 shrink-0 text-center">
+          {displayItems.map((b) => {
+            const isDone = b.done_today || b.status === 'Completed' || b.remaining === 0 || b.performed_on
+            return (
+            <div key={b.id} className={`bg-white rounded-xl border shadow-sm p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${isDone ? 'border-emerald-300 bg-gradient-to-r from-emerald-50/70 to-white' : 'border-gray-200'}`}>
+              {/* Time Slot Badge */}
+              <div className={`w-24 shrink-0 rounded-lg p-2 text-center ${isDone ? 'bg-emerald-100' : 'bg-maroon-50'}`}>
                 {isRangeMode && b.performed_on ? (
                   <>
-                    <div className="text-[0.6875rem] text-gray-600"><T>Performed</T></div>
+                    <div className="text-[0.6875rem] text-emerald-600"><T>Performed</T></div>
                     <div className="text-sm font-bold text-emerald-700">{fmtDate(b.performed_on)}</div>
                   </>
                 ) : (
                   <>
-                    <div className="text-[0.6875rem] text-gray-600 flex items-center justify-center gap-1"><Clock size={11} />{' '}<T>Slot</T></div>
+                    <div className="text-[0.6875rem] text-maroon-600 flex items-center justify-center gap-1"><Clock size={11} />{' '}<T>Slot</T></div>
                     <div className="text-sm font-bold text-maroon-700">{clock12(b.time_slot) || '—'}</div>
                   </>
                 )}
               </div>
-              {/* Pooja + devotee */}
+
+              {/* Main Content */}
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-gray-800">{tr(b.pooja)}{b.plan ? <span className="text-gray-600 font-normal"> · {tr(b.plan)}</span> : null}</div>
+                {/* Pooja Name & Plan */}
+                <div className="font-semibold text-gray-800">
+                  {tr(b.pooja)}
+                  {b.plan && <span className="text-maroon-600 font-normal"> · {tr(b.plan)}</span>}
+                </div>
+
+                {/* Devotee Info */}
                 <div className="text-[0.8125rem] text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
                   <span className="flex items-center gap-1"><User size={12} /> {personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</span>
                   {b.mobile && <span className="flex items-center gap-1"><Phone size={12} /> {b.mobile}</span>}
-                  <span className="text-gray-600">#{b.ticket_no || b.booking_code}</span>
+                  <span className="text-maroon-600 font-mono text-[0.75rem] bg-maroon-50 px-1.5 py-0.5 rounded">#{b.ticket_no || b.booking_code}</span>
                 </div>
+
+                {/* Gothram / Nakshatram */}
                 {(b.gothram || b.nakshatram || b.beneficiary_name) && (
                   <div className="text-[0.6875rem] text-gray-500 mt-0.5">
                     {b.beneficiary_name ? `${tr('For')} ${personName({ name: b.beneficiary_name }, lang)} · ` : ''}
@@ -261,31 +336,40 @@ export default function PoojariQueue() {
                     {b.nakshatram ? `${tr(b.nakshatram)} ${tr('nakshatram')}` : ''}
                   </div>
                 )}
+
+                {/* Performance Status */}
                 {(b.remaining === null || (b.performances_allowed && b.performances_allowed > 1)) && (
-                  <div className="text-[0.6875rem] text-amber-700 mt-0.5">
+                  <div className="text-[0.6875rem] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 mt-1 inline-block">
                     {b.remaining === null
                       ? tr('Ongoing · Life Long')
                       : `${b.performances_done} / ${b.performances_allowed} ${tr('performed')} · ${b.remaining} ${tr('left')}`}
                     {b.valid_until ? ` · ${tr('valid till')} ${fmtDate(b.valid_until)}` : ''}
                   </div>
                 )}
+
+                {/* Repeat Devotee */}
                 {b.repeat && (
-                  <div className="mt-1.5 inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-violet-700 bg-violet-50 rounded-full px-2 py-0.5">
+                  <div className="mt-1.5 inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5">
                     <Repeat size={11} /> {tr('Repeat devotee')} · {b.visits} {tr(b.visits === 1 ? 'visit' : 'visits')}
                     {b.last_visit ? ` · ${tr('last')} ${fmtDate(b.last_visit)}` : ''}
                   </div>
                 )}
               </div>
-              {/* Status + action */}
+
+              {/* Action Button */}
               <div className="flex items-center gap-3 shrink-0">
                 {isRangeMode && b.performed_on ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 text-emerald-700 px-3 py-1.5 text-[0.8125rem] font-bold">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 text-white px-3 py-1.5 text-[0.8125rem] font-bold shadow-sm">
                     <CheckCircle2 size={15} /> <T>Performed</T>
                   </span>
                 ) : b.done_today ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 text-emerald-700 px-3 py-1.5 text-[0.8125rem] font-bold"><CheckCircle2 size={15} />{' '}<T>Performed today</T></span>
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 text-white px-3 py-1.5 text-[0.8125rem] font-bold shadow-sm">
+                    <CheckCircle2 size={15} /> <T>Performed today</T>
+                  </span>
                 ) : (b.status === 'Completed' || b.remaining === 0) ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 text-gray-500 px-3 py-1.5 text-[0.8125rem] font-bold"><CheckCircle2 size={15} />{' '}<T>All performances completed</T></span>
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-400 text-white px-3 py-1.5 text-[0.8125rem] font-bold">
+                    <CheckCircle2 size={15} /> <T>Completed</T>
+                  </span>
                 ) : (
                   <button onClick={() => markPerformed(b.id)} disabled={busyId === b.id}
                     className="btn-maroon !py-2 disabled:opacity-60">
@@ -295,7 +379,7 @@ export default function PoojariQueue() {
                 )}
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 

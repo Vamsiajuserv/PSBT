@@ -79,10 +79,14 @@ def get_role(rid: int, db: Session = Depends(get_db), user=Depends(read)):
 
 @router.post("", status_code=201)
 def create_role(body: dict, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
-    code = body.get("code") or (body["name"].upper().replace(" ", "_").replace("&", "AND"))
+    # Validate required name field
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Role name is required")
+    code = body.get("code") or (name.upper().replace(" ", "_").replace("&", "AND"))
     if db.query(Role).filter(Role.code == code).first():
         raise HTTPException(409, "Role code already exists")
-    r = Role(code=code, name=body["name"], description=body.get("description"),
+    r = Role(code=code, name=name, description=body.get("description"),
              modules=",".join(body.get("modules", [])), active=body.get("active", True),
              created_by=admin.username, updated_by=admin.username)
     db.add(r); db.commit(); db.refresh(r)

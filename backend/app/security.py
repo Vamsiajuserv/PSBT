@@ -28,14 +28,28 @@ def verify_password(pw: str, hashed: str) -> bool:
     return pwd_context.verify(pw, hashed)
 
 
-def create_token(user: User, kind: str = "access") -> str:
-    exp = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+def create_token(user: User, kind: str = "access", expire_minutes: int | None = None) -> str:
+    """Create a JWT token for the user.
+
+    Args:
+        user: The user object
+        kind: Token type - "access" for full access, "2fa" for 2FA challenge
+        expire_minutes: Custom expiry in minutes. Defaults to JWT_EXPIRE_MINUTES for access,
+                       5 minutes for 2FA challenge tokens (security best practice)
+    """
+    # 2FA challenge tokens should expire quickly (5 minutes) for security
+    if expire_minutes is None:
+        expire_minutes = 5 if kind == "2fa" else settings.JWT_EXPIRE_MINUTES
+
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(minutes=expire_minutes)
     payload = {
         "sub": str(user.id),
         "username": user.username,
         "role": user.role,
         "modules": user.modules,
         "kind": kind,          # "access" or "2fa" (pending 2fa challenge)
+        "iat": now,            # issued at (for session invalidation on password change)
         "exp": exp,
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
@@ -60,12 +74,32 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme),
                      db: Session = Depends(get_db)) -> User:
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+
+    # Check if token has been revoked (user logged out)
+    # Import here to avoid circular import
+    from .routers.auth import is_token_revoked
+    if is_token_revoked(token):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session has been logged out")
+
     payload = decode_token(token)
     if payload.get("kind") != "access":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "2FA verification required")
     user = db.get(User, int(payload["sub"]))
     if not user or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User inactive or not found")
+    # Session invalidation: reject tokens issued before the last password change
+    if user.password_changed_at and payload.get("iat"):
+        # Convert iat to datetime if it's a timestamp (seconds since epoch)
+        iat = payload["iat"]
+        if isinstance(iat, (int, float)):
+            iat = datetime.fromtimestamp(iat, tz=timezone.utc)
+        # Make password_changed_at timezone-aware for comparison
+        pw_changed = user.password_changed_at
+        if pw_changed.tzinfo is None:
+            pw_changed = pw_changed.replace(tzinfo=timezone.utc)
+        if iat < pw_changed:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED,
+                                "Session expired due to password change. Please login again.")
     return user
 
 

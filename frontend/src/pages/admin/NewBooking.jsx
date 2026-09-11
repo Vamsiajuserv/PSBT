@@ -8,7 +8,8 @@ import {
 import { DevoteesAPI, PoojasAPI, BookingsAPI, PaymentsAPI, PoojarisAPI, FestivalsAPI } from '../../api/client.js'
 import { inr, fmtDate } from '../../components/admin/ui.jsx'
 import { TicketRef } from '../../components/admin/BookingTicket.jsx'
-import { Select, DateField, NumberField, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
+import { toast } from '../../components/common/Dialog.jsx'
+import { Select, DateField, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, useLang, personName } from '../../i18n/LanguageContext.jsx'
 
 const STEPS = [
@@ -21,6 +22,28 @@ const SLOTS = [
   '06:00 AM - 07:00 AM', '07:30 AM - 08:30 AM', '09:00 AM - 10:00 AM',
   '10:30 AM - 11:30 AM', '12:00 PM - 01:00 PM', '04:00 PM - 05:00 PM',
 ]
+
+// Complete list of Hindu Gotras (52 Gotras from across India)
+const GOTHRAMS = [
+  'Agastya', 'Alambayana', 'Angirasa', 'Atri', 'Babhravya', 'Bharadwaja', 'Bhargava',
+  'Bhrigu', 'Daksha', 'Dhananjaya', 'Garga', 'Gautama', 'Harita', 'Jamadagni',
+  'Jamadagnya', 'Kanva', 'Kapi', 'Kapisthala', 'Kashyapa', 'Katyayana', 'Kaundinya',
+  'Kaushika', 'Kousika', 'Kratu', 'Kutsa', 'Lohita', 'Mandavya', 'Marichi', 'Matanga',
+  'Moudgalya', 'Mudgala', 'Nidruva', 'Parashara', 'Pulaha', 'Pulastya', 'Rouhitya',
+  'Salihotra', 'Sandilya', 'Sankritya', 'Saunaka', 'Savarni', 'Shandilya', 'Srivatsa',
+  'Upamanyu', 'Vadula', 'Vashishtha', 'Vatsa', 'Vatsya', 'Vishnu', 'Vishnuvriddha',
+  'Vishwamitra', 'Yaska',
+]
+
+// 27 Nakshatras (Lunar Mansions) in order
+const NAKSHATRAMS = [
+  'Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu',
+  'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni', 'Hasta',
+  'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha', 'Moola', 'Purva Ashadha',
+  'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha', 'Purva Bhadrapada',
+  'Uttara Bhadrapada', 'Revati',
+]
+
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 const stampNow = () => new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -116,7 +139,7 @@ export default function NewBooking() {
   const [qaBusy, setQaBusy] = useState(false)
   const [qaErr, setQaErr] = useState('')
 
-  useEffect(() => { PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => {}) }, [])
+  useEffect(() => { PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => toast('Failed to load poojas', 'error')) }, [])
   // A fresh plan selection clears any previously entered committee amount.
   useEffect(() => { setCommitteeAmt('') }, [plan])
   // Prefill sankalpam details from the selected devotee's record.
@@ -125,19 +148,19 @@ export default function NewBooking() {
     setNakshatram(devotee?.nakshatram || '')
     setBeneficiary('')
   }, [devotee])
-  useEffect(() => { PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => {}) }, [])
+  useEffect(() => { PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast('Failed to load poojaris', 'error')) }, [])
 
   // Festival windows — a Festival-category pooja defaults its date into the
   // configured festival window (the backend also enforces this).
   const [festivals, setFestivals] = useState([])
-  useEffect(() => { FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => {}) }, [])
+  useEffect(() => { FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => toast('Failed to load festivals', 'error')) }, [])
 
   // Debounced auto-search as the user types (mirrors the Devotees master screen).
   useEffect(() => {
     if (devotee) return
     const q = devQ.trim()
-    if (q.length < 2) { setDevResults(null); return }
-    const t = setTimeout(() => { DevoteesAPI.list({ q, size: 8 }).then((r) => setDevResults(r.items)).catch(() => {}) }, 300)
+    if (q.length < 4) { setDevResults(null); return }
+    const t = setTimeout(() => { DevoteesAPI.list({ q, size: 8 }).then((r) => setDevResults(r.items)).catch((e) => { console.error('Devotee search failed:', e); setDevResults(null) }) }, 300)
     return () => clearTimeout(t)
   }, [devQ, devotee])
 
@@ -214,6 +237,41 @@ export default function NewBooking() {
     setError('')
     if (plan?.committee_decided && !amountReady) {
       setError('Enter the committee-decided amount for this pooja before confirming.'); return
+    }
+    // UTR is required for UPI/QR Code payments
+    if (method === 'UPI/QR Code') {
+      const trimmedUtr = (utr || '').trim()
+      if (!trimmedUtr) {
+        setError(tr('UTR / Transaction ID is required for UPI payments.')); return
+      }
+      // Validate UTR format: 12-22 alphanumeric characters
+      if (trimmedUtr.length < 12) {
+        setError(tr('UTR must be at least 12 characters.')); return
+      }
+      if (trimmedUtr.length > 22) {
+        setError(tr('UTR cannot exceed 22 characters.')); return
+      }
+      if (!/^[A-Za-z0-9]+$/.test(trimmedUtr)) {
+        setError(tr('UTR must contain only letters and numbers.')); return
+      }
+    }
+    // DEF-010: Validate that the selected time slot has not expired for today's bookings
+    const today = new Date().toISOString().slice(0, 10)
+    if (schedDate === today && slot) {
+      const timeMatch = slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1], 10)
+        const minutes = parseInt(timeMatch[2], 10)
+        const period = timeMatch[3].toUpperCase()
+        if (period === 'PM' && hours !== 12) hours += 12
+        if (period === 'AM' && hours === 12) hours = 0
+        const slotTime = new Date()
+        slotTime.setHours(hours, minutes, 0, 0)
+        if (slotTime < new Date()) {
+          setError(tr('The selected time slot has already passed. Please choose a future time slot or a different date.'))
+          return
+        }
+      }
     }
     setBusy(true)
     try {
@@ -309,9 +367,9 @@ export default function NewBooking() {
                     {/* Sankalpam details — printed on the ticket for the poojari */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
                       <div><label className="label !text-[0.6875rem]"><T>Gothram</T></label>
-                        <input className="input !py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Gothram")} value={gothram} onChange={(e) => setGothram(e.target.value)} placeholder={tr("Gothram")} /></div>
+                        <Combobox value={gothram} onChange={(e) => setGothram(e.target.value)} options={GOTHRAMS} placeholder={tr("Select or type Gothram")} className="!py-1.5 text-sm" /></div>
                       <div><label className="label !text-[0.6875rem]"><T>Nakshatram</T></label>
-                        <input className="input !py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Nakshatram")} value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} placeholder={tr("Nakshatram")} /></div>
+                        <Combobox value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} options={NAKSHATRAMS} placeholder={tr("Select or type Nakshatram")} className="!py-1.5 text-sm" /></div>
                       <div><label className="label !text-[0.6875rem]"><T>In the name of</T></label>
                         <input className="input !py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Beneficiary name")} value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder={tr("Optional — e.g. the child")} /></div>
                     </div>

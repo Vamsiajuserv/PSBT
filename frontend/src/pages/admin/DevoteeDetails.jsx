@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { DevoteesAPI } from '../../api/client.js'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
-import { Select } from '../../components/common/Field.jsx'
+import { Select, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
 
@@ -16,6 +16,36 @@ const fmtDate = (s) => (s ? stamp(new Date(s).toLocaleDateString('en-GB', { day:
 const fmtStamp = (s) => (s ? stamp(new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })) : '—')
 const PLAN_TONE = { Daily: 'bg-blue-50 text-blue-700', Monthly: 'bg-emerald-50 text-emerald-700', 'One-Time': 'bg-violet-50 text-violet-700' }
 const STATUS_TONE = { Confirmed: 'bg-emerald-50 text-emerald-700', Completed: 'bg-emerald-50 text-emerald-700', Pending: 'bg-amber-50 text-amber-700', Cancelled: 'bg-red-50 text-red-700', Live: 'bg-emerald-50 text-emerald-700', Closed: 'bg-gray-100 text-gray-500' }
+
+// Complete list of Hindu Gotras (52 Gotras from across India)
+const GOTHRAMS = [
+  'Agastya', 'Alambayana', 'Angirasa', 'Atri', 'Babhravya', 'Bharadwaja', 'Bhargava',
+  'Bhrigu', 'Daksha', 'Dhananjaya', 'Garga', 'Gautama', 'Harita', 'Jamadagni',
+  'Jamadagnya', 'Kanva', 'Kapi', 'Kapisthala', 'Kashyapa', 'Katyayana', 'Kaundinya',
+  'Kaushika', 'Kousika', 'Kratu', 'Kutsa', 'Lohita', 'Mandavya', 'Marichi', 'Matanga',
+  'Moudgalya', 'Mudgala', 'Nidruva', 'Parashara', 'Pulaha', 'Pulastya', 'Rouhitya',
+  'Salihotra', 'Sandilya', 'Sankritya', 'Saunaka', 'Savarni', 'Shandilya', 'Srivatsa',
+  'Upamanyu', 'Vadula', 'Vashishtha', 'Vatsa', 'Vatsya', 'Vishnu', 'Vishnuvriddha',
+  'Vishwamitra', 'Yaska',
+]
+
+// 27 Nakshatras (Lunar Mansions) in order
+const NAKSHATRAMS = [
+  'Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu',
+  'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni', 'Hasta',
+  'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha', 'Moola', 'Purva Ashadha',
+  'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha', 'Purva Bhadrapada',
+  'Uttara Bhadrapada', 'Revati',
+]
+
+// Common cities in Telangana/Andhra Pradesh region
+const CITIES = [
+  'Hyderabad', 'Secunderabad', 'Warangal', 'Nizamabad', 'Karimnagar', 'Khammam',
+  'Ramagundam', 'Mahbubnagar', 'Nalgonda', 'Adilabad', 'Suryapet', 'Miryalaguda',
+  'Vijayawada', 'Visakhapatnam', 'Guntur', 'Nellore', 'Kurnool', 'Tirupati',
+  'Rajahmundry', 'Kakinada', 'Eluru', 'Ongole', 'Anantapur', 'Kadapa',
+  'Bangalore', 'Chennai', 'Mumbai', 'Pune', 'Delhi', 'Kolkata',
+]
 
 const STAT_CARDS = [
   { key: 'bookings', label: 'Pooja Bookings', icon: Flame, c: '#2563eb', bg: 'bg-blue-50', main: (s) => num(s.count), foot: (s) => inr(s.amount) },
@@ -95,6 +125,13 @@ export default function DevoteeDetails() {
                 {dev.email && <div className="flex items-center gap-2"><Mail size={13} className="text-maroon-500" /> {dev.email}</div>}
                 <div className="flex items-center gap-2"><MapPin size={13} className="text-maroon-500" /> {dev.city || '—'}</div>
               </div>
+              {(dev.gothram || dev.nakshatram || dev.pan_number) && (
+                <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-3 text-[0.75rem]">
+                  {dev.gothram && <span className="bg-amber-50 text-amber-700 rounded px-2 py-0.5"><T>Gothram</T>: {teText(dev.gothram)}</span>}
+                  {dev.nakshatram && <span className="bg-blue-50 text-blue-700 rounded px-2 py-0.5"><T>Nakshatram</T>: {teText(dev.nakshatram)}</span>}
+                  {dev.pan_number && <span className="bg-gray-100 text-gray-600 rounded px-2 py-0.5 font-mono"><T>PAN</T>: {dev.pan_number}</span>}
+                </div>
+              )}
             </div>
           </div>
           {/* meta */}
@@ -278,8 +315,8 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
     try {
       await DevoteesAPI.update(data.id, {
         name: data.name, mobile: data.mobile, email: data.email, city: data.city,
-        gothram: data.gothram, nakshatram: data.nakshatram, address: data.address,
-        preferred_language: data.preferred_language || 'English', status: data.status || 'Active',
+        gothram: data.gothram, nakshatram: data.nakshatram, pan_number: data.pan_number || null,
+        address: data.address, preferred_language: data.preferred_language || 'English', status: data.status || 'Active',
       })
       onSaved()
     } catch (ex) { setErr(ex.detail || 'Could not save changes.') } finally { setBusy(false) }
@@ -292,12 +329,30 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
-          {[['name', 'Full Name *'], ['mobile', 'Mobile *'], ['email', 'Email'], ['city', 'City'], ['gothram', 'Gothram'], ['nakshatram', 'Nakshatram']].map(([k, label]) => (
+          {/* Plain input fields for name, mobile, email */}
+          {[['name', 'Full Name *'], ['mobile', 'Mobile *'], ['email', 'Email']].map(([k, label]) => (
             <div key={k}>
               <label className="label">{label}</label>
               <input className="input" value={data[k] || ''} onChange={(e) => onChange({ ...data, [k]: e.target.value })} />
             </div>
           ))}
+          {/* Combobox fields for city, gothram, nakshatram - allow custom input */}
+          <div>
+            <label className="label"><T>City</T></label>
+            <Combobox value={data.city || ''} onChange={(e) => onChange({ ...data, city: e.target.value })} options={CITIES} placeholder={tr("Select or type city")} />
+          </div>
+          <div>
+            <label className="label"><T>Gothram</T></label>
+            <Combobox value={data.gothram || ''} onChange={(e) => onChange({ ...data, gothram: e.target.value })} options={GOTHRAMS} placeholder={tr("Select or type Gothram")} />
+          </div>
+          <div>
+            <label className="label"><T>Nakshatram</T></label>
+            <Combobox value={data.nakshatram || ''} onChange={(e) => onChange({ ...data, nakshatram: e.target.value })} options={NAKSHATRAMS} placeholder={tr("Select or type Nakshatram")} />
+          </div>
+          <div>
+            <label className="label"><T>PAN Number</T></label>
+            <input className="input uppercase" maxLength={10} placeholder={tr("e.g. ABCDE1234F")} value={data.pan_number || ''} onChange={(e) => onChange({ ...data, pan_number: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} />
+          </div>
           <div className="sm:col-span-2"><label className="label"><T>Address</T></label><input className="input" value={data.address || ''} onChange={(e) => onChange({ ...data, address: e.target.value })} /></div>
           <div><label className="label"><T>Preferred Language</T></label>
             <Select className="input" value={data.preferred_language || 'English'} onChange={(e) => onChange({ ...data, preferred_language: e.target.value })}><option value="English">{tr("English")}</option><option value="Telugu">{tr("Telugu")}</option></Select>

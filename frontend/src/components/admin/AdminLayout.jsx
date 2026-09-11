@@ -95,7 +95,7 @@ function FontSizeToggle() {
   const pick = (l) => setLevel(setFontScale(l))
   const btn = (l, node, title) => (
     <button onClick={() => pick(l)} title={title} aria-label={title}
-      className={`px-2 py-1 leading-none focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-inset ${level === l ? 'bg-maroon-700 text-gold-400' : 'text-maroon-700 hover:bg-maroon-50'}`}>
+      className={`px-2 py-1 leading-none outline-none transition-none ${level === l ? 'bg-maroon-700 text-gold-400' : 'text-maroon-700 hover:bg-maroon-50 active:bg-maroon-700 active:text-gold-400'}`}>
       {node}
     </button>
   )
@@ -201,7 +201,7 @@ export default function AdminLayout() {
   return (
     <div className="h-screen h-dvh bg-cream flex overflow-hidden">
       {/* ── Sidebar ── */}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream flex flex-col transition-all duration-300 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${collapsed ? 'lg:-ml-64' : 'lg:ml-0'}`}>
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-60 shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream flex flex-col transition-all duration-300 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${collapsed ? 'lg:-ml-60' : 'lg:ml-0'}`}>
         <div className="px-5 pt-4 pb-4 text-center border-b border-white/10 relative">
           <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-20 h-20 mx-auto drop-shadow-md" />
           <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight mt-1"><T>Sri Shirdi Sai Baba Temple</T></div>
@@ -217,16 +217,21 @@ export default function AdminLayout() {
         </div>
 
         <SidebarNav onNavigate={() => setOpen(false)} />
+
+        {/* Sab Malik Ek Hai Footer */}
+        <div className="px-3 py-3 border-t border-white/10 text-center">
+          <div className="font-script text-gold-200 text-xl leading-tight">Sab Malik Ek Hai</div>
+        </div>
       </aside>
 
-      {/* Toggle button when sidebar is collapsed - only icon visible */}
+      {/* Toggle button when sidebar is collapsed - circle shape */}
       {collapsed && (
         <button
           onClick={() => setCollapsed(false)}
-          className="hidden lg:flex fixed left-0 top-0 z-40 w-10 h-10 bg-maroon-700 hover:bg-maroon-600 rounded-br-lg items-center justify-center text-white shadow-md transition-colors"
+          className="hidden lg:flex fixed left-0 top-0 z-40 w-9 h-9 bg-maroon-700 hover:bg-maroon-600 rounded-full items-center justify-center text-white transition-colors"
           title={tr("Show sidebar")}
           aria-label={tr("Show sidebar")}>
-          <ChevronRight size={20} />
+          <ChevronRight size={18} />
         </button>
       )}
 
@@ -239,7 +244,7 @@ export default function AdminLayout() {
           <div className="flex items-center gap-2">
             <button className="lg:hidden text-gray-500 hover:text-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1 rounded p-1" title={tr("Menu")} aria-label={tr("Open navigation menu")}
               onClick={() => setOpen((o) => !o)}><Menu size={22} /></button>
-            <span className="font-serif font-bold text-maroon-800 text-[1.375rem] whitespace-nowrap"><T>Sri Shirdi Sai Baba Temple</T></span>
+            <span className="font-serif font-bold text-maroon-800 text-[1.375rem] whitespace-nowrap lg:ml-2"><T>Sri Shirdi Sai Baba Temple</T></span>
           </div>
 
           {/* Right: All controls in one line */}
@@ -247,8 +252,8 @@ export default function AdminLayout() {
             <span className="hidden md:flex items-center gap-1.5 text-[0.875rem] text-maroon-700 whitespace-nowrap"><Calendar size={15} className="text-maroon-500" /> {todayLabel()}</span>
             <span className="hidden lg:flex items-center gap-1.5 text-[0.875rem] text-maroon-700 whitespace-nowrap"><Clock size={15} className="text-maroon-500" /> {timeLabel()}</span>
             <div className="inline-flex items-center rounded-full border border-maroon-300 overflow-hidden text-[0.6875rem] font-bold" role="group" aria-label="Language selection">
-              <button onClick={() => setLang('en')} title="English" aria-label="Switch to English" aria-pressed={lang === 'en'} className={`px-2 py-1 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-inset ${lang === 'en' ? 'bg-maroon-700 text-gold-400' : 'text-maroon-700 hover:bg-maroon-50'}`}>EN</button>
-              <button onClick={() => setLang('te')} title="తెలుగు" aria-label="Switch to Telugu" aria-pressed={lang === 'te'} className={`px-2 py-1 font-telugu focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-inset ${lang === 'te' ? 'bg-maroon-700 text-gold-400' : 'text-maroon-700 hover:bg-maroon-50'}`}>తెలుగు</button>
+              <button onClick={() => setLang('en')} title="English" aria-label="Switch to English" aria-pressed={lang === 'en'} className={`px-2 py-1 outline-none transition-none ${lang === 'en' ? 'bg-maroon-700 text-gold-400' : 'text-maroon-700 hover:bg-maroon-50 active:bg-maroon-700 active:text-gold-400'}`}>EN</button>
+              <button onClick={() => setLang('te')} title="తెలుగు" aria-label="Switch to Telugu" aria-pressed={lang === 'te'} className={`px-2 py-1 font-telugu outline-none transition-none ${lang === 'te' ? 'bg-maroon-700 text-gold-400' : 'text-maroon-700 hover:bg-maroon-50 active:bg-maroon-700 active:text-gold-400'}`}>తెలుగు</button>
             </div>
             <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label={tr("Notifications")} className="text-maroon-500 hover:text-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1 rounded-full p-1">
               <Bell size={18} />

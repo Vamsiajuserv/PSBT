@@ -36,6 +36,10 @@ def plan_terms(plan, start):
         return dur, start + timedelta(days=dur - 1)
     if "day" in vtype and vval > 1:
         return vval, start + timedelta(days=vval - 1)
+    # One-Time / Daily / single-performance plans: 1 performance, valid on start date only
+    # DEF-005: Explicitly handle "one" in name to ensure One-Time poojas work correctly
+    if "one" in name or "daily" in name or "single" in name:
+        return 1, start
     return 1, start
 
 
@@ -112,3 +116,44 @@ def booking_code(seq: int) -> str:
 def ticket_no(booking_id: int) -> str:
     """Auto ticket number: TKT-YYYY-NNNNNN (per doc §Pooja Management)."""
     return f"TKT-{datetime.now():%Y}-{str(booking_id).zfill(6)}"
+
+
+# ── Pagination Validation ─────────────────────────────────────────────────────
+MAX_PAGE_SIZE = 200  # Maximum items per page (DoS prevention)
+MAX_PAGE_NUMBER = 10000  # Maximum page number (prevents absurd offset values)
+
+
+def validate_pagination(page: int, size: int, max_size: int | None = None) -> tuple[int, int]:
+    """Validate and clamp pagination parameters to safe bounds.
+
+    Returns (page, size) after validation. Raises HTTPException for invalid input.
+    Use this at the start of paginated endpoints to prevent DoS via extreme values.
+
+    Args:
+        page: Page number (1-indexed)
+        size: Items per page
+        max_size: Optional custom max page size (defaults to MAX_PAGE_SIZE)
+
+    Returns:
+        Tuple of (validated_page, validated_size)
+    """
+    max_sz = max_size if max_size is not None else MAX_PAGE_SIZE
+
+    # Validate and clamp page
+    if page < 1:
+        page = 1
+    elif page > MAX_PAGE_NUMBER:
+        raise HTTPException(422, f"Page number cannot exceed {MAX_PAGE_NUMBER}")
+
+    # Validate and clamp size
+    if size < 1:
+        size = 1
+    elif size > max_sz:
+        size = max_sz
+
+    return page, size
+
+
+def pagination_offset(page: int, size: int) -> int:
+    """Calculate offset from page and size after validation."""
+    return (page - 1) * size

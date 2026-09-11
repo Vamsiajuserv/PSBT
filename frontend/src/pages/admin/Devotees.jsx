@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   Plus, X, Eye, Pencil, Search, RotateCcw, Phone, Mail, Printer, ChevronRight,
   Users, CalendarPlus, HeartHandshake, HandHeart,
-  Flame, UtensilsCrossed, Gavel, ArrowUp, ArrowDown,
+  Flame, UtensilsCrossed, Gavel, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
@@ -14,9 +14,10 @@ import { isAdminRole } from '../../auth/access.js'
 import { Select, DateField, CountryCodeSelect, Combobox, getCountryDigits } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
+import { toast } from '../../components/common/Dialog.jsx'
 import { useTemple } from '../../lib/SiteContext.jsx'
 
-const EMPTY = { name: '', mobile: '', email: '', city: '', gothram: '', nakshatram: '', address: '', preferred_language: 'English', dob: '', status: 'Active', notes: '' }
+const EMPTY = { name: '', mobile: '', email: '', city: '', gothram: '', nakshatram: '', pan_number: '', address: '', preferred_language: 'English', dob: '', status: 'Active', notes: '' }
 const PAGE_SIZE = 20
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'One-Time': 'violet', 'Life Long': 'orange', 'Full Month': 'violet' }
 const STATUS_TONE = { Confirmed: 'green', Completed: 'green', Pending: 'amber', Cancelled: 'red', Ongoing: 'amber', Live: 'green', Closed: 'gray' }
@@ -56,13 +57,24 @@ const CITIES = [
   'Madurai', 'Mysore', 'Mangalore', 'Kochi', 'Thiruvananthapuram', 'Other'
 ]
 
+// Escape HTML to prevent XSS when generating print HTML
+const escapeHtml = (str) => {
+  if (str == null) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 // Print devotee summary in new window
 function printDevoteeSummary(dev, stats, temple) {
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Devotee Summary - ${dev.code}</title>
+      <title>Devotee Summary - ${escapeHtml(dev.code)}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; color: #000; }
@@ -91,19 +103,19 @@ function printDevoteeSummary(dev, stats, temple) {
     <body>
       <div class="header">
         <div class="icon">🛕</div>
-        <div class="temple-name">${temple?.name || 'Sri Shirdi Sai Baba Temple'}</div>
-        <div class="temple-address">${temple?.address || 'Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana'}</div>
+        <div class="temple-name">${escapeHtml(temple?.name || 'Sri Shirdi Sai Baba Temple')}</div>
+        <div class="temple-address">${escapeHtml(temple?.address || 'Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana')}</div>
       </div>
 
       <div class="section">
-        <div class="section-title">Devotee Summary<div class="section-subtitle">ID: ${dev.code || 'N/A'}</div></div>
+        <div class="section-title">Devotee Summary<div class="section-subtitle">ID: ${escapeHtml(dev.code) || 'N/A'}</div></div>
         <table>
-          <tr><td>Name:</td><td>${dev.name || '—'}</td></tr>
-          <tr><td>Phone:</td><td>${dev.mobile || '—'}</td></tr>
-          <tr><td>Email:</td><td>${dev.email || '—'}</td></tr>
-          <tr><td>City:</td><td>${dev.city || '—'}</td></tr>
+          <tr><td>Name:</td><td>${escapeHtml(dev.name) || '—'}</td></tr>
+          <tr><td>Phone:</td><td>${escapeHtml(dev.mobile) || '—'}</td></tr>
+          <tr><td>Email:</td><td>${escapeHtml(dev.email) || '—'}</td></tr>
+          <tr><td>City:</td><td>${escapeHtml(dev.city) || '—'}</td></tr>
           <tr><td>Registered On:</td><td>${dev.registered_on ? new Date(dev.registered_on).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'}) : '—'}</td></tr>
-          <tr><td>Status:</td><td>${dev.status || 'Active'}</td></tr>
+          <tr><td>Status:</td><td>${escapeHtml(dev.status) || 'Active'}</td></tr>
         </table>
       </div>
 
@@ -193,7 +205,7 @@ export default function Devotees() {
   useEffect(() => { setPage(1) }, [q, city, status])
 
   const [allCities, setAllCities] = useState([])
-  useEffect(() => { DevoteesAPI.list({ size: 500 }).then((r) => setAllCities([...new Set((r?.items || []).map((d) => d.city).filter(Boolean))].sort())).catch(() => {}) }, [])
+  useEffect(() => { DevoteesAPI.list({ size: 500 }).then((r) => setAllCities([...new Set((r?.items || []).map((d) => d.city).filter(Boolean))].sort())).catch(() => toast('Failed to load cities', 'error')) }, [])
 
   async function save(e) {
     e.preventDefault()
@@ -230,6 +242,7 @@ export default function Devotees() {
       if (!cleanData.city) cleanData.city = null
       if (!cleanData.gothram) cleanData.gothram = null
       if (!cleanData.nakshatram) cleanData.nakshatram = null
+      if (!cleanData.pan_number) cleanData.pan_number = null
       if (!cleanData.notes) cleanData.notes = null
 
       if (modal.mode === 'create') await DevoteesAPI.create(cleanData)
@@ -246,8 +259,7 @@ export default function Devotees() {
     DevoteesAPI.detail(id)
       .then(setDetail)
       .catch((err) => {
-        console.error('Failed to load devotee details:', err)
-        setLoadErr(err?.detail || 'Could not load devotee details. Please try again.')
+        toast(err?.detail || 'Could not load devotee details. Please try again.', 'error')
       })
   }
 
@@ -294,14 +306,18 @@ export default function Devotees() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -402,6 +418,11 @@ export default function Devotees() {
                   placeholder={tr("Select or type Nakshatram")}
                 />
               </div>
+              <div>
+                <label className="label"><T>PAN Number</T></label>
+                <input className="input uppercase" maxLength={10} placeholder={tr("e.g. ABCDE1234F")} value={modal.data.pan_number || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, pan_number: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') } })} />
+                <div className="text-[0.6875rem] text-gray-400 mt-0.5"><T>Required for 80G receipts above ₹50,000</T></div>
+              </div>
               <div><label className="label"><T>Date of Birth</T></label>
                 <DateField className="input" value={modal.data.dob || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dob: e.target.value } })} />
               </div>
@@ -487,6 +508,9 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
             <Meta label={tr("City / Location")} value={dev.city || '—'} />
             <Meta label={tr("Address")} value={dev.address || '—'} wide />
             <Meta label={tr("Email")} value={dev.email || '—'} />
+            <Meta label={tr("Gothram")} value={dev.gothram || '—'} />
+            <Meta label={tr("Nakshatram")} value={dev.nakshatram || '—'} />
+            {dev.pan_number && <Meta label={tr("PAN Number")} value={dev.pan_number} />}
             <Meta label={tr("Registered On")} value={fmtDate(dev.registered_on)} />
             <Meta label={tr("Status")} value={<Pill tone={dev.status === 'Active' ? 'green' : 'gray'}>{dev.status}</Pill>} />
           </div>

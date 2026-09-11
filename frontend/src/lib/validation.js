@@ -41,11 +41,18 @@ export function sanitizePhone(value) {
 }
 
 // ── Email Validation ──
-export const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// DEF-003: Stricter email pattern that rejects special characters like !#$%
+// Only allows: letters, numbers, dots, underscores, hyphens before @
+export const emailPattern = /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/
 
 export function validateEmail(value) {
   if (!value || !value.trim()) return { valid: true, error: null } // Email is usually optional
-  if (!emailPattern.test(value)) return { valid: false, error: 'Invalid email format' }
+  const trimmed = value.trim()
+  // Check for invalid special characters
+  if (/[!#$%^&*()+=\[\]{};':"\\|,<>\/?]/.test(trimmed.split('@')[0])) {
+    return { valid: false, error: 'Email contains invalid special characters' }
+  }
+  if (!emailPattern.test(trimmed)) return { valid: false, error: 'Invalid email format' }
   return { valid: true, error: null }
 }
 
@@ -156,6 +163,56 @@ export function handleVehicleInput(e, setter) {
   setter(sanitized)
 }
 
+// ── UTR/Transaction Reference Validation ──
+// UPI UTR is typically 12-22 alphanumeric characters
+export const utrPattern = /^[A-Za-z0-9]{12,22}$/
+
+export function validateUTR(value, { required = false } = {}) {
+  if (!value || !value.trim()) {
+    return required ? { valid: false, error: 'Transaction reference is required' } : { valid: true, error: null }
+  }
+  const trimmed = value.trim().replace(/\s/g, '')
+  if (trimmed.length < 12) return { valid: false, error: 'UTR must be at least 12 characters' }
+  if (trimmed.length > 22) return { valid: false, error: 'UTR cannot exceed 22 characters' }
+  if (!utrPattern.test(trimmed)) return { valid: false, error: 'UTR must be alphanumeric only' }
+  return { valid: true, error: null }
+}
+
+// Sanitize UTR - uppercase, alphanumeric only
+export function sanitizeUTR(value) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 22)
+}
+
+export function handleUTRInput(e, setter) {
+  const sanitized = sanitizeUTR(e.target.value)
+  setter(sanitized)
+}
+
+// ── Bank Reference/Challan Validation ──
+export function validateBankRef(value, { required = false } = {}) {
+  if (!value || !value.trim()) {
+    return required ? { valid: false, error: 'Bank reference is required' } : { valid: true, error: null }
+  }
+  const trimmed = value.trim()
+  if (trimmed.length < 3) return { valid: false, error: 'Reference must be at least 3 characters' }
+  if (trimmed.length > 50) return { valid: false, error: 'Reference cannot exceed 50 characters' }
+  return { valid: true, error: null }
+}
+
+// ── IFSC Code Validation ──
+export const ifscPattern = /^[A-Z]{4}0[A-Z0-9]{6}$/
+
+export function validateIFSC(value) {
+  if (!value || !value.trim()) return { valid: true, error: null }
+  const upper = value.toUpperCase().trim()
+  if (!ifscPattern.test(upper)) return { valid: false, error: 'Invalid IFSC code format' }
+  return { valid: true, error: null }
+}
+
+export function sanitizeIFSC(value) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)
+}
+
 // ── Form Field Validation Wrapper ──
 // Returns CSS class for invalid state
 export function getFieldClass(isValid, baseClass = 'input') {
@@ -177,4 +234,121 @@ export function validateForm(fields) {
   }
 
   return { isValid, errors }
+}
+
+// ── Password Validation ──
+// DEF-011: Password must have letters AND numbers, not just special characters
+export const PASSWORD_MIN_LENGTH = 6
+
+export function validatePassword(value, { required = true } = {}) {
+  if (!value) {
+    return required ? { valid: false, error: 'Password is required' } : { valid: true, error: null }
+  }
+
+  if (value.length < PASSWORD_MIN_LENGTH) {
+    return { valid: false, error: `Password must be at least ${PASSWORD_MIN_LENGTH} characters` }
+  }
+
+  // Must contain at least one letter
+  if (!/[A-Za-z]/.test(value)) {
+    return { valid: false, error: 'Password must contain at least one letter' }
+  }
+
+  // Must contain at least one number
+  if (!/[0-9]/.test(value)) {
+    return { valid: false, error: 'Password must contain at least one number' }
+  }
+
+  return { valid: true, error: null }
+}
+
+// Get password strength indicator
+export function getPasswordStrength(value) {
+  if (!value) return { level: 0, label: '', color: '' }
+
+  let score = 0
+  if (value.length >= 6) score++
+  if (value.length >= 8) score++
+  if (/[A-Z]/.test(value)) score++
+  if (/[a-z]/.test(value)) score++
+  if (/[0-9]/.test(value)) score++
+  if (/[^A-Za-z0-9]/.test(value)) score++ // Special chars
+
+  if (score <= 2) return { level: 1, label: 'Weak', color: 'text-red-600' }
+  if (score <= 4) return { level: 2, label: 'Fair', color: 'text-amber-600' }
+  return { level: 3, label: 'Strong', color: 'text-emerald-600' }
+}
+
+// ── Date Range Validation ──
+// Validates that start date is before end date and within reasonable bounds
+const MAX_DATE_RANGE_DAYS = 366 // Maximum allowed date range
+
+export function validateDateRange(startDate, endDate, { maxDays = MAX_DATE_RANGE_DAYS, required = false } = {}) {
+  // Handle empty values
+  if (!startDate && !endDate) {
+    return required
+      ? { valid: false, error: 'Date range is required' }
+      : { valid: true, error: null }
+  }
+
+  if (startDate && !endDate) {
+    return { valid: false, error: 'End date is required when start date is provided' }
+  }
+
+  if (!startDate && endDate) {
+    return { valid: false, error: 'Start date is required when end date is provided' }
+  }
+
+  // Parse dates
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+
+  // Check for invalid dates
+  if (isNaN(start.getTime())) {
+    return { valid: false, error: 'Invalid start date' }
+  }
+  if (isNaN(end.getTime())) {
+    return { valid: false, error: 'Invalid end date' }
+  }
+
+  // Start must be before or equal to end
+  if (start > end) {
+    return { valid: false, error: 'Start date cannot be after end date' }
+  }
+
+  // Check date range limit
+  const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
+  if (diffDays > maxDays) {
+    return { valid: false, error: `Date range cannot exceed ${maxDays} days` }
+  }
+
+  return { valid: true, error: null, diffDays }
+}
+
+// Validate that a date is not in the future
+export function validateNotFutureDate(value) {
+  if (!value) return { valid: true, error: null }
+  const date = new Date(value)
+  const today = new Date()
+  today.setHours(23, 59, 59, 999) // End of today
+  if (date > today) {
+    return { valid: false, error: 'Date cannot be in the future' }
+  }
+  return { valid: true, error: null }
+}
+
+// Validate that a date is not in the past (for bookings)
+export function validateNotPastDate(value, { allowToday = true } = {}) {
+  if (!value) return { valid: true, error: null }
+  const date = new Date(value)
+  const today = new Date()
+  if (allowToday) {
+    today.setHours(0, 0, 0, 0) // Start of today
+  } else {
+    today.setHours(23, 59, 59, 999) // End of today
+  }
+  if (date < today) {
+    return { valid: false, error: 'Date cannot be in the past' }
+  }
+  return { valid: true, error: null }
 }

@@ -38,6 +38,8 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
     # Force password change on first login (set True when admin creates user)
     must_change_password = Column(Boolean, default=True, nullable=False)
+    # Session invalidation: all tokens issued before this timestamp are rejected
+    password_changed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -71,6 +73,7 @@ class Devotee(Base):
     city = Column(String(80), nullable=True)
     gothram = Column(String(80), nullable=True)
     nakshatram = Column(String(80), nullable=True)
+    pan_number = Column(String(10), nullable=True)  # PAN for 80G receipts (optional)
     dob = Column(Date, nullable=True)
     preferred_language = Column(String(20), default="English", nullable=False)  # English | Telugu
     status = Column(String(20), default="Active", nullable=False)
@@ -106,6 +109,8 @@ class Pooja(Base):
     category = Column(String(40), nullable=False)   # Daily | Monthly | Long-Term | Occasion | Vehicle
     description = Column(Text, nullable=True)
     docs_required = Column(Text, nullable=True)      # free text, comma-separated
+    materials = Column(Text, nullable=True)          # pooja materials (samagri), comma-separated
+    materials_by = Column(String(20), default="temple", nullable=True)  # temple | devotee
     active = Column(Boolean, default=True, nullable=False)
 
     plans = relationship("PoojaPlan", back_populates="pooja", cascade="all, delete-orphan",
@@ -181,7 +186,10 @@ class Booking(Base):
     # beneficiary = the person the pooja is for, e.g. the child in a Namakaranam).
     gothram = Column(String(80), nullable=True)
     nakshatram = Column(String(40), nullable=True)
+    rasi = Column(String(40), nullable=True)         # zodiac sign
     beneficiary_name = Column(String(120), nullable=True)
+    participants = Column(Text, nullable=True)       # JSON array of {name, relation}
+    special_notes = Column(Text, nullable=True)      # special instructions for poojari
     vehicle_no = Column(String(20), nullable=True)   # vehicle poojas
     time_slot = Column(String(40), nullable=True)
     status = Column(String(20), default="Confirmed", nullable=False)   # Confirmed | Pending | Cancelled | Completed

@@ -2,15 +2,15 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Plus, X, Eye, MoreVertical, Search, RotateCcw, Info, Trash2,
   Gavel, CalendarClock, Users, CheckCircle2, User, ShieldCheck,
-  XCircle, Banknote, Receipt, Printer, ArrowUp, ArrowDown,
+  XCircle, Banknote, Receipt, Printer,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { AuctionAPI, AuctionItemsAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
-import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
-import { Select, DateField, TimeField, NumberField } from '../../components/common/Field.jsx'
+import { Select, DateField, TimeField, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName } from '../../lib/validation.js'
@@ -19,12 +19,12 @@ const STATUS_TONE = { Scheduled: 'blue', 'In Progress': 'amber', Completed: 'gre
 const VERIFY_TONE = { Pending: 'gray', Verified: 'green', Rejected: 'red' }
 const PAYMENT_TONE = { Pending: 'amber', Paid: 'green' }
 
-// Sortable columns configuration
+// Sortable columns configuration with filtering support
 const SORT_COLUMNS = [
   { key: 'item', label: 'Item Name', type: 'text' },
   { key: 'auction_date', label: 'Auction Date', type: 'date' },
   { key: 'current_amount', label: 'Highest Bid', type: 'number' },
-  { key: 'status', label: 'Status', type: 'text' },
+  { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['Scheduled', 'In Progress', 'Completed'] },
 ]
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const to12h = (t) => {
@@ -61,9 +61,14 @@ export default function Auction() {
   const [payment, setPayment] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  // Sorting
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'auction_date', direction: 'desc' }])
+  // Sorting with filtering
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
+  } = useFilterableSortableTable(rows, SORT_COLUMNS, [{ key: 'auction_date', direction: 'desc' }])
 
   // master auction items for the item dropdown
   const [items, setItems] = useState([])
@@ -78,8 +83,8 @@ export default function Auction() {
   const [results, setResults] = useState([])
   const picked = drawer?.devotee
   useEffect(() => {
-    // Require at least 2 characters for search (consistent with other forms)
-    if (!drawer || picked || dq.trim().length < 2) { setResults([]); return }
+    // Require at least 4 characters for search (consistent with other forms)
+    if (!drawer || picked || dq.trim().length < 4) { setResults([]); return }
     const t = setTimeout(() => {
       DevoteesAPI.list({ q: dq.trim(), size: 8 })
         .then((r) => setResults(Array.isArray(r) ? r : (r.items || [])))
@@ -108,11 +113,13 @@ export default function Auction() {
 
   async function save(e) {
     e.preventDefault()
+    if (saving) return
     // Prevent scheduling auctions for past dates
     if (drawer.auction_date && drawer.auction_date < todayISO()) {
       toast(tr('Auction date cannot be in the past. Please select today or a future date.'), 'error')
       return
     }
+    setSaving(true)
     try {
       await AuctionAPI.create({
         devotee_id: drawer.devotee?.id || null,
@@ -125,7 +132,7 @@ export default function Auction() {
       setDrawer(null); setDq(''); load()
     } catch (ex) {
       toast(ex?.detail || tr('Could not save the auction — check the base amount and details.'), 'error')
-    }
+    } finally { setSaving(false) }
   }
 
   // Committee decision: record the highest bid + winner, optionally close the auction.
@@ -225,12 +232,11 @@ export default function Auction() {
     }
   }
 
-  // item dropdown → sets item name + prefills base amount from master base_price
+  // item selection → sets item name + prefills base amount from master if matched
   const onItemSelect = (val) => {
-    if (val === '__other__') { setM({ itemChoice: '__other__', item: '' }); return }
-    const it = items.find((x) => String(x.id) === String(val))
-    if (it) setM({ itemChoice: val, item: it.name, base_amount: it.base_price ?? '' })
-    else setM({ itemChoice: '', item: '' })
+    const it = items.find((x) => x.name === val)
+    if (it) setM({ itemChoice: String(it.id), item: it.name, base_amount: it.base_price ?? '' })
+    else setM({ itemChoice: '__custom__', item: val })
   }
 
   const EXPORT_COLS = [{ key: 'code', label: tr('Auction ID') }, { key: 'item', label: tr('Item') }, { key: 'auction_date', label: tr('Date') },
@@ -263,11 +269,11 @@ export default function Auction() {
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-            <DateField value={start} onChange={(e) => setStart(e.target.value)} className="input" />
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} className="input" />
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
           <div className="min-w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
@@ -282,7 +288,16 @@ export default function Auction() {
             <Select value={payment} onChange={(e) => setPayment(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Pending">{tr("Pending")}</option><option value="Paid">{tr("Paid")}</option></Select>
           </div>
         </div>
-        <SortPanel sorts={sorts} columns={SORT_COLUMNS} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={SORT_COLUMNS}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -294,14 +309,18 @@ export default function Auction() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th key={col.key} onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {col.key === 'current_amount' ? tr('Highest Bid (₹)') : tr(col.label)}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -315,14 +334,18 @@ export default function Auction() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr('Highest Bid (₹)')}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -337,14 +360,18 @@ export default function Auction() {
                 const isSorted = sortIdx >= 0
                 return (
                   <th onClick={(e) => handleColumnClick(col.key, e)}
-                    className={`px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-blue-700 bg-blue-50/50' : ''}`}
-                    title={tr("Click to sort, Shift+Click to add secondary sort")}>
-                    <span className="inline-flex items-center gap-1">
+                    className={`group px-4 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
+                    title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
+                    <span className="inline-flex items-center gap-0.5">
                       {tr('Status')}
-                      {isSorted && (
-                        <span className="inline-flex items-center gap-0.5 text-blue-600">
-                          {sorts.length > 1 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                          {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                      {isSorted ? (
+                        <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
+                          {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
+                          {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronsUpDown size={14} strokeWidth={2} />
                         </span>
                       )}
                     </span>
@@ -356,7 +383,7 @@ export default function Auction() {
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedRows.map((a) => (
+              {filteredSortedRows.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{a.code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{tr(a.item)}</td>
@@ -408,7 +435,7 @@ export default function Auction() {
                   </td>
                 </tr>
               ))}
-              {sortedRows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty={tr("No auctions found.")} />}
+              {filteredSortedRows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty={tr("No auctions found.")} />}
             </tbody>
           </table>
         </div>
@@ -434,14 +461,13 @@ export default function Auction() {
             <div className="px-6 py-5 space-y-5 flex-1">
               <div className="flex items-center gap-2 text-maroon-700 font-semibold text-[0.875rem]"><T>1. Auction Details</T></div>
               <div><label className="label"><T>Auction Item *</T></label>
-                <Select required={drawer.itemChoice !== '__other__'} className="input" value={drawer.itemChoice} onChange={(e) => onItemSelect(e.target.value)}>
-                  <option value="">{tr("Select an item…")}</option>
-                  {items.map((it) => <option key={it.id} value={it.id}>{it.name}{it.category ? ` · ${it.category}` : ''}</option>)}
-                  <option value="__other__">{tr("Other (enter manually)")}</option>
-                </Select>
-                {drawer.itemChoice === '__other__' && (
-                  <input required className="input mt-2" placeholder={tr("Enter auction item name")} value={drawer.item} onChange={(e) => setM({ item: e.target.value })} />
-                )}
+                <Combobox
+                  value={drawer.item}
+                  onChange={(e) => onItemSelect(e.target.value)}
+                  options={items.map((it) => it.name)}
+                  placeholder={tr("Select or type item name")}
+                  className="input"
+                />
               </div>
               <div><label className="label"><T>Base Amount (₹) *</T></label>
                 <NumberField required min="0" step="1" prefix="₹" placeholder={tr("0")} value={drawer.base_amount} onChange={(e) => setM({ base_amount: e.target.value })} />
@@ -493,7 +519,7 @@ export default function Auction() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button className="btn-maroon flex-1 justify-center"><T>Create Auction</T></button>
+              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <T>Create Auction</T>}</button>
             </div>
           </form>
         </div>
