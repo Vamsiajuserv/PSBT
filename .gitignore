@@ -20,5 +20,6 @@ Thumbs.db
 *.log
 .claude/settings.local.json
 
+
 # Scratch screenshots / working notes
 readings/
