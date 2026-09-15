@@ -67,7 +67,7 @@ export default function WasteSales() {
   const [saving, setSaving] = useState(false)
 
   // Committee role check for verification
-  const isCommittee = user?.role === 'Committee' || user?.role === 'Admin'
+  const isCommittee = user?.role === 'Committee' || ['Admin', 'Administrator'].includes(user?.role)
 
   const [q, setQ] = useState('')
   const [material, setMaterial] = useState('')

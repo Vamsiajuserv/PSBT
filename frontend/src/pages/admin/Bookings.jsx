@@ -144,7 +144,7 @@ export default function Bookings() {
     })
     if (!res) return
     const refund_amount = paid ? (Number(res.refund) || 0) : undefined
-    try { await BookingsAPI.cancel(b.id, { reason: res.reason.trim(), refund_amount }); toast('Booking cancelled.'); loadList(applied, page); loadStats() }
+    try { await BookingsAPI.cancel(b.id, { reason: res.reason.trim(), refund_amount }); toast('Booking cancelled.'); loadList(applied, page) }
     catch (ex) { toast(ex.detail || 'Could not cancel this booking.', 'error') }
   }
   async function reschedule(b) {
@@ -159,12 +159,12 @@ export default function Bookings() {
       confirmLabel: tr('Reschedule'),
     })
     if (!res) return
-    try { await BookingsAPI.reschedule(b.id, { scheduled_date: res.date }); toast('Booking rescheduled.'); loadList(applied, page); loadStats() }
+    try { await BookingsAPI.reschedule(b.id, { scheduled_date: res.date }); toast('Booking rescheduled.'); loadList(applied, page) }
     catch (ex) { toast(ex.detail || 'Could not reschedule this booking.', 'error') }
   }
   async function complete(b) {
     if (!(await confirmDialog({ title: `Mark ${b.booking_code} as completed?`, message: 'It will move to Pooja History.' }))) return
-    try { await BookingsAPI.complete(b.id); toast('Performance recorded.'); loadList(applied, page); loadStats() }
+    try { await BookingsAPI.complete(b.id); toast('Performance recorded.'); loadList(applied, page) }
     catch (ex) { toast(ex.detail || 'Could not complete this booking.', 'error') }
   }
 

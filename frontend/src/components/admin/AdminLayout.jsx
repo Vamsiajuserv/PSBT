@@ -218,9 +218,9 @@ export default function AdminLayout() {
 
         <SidebarNav onNavigate={() => setOpen(false)} />
 
-        {/* Sab Malik Ek Hai Footer */}
+        {/* Sab Ka Malik Ek Hai Footer */}
         <div className="px-3 py-3 border-t border-white/10 text-center">
-          <div className="font-script text-gold-200 text-xl leading-tight">Sab Malik Ek Hai</div>
+          <div className="font-script text-gold-200 text-xl leading-tight">Sab Ka Malik Ek Hai</div>
         </div>
       </aside>
 

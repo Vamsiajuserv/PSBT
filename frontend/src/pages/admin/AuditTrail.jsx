@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { ScrollText, Activity, LogIn, Users, Search, RotateCcw } from 'lucide-react'
+import { ScrollText, Activity, LogIn, Users, Search, RotateCcw, ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { AuditAPI } from '../../api/client.js'
