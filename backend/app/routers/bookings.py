@@ -4,12 +4,13 @@ Counter Staff can create bookings (billing) but cannot cancel/delete —
 those are Admin-only, matching the frozen role matrix.
 """
 import json
+import threading
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import case, or_, func
 from sqlalchemy.orm import Session
 
-from ..database import get_db
+from ..database import get_db, SessionLocal
 from ..models import Booking, Devotee, PoojaPlan, Seva, Pooja, Festival, Poojari
 from ..schemas import BookingCreate, BookingOut
 from ..security import RequireModule, require_admin, log_action, client_ip
@@ -18,15 +19,33 @@ from .refunds import record_refund
 from .. import notifications as notif
 
 
+def _booking_notify_sync(booking_id, event, username):
+    """Background thread worker for sending booking notifications."""
+    try:
+        db = SessionLocal()
+        try:
+            b = db.get(Booking, booking_id)
+            if not b:
+                return
+            dev = db.get(Devotee, b.devotee_id) if b.devotee_id else None
+            notif.notify(db, event, {
+                "devotee": b.devotee_name, "pooja": b.seva_name, "plan": b.plan_name or "",
+                "amount": f"{float(b.amount or 0):.2f}", "date": str(b.scheduled_date or ""),
+                "ticket": b.ticket_no or b.receipt_no or b.booking_code,
+            }, mobile=b.mobile or (dev.mobile if dev else None), email=(dev.email if dev else None),
+                entity="Booking", entity_id=b.id, created_by=username)
+        finally:
+            db.close()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Background notification failed: {e}")
+
+
 def _booking_notify(db, b, event, user):
-    """Best-effort devotee notification for a booking event."""
-    dev = db.get(Devotee, b.devotee_id) if b.devotee_id else None
-    notif.notify(db, event, {
-        "devotee": b.devotee_name, "pooja": b.seva_name, "plan": b.plan_name or "",
-        "amount": f"{float(b.amount or 0):.2f}", "date": str(b.scheduled_date or ""),
-        "ticket": b.ticket_no or b.receipt_no or b.booking_code,
-    }, mobile=b.mobile or (dev.mobile if dev else None), email=(dev.email if dev else None),
-        entity="Booking", entity_id=b.id, created_by=getattr(user, "username", None))
+    """Fire-and-forget notification - runs in background thread to avoid blocking."""
+    username = getattr(user, "username", None)
+    thread = threading.Thread(target=_booking_notify_sync, args=(b.id, event, username), daemon=True)
+    thread.start()
 
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 

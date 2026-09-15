@@ -13,7 +13,8 @@ from ..helpers import gen_code
 
 router = APIRouter(prefix="/api/poojaris", tags=["poojaris"])
 
-read = RequireModule("Bookings")
+# Allow Counter module for read (needed for Counter billing page)
+read = RequireModule("Bookings", "Counter")
 write = RequireModule("Bookings", write=True)
 
 

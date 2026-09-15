@@ -138,21 +138,30 @@ class RequireRole:
 class RequireModule:
     """Require access to a module. Reading needs the module in user.modules;
     writing additionally needs the module in that role's WRITE_MATRIX entry.
-    Administrator bypasses both checks."""
-    def __init__(self, module: str, write: bool = False):
-        self.module = module
+    Administrator bypasses both checks.
+
+    Supports multiple modules (OR logic) - user needs access to ANY of them."""
+    def __init__(self, *modules: str, write: bool = False):
+        self.modules = modules if modules else ()
         self.write = write
 
     def __call__(self, user: User = Depends(get_current_user)) -> User:
         if user.role in ADMIN_ROLES:
             return user
         allowed = [m.strip() for m in (user.modules or "").split(",")]
-        if self.module not in allowed:
+        # Check if user has ANY of the required modules
+        has_access = any(mod in allowed for mod in self.modules)
+        if not has_access:
+            modules_str = "' or '".join(self.modules)
             raise HTTPException(status.HTTP_403_FORBIDDEN,
-                                f"No access to module '{self.module}'")
-        if self.write and self.module not in WRITE_MATRIX.get(user.role, set()):
-            raise HTTPException(status.HTTP_403_FORBIDDEN,
-                                f"Role '{user.role}' has read-only access to '{self.module}'")
+                                f"No access to module '{modules_str}'")
+        if self.write:
+            # For write, check if user can write to ANY of the modules they have access to
+            user_write_modules = WRITE_MATRIX.get(user.role, set())
+            can_write = any(mod in user_write_modules for mod in self.modules if mod in allowed)
+            if not can_write:
+                raise HTTPException(status.HTTP_403_FORBIDDEN,
+                                    f"Role '{user.role}' has read-only access")
         return user
 
 

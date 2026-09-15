@@ -62,6 +62,7 @@ export const ACCESS = {
   users: { adminOnly: true },
   roles: { adminOnly: true },
   backup: { adminOnly: true },
+  notifications: { adminOnly: true },
 }
 
 export function isAdminRole(user) {

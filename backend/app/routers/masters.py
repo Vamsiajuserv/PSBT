@@ -232,7 +232,8 @@ def cm_delete(iid: int, request: Request, db: Session = Depends(get_db), user=De
 
 # ── Festival Master ──────────────────────────────────────────────────────────
 festivals_router = APIRouter(prefix="/api/festivals", tags=["festivals"])
-fe_read = RequireModule("Bookings")   # festival-master edits are Administrator-only (require_admin)
+# Allow Counter module for read (needed for Counter billing page - festival pricing)
+fe_read = RequireModule("Bookings", "Counter")
 
 
 def _pooja_names(db, ids_csv):
