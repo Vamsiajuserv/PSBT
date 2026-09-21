@@ -58,16 +58,16 @@ function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, foot
           <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[0.8125rem] font-semibold text-gray-600 leading-tight">{title}</div>
-          {sub && <div className="text-[0.6875rem] text-gray-400 mt-0.5">{sub}</div>}
+          <div className="text-[0.8125rem] font-semibold text-gray-700 leading-tight">{title}</div>
+          {sub && <div className="text-[0.6875rem] text-gray-600 mt-0.5">{sub}</div>}
         </div>
       </div>
       <div className="flex-1 flex items-end mt-3">
         <div className="text-xl sm:text-2xl font-extrabold text-gray-800 leading-none tabular-nums whitespace-nowrap">{value}</div>
       </div>
-      {footLabel && <div className="mt-3 pt-2.5 border-t border-gray-100/80 text-[0.6875rem] text-gray-500 flex items-center justify-between">
+      {footLabel && <div className="mt-3 pt-2.5 border-t border-gray-100/80 text-[0.6875rem] text-gray-600 flex items-center justify-between">
         <span>{footLabel}</span>
-        <span className="font-bold text-gray-700 tabular-nums">{footValue}</span>
+        <span className="font-bold text-gray-800 tabular-nums">{footValue}</span>
       </div>}
     </div>
   )
@@ -78,7 +78,7 @@ function BarChart({ days = [] }) {
   const max = Math.max(...(days || []).map((d) => d.count), 1)
   if (!days?.length || days.every((d) => !d.count)) {
     return (
-      <div className="mt-4 h-44 flex flex-col items-center justify-center text-gray-400">
+      <div className="mt-4 h-44 flex flex-col items-center justify-center text-gray-600">
         <BarChart3 size={28} className="mb-2 opacity-50" />
         <span className="text-sm"><T>No booking data for this period.</T></span>
       </div>
@@ -95,7 +95,7 @@ function BarChart({ days = [] }) {
         ))}
       </div>
       <div className="flex justify-between gap-2 mt-2 border-t border-gray-100 pt-2">
-        {days.map((d) => <div key={d.label} className="flex-1 text-center text-[0.625rem] text-gray-400 leading-tight">{d.label}</div>)}
+        {days.map((d) => <div key={d.label} className="flex-1 text-center text-[0.625rem] text-gray-600 leading-tight">{d.label}</div>)}
       </div>
     </div>
   )
@@ -107,8 +107,29 @@ export default function Dashboard() {
   const hasModule = useHasModule()
   const name = personName(user, lang) || tr('Administrator')
   const role = user?.role === 'Admin' ? 'Administrator' : (user?.role || '')
-  // Counter Staff sees a simplified view without charts (Item 14)
+  // Counter Staff should not see the dashboard - redirect to Counter module (Client UAT)
   const isCounterStaff = user?.role === 'Counter Staff'
+
+  // If Counter Staff, show redirect message instead of dashboard
+  if (isCounterStaff) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="w-16 h-16 rounded-full bg-maroon-50 grid place-items-center mb-4">
+          <Recycle size={32} className="text-maroon-600" />
+        </div>
+        <h2 className="font-serif text-xl font-bold text-maroon-700 mb-2">
+          <T>Counter Operations</T>
+        </h2>
+        <p className="text-gray-600 mb-6 max-w-md">
+          <T>Please use the Counter module to record sales and manage operations.</T>
+        </p>
+        <Link to="/admin/counter" className="btn-maroon">
+          <T>Go to Counter</T> <ArrowRight size={16} />
+        </Link>
+      </div>
+    )
+  }
+
   const [d, setD] = useState(null)
   const todayISO = new Date().toISOString().slice(0, 10)
   const monthStartISO = todayISO.slice(0, 8) + '01'
@@ -153,7 +174,7 @@ export default function Dashboard() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
         <div>
           <h1 className="font-serif text-2xl font-bold text-maroon-700"><T>Dashboard</T></h1>
-          <p className="text-sm text-gray-500 mt-1">{tr('Welcome back,')} {name}{role && !name.includes(role) ? ` (${tr(role)})` : ''}</p>
+          <p className="text-sm text-gray-700 mt-1">{tr('Welcome back,')} {name}{role && !name.includes(role) ? ` (${tr(role)})` : ''}</p>
         </div>
         <div className="flex flex-col items-stretch lg:items-end gap-2">
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label={tr('Date range presets')}>
@@ -182,7 +203,7 @@ export default function Dashboard() {
 
       {/* Loading state */}
       {!d && (
-        <div className="flex items-center justify-center py-12 text-gray-400" role="status" aria-live="polite">
+        <div className="flex items-center justify-center py-12 text-gray-600" role="status" aria-live="polite">
           <Loader2 size={24} className="animate-spin mr-3" aria-hidden="true" />
           <span className="text-sm"><T>Loading dashboard data...</T></span>
         </div>
@@ -209,7 +230,7 @@ export default function Dashboard() {
       {d && !isCounterStaff && <div className="grid lg:grid-cols-3 gap-4 sm:gap-5 mb-5">
         {/* Today's Overview */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-serif text-lg font-bold text-maroon-800">{ap === 'today' ? tr("Today's Overview") : tr('Overview')} <span className="text-xs font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
+          <h3 className="font-serif text-lg font-bold text-maroon-800">{ap === 'today' ? tr("Today's Overview") : tr('Overview')} <span className="text-xs font-sans font-normal text-gray-600">({rangeLabel})</span></h3>
           <div className="mt-4 space-y-3">
             {(d?.today_overview || []).map((o) => {
               const m = OVERVIEW_ICONS[o.label] || { icon: CalendarDays, c: '#6b7280', bg: 'bg-gray-50' }
@@ -218,8 +239,8 @@ export default function Dashboard() {
               const row = (
                 <div className={`flex items-center gap-3 rounded-lg -mx-1 px-1 py-1 ${to ? 'hover:bg-gray-50' : ''}`}>
                   <div className={`w-9 h-9 rounded-lg grid place-items-center shrink-0 ${m.bg}`} style={{ color: m.c }}><Icon size={17} /></div>
-                  <span className="text-[0.8125rem] text-gray-600 flex-1">{tr(o.label)}</span>
-                  <span className="text-[0.8125rem] font-bold text-gray-700">{num(o.count)}</span>
+                  <span className="text-[0.8125rem] text-gray-700 flex-1">{tr(o.label)}</span>
+                  <span className="text-[0.8125rem] font-bold text-gray-800">{num(o.count)}</span>
                   <span className="text-[0.8125rem] font-bold text-maroon-700 w-24 text-right">{inr(o.amount)}</span>
                 </div>
               )
@@ -231,13 +252,13 @@ export default function Dashboard() {
 
         {/* Week chart */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 overflow-x-auto">
-          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Pooja Bookings</T>{' '}<span className="text-xs font-sans font-normal text-gray-400">– {ap === 'today' ? tr('This Week') : rangeLabel}</span></h3>
-          <div className="text-[0.6875rem] text-gray-400 mt-0.5"><T>No. of Bookings</T></div>
+          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Pooja Bookings</T>{' '}<span className="text-xs font-sans font-normal text-gray-600">– {ap === 'today' ? tr('This Week') : rangeLabel}</span></h3>
+          <div className="text-[0.6875rem] text-gray-600 mt-0.5"><T>No. of Bookings</T></div>
           {d && <BarChart days={d.week_chart.days} />}
           <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-100 text-center">
-            <div><div className="text-[0.6875rem] text-gray-400"><T>This Period</T></div><div className="text-lg font-extrabold text-gray-800 tabular-nums">{d ? num(d.week_chart.this_week) : '—'}</div></div>
-            <div><div className="text-[0.6875rem] text-gray-400"><T>Prev Period</T></div><div className="text-lg font-extrabold text-gray-800 tabular-nums">{d ? num(d.week_chart.last_week) : '—'}</div></div>
-            <div><div className="text-[0.6875rem] text-gray-400"><T>Change</T></div><div className={`text-lg font-extrabold flex items-center justify-center gap-1 tabular-nums ${d?.week_chart.change_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}><TrendingUp size={14} /> {d ? `${d.week_chart.change_pct}%` : '—'}</div></div>
+            <div><div className="text-[0.6875rem] text-gray-600"><T>This Period</T></div><div className="text-lg font-extrabold text-gray-800 tabular-nums">{d ? num(d.week_chart.this_week) : '—'}</div></div>
+            <div><div className="text-[0.6875rem] text-gray-600"><T>Prev Period</T></div><div className="text-lg font-extrabold text-gray-800 tabular-nums">{d ? num(d.week_chart.last_week) : '—'}</div></div>
+            <div><div className="text-[0.6875rem] text-gray-600"><T>Change</T></div><div className={`text-lg font-extrabold flex items-center justify-center gap-1 tabular-nums ${d?.week_chart.change_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}><TrendingUp size={14} /> {d ? `${d.week_chart.change_pct}%` : '—'}</div></div>
           </div>
         </div>
 
@@ -252,16 +273,16 @@ export default function Dashboard() {
               <div key={i} className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-orange-50 text-orange-500 grid place-items-center shrink-0"><Flame size={16} /></div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[0.8125rem] font-semibold text-gray-800 leading-tight">{tr(b.pooja)}{b.plan ? <span className="text-gray-400 font-normal"> ({tr(b.plan)})</span> : null}</div>
-                  <div className="text-[0.6875rem] text-gray-400">{personName({ name: b.devotee }, lang)}</div>
+                  <div className="text-[0.8125rem] font-semibold text-gray-800 leading-tight">{tr(b.pooja)}{b.plan ? <span className="text-gray-500 font-normal"> ({tr(b.plan)})</span> : null}</div>
+                  <div className="text-[0.6875rem] text-gray-600">{personName({ name: b.devotee }, lang)}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[0.6875rem] text-gray-400 flex items-center gap-1 justify-end"><Clock size={10} /> {String(b.time || '').replace(/\b(AM|PM)\b/, (w) => tr(w))}</div>
+                  <div className="text-[0.6875rem] text-gray-600 flex items-center gap-1 justify-end"><Clock size={10} /> {String(b.time || '').replace(/\b(AM|PM)\b/, (w) => tr(w))}</div>
                   <span className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-emerald-50 text-emerald-700">{tr(b.status)}</span>
                 </div>
               </div>
             ))}
-            {d?.recent_bookings?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center"><T>No recent bookings.</T></div>}
+            {d?.recent_bookings?.length === 0 && <div className="text-xs text-gray-600 py-6 text-center"><T>No recent bookings.</T></div>}
           </div>
         </div>
       </div>}
@@ -279,25 +300,25 @@ export default function Dashboard() {
               <div key={i} className="flex items-center gap-3 border-b border-dashed border-gray-100 pb-3 last:border-0">
                 <div className="w-11 text-center shrink-0">
                   <div className="text-lg font-extrabold text-maroon-700 leading-none">{u.day}</div>
-                  <div className="text-[0.625rem] text-gray-400 uppercase">{tr(u.month)}</div>
+                  <div className="text-[0.625rem] text-gray-600 uppercase">{tr(u.month)}</div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[0.8125rem] font-semibold text-gray-800">{tr(u.pooja)}{u.plan ? <span className="text-gray-400 font-normal"> ({tr(u.plan)})</span> : null}</div>
-                  <div className="text-[0.6875rem] text-gray-400">{u.plan ? `${tr('Plan')}: ${tr(u.plan)} ${tr('Pooja')}` : tr('One-off pooja')}</div>
+                  <div className="text-[0.8125rem] font-semibold text-gray-800">{tr(u.pooja)}{u.plan ? <span className="text-gray-500 font-normal"> ({tr(u.plan)})</span> : null}</div>
+                  <div className="text-[0.6875rem] text-gray-600">{u.plan ? `${tr('Plan')}: ${tr(u.plan)} ${tr('Pooja')}` : tr('One-off pooja')}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[0.625rem] text-gray-400"><T>Bookings</T></div>
+                  <div className="text-[0.625rem] text-gray-600"><T>Bookings</T></div>
                   <div className="text-base font-extrabold text-maroon-700">{u.count}</div>
                 </div>
               </div>
             ))}
-            {d?.upcoming_special?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center"><T>No upcoming special poojas.</T></div>}
+            {d?.upcoming_special?.length === 0 && <div className="text-xs text-gray-600 py-6 text-center"><T>No upcoming special poojas.</T></div>}
           </div>
         </div>
 
         {/* Donations by Category */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-          <h3 className="font-serif text-base font-bold text-maroon-800"><T>Donations by Category</T>{' '}<span className="text-[0.6875rem] font-sans font-normal text-gray-400">({rangeLabel})</span></h3>
+          <h3 className="font-serif text-base font-bold text-maroon-800"><T>Donations by Category</T>{' '}<span className="text-[0.6875rem] font-sans font-normal text-gray-600">({rangeLabel})</span></h3>
           <div className="flex items-start gap-3 mt-3">
             {donutSegs.length > 0
               ? <Donut segments={donutSegs} total="" centerLabel="" size={120} />
@@ -305,15 +326,15 @@ export default function Dashboard() {
             <div className="flex-1 max-h-[200px] overflow-y-auto space-y-1.5 pr-1">
               {donutSegs.map((s) => (
                 <div key={s.label} className="flex items-center justify-between text-[0.6875rem]">
-                  <span className="flex items-center gap-1.5 text-gray-600 min-w-0"><span className="w-2 h-2 rounded-sm shrink-0" style={{ background: s.color }} /><span className="leading-tight">{s.label}</span></span>
-                  <span className="text-gray-500 shrink-0 ml-2">{inr(s.value)} <span className="text-gray-400">({s.pct}%)</span></span>
+                  <span className="flex items-center gap-1.5 text-gray-700 min-w-0"><span className="w-2 h-2 rounded-sm shrink-0" style={{ background: s.color }} /><span className="leading-tight">{s.label}</span></span>
+                  <span className="text-gray-600 shrink-0 ml-2">{inr(s.value)} <span className="text-gray-500">({s.pct}%)</span></span>
                 </div>
               ))}
-              {donutSegs.length === 0 && <div className="text-xs text-gray-400"><T>No donations this week.</T></div>}
+              {donutSegs.length === 0 && <div className="text-xs text-gray-600"><T>No donations this week.</T></div>}
             </div>
           </div>
           <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-[0.75rem] text-gray-500">{tr('Total Donations')} ({rangeLabel})</span>
+            <span className="text-[0.75rem] text-gray-700">{tr('Total Donations')} ({rangeLabel})</span>
             <span className="text-base font-extrabold text-maroon-700">{inr(dc?.total)}</span>
           </div>
         </div>
@@ -330,17 +351,17 @@ export default function Dashboard() {
               return (
                 <Link key={i} to={to} className="flex items-center gap-3 border border-gray-100 rounded-lg px-3 py-2.5 hover:bg-gray-50 hover:border-maroon-200 transition">
                   <div className={`w-9 h-9 rounded-lg grid place-items-center shrink-0 ${m.bg}`} style={{ color: m.c }}><Icon size={16} /></div>
-                  <span className="text-[0.8125rem] text-gray-600 flex-1">{alertText(a)}</span>
+                  <span className="text-[0.8125rem] text-gray-700 flex-1">{alertText(a)}</span>
                   <ChevronRight size={16} className="text-gray-300" />
                 </Link>
               )
             })}
-            {d?.alerts?.length === 0 && <div className="text-xs text-gray-400 py-6 text-center"><T>No alerts.</T></div>}
+            {d?.alerts?.length === 0 && <div className="text-xs text-gray-600 py-6 text-center"><T>No alerts.</T></div>}
           </div>
         </div>
       </div>}
 
-      {d && !isCounterStaff && <div className="mt-5 text-[0.6875rem] sm:text-[0.75rem] text-gray-400 text-center"><T>Note: All amounts shown are for the selected date range. Change the date range to view data for a different period.</T></div>}
+      {d && !isCounterStaff && <div className="mt-5 text-[0.6875rem] sm:text-[0.75rem] text-gray-600 text-center"><T>Note: All amounts shown are for the selected date range. Change the date range to view data for a different period.</T></div>}
     </div>
   )
 }

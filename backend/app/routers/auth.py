@@ -2,39 +2,38 @@
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import pyotp
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..database import get_db
-from ..models import User, AuditLog, Setting
+from ..models import User, AuditLog, Setting, RevokedToken
 from ..schemas import LoginIn, TwoFAIn, PasswordChangeIn, TokenOut, UserOut
 from ..security import (
     verify_password, hash_password, create_token, decode_token, log_action,
-    get_current_user, client_ip,
+    get_current_user, client_ip, get_token_from_request,
 )
 
 # Track used 2FA challenge tokens to prevent replay attacks.
 # Tokens are short-lived (5 min), so we only need a small in-memory cache.
-# In production with multiple workers, use Redis or database table instead.
+# Note: For 2FA tokens, in-memory is acceptable as they're very short-lived (5 min)
+# and the security impact is limited to replay within that window.
 _used_2fa_tokens: dict[str, datetime] = {}
 _USED_TOKEN_CLEANUP_INTERVAL = 100  # Clean up every N verifications
 _used_token_counter = 0
 
-# Token blacklist for logout functionality.
-# Stores hashed tokens with their expiry time. Tokens are cleaned up periodically.
-# In production with multiple workers, use Redis or database table instead.
-_revoked_tokens: dict[str, datetime] = {}
+# Counter for periodic cleanup of revoked tokens table
 _REVOKED_CLEANUP_INTERVAL = 50  # Clean up every N logout calls
 _revoked_counter = 0
 
 
 def _hash_token(token: str) -> str:
-    """Hash token for storage (don't store raw tokens)."""
-    return sha256(token.encode()).hexdigest()[:32]
+    """Hash token for storage (don't store raw tokens). Uses full SHA256 for uniqueness."""
+    return sha256(token.encode()).hexdigest()
 
 
 def _cleanup_expired_tokens() -> None:
-    """Remove expired tokens from the cache."""
+    """Remove expired tokens from the 2FA cache."""
     global _used_2fa_tokens
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
     _used_2fa_tokens = {k: v for k, v in _used_2fa_tokens.items() if v > cutoff}
@@ -55,36 +54,68 @@ def _is_token_used(token: str) -> bool:
     return _hash_token(token) in _used_2fa_tokens
 
 
-def _cleanup_revoked_tokens() -> None:
-    """Remove expired revoked tokens from the blacklist."""
-    global _revoked_tokens
+def _cleanup_revoked_tokens_db(db: Session) -> None:
+    """Remove expired revoked tokens from the database."""
     now = datetime.now(timezone.utc)
-    _revoked_tokens = {k: v for k, v in _revoked_tokens.items() if v > now}
+    db.query(RevokedToken).filter(RevokedToken.expires_at < now).delete()
+    db.commit()
 
 
-def _revoke_token(token: str, expiry: datetime) -> None:
-    """Add a token to the revocation blacklist."""
+def _revoke_token_db(db: Session, token: str, expiry: datetime, username: str | None = None) -> None:
+    """Add a token to the persistent revocation blacklist."""
     global _revoked_counter
     _revoked_counter += 1
+    # Periodic cleanup of expired tokens
     if _revoked_counter >= _REVOKED_CLEANUP_INTERVAL:
-        _cleanup_revoked_tokens()
+        _cleanup_revoked_tokens_db(db)
         _revoked_counter = 0
-    _revoked_tokens[_hash_token(token)] = expiry
 
-
-def is_token_revoked(token: str) -> bool:
-    """Check if a token has been revoked (logged out)."""
     token_hash = _hash_token(token)
-    if token_hash not in _revoked_tokens:
-        return False
-    # Check if the revocation entry has expired (token would be invalid anyway)
-    if _revoked_tokens[token_hash] < datetime.now(timezone.utc):
-        del _revoked_tokens[token_hash]
-        return False
-    return True
+    # Upsert: update expiry if token already exists, otherwise insert
+    existing = db.query(RevokedToken).filter(RevokedToken.token_hash == token_hash).first()
+    if existing:
+        existing.expires_at = expiry
+    else:
+        db.add(RevokedToken(token_hash=token_hash, expires_at=expiry, username=username))
+    db.commit()
+
+
+def is_token_revoked_db(db: Session, token: str) -> bool:
+    """Check if a token has been revoked (logged out). Uses database for persistence."""
+    token_hash = _hash_token(token)
+    now = datetime.now(timezone.utc)
+    revoked = db.query(RevokedToken).filter(
+        RevokedToken.token_hash == token_hash,
+        RevokedToken.expires_at >= now
+    ).first()
+    return revoked is not None
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    """Set HttpOnly JWT cookie. Phase 1 Security (FE-001): XSS-resistant token storage."""
+    response.set_cookie(
+        key=settings.JWT_COOKIE_NAME,
+        value=token,
+        httponly=True,  # Prevents JavaScript access - XSS protection
+        secure=settings.JWT_COOKIE_SECURE,  # HTTPS only in production
+        samesite=settings.JWT_COOKIE_SAMESITE,  # CSRF protection
+        max_age=settings.JWT_EXPIRE_MINUTES * 60,  # Cookie expiry matches token expiry
+        path="/",  # Available to all paths
+    )
+
+
+def _clear_auth_cookie(response: Response) -> None:
+    """Clear the auth cookie on logout."""
+    response.delete_cookie(
+        key=settings.JWT_COOKIE_NAME,
+        path="/",
+        secure=settings.JWT_COOKIE_SECURE,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+    )
+
 
 # Brute-force protection: lock a username out after N failed attempts within the window.
 LOCKOUT_WINDOW_MIN = 15
@@ -111,7 +142,7 @@ def _recent_failures(db: Session, username: str) -> int:
 
 
 @router.post("/login", response_model=TokenOut)
-def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
     ip = client_ip(request)
     max_attempts = _max_attempts(db)
     if _recent_failures(db, body.username) >= max_attempts:
@@ -133,6 +164,7 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid username or password")
 
     # 2FA enabled → return a short-lived challenge token, not full access
+    # Note: 2FA challenge tokens are NOT set as cookies (they're temporary)
     if user.twofa_enabled and user.totp_secret:
         challenge = create_token(user, kind="2fa")
         return TokenOut(access_token=challenge, twofa_required=True)
@@ -141,7 +173,10 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     db.commit()
     log_action(db, username=user.username, action="LOGIN", entity="Auth",
                detail="Login success", ip=ip)
-    return TokenOut(access_token=create_token(user), user=UserOut.model_validate(user))
+    token = create_token(user)
+    # Phase 1 Security (FE-001): Set HttpOnly cookie for XSS protection
+    _set_auth_cookie(response, token)
+    return TokenOut(access_token=token, user=UserOut.model_validate(user))
 
 
 MAX_2FA_ATTEMPTS = 5  # Max OTP attempts per challenge token
@@ -159,7 +194,7 @@ def _recent_2fa_failures(db: Session, username: str) -> int:
 
 
 @router.post("/verify-2fa", response_model=TokenOut)
-def verify_2fa(body: TwoFAIn, request: Request, db: Session = Depends(get_db)):
+def verify_2fa(body: TwoFAIn, request: Request, response: Response, db: Session = Depends(get_db)):
     ip = client_ip(request)
 
     # Check if this challenge token has already been used (replay attack prevention)
@@ -200,7 +235,10 @@ def verify_2fa(body: TwoFAIn, request: Request, db: Session = Depends(get_db)):
     db.commit()
     log_action(db, username=user.username, action="LOGIN", entity="2FA",
                detail="2FA verified", ip=ip)
-    return TokenOut(access_token=create_token(user), user=UserOut.model_validate(user))
+    token = create_token(user)
+    # Phase 1 Security (FE-001): Set HttpOnly cookie for XSS protection
+    _set_auth_cookie(response, token)
+    return TokenOut(access_token=token, user=UserOut.model_validate(user))
 
 
 @router.get("/me", response_model=UserOut)
@@ -209,7 +247,7 @@ def me(user: User = Depends(get_current_user)):
 
 
 @router.post("/change-password", response_model=TokenOut)
-def change_password(body: PasswordChangeIn, request: Request,
+def change_password(body: PasswordChangeIn, request: Request, response: Response,
                     db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Change the current user's password. Used for first-login password change
     and voluntary password updates. Requires current password for security.
@@ -240,35 +278,39 @@ def change_password(body: PasswordChangeIn, request: Request,
                detail="Password changed successfully", ip=ip)
 
     # Issue a new token since the old one is now invalid (iat < password_changed_at)
-    return TokenOut(access_token=create_token(user), user=UserOut.model_validate(user))
-
-
-def _extract_token(request: Request) -> str:
-    """Extract Bearer token from Authorization header."""
-    auth_header = request.headers.get("Authorization", "")
-    return auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else ""
+    token = create_token(user)
+    # Phase 1 Security (FE-001): Set HttpOnly cookie for XSS protection
+    _set_auth_cookie(response, token)
+    return TokenOut(access_token=token, user=UserOut.model_validate(user))
 
 
 @router.post("/logout")
-def logout(request: Request, db: Session = Depends(get_db),
-           user: User = Depends(get_current_user),
-           token: str = Depends(_extract_token)):
+def logout(request: Request, response: Response, db: Session = Depends(get_db),
+           user: User = Depends(get_current_user)):
     """Logout the current user by revoking their token.
 
-    The token is added to a blacklist until it expires naturally.
-    This ensures the token cannot be reused even if intercepted.
+    The token is added to a persistent blacklist (database) until it expires.
+    This ensures the token cannot be reused even if intercepted, and works
+    across multiple app instances and restarts.
     """
     ip = client_ip(request)
 
-    # Get the token expiry from the payload
-    try:
-        payload = decode_token(token)
-        # exp is a Unix timestamp - use timezone-aware datetime
-        exp = datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc)
-        _revoke_token(token, exp)
-    except Exception:
-        # Even if decode fails, we still log the logout attempt
-        pass
+    # Phase 1 Security (FE-001): Get token from cookie or header
+    token = get_token_from_request(request)
+
+    # Get the token expiry from the payload and revoke it persistently
+    if token:
+        try:
+            payload = decode_token(token)
+            # exp is a Unix timestamp - use timezone-aware datetime
+            exp = datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc)
+            _revoke_token_db(db, token, exp, user.username)
+        except Exception:
+            # Even if decode fails, we still log the logout attempt
+            pass
+
+    # Phase 1 Security (FE-001): Clear the HttpOnly cookie
+    _clear_auth_cookie(response)
 
     log_action(db, username=user.username, action="LOGOUT", entity="Auth",
                detail="User logged out", ip=ip)

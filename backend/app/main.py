@@ -1,8 +1,76 @@
 """PSBT-Portal FastAPI application entry point."""
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import settings
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add production security headers to all responses (SEC-001).
+
+    Headers added:
+    - X-Content-Type-Options: Prevents MIME-sniffing attacks
+    - X-Frame-Options: Prevents clickjacking (legacy, CSP frame-ancestors preferred)
+    - Strict-Transport-Security: Enforces HTTPS connections
+    - Content-Security-Policy: Controls resource loading
+    - Referrer-Policy: Controls referrer information
+    - Permissions-Policy: Restricts browser features
+    - X-XSS-Protection: Legacy XSS filter (for older browsers)
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+
+        # X-Content-Type-Options: Prevent MIME-sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+
+        # X-Frame-Options: Prevent clickjacking (DENY = no framing allowed)
+        response.headers["X-Frame-Options"] = "DENY"
+
+        # Strict-Transport-Security: Enforce HTTPS (1 year, include subdomains)
+        # Only set in production (when JWT_COOKIE_SECURE is true)
+        if settings.JWT_COOKIE_SECURE:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+        # Content-Security-Policy: Restrict resource loading
+        # - default-src 'self': Only allow resources from same origin
+        # - script-src 'self' 'unsafe-inline': Allow inline scripts (React needs this)
+        # - style-src 'self' 'unsafe-inline': Allow inline styles (Tailwind needs this)
+        # - img-src 'self' data: blob:: Allow images from self, data URIs, and blob URIs
+        # - font-src 'self': Allow fonts from self
+        # - connect-src 'self': Allow API calls to self
+        # - frame-ancestors 'none': Prevent framing (modern replacement for X-Frame-Options)
+        # - form-action 'self': Restrict form submissions
+        # - base-uri 'self': Restrict base tag
+        csp = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob: https:; "
+            "font-src 'self' data:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "form-action 'self'; "
+            "base-uri 'self'"
+        )
+        response.headers["Content-Security-Policy"] = csp
+
+        # Referrer-Policy: Control referrer information
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+        # Permissions-Policy: Disable unnecessary browser features
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=(), "
+            "payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+        )
+
+        # X-XSS-Protection: Legacy XSS filter for older browsers
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        return response
+
+
 from .database import Base, engine
 from .routers import (auth, devotees, sevas, bookings, donations, misc, users,
                       dashboard, poojas, payments, poojaris, waste, translate, schedules,
@@ -15,12 +83,25 @@ from .site_content import ensure_site_content
 
 app = FastAPI(title=settings.APP_NAME, version="1.0.0")
 
+# SEC-001: Add security headers middleware (must be added before CORS)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# SEC-002: CORS with explicit methods and headers (no wildcards)
+# Methods: Only the HTTP methods actually used by PSBT-Portal
+# Headers: Only the headers required for authenticated API requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+    ],
+    expose_headers=["Content-Disposition"],  # For file downloads
 )
 
 

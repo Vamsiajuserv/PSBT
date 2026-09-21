@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Setting
+from ..schemas import SettingsUpdateIn
 from ..security import RequireModule, require_admin, log_action, client_ip, ADMIN_ROLES, get_current_user
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -104,13 +105,19 @@ def get_settings(db: Session = Depends(get_db), user=Depends(read)):
 
 
 @router.put("")
-def update_settings(body: dict, request: Request,
+def update_settings(body: SettingsUpdateIn, request: Request,
                     db: Session = Depends(get_db), user=Depends(require_admin)):
+    """Update temple settings.
+
+    API-011: Uses typed SettingsUpdateIn schema for input validation.
+    Validates key format and value constraints.
+    """
     now = datetime.now().strftime("%d %b %Y %I:%M %p")
-    body = dict(body or {})
-    body["updated_by"] = getattr(user, "name", None) or user.username
-    body["updated_at"] = now
-    for k, v in body.items():
+    # Convert Pydantic model to dict, excluding unset fields
+    body_dict = body.model_dump(exclude_unset=True)
+    body_dict["updated_by"] = getattr(user, "name", None) or user.username
+    body_dict["updated_at"] = now
+    for k, v in body_dict.items():
         row = db.query(Setting).filter(Setting.skey == k).first()
         if row:
             row.svalue = str(v) if v is not None else None

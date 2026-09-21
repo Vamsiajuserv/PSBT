@@ -12,9 +12,9 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db, SessionLocal
 from ..models import Booking, Devotee, PoojaPlan, Seva, Pooja, Festival, Poojari
-from ..schemas import BookingCreate, BookingOut
+from ..schemas import BookingCreate, BookingOut, QuickCreateBookingIn, BulkQuickCreateBookingIn, BookingRescheduleIn, BookingCancelIn
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination
+from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination, enforce_rate_limit
 from .refunds import record_refund
 from .. import notifications as notif
 
@@ -717,7 +717,7 @@ def eligible_today(q: str = "", pooja: str = "", status: str = "",
 # Combines booking + payment in single request for instant Counter transactions
 
 @router.post("/quick-create")
-def quick_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(bill)):
+def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Depends(get_db), user=Depends(bill)):
     """Create booking + immediate payment in single request (for Counter/Cash/UPI).
 
     This is an optimized endpoint for Counter billing that combines:
@@ -728,9 +728,13 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
 
     Reduces 3 API calls to 1 for Counter transactions.
     """
+    # Phase 1 Security (API-004): Rate limit booking creation (max 60 per minute per user)
+    enforce_rate_limit(db, f"booking_create:{user.username}", limit=60, window_minutes=1,
+                       ip=client_ip(request))
     from .. import payments as pay
 
-    data = dict(body)
+    # Convert Pydantic model to dict for processing (Phase 1 Security: API-002)
+    data = body.model_dump(exclude_unset=True)
     payment_method = data.pop("payment_method", "Cash")
 
     # ── Standard booking creation (from create() logic) ──
@@ -850,9 +854,7 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
     # Auto-verify for Counter payments (Cash/UPI - no real gateway needed)
     po = pay.verify_and_confirm(db, po=po, method=payment_method)
 
-    # Refresh booking after payment confirmation (ticket_no now set)
-    db.refresh(b)
-
+    # Commit and refresh to get the final state (ticket_no set by _confirm_entity)
     db.commit()
     db.refresh(b)
 
@@ -888,23 +890,21 @@ def quick_create(body: dict, request: Request, db: Session = Depends(get_db), us
 
 
 @router.post("/bulk-quick-create")
-def bulk_quick_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(bill)):
+def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Session = Depends(get_db), user=Depends(bill)):
     """Create multiple bookings with immediate payment in single request.
 
     For Counter billing with multiple cart items - processes all items in one API call.
     Expects: {"items": [...booking data...], "payment_method": "Cash"}
     Returns: {"success": [...], "failed": [...]}
     """
+    # Phase 1 Security (API-004): Rate limit bulk booking creation (max 10 bulk ops per minute per user)
+    enforce_rate_limit(db, f"booking_bulk_create:{user.username}", limit=10, window_minutes=1,
+                       ip=client_ip(request))
     from .. import payments as pay
 
-    items = body.get("items", [])
-    payment_method = body.get("payment_method", "Cash")
-
-    if not items:
-        raise HTTPException(400, "No items provided")
-
-    if len(items) > 20:
-        raise HTTPException(400, "Maximum 20 items per batch")
+    # Schema validation ensures items list is 1-20 items (Phase 1 Security: API-002)
+    items = [item.model_dump(exclude_unset=True) for item in body.items]
+    payment_method = body.payment_method
 
     success = []
     failed = []

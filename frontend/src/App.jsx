@@ -71,10 +71,12 @@ function Guard({ k, children }) {
 }
 
 // Landing screen for /admin. The money dashboard is meaningless to a Poojari, so
-// they land on their pooja queue instead; everyone else gets the dashboard.
+// they land on their pooja queue instead. Counter Staff go to the Counter module
+// directly (Client UAT requirement). Everyone else gets the dashboard.
 function AdminHome() {
   const { user } = useAuth()
   if (user?.role === 'Poojari') return <Navigate to="/admin/my-poojas" replace />
+  if (user?.role === 'Counter Staff') return <Navigate to="/admin/counter" replace />
   return <Dashboard />
 }
 

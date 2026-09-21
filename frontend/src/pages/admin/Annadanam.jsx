@@ -184,7 +184,7 @@ export default function Annadanam() {
   const [results, setResults] = useState([])
   const picked = drawer?.devotee
   useEffect(() => {
-    if (!drawer || picked || dq.trim().length < 4) { setResults([]); return }
+    if (!drawer || picked || dq.trim().length < 1) { setResults([]); return }
     const t = setTimeout(() => DevoteesAPI.list({ q: dq, size: 6 }).then((r) => setResults(r.items)).catch(() => toast('Failed to search devotees', 'error')), 250)
     return () => clearTimeout(t)
   }, [dq, picked, drawer])

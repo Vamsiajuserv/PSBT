@@ -558,7 +558,8 @@ class Backup(Base):
     filename = Column(String(160), nullable=False)
     kind = Column(String(20), default="Backup", nullable=False)   # Backup | Restore
     schema_version = Column(String(20), default="1.0")
-    payload = Column(Text, nullable=True)            # JSON snapshot (Backup only)
+    payload = Column(Text, nullable=True)            # JSON snapshot (Backup only), may be encrypted
+    encrypted = Column(Boolean, default=False)       # Phase 1 Security (INF-001): True if payload is encrypted
     record_counts = Column(Text, nullable=True)      # JSON {table: count}
     size_kb = Column(Integer, default=0)
     note = Column(Text, nullable=True)
@@ -651,6 +652,19 @@ class AuditLog(Base):
     detail = Column(Text, nullable=True)
     status = Column(String(20), default="SUCCESS")  # SUCCESS | FAILURE
     ip = Column(String(50), nullable=True)
+
+
+# ── Revoked JWT Tokens (persistent blacklist for logout/invalidation) ────────
+# Stores hashed tokens with expiry for distributed token revocation across
+# multiple app instances/restarts. Tokens are cleaned up when expired.
+class RevokedToken(Base):
+    __tablename__ = "revoked_tokens"
+
+    id = Column(Integer, primary_key=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    revoked_at = Column(DateTime, server_default=func.now())
+    username = Column(String(60), nullable=True)  # for audit purposes
 
 
 # ── Tithi Master (Pournami / Amavasya dates for tithi-specific poojas) ────────

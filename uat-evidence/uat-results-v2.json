@@ -1,0 +1,686 @@
+{
+  "screenInventory": {
+    "public": 0,
+    "admin": 0,
+    "total": 0
+  },
+  "crud": [
+    {
+      "module": "Devotees",
+      "create": {
+        "status": "PARTIAL",
+        "details": "Name filled. Mobile filled. Form submitted, outcome unclear. "
+      },
+      "read": {
+        "status": "PASS",
+        "details": "1 records visible in table"
+      },
+      "update": {
+        "status": "NOT AVAILABLE",
+        "details": "Edit button not found"
+      },
+      "delete": {
+        "status": "NOT AVAILABLE",
+        "details": "Delete button not found"
+      }
+    }
+  ],
+  "responsive": [
+    {
+      "screen": "Dashboard",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Devotees",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Bookings",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "NewBooking",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Donations",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Hundi",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Auction",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Annadanam",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Counter",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Reports",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "DailyClosing",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Users",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Roles",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Settings",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "Analytics",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "PublicHome",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "PublicSevas",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "screen": "PublicDonations",
+      "viewports": {
+        "desktop": {
+          "size": "1920x1080",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "laptop": {
+          "size": "1366x768",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "tablet": {
+          "size": "768x1024",
+          "overflow": false,
+          "status": "PASS"
+        },
+        "mobile": {
+          "size": "375x812",
+          "overflow": false,
+          "status": "PASS"
+        }
+      }
+    }
+  ],
+  "telugu": {
+    "languageSwitch": "PASS",
+    "header": "TELUGU TEXT PRESENT",
+    "sidebar": "TELUGU TEXT PRESENT",
+    "buttons": "NOT TESTED",
+    "tables": "NOT TESTED",
+    "forms": "NOT TESTED",
+    "screenshots": [
+      "uat-evidence/09-TELUGU/dashboard-telugu.png",
+      "uat-evidence/09-TELUGU/devotees-telugu.png",
+      "uat-evidence/09-TELUGU/bookings-telugu.png"
+    ]
+  },
+  "receipts": {
+    "booking": {
+      "status": "NOT FOUND",
+      "details": "No receipt buttons or links found on bookings page"
+    },
+    "donation": {
+      "status": "BUTTON EXISTS",
+      "details": "Print button found. Actual print requires OS dialog (MANUAL ONLY)."
+    }
+  },
+  "exports": {
+    "reports": {
+      "status": "BUTTON EXISTS",
+      "details": "Export button found. Actual download verification requires file system check (MANUAL ONLY)."
+    },
+    "devotees": {
+      "status": "NOT FOUND",
+      "details": ""
+    }
+  },
+  "rbac": [
+    {
+      "role": "Counter Staff",
+      "route": "/admin/auction",
+      "module": "Auction",
+      "clientExpected": "DENIED",
+      "note": "Requires clarification against actual client requirements document"
+    },
+    {
+      "role": "Committee",
+      "route": "/admin/daily-closing",
+      "module": "DailyClosing",
+      "clientExpected": "DENIED",
+      "note": "Requires clarification against actual client requirements document"
+    },
+    {
+      "role": "Committee",
+      "route": "/admin/committee",
+      "module": "Committee",
+      "clientExpected": "DENIED",
+      "note": "Requires clarification against actual client requirements document"
+    },
+    {
+      "role": "Committee",
+      "route": "/admin/analytics",
+      "module": "Analytics",
+      "clientExpected": "DENIED",
+      "note": "Requires clarification against actual client requirements document"
+    },
+    {
+      "role": "Poojari",
+      "route": "/admin/my-poojas",
+      "module": "MyPoojas",
+      "clientExpected": "CHECK",
+      "note": "Requires clarification against actual client requirements document"
+    },
+    {
+      "role": "Poojari",
+      "route": "/admin/verify-ticket",
+      "module": "VerifyTicket",
+      "clientExpected": "CHECK",
+      "note": "Requires clarification against actual client requirements document"
+    }
+  ],
+  "backup": {
+    "pageLoad": "PASS",
+    "apiBackups": "HTTP 401",
+    "apiStats": "HTTP 401",
+    "uiError": "No visible error message",
+    "rootCause": "{\"detail\":\"Not authenticated\"}",
+    "recommendation": "API responding, check frontend integration"
+  },
+  "consoleErrors": [
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or o"
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or o"
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or o"
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or o"
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or o"
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or o"
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or o"
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or o"
+    }
+  ],
+  "networkErrors": [
+    {
+      "url": "http://localhost:3000/api/devotees?size=500",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/devotees?size=500",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/public/site",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/poojas",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/poojaris",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/public/site",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/poojas",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/poojas",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/poojas",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/public/site",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/poojaris",
+      "error": "net::ERR_ABORTED"
+    }
+  ],
+  "defects": []
+}

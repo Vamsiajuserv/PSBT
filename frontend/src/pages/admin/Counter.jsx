@@ -11,7 +11,7 @@ import { PoojasAPI, DevoteesAPI, BookingsAPI, PaymentsAPI, FestivalsAPI, Poojari
 import { QRCodeSVG } from 'qrcode.react'
 import { promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, useLang, personName, stamp, clock12 } from '../../i18n/LanguageContext.jsx'
-import { sanitizePhone, sanitizeName } from '../../lib/validation.js'
+import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
 
 const CATS = ['All', 'Daily', 'Monthly', 'Long-Term', 'Occasion', 'Festival', 'Vehicle']
 const SLOTS = [
@@ -234,6 +234,7 @@ export default function Counter() {
 
   // ── Devotee state (Phone-first flow) ──
   const [mobile, setMobile] = useState('')
+  const [mobileError, setMobileError] = useState('')  // Mobile validation error
   const [countryCode, setCountryCode] = useState('+91')
   const [name, setName] = useState('')
   const [mobileResults, setMobileResults] = useState(null)  // Devotees matching mobile
@@ -272,6 +273,7 @@ export default function Counter() {
   const pickDevotee = (d) => {
     setDevotee(d)
     setMobile(d.mobile || '')
+    setMobileError('')  // Clear error when selecting valid devotee
     setName(d.name)
     setGothram(d.gothram || '')
     setNakshatram(d.nakshatram || '')
@@ -282,8 +284,8 @@ export default function Counter() {
   const clearDevotee = () => {
     setDevotee(null)
     setMobile('')
+    setMobileError('')
     setName('')
-    setEmail('')
     setGothram('')
     setNakshatram('')
     setRasi('')
@@ -298,6 +300,14 @@ export default function Counter() {
   const handleMobileChange = (val) => {
     const cleaned = sanitizePhone(val)
     setMobile(cleaned)
+    setError('')  // Clear any previous error when user starts typing
+    // Validate Indian mobile number (only for +91)
+    if (countryCode === '+91' && cleaned.length === 10) {
+      const validation = validatePhone(cleaned)
+      setMobileError(validation.valid ? '' : 'Invalid Mobile Number. Please Enter Valid Mobile Number')
+    } else {
+      setMobileError('')
+    }
     if (devotee && cleaned !== devotee.mobile) {
       setDevotee(null)  // Unlink if mobile changed
     }
@@ -307,6 +317,7 @@ export default function Counter() {
   const handleNameChange = (val) => {
     const cleaned = sanitizeName(val)
     setName(cleaned)
+    setError('')  // Clear any previous error when user starts typing
     if (devotee && cleaned !== devotee.name) {
       setDevotee(null)  // Unlink if name changed (different family member)
     }
@@ -504,9 +515,13 @@ export default function Counter() {
     }
 
     setCart((c) => [...c, { ...entry, amount, scheduled_date, vehicle_no, lineId: ++lineSeq.current }])
+    setError('')  // Clear any previous error when adding items
   }
 
-  const removeFromCart = (lineId) => setCart((c) => c.filter((x) => x.lineId !== lineId))
+  const removeFromCart = (lineId) => {
+    setCart((c) => c.filter((x) => x.lineId !== lineId))
+    setError('')  // Clear any previous error when removing items
+  }
   const total = cart.reduce((s, x) => s + Number(x.amount || 0), 0)
 
   const clearSelection = () => {
@@ -529,7 +544,8 @@ export default function Counter() {
     setError('')
     if (!canBill) { setError('View-only access.'); return }
     if (!name.trim()) { setError('Enter the devotee / payer name.'); return }
-    if (!mobile.trim() || !/^\d{10}$/.test(mobile.trim())) { setError('Enter a valid 10-digit mobile number.'); return }
+    const mobileValidation = validatePhone(mobile.trim())
+    if (!mobileValidation.valid) { setError(mobileValidation.error); return }
     if (!cart.length) { setError('Add at least one pooja to the bill.'); return }
     if (mode === 'UPI/QR Code' && !utr.trim()) { setError('Enter the UTR / Transaction ID.'); return }
 
@@ -571,8 +587,14 @@ export default function Counter() {
         payment_method: mode,
       })
 
+      // Defensive: ensure result has expected structure
+      if (!result || typeof result !== 'object') {
+        throw new Error('Invalid response from server')
+      }
+
       // Map results back to cart items (use originalCartItems, not cart state)
-      const done = result.success.map((s) => {
+      const successItems = result.success || []
+      const done = successItems.map((s) => {
         const cartItem = originalCartItems[s.index] || {}
         return {
           ...cartItem,
@@ -593,7 +615,7 @@ export default function Counter() {
         }
       })
 
-      const failedCount = result.failed_count
+      const failedCount = result.failed_count || 0
 
       setBill({
         lines: done,
@@ -622,7 +644,8 @@ export default function Counter() {
         setUtr('')
       }
     } catch (err) {
-      setError(err.detail || 'Billing failed. Please try again.')
+      console.error('Billing error:', err)
+      setError(err.detail || err.message || 'Billing failed. Please try again.')
     }
 
     setBusy(false)
@@ -634,7 +657,8 @@ export default function Counter() {
     setError('')
     if (!canBill) { setError('View-only access.'); return }
     if (!name.trim()) { setError('Enter the devotee name.'); return }
-    if (!mobile.trim() || !/^\d{10}$/.test(mobile.trim())) { setError('Enter a valid 10-digit mobile number.'); return }
+    const mobileValidation = validatePhone(mobile.trim())
+    if (!mobileValidation.valid) { setError(mobileValidation.error); return }
     if (!schedDate) { setError('Select a booking date.'); return }
     if (mode === 'UPI/QR Code' && !utr.trim()) { setError('Enter the UTR / Transaction ID.'); return }
 
@@ -726,7 +750,8 @@ export default function Counter() {
       clearDevotee()
       setUtr('')
     } catch (err) {
-      setError(err.detail || 'Booking failed. Please try again.')
+      console.error('Booking error:', err)
+      setError(err.detail || err.message || 'Booking failed. Please try again.')
     } finally {
       setBusy(false)
     }
@@ -800,17 +825,22 @@ export default function Counter() {
                   onChange={(e) => handleMobileChange(e.target.value)}
                   placeholder={tr("Enter Mobile Number")}
                   maxLength={getCountryDigits(countryCode)}
-                  className="input flex-1 !rounded-l-none"
+                  className={`input flex-1 !rounded-l-none ${mobileError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`}
                   autoFocus
                   aria-label={tr("Mobile number")}
                   aria-describedby="mobile-hint"
+                  aria-invalid={!!mobileError}
                 />
               </div>
-              <p id="mobile-hint" className="text-[0.625rem] text-gray-400 mt-1"><T>Type to search existing devotees</T></p>
+              {mobileError ? (
+                <p className="text-[0.625rem] text-red-600 mt-1 font-medium">{tr(mobileError)}</p>
+              ) : (
+                <p id="mobile-hint" className="text-[0.625rem] text-gray-600 mt-1"><T>Type to search existing devotees</T></p>
+              )}
               {/* Dropdown showing matching devotees by mobile */}
               {showMobileDropdown && mobileResults && mobileResults.length > 0 && (
                 <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                  <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-[0.6875rem] text-gray-500 font-medium">
+                  <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-[0.6875rem] text-gray-700 font-medium">
                     <T>Select to auto-fill</T>
                   </div>
                   {mobileResults.map((d) => (
@@ -820,7 +850,7 @@ export default function Counter() {
                       className="w-full text-left px-3 py-2 text-sm hover:bg-saffron-50 flex items-center justify-between border-b border-gray-50 last:border-0"
                     >
                       <span className="font-medium text-gray-800">{personName(d, lang)}</span>
-                      <span className="text-gray-400 text-xs">{d.mobile}</span>
+                      <span className="text-gray-600 text-xs">{d.mobile}</span>
                     </button>
                   ))}
                 </div>
@@ -859,7 +889,7 @@ export default function Counter() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
             <h3 className="font-bold text-gray-900 text-lg"><T>Select Pooja</T></h3>
             <div className="relative w-full sm:w-72">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
               <input value={sevaQ} onChange={(e) => setSevaQ(e.target.value)} placeholder={tr("Search pooja / plan…")} className="input !pl-10 !py-2.5" aria-label={tr("Search poojas")} />
             </div>
           </div>
@@ -903,7 +933,7 @@ export default function Counter() {
           {/* Pooja grid */}
           {catalogErr && <div className="text-red-600 text-sm text-center py-6" role="alert">{catalogErr}</div>}
           {!catalogErr && catalog.length === 0 && (
-            <div className="flex items-center justify-center py-12 text-gray-400">
+            <div className="flex items-center justify-center py-12 text-gray-600">
               <Loader2 size={24} className="animate-spin mr-3" />
               <span className="text-base"><T>Loading poojas...</T></span>
             </div>
@@ -919,7 +949,7 @@ export default function Counter() {
                   className="flex items-center justify-between border-2 border-gray-200 rounded-xl px-4 py-3.5 text-left hover:border-saffron-400 hover:bg-saffron-50 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-saffron-500 focus:ring-offset-1">
                   <div className="min-w-0">
                     <div className="text-[0.9375rem] font-semibold text-gray-800 leading-tight">{lang === 'te' && s.name_te ? s.name_te : tr(s.pooja_name)}</div>
-                    <div className="text-[0.75rem] text-gray-500 leading-tight flex items-center gap-1.5 mt-1">
+                    <div className="text-[0.75rem] text-gray-700 leading-tight flex items-center gap-1.5 mt-1">
                       {s.category === 'Vehicle' && <Car size={12} aria-hidden="true" />}
                       {s.category === 'Festival' && <CalendarDays size={12} aria-hidden="true" />}
                       {s.category === 'Occasion' && <Flame size={12} aria-hidden="true" />}
@@ -934,7 +964,7 @@ export default function Counter() {
                 </button>
               )
             })}
-            {filtered.length === 0 && catalog.length > 0 && <p className="text-base text-gray-400 col-span-full text-center py-12"><T>No matching poojas.</T></p>}
+            {filtered.length === 0 && catalog.length > 0 && <p className="text-base text-gray-600 col-span-full text-center py-12"><T>No matching poojas.</T></p>}
           </div>
         </div>
 
@@ -949,7 +979,7 @@ export default function Counter() {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900 text-lg">{lang === 'te' ? 'రసీదు' : 'Bill / రసీదు'}</h3>
-                  <p className="text-[0.75rem] text-gray-400"><T>Add daily poojas or vehicle poojas to the bill</T></p>
+                  <p className="text-[0.75rem] text-gray-600"><T>Add daily poojas or vehicle poojas to the bill</T></p>
                 </div>
               </div>
 
@@ -957,14 +987,14 @@ export default function Counter() {
                 {cart.length === 0 && (
                   <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
                     <ReceiptIcon size={32} className="mx-auto text-gray-300 mb-2" />
-                    <p className="text-sm text-gray-400"><T>No items added. Select a pooja from the left.</T></p>
+                    <p className="text-sm text-gray-600"><T>No items added. Select a pooja from the left.</T></p>
                   </div>
                 )}
                 {cart.map((x) => (
                   <div key={x.lineId} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
                     <div className="min-w-0">
                       <div className="font-semibold text-gray-800 leading-tight">{x.pooja_name}</div>
-                      <div className="text-[0.75rem] text-gray-500 leading-tight mt-0.5">
+                      <div className="text-[0.75rem] text-gray-700 leading-tight mt-0.5">
                         {x.plan_name}
                         {x.vehicle_no && ` · ${x.vehicle_no}`}
                         {x.scheduled_date && x.scheduled_date !== todayISO() && ` · ${fmtDate(x.scheduled_date)}`}
@@ -972,7 +1002,7 @@ export default function Counter() {
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="font-bold text-gray-800 text-base">₹{Number(x.amount || 0).toLocaleString('en-IN')}</span>
-                      <button onClick={() => removeFromCart(x.lineId)} className="w-8 h-8 rounded-lg bg-white border border-gray-200 grid place-items-center text-gray-400 hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition"><Trash2 size={14} /></button>
+                      <button onClick={() => removeFromCart(x.lineId)} className="w-8 h-8 rounded-lg bg-white border border-gray-200 grid place-items-center text-gray-600 hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 ))}
@@ -991,7 +1021,7 @@ export default function Counter() {
                             {w.booked_on && <div><span className="font-medium text-gray-600"><T>Booked</T>:</span> {fmtDate(w.booked_on)}</div>}
                             {w.valid_until && <div><span className="font-medium text-gray-600"><T>Valid Until</T>:</span> {typeof w.valid_until === 'string' && w.valid_until.includes('-') ? fmtDate(w.valid_until) : w.valid_until}</div>}
                           </div>
-                          {w.existing_ticket && <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Ticket</T>: {w.existing_ticket}</div>}
+                          {w.existing_ticket && <div className="text-[0.6875rem] text-gray-700 mt-1"><T>Ticket</T>: {w.existing_ticket}</div>}
 
                           {/* Confirmation checkbox */}
                           <label className={`mt-2 flex items-start gap-2 cursor-pointer p-2 rounded-lg border ${dupConfirmed[w.lineId] ? 'bg-emerald-100 border-emerald-300' : 'bg-white border-orange-200 hover:bg-orange-50'}`}>
@@ -1017,7 +1047,7 @@ export default function Counter() {
                 <label className="block text-sm font-semibold text-gray-700 mb-3"><T>Payment Method</T></label>
                 <div className="grid grid-cols-2 gap-3">
                   {['Cash', 'UPI/QR Code'].map((m) => (
-                    <button key={m} onClick={() => setMode(m)}
+                    <button key={m} onClick={() => { setMode(m); setError('') }}
                       className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 py-4 px-3 font-semibold transition-all ${mode === m
                         ? 'border-saffron-500 bg-saffron-50 text-saffron-800 shadow-sm'
                         : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}>
@@ -1042,8 +1072,8 @@ export default function Counter() {
                           includeMargin={false}
                         />
                       </div>
-                      <p className="text-xs text-gray-500 mt-3 text-center"><T>Scan with any UPI app to pay</T></p>
-                      <p className="text-[0.7rem] text-gray-400 mt-1 font-mono">{upiConfig.upi_id}</p>
+                      <p className="text-xs text-gray-700 mt-3 text-center"><T>Scan with any UPI app to pay</T></p>
+                      <p className="text-[0.7rem] text-gray-600 mt-1 font-mono">{upiConfig.upi_id}</p>
                     </div>
                   )}
                   <label className="block text-sm font-medium text-gray-600 mb-2"><T>UTR / Transaction ID</T> *</label>
@@ -1090,7 +1120,7 @@ export default function Counter() {
                   </div>
                   <h3 className="font-serif text-lg font-bold leading-tight">{tr(selectedEntry.pooja_name)}</h3>
                 </div>
-                <button onClick={clearSelection} className="w-9 h-9 rounded-lg border border-gray-200 grid place-items-center text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition"><X size={18} /></button>
+                <button onClick={clearSelection} className="w-9 h-9 rounded-lg border border-gray-200 grid place-items-center text-gray-600 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition"><X size={18} /></button>
               </div>
 
               {/* Plan selection */}
@@ -1107,7 +1137,7 @@ export default function Counter() {
                             <span className={`w-4 h-4 rounded-full border-2 ${isSelected ? 'border-maroon-600 bg-maroon-600' : 'border-gray-300'}`} />
                             <div className="text-left">
                               <span className="font-semibold text-gray-800">{tr(pl.plan_name)}</span>
-                              <span className="text-[0.75rem] text-gray-500 ml-2">{validityShort(pl.plan_name)}</span>
+                              <span className="text-[0.75rem] text-gray-700 ml-2">{validityShort(pl.plan_name)}</span>
                             </div>
                           </div>
                           <span className="font-bold text-gray-800 text-base">
@@ -1258,7 +1288,7 @@ export default function Counter() {
                         {formDupWarning.booked_on && <div><span className="font-medium text-gray-600"><T>Booked</T>:</span> {fmtDate(formDupWarning.booked_on)}</div>}
                         {formDupWarning.valid_until && <div><span className="font-medium text-gray-600"><T>Valid Until</T>:</span> {typeof formDupWarning.valid_until === 'string' && formDupWarning.valid_until.includes('-') ? fmtDate(formDupWarning.valid_until) : formDupWarning.valid_until}</div>}
                       </div>
-                      {formDupWarning.ticket_no && <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Ticket</T>: {formDupWarning.ticket_no}</div>}
+                      {formDupWarning.ticket_no && <div className="text-[0.6875rem] text-gray-700 mt-1"><T>Ticket</T>: {formDupWarning.ticket_no}</div>}
 
                       {/* Confirmation checkbox */}
                       <label className={`mt-2 flex items-start gap-2 cursor-pointer p-2 rounded-lg border ${formDupConfirmed ? 'bg-emerald-100 border-emerald-300' : 'bg-white border-orange-200 hover:bg-orange-50'}`}>
@@ -1282,7 +1312,7 @@ export default function Counter() {
                 <label className="block text-sm font-semibold text-gray-700 mb-3"><T>Payment Method</T></label>
                 <div className="grid grid-cols-2 gap-3">
                   {['Cash', 'UPI/QR Code'].map((m) => (
-                    <button key={m} onClick={() => setMode(m)}
+                    <button key={m} onClick={() => { setMode(m); setError('') }}
                       className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 py-4 px-3 font-semibold transition-all ${mode === m
                         ? 'border-saffron-500 bg-saffron-50 text-saffron-800 shadow-sm'
                         : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}>
@@ -1307,8 +1337,8 @@ export default function Counter() {
                           includeMargin={false}
                         />
                       </div>
-                      <p className="text-xs text-gray-500 mt-3 text-center"><T>Scan with any UPI app to pay</T></p>
-                      <p className="text-[0.7rem] text-gray-400 mt-1 font-mono">{upiConfig.upi_id}</p>
+                      <p className="text-xs text-gray-700 mt-3 text-center"><T>Scan with any UPI app to pay</T></p>
+                      <p className="text-[0.7rem] text-gray-600 mt-1 font-mono">{upiConfig.upi_id}</p>
                     </div>
                   )}
                   <label className="block text-sm font-medium text-gray-600 mb-2"><T>UTR / Transaction ID</T> *</label>
@@ -1342,7 +1372,7 @@ export default function Counter() {
         </div>
       </div>
 
-      {bill && <BillReceiptModal bill={bill} onClose={() => setBill(null)} />}
+      {bill && <BillReceiptModal bill={bill} onClose={() => { setBill(null); setError('') }} />}
 
       {/* Sankalpam Details Modal */}
       {showSankalpamModal && (
@@ -1448,7 +1478,7 @@ function SankalpamModal({
             <FileText size={20} className="text-amber-600" />
             <h3 className="font-bold text-gray-900"><T>Sankalpam Details</T></h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
+          <button onClick={onClose} className="text-gray-600 hover:text-maroon-700"><X size={18} /></button>
         </div>
 
         {/* Content */}
@@ -1521,7 +1551,7 @@ function SankalpamModal({
 
           {/* Section: Beneficiary */}
           <div>
-            <label className="label"><T>In the name of</T> <span className="text-gray-400 font-normal">({tr('optional')})</span></label>
+            <label className="label"><T>In the name of</T> <span className="text-gray-600 font-normal">({tr('optional')})</span></label>
             <input
               value={beneficiary}
               onChange={(e) => setBeneficiary(e.target.value)}
@@ -1535,7 +1565,7 @@ function SankalpamModal({
             <label className="label flex items-center gap-2">
               <User size={14} />
               <T>Additional Participants</T>
-              <span className="text-gray-400 font-normal">({tr('optional')})</span>
+              <span className="text-gray-600 font-normal">({tr('optional')})</span>
             </label>
 
             {/* Current participants */}
@@ -1556,7 +1586,7 @@ function SankalpamModal({
             {/* Family members from devotee record */}
             {devotee && familyMembers.length > 0 && (
               <div className="mb-3">
-                <p className="text-[0.6875rem] text-gray-500 mb-1.5"><T>Click to add from family</T>:</p>
+                <p className="text-[0.6875rem] text-gray-700 mb-1.5"><T>Click to add from family</T>:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {familyMembers.map((m, i) => {
                     const alreadyAdded = participants.some(p => p.name.toLowerCase() === m.name.toLowerCase())
@@ -1567,7 +1597,7 @@ function SankalpamModal({
                         disabled={alreadyAdded}
                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm border transition ${
                           alreadyAdded
-                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                            ? 'bg-gray-100 text-gray-600 border-gray-200 cursor-not-allowed'
                             : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                         }`}
                       >
@@ -1582,7 +1612,7 @@ function SankalpamModal({
             )}
 
             {loadingFamily && devotee && (
-              <div className="text-[0.75rem] text-gray-400 mb-3 flex items-center gap-1">
+              <div className="text-[0.75rem] text-gray-600 mb-3 flex items-center gap-1">
                 <Loader2 size={12} className="animate-spin" />
                 <T>Loading family members...</T>
               </div>
@@ -1609,7 +1639,7 @@ function SankalpamModal({
 
           {/* Section: Special Notes */}
           <div className="border-t border-dashed border-gray-200 pt-4">
-            <label className="label"><T>Special Instructions</T> <span className="text-gray-400 font-normal">({tr('optional')})</span></label>
+            <label className="label"><T>Special Instructions</T> <span className="text-gray-600 font-normal">({tr('optional')})</span></label>
             <textarea
               value={specialNotes}
               onChange={(e) => setSpecialNotes(e.target.value)}
@@ -1657,7 +1687,7 @@ function BillReceiptModal({ bill, onClose }) {
                 <div className="w-6 h-6 rounded-full bg-emerald-600 text-white grid place-items-center"><Check size={14} /></div>
                 <span className="text-sm font-semibold text-emerald-700"><T>Booking Successful!</T></span>
               </div>}
-          <button onClick={onClose} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
+          <button onClick={onClose} className="text-gray-600 hover:text-maroon-700"><X size={18} /></button>
         </div>
 
         {/* Ticket */}
@@ -1668,7 +1698,7 @@ function BillReceiptModal({ bill, onClose }) {
             <TF label={tr("Ticket No")} value={booking?.ticket_no || booking?.booking_code} mono />
 
             {/* Devotee Info */}
-            <TF label={tr("Devotee")} value={<>{bill.name}<span className="block text-[0.6875rem] text-gray-500 font-normal">{bill.mobile}</span></>} />
+            <TF label={tr("Devotee")} value={<>{bill.name}<span className="block text-[0.6875rem] text-gray-700 font-normal">{bill.mobile}</span></>} />
 
             {/* Sankalpam (for form bookings) */}
             {bill.isFormBooking && (line._gothram || line._nakshatram || line._rasi) && (
@@ -1696,14 +1726,14 @@ function BillReceiptModal({ bill, onClose }) {
             {/* Pooja Details - Multiple Items */}
             {isMultiItem && (
               <div className="col-span-2 bg-amber-50/50 rounded-lg p-3 -mx-1">
-                <div className="text-[0.6875rem] text-gray-500 mb-2">{tr("Poojas Booked")}</div>
+                <div className="text-[0.6875rem] text-gray-700 mb-2">{tr("Poojas Booked")}</div>
                 <div className="space-y-1.5">
                   {bill.lines.map((l, i) => (
                     <div key={i} className="flex items-center justify-between text-[0.8125rem]">
                       <span className="text-gray-800">
                         {lang === 'te' && l.name_te ? l.name_te : tr(l.pooja_name || l.booking?.seva_name || 'Seva')}
-                        <span className="text-gray-400 text-[0.6875rem] ml-1">· {tr(l.plan_name || l.booking?.plan_name || 'Daily')}</span>
-                        {l.vehicle_no && <span className="text-gray-400 text-[0.6875rem] ml-1">· {l.vehicle_no}</span>}
+                        <span className="text-gray-600 text-[0.6875rem] ml-1">· {tr(l.plan_name || l.booking?.plan_name || 'Daily')}</span>
+                        {l.vehicle_no && <span className="text-gray-600 text-[0.6875rem] ml-1">· {l.vehicle_no}</span>}
                       </span>
                       <span className="font-semibold text-gray-700">₹{Number(l.amount || l.booking?.amount || 0).toLocaleString('en-IN')}</span>
                     </div>
@@ -1725,7 +1755,7 @@ function BillReceiptModal({ bill, onClose }) {
 
             {/* Amount */}
             <div className="bg-amber-100/60 rounded-lg px-3 py-2 col-span-2 flex items-center justify-between">
-              <span className="text-[0.6875rem] text-gray-500"><T>Total Amount (₹)</T></span>
+              <span className="text-[0.6875rem] text-gray-700"><T>Total Amount (₹)</T></span>
               <span className="font-extrabold text-maroon-800 text-lg">₹ {Number(bill.total || 0).toLocaleString('en-IN')}</span>
             </div>
 
@@ -1736,7 +1766,7 @@ function BillReceiptModal({ bill, onClose }) {
 
             {/* Multiple ticket numbers */}
             {isMultiItem && (
-              <div className="col-span-2 text-[0.6875rem] text-gray-500">
+              <div className="col-span-2 text-[0.6875rem] text-gray-700">
                 <span className="font-medium">{tr("Ticket Numbers")}:</span>{' '}
                 <span className="font-mono text-gray-700">
                   {bill.lines.map((l) => l.booking?.ticket_no || l.booking?.booking_code).filter(Boolean).join(', ')}
@@ -1779,7 +1809,7 @@ function BillReceiptModal({ bill, onClose }) {
               if (isDailyOnly) {
                 return (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 col-span-2 text-center">
-                    <div className="text-[0.6875rem] font-semibold text-amber-700">⚠️ <T>Valid for same day only</T></div>
+                    <div className="text-[0.6875rem] font-semibold text-amber-700">⚠️ <T>Valid for Today only</T></div>
                   </div>
                 )
               }
@@ -1788,7 +1818,7 @@ function BillReceiptModal({ bill, onClose }) {
             })()}
 
             {/* Terms & Conditions */}
-            <div className="col-span-2 text-[0.5625rem] text-gray-500 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-1">
+            <div className="col-span-2 text-[0.5625rem] text-gray-700 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-1">
               <div className="font-semibold text-gray-600 mb-1"><T>Terms & Conditions</T>:</div>
               <ol className="list-decimal list-inside space-y-0.5 pl-1">
                 <li><T>Please arrive 15 minutes before the scheduled pooja time.</T></li>

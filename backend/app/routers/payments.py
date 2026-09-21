@@ -4,13 +4,14 @@ Flow: POST /order (create) → checkout on client → POST /verify (client callb
 Razorpay when configured, sandbox auto-success otherwise.
 """
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import PaymentOrder
-from ..security import RequireModule, log_action
+from ..security import RequireModule, log_action, client_ip
+from ..helpers import enforce_rate_limit
 from .. import payments as pay
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
@@ -52,7 +53,10 @@ def which_provider():
 
 
 @router.post("/order")
-def create_order(body: CreateOrderIn, db: Session = Depends(get_db), user=Depends(pay_write)):
+def create_order(body: CreateOrderIn, request: Request, db: Session = Depends(get_db), user=Depends(pay_write)):
+    # Phase 1 Security (API-004): Rate limit payment order creation (max 30 per minute per user)
+    enforce_rate_limit(db, f"payment_create:{user.username}", limit=30, window_minutes=1,
+                       ip=client_ip(request))
     po, checkout = pay.create_order(
         db, purpose=body.purpose.strip().upper(), reference_id=body.reference_id,
         method=body.method, created_by=user.username,

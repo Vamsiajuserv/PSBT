@@ -25,6 +25,17 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480
+    # Cookie settings for HttpOnly JWT (FE-001)
+    JWT_COOKIE_NAME: str = "psbt_access_token"
+    JWT_COOKIE_SECURE: bool = True  # Set to False for local dev without HTTPS
+    JWT_COOKIE_SAMESITE: str = "Lax"  # "Strict" or "Lax" - Lax allows navigation
+
+    # Encryption keys for sensitive data (Phase 1 Security)
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # PAN encryption at rest (PRIV-001): Protects tax IDs in database
+    PAN_ENCRYPTION_KEY: str = ""
+    # Backup encryption (INF-001): Protects PII in backup exports
+    BACKUP_ENCRYPTION_KEY: str = ""
 
     # App
     APP_NAME: str = "PSBT-Portal API"

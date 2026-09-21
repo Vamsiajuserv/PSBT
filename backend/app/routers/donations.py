@@ -4,13 +4,17 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import or_, func
 
-from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, validate_pagination
+from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, validate_pagination, encrypt_pan, enforce_rate_limit
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Donation, Devotee
 from ..schemas import DonationCreate, DonationOut
 from ..security import RequireModule, require_admin, log_action, client_ip
+
+# Phase 1 Security (API-004): Rate limits for donation operations
+DONATION_CREATE_RATE_LIMIT = 30  # max donations per minute per user
+DONATION_RATE_WINDOW_MIN = 1
 
 router = APIRouter(prefix="/api/donations", tags=["donations"])
 read = RequireModule("Donations")
@@ -84,6 +88,9 @@ def list_donations(q: str = "", type: str = "", category: str = "", mode: str = 
 @router.post("", response_model=DonationOut, status_code=201)
 def create_donation(body: DonationCreate, request: Request,
                     db: Session = Depends(get_db), user=Depends(write)):
+    # Phase 1 Security (API-004): Rate limit donation creation
+    enforce_rate_limit(db, f"donation_create:{user.username}", limit=DONATION_CREATE_RATE_LIMIT,
+                       window_minutes=DONATION_RATE_WINDOW_MIN, ip=client_ip(request))
     data = body.model_dump()
     # Cash/sponsorship donations must carry a positive amount; material donations
     # are recorded by quantity, not cash. Reject back-dating onto a closed day.
@@ -101,7 +108,13 @@ def create_donation(body: DonationCreate, request: Request,
         pan = (data.get("pan") or "").strip().upper()
         if not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan):
             raise HTTPException(422, "A valid PAN (e.g. ABCDE1234F) is required for an 80G receipt.")
-        data["pan"] = pan
+        # Phase 1 Security (PRIV-001): Encrypt PAN at rest
+        data["pan"] = encrypt_pan(pan)
+    elif data.get("pan"):
+        # Encrypt PAN even for non-80G donations if provided
+        pan = (data.get("pan") or "").strip().upper()
+        if pan and re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan):
+            data["pan"] = encrypt_pan(pan)
     assert_txn_date_open(db, data.get("donated_on"), label="donation date")
     assert_txn_date_open(db, date.today(), label="today")   # money lands today (closing buckets by created_at)
     seq = next_code_seq(db, "donation", DON_BASE + (db.query(func.max(Donation.id)).scalar() or 0))

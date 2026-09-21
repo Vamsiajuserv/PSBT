@@ -15,16 +15,37 @@ from .models import User, AuditLog
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
+
+def get_token_from_request(request: Request) -> Optional[str]:
+    """Extract JWT token from request - tries HttpOnly cookie first, then Authorization header.
+
+    Phase 1 Security (FE-001): Supports both cookie-based auth (preferred, XSS-resistant)
+    and header-based auth (backwards compatible) for migration period.
+    """
+    # Try cookie first (more secure - HttpOnly prevents XSS theft)
+    token = request.cookies.get(settings.JWT_COOKIE_NAME)
+    if token:
+        return token
+
+    # Fall back to Authorization header (for backwards compatibility)
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:]
+
+    return None
+
 # Module keys (mirror the frontend access matrix)
 MODULES = ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction",
            "Annadanam", "Counter", "Reports", "Users", "Audit"]
 
 
 def hash_password(pw: str) -> str:
+    """Hash a password using bcrypt. Returns the hash string for storage."""
     return pwd_context.hash(pw)
 
 
 def verify_password(pw: str, hashed: str) -> bool:
+    """Verify a plaintext password against a bcrypt hash. Returns True if match."""
     return pwd_context.verify(pw, hashed)
 
 
@@ -56,6 +77,10 @@ def create_token(user: User, kind: str = "access", expire_minutes: int | None = 
 
 
 def decode_token(token: str) -> dict:
+    """Decode and validate a JWT token. Returns the payload dict.
+
+    Raises HTTPException 401 if the token is invalid, expired, or malformed.
+    """
     try:
         return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
     except jwt.PyJWTError:
@@ -64,21 +89,42 @@ def decode_token(token: str) -> dict:
 
 def log_action(db: Session, *, username: str | None, action: str, entity: str | None = None,
                detail: str | None = None, status_: str = "SUCCESS", ip: str | None = None) -> None:
+    """Record an action to the audit log for compliance and security tracking.
+
+    Args:
+        db: Database session
+        username: User performing the action (None for system actions)
+        action: Action type (LOGIN, CREATE, UPDATE, DELETE, etc.)
+        entity: Entity type affected (User, Booking, Donation, etc.)
+        detail: Additional context about the action
+        status_: SUCCESS or FAILURE
+        ip: Client IP address
+    """
     db.add(AuditLog(username=username, action=action, entity=entity,
                     detail=detail, status=status_, ip=ip))
     db.commit()
 
 
 # ── Dependencies ─────────────────────────────────────────────────────────────
-def get_current_user(token: Optional[str] = Depends(oauth2_scheme),
-                     db: Session = Depends(get_db)) -> User:
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """FastAPI dependency that extracts and validates the current user from JWT.
+
+    Validates token from HttpOnly cookie (preferred) or Authorization header.
+    Checks for token revocation (logout), 2FA completion, user active status,
+    and session invalidation on password change.
+
+    Raises HTTPException 401 if authentication fails.
+    """
+    # Phase 1 Security (FE-001): Extract token from cookie or Authorization header
+    token = get_token_from_request(request)
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
 
     # Check if token has been revoked (user logged out)
+    # Uses database for persistent revocation across instances/restarts
     # Import here to avoid circular import
-    from .routers.auth import is_token_revoked
-    if is_token_revoked(token):
+    from .routers.auth import is_token_revoked_db
+    if is_token_revoked_db(db, token):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session has been logged out")
 
     payload = decode_token(token)
@@ -118,7 +164,7 @@ ADMIN_ROLES = frozenset({"Admin", "Administrator"})
 WRITE_MATRIX = {
     "Counter Staff": {"Devotees", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"},
     "Poojari": {"Bookings"},                 # may mark bookings complete only
-    "Accountant": {"Reports"},               # daily closing only (reopen is Admin-only)
+    "Accountant": {"Reports", "Counter"},    # daily closing + counter billing
     "Committee": {"Hundi", "Auction", "Reports"},  # hundi verification, auction decisions, daily closing
 }
 
@@ -170,4 +216,5 @@ require_admin = RequireRole("Administrator")
 
 
 def client_ip(request: Request) -> str:
+    """Extract client IP address from request for audit logging."""
     return request.client.host if request.client else "-"

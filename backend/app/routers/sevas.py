@@ -16,7 +16,13 @@ write = RequireModule("Sevas", write=True)
 
 @router.get("", response_model=list[SevaOut])
 def list_sevas(category: str = "", active_only: bool = False,
-               db: Session = Depends(get_db)):
+               db: Session = Depends(get_db), user=Depends(read)):
+    """List all sevas in the admin catalogue.
+
+    AUTHZ-001: This endpoint requires authentication as it's part of the admin
+    module. The public site uses /api/public/site which serves sevas from the
+    Pooja master table instead.
+    """
     query = db.query(Seva)
     if category:
         query = query.filter(Seva.category == category)

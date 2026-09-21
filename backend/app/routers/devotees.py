@@ -8,7 +8,7 @@ from ..database import get_db
 from ..models import Devotee, FamilyMember, Booking, Donation, Annadanam, Auction
 from ..schemas import DevoteeCreate, DevoteeUpdate, DevoteeOut
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import next_seq, gen_code, validate_pagination
+from ..helpers import next_seq, gen_code, validate_pagination, encrypt_pan
 
 router = APIRouter(prefix="/api/devotees", tags=["devotees"])
 
@@ -160,7 +160,11 @@ def create_devotee(body: DevoteeCreate, request: Request,
     if existing:
         raise HTTPException(409, f"A devotee with mobile number {body.mobile} already exists (Code: {existing.code})")
     seq = 12458 + (db.query(func.count(Devotee.id)).scalar() or 0)
-    d = Devotee(code=gen_code("DEV-", seq, 8), **body.model_dump(exclude={"family"}))
+    data = body.model_dump(exclude={"family"})
+    # Phase 1 Security (PRIV-001): Encrypt PAN at rest
+    if data.get("pan_number"):
+        data["pan_number"] = encrypt_pan(data["pan_number"])
+    d = Devotee(code=gen_code("DEV-", seq, 8), **data)
     for fm in body.family:
         d.family.append(FamilyMember(**fm.model_dump()))
     db.add(d)
@@ -183,6 +187,9 @@ def update_devotee(did: int, body: DevoteeUpdate, request: Request,
         if existing:
             raise HTTPException(409, f"A devotee with mobile number {body.mobile} already exists (Code: {existing.code})")
     for k, v in body.model_dump(exclude_unset=True).items():
+        # Phase 1 Security (PRIV-001): Encrypt PAN at rest
+        if k == "pan_number" and v:
+            v = encrypt_pan(v)
         setattr(d, k, v)
     db.commit()
     db.refresh(d)

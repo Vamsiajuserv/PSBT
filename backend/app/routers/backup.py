@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 from ..database import get_db, Base
 from ..models import Backup
 from ..security import require_admin, log_action, client_ip
+from ..schemas import BackupValidateIn, BackupRestoreIn
+from ..helpers import enforce_rate_limit, encrypt_backup_payload, decrypt_backup_payload
 
 router = APIRouter(prefix="/api/backups", tags=["backups"])
 SCHEMA_VERSION = "2.0"
@@ -82,6 +84,7 @@ def list_backups(db: Session = Depends(get_db), user=Depends(require_admin)):
     rows = db.query(Backup).order_by(Backup.id.desc()).limit(60).all()
     return {"items": [{"id": r.id, "filename": r.filename, "kind": r.kind,
                        "schema_version": r.schema_version, "size_kb": r.size_kb,
+                       "encrypted": r.encrypted or False,  # Phase 1 Security (INF-001)
                        "record_counts": json.loads(r.record_counts) if r.record_counts else {},
                        "total_records": sum(json.loads(r.record_counts).values()) if r.record_counts else 0,
                        "note": r.note, "created_by": r.created_by,
@@ -99,15 +102,21 @@ def stats(db: Session = Depends(get_db), user=Depends(require_admin)):
 
 @router.post("", status_code=201)
 def create_backup(request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    # Phase 1 Security (API-004): Rate limit backup creation (max 5 per hour per user)
+    enforce_rate_limit(db, f"backup_create:{user.username}", limit=5, window_minutes=60,
+                       ip=client_ip(request))
     snap, counts = _snapshot(db)
     payload = json.dumps(snap, ensure_ascii=False)
+    # Phase 1 Security (INF-001): Encrypt backup payload if key is configured
+    encrypted_payload, is_encrypted = encrypt_backup_payload(payload)
     fname = f"psbt-full-backup-{date.today().isoformat()}-{datetime.now().strftime('%H%M%S')}.json"
-    b = Backup(filename=fname, kind="Backup", schema_version=SCHEMA_VERSION, payload=payload,
-               record_counts=json.dumps(counts), size_kb=max(1, len(payload) // 1024), created_by=user.username)
+    b = Backup(filename=fname, kind="Backup", schema_version=SCHEMA_VERSION, payload=encrypted_payload,
+               encrypted=is_encrypted, record_counts=json.dumps(counts), size_kb=max(1, len(encrypted_payload) // 1024),
+               created_by=user.username)
     db.add(b); db.commit(); db.refresh(b)
     log_action(db, username=user.username, action="CREATE", entity="Backup",
-               detail=f"{fname} ({sum(counts.values())} records)", ip=client_ip(request))
-    return {"id": b.id, "filename": b.filename, "record_counts": counts, "total_records": sum(counts.values())}
+               detail=f"{fname} ({sum(counts.values())} records){' [encrypted]' if is_encrypted else ''}", ip=client_ip(request))
+    return {"id": b.id, "filename": b.filename, "encrypted": is_encrypted, "record_counts": counts, "total_records": sum(counts.values())}
 
 
 @router.get("/{bid}/download")
@@ -115,7 +124,14 @@ def download_backup(bid: int, db: Session = Depends(get_db), user=Depends(requir
     b = db.get(Backup, bid)
     if not b or not b.payload:
         raise HTTPException(404, "Backup not found")
-    return Response(content=b.payload, media_type="application/json",
+    # Phase 1 Security (INF-001): Decrypt backup payload if encrypted
+    payload = b.payload
+    if b.encrypted:
+        try:
+            payload = decrypt_backup_payload(b.payload, b.encrypted)
+        except ValueError as e:
+            raise HTTPException(500, f"Cannot decrypt backup: {e}")
+    return Response(content=payload, media_type="application/json",
                     headers={"Content-Disposition": f'attachment; filename="{b.filename}"'})
 
 
@@ -142,19 +158,27 @@ def _validate(snap):
 
 
 @router.post("/validate")
-def validate_backup(body: dict, user=Depends(require_admin)):
-    snap = body.get("snapshot", body)
+def validate_backup(body: BackupValidateIn, user=Depends(require_admin)):
+    # Phase 1 Security (API-002): Typed schema provides basic structure validation
+    snap = body.snapshot if body.snapshot else body.model_dump(exclude={"snapshot"})
     return _validate(snap)
 
 
 @router.post("/restore")
-def restore_backup(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
-    snap = body.get("snapshot", body)
-    if not body.get("confirm"):
+def restore_backup(body: BackupRestoreIn, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    # Phase 1 Security (API-004): Rate limit restore operations (max 3 per hour per user)
+    enforce_rate_limit(db, f"backup_restore:{user.username}", limit=3, window_minutes=60,
+                       ip=client_ip(request))
+    # Phase 1 Security (API-002): Typed schema validates confirmation requirement
+    snap = body.snapshot if body.snapshot else body.model_dump(exclude={"snapshot", "confirm"})
+    if not body.confirm:
         raise HTTPException(400, "Restore must be confirmed (confirm=true).")
     info = _validate(snap)
     payload_tables = snap.get("tables") or {}
     written = 0
+    # Batch size for commits - balance between performance and memory
+    BATCH_SIZE = 500
+    batch_count = 0
     # Parents before children so foreign keys always resolve; id-preserving upsert
     # (never deletes) keeps every relationship intact across the whole graph.
     for t in _ordered_tables():
@@ -176,6 +200,14 @@ def restore_backup(body: dict, request: Request, db: Session = Depends(get_db), 
                 stmt = stmt.on_conflict_do_nothing(index_elements=pk_cols)
             db.execute(stmt)
             written += 1
+            batch_count += 1
+            # Commit in batches to improve performance for large restores
+            if batch_count >= BATCH_SIZE:
+                db.commit()
+                batch_count = 0
+    # Final commit for any remaining rows
+    if batch_count > 0:
+        db.commit()
     # Re-sync identity sequences so the next INSERT doesn't collide with a
     # restored id. Table names come from metadata (trusted), not user input.
     for t in _ordered_tables():
@@ -183,6 +215,7 @@ def restore_backup(body: dict, request: Request, db: Session = Depends(get_db), 
             db.execute(text(
                 f"SELECT setval(pg_get_serial_sequence('{t.name}', 'id'), "
                 f"GREATEST(COALESCE((SELECT MAX(id) FROM \"{t.name}\"), 1), 1))"))
+    db.commit()  # Commit sequence updates
     counts = {name: len(rows or []) for name, rows in payload_tables.items() if name in info["table_counts"]}
     rec = Backup(filename=f"restore-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json", kind="Restore",
                  schema_version=snap.get("schema_version"), record_counts=json.dumps(counts),

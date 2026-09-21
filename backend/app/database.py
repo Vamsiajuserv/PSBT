@@ -7,7 +7,10 @@ from .config import settings
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,   # survive Azure idle-connection drops
-    pool_recycle=1800,
+    pool_recycle=1800,    # recycle connections every 30 min
+    pool_size=10,         # Production: requires dedicated PostgreSQL with 190+ available
+    max_overflow=20,      # 30 per worker × 4 = 120 total
+    pool_timeout=30,      # connection wait timeout
 )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

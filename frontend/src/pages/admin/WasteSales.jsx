@@ -67,7 +67,7 @@ export default function WasteSales() {
   const [saving, setSaving] = useState(false)
 
   // Committee role check for verification
-  const isCommittee = user?.role === 'Committee' || ['Admin', 'Administrator'].includes(user?.role)
+  const isCommittee = user?.role === 'Committee' || user?.role === 'Admin'
 
   const [q, setQ] = useState('')
   const [material, setMaterial] = useState('')
@@ -164,7 +164,7 @@ export default function WasteSales() {
   const [devQ, setDevQ] = useState('')
   const [devResults, setDevResults] = useState([])
   useEffect(() => {
-    if (!drawer || drawer.devotee_id || devQ.trim().length < 4) { setDevResults([]); return }
+    if (!drawer || drawer.devotee_id || devQ.trim().length < 2) { setDevResults([]); return }
     const t = setTimeout(() => {
       DevoteesAPI.list({ q: devQ.trim(), size: 8 })
         .then((r) => setDevResults(Array.isArray(r) ? r : (r.items || [])))

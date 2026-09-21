@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   Search, RotateCcw, FileText, FileSpreadsheet, Flame, HandCoins,
   Wallet, FileBarChart, CalendarCheck, CalendarDays,
-  ArrowUp, ArrowDown, X, ChevronsUpDown,
+  ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
 import { PageTitle, num } from '../../components/admin/ui.jsx'
@@ -37,39 +37,14 @@ export default function Reports() {
   const [loading, setLoading] = useState(false)
   const [loadErr, setLoadErr] = useState('')
   const [sorts, setSorts] = useState([]) // [{key, direction: 'asc'|'desc'}]
+  const [sortDropdown, setSortDropdown] = useState(null) // column key for open dropdown
 
   // ── Sorting helpers ──
-  const handleColumnClick = (colKey, e) => {
-    setSorts((prev) => {
-      const idx = prev.findIndex((s) => s.key === colKey)
-      if (e.shiftKey) {
-        // Shift+Click: add or toggle secondary sort (two-state for multi-sort)
-        if (idx >= 0) {
-          // Toggle direction
-          return prev.map((s, i) => i === idx ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' } : s)
-        }
-        // Add as new sort
-        return [...prev, { key: colKey, direction: 'desc' }]
-      }
-      // Regular click: three-state cycle (desc → asc → unsorted)
-      if (idx === 0 && prev.length === 1) {
-        if (prev[0].direction === 'desc') {
-          // desc → asc
-          return [{ key: colKey, direction: 'asc' }]
-        } else {
-          // asc → unsorted (clear sort)
-          return []
-        }
-      }
-      // New column or replacing multi-sort: start with desc
-      return [{ key: colKey, direction: 'desc' }]
-    })
+  const applySort = (colKey, direction) => {
+    setSorts([{ key: colKey, direction }])
+    setSortDropdown(null)
   }
 
-  const removeSort = (colKey) => setSorts((prev) => prev.filter((s) => s.key !== colKey))
-  const clearSorts = () => setSorts([])
-
-  const getSortIndex = (colKey) => sorts.findIndex((s) => s.key === colKey)
   const getSortDirection = (colKey) => sorts.find((s) => s.key === colKey)?.direction
 
   // Smart sorting based on column type
@@ -140,10 +115,7 @@ export default function Reports() {
         setLoadErr('Invalid response from server.')
       } else {
         setResult(out); setLoadErr('')
-        // Default sort: first column (usually date) in descending order (today first)
-        if (out.columns?.length > 0) {
-          setSorts([{ key: out.columns[0].key, direction: 'desc' }])
-        }
+        setSorts([]) // No default sort
       }
     } catch (ex) {
       toast('Report generation failed', 'error')
@@ -268,51 +240,47 @@ export default function Reports() {
               <button onClick={exportExcel} disabled={exporting} className="btn-outline !py-2 text-emerald-700 border-emerald-200 disabled:opacity-60"><FileSpreadsheet size={15} /> {exporting ? tr('Exporting…') : tr('Export Excel')}</button>
             </div>
           </div>
-          {/* Sort Panel */}
-          {sorts.length > 0 && (
-            <div className="px-5 py-3 bg-maroon-50/50 border-b border-maroon-100 flex flex-wrap items-center gap-2">
-              <span className="text-[0.75rem] text-gray-500 font-medium"><T>Sorted by</T>:</span>
-              {sorts.map((s, i) => {
-                const col = result?.columns?.find((c) => c.key === s.key)
-                return (
-                  <span key={s.key} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-maroon-200 text-[0.75rem] font-medium text-maroon-700 shadow-sm">
-                    {sorts.length > 1 && <span className="w-4 h-4 rounded-full bg-maroon-100 text-[0.625rem] font-bold grid place-items-center">{i + 1}</span>}
-                    {tr(col?.label || s.key)}
-                    <button onClick={() => handleColumnClick(s.key, { shiftKey: true })} className="hover:text-maroon-900 p-0.5 rounded hover:bg-maroon-100 transition-colors" title={tr("Toggle direction")}>
-                      {s.direction === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
-                    </button>
-                    <button onClick={() => removeSort(s.key)} className="hover:text-red-600 p-0.5 rounded hover:bg-red-50 transition-colors ml-0.5" title={tr("Remove sort")}><X size={12} /></button>
-                  </span>
-                )
-              })}
-              <button onClick={clearSorts} className="text-[0.75rem] text-gray-500 hover:text-red-600 ml-2 transition-colors"><T>Clear All</T></button>
-            </div>
-          )}
+          {/* Click outside to close dropdown */}
+          {sortDropdown && <div className="fixed inset-0 z-10" onClick={() => setSortDropdown(null)} />}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
                 {(result?.columns || []).map((c) => {
-                  const sortIdx = getSortIndex(c.key)
                   const sortDir = getSortDirection(c.key)
-                  const isSorted = sortIdx >= 0
+                  const isSorted = !!sortDir
+                  const isDropdownOpen = sortDropdown === c.key
                   return (
-                    <th key={c.key}
-                      onClick={(e) => handleColumnClick(c.key, e)}
-                      className={`group px-5 py-3 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-gray-100/80 transition-colors ${c.type !== 'text' ? 'text-right' : ''} ${isSorted ? 'text-maroon-700 bg-maroon-50/50' : ''}`}
-                      title={tr("Click to sort (↓→↑→clear). Shift+Click for multi-column sort.")}>
-                      <span className="inline-flex items-center gap-0.5">
+                    <th key={c.key} className={`relative px-5 py-3 font-semibold whitespace-nowrap ${c.type !== 'text' ? 'text-right' : ''}`}>
+                      <button
+                        onClick={() => setSortDropdown(isDropdownOpen ? null : c.key)}
+                        className={`inline-flex items-center gap-1 cursor-pointer select-none hover:text-maroon-700 transition-colors ${isSorted ? 'text-maroon-700' : ''}`}
+                      >
                         {tr(c.label)}
-                        {isSorted ? (
-                          <span className="inline-flex items-center gap-0.5 text-maroon-600 ml-1">
-                            {sorts.length > 1 && sortIdx > 0 && <span className="text-[0.5625rem] font-bold">{sortIdx + 1}</span>}
-                            {sortDir === 'desc' ? <ArrowDown size={13} strokeWidth={2.5} /> : <ArrowUp size={13} strokeWidth={2.5} />}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center text-gray-400 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <ChevronsUpDown size={14} strokeWidth={2} />
+                        {isSorted && (
+                          <span className="text-maroon-600">
+                            {sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
                           </span>
                         )}
-                      </span>
+                      </button>
+                      {/* Sort Dropdown */}
+                      {isDropdownOpen && (
+                        <div className={`absolute top-full mt-1 z-20 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[140px] ${c.type !== 'text' ? 'right-0' : 'left-0'}`}>
+                          <button
+                            onClick={() => applySort(c.key, 'asc')}
+                            className={`w-full text-left px-3 py-2 text-[0.8125rem] flex items-center gap-2 transition-colors ${sortDir === 'asc' ? 'bg-maroon-50 text-maroon-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                          >
+                            <ArrowUp size={14} />
+                            <span>A → Z</span>
+                          </button>
+                          <button
+                            onClick={() => applySort(c.key, 'desc')}
+                            className={`w-full text-left px-3 py-2 text-[0.8125rem] flex items-center gap-2 transition-colors ${sortDir === 'desc' ? 'bg-maroon-50 text-maroon-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                          >
+                            <ArrowDown size={14} />
+                            <span>Z → A</span>
+                          </button>
+                        </div>
+                      )}
                     </th>
                   )
                 })}
@@ -340,7 +308,7 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
-          {result?.rows && <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">{tr('Showing')} 1 {tr('to')} {sortedRows.length} {tr('of')} {sortedRows.length} {tr('records')}{sorts.length > 0 && <span className="text-maroon-600 ml-2">• {tr('Sorted')}</span>}</div>}
+          {result?.rows && <div className="px-5 py-3.5 border-t border-gray-100 text-[0.8125rem] text-gray-500">{tr('Showing')} 1 {tr('to')} {sortedRows.length} {tr('of')} {sortedRows.length} {tr('records')}</div>}
         </div>
       </div>
     </div>

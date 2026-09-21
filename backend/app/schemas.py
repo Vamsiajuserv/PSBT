@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Literal, Optional
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, field_serializer, model_validator
 import re
 
 
@@ -311,6 +311,15 @@ class DevoteeOut(ORM):
     last_visit: Optional[date] = None
     family: list[FamilyMemberOut] = []
 
+    # Phase 1 Security (PRIV-001): Mask PAN in API responses
+    # Uses mask_pan from helpers which handles both encrypted and plaintext PANs
+    @field_serializer('pan_number')
+    @classmethod
+    def mask_pan_number(cls, v: str | None) -> str | None:
+        """Mask PAN showing only last 4 characters (decrypts if encrypted)."""
+        from .helpers import mask_pan
+        return mask_pan(v)
+
 
 # ── Sevas ────────────────────────────────────────────────────────────────────
 class SevaIn(BaseModel):
@@ -436,6 +445,15 @@ class DonationOut(ORM):
     notes: Optional[str] = None
     donated_on: Optional[date] = None
     created_at: Optional[datetime] = None
+
+    # Phase 1 Security (PRIV-001): Mask PAN in API responses
+    # Uses mask_pan from helpers which handles both encrypted and plaintext PANs
+    @field_serializer('pan')
+    @classmethod
+    def mask_pan_number(cls, v: str | None) -> str | None:
+        """Mask PAN showing only last 4 characters (decrypts if encrypted)."""
+        from .helpers import mask_pan
+        return mask_pan(v)
 
 
 # ── Hundi / Auction / Annadanam ──────────────────────────────────────────────
@@ -615,6 +633,242 @@ class AuditOut(ORM):
     detail: Optional[str] = None
     status: str
     ip: Optional[str] = None
+
+
+# ── Counter Quick-Create Booking (Phase 1 Security: API-002) ─────────────────
+# Strongly typed schemas for high-risk financial endpoints
+
+class QuickCreateBookingIn(BaseModel):
+    """Single booking with immediate payment for Counter billing."""
+    # Devotee info
+    devotee_id: Optional[int] = None
+    devotee_name: str = Field(..., min_length=1, max_length=200)
+    mobile: Optional[str] = Field(default=None, max_length=15)
+
+    # Pooja/Plan info
+    pooja_id: Optional[int] = None
+    plan_id: Optional[int] = None
+    category: Optional[str] = Field(default=None, max_length=40)
+    plan_name: Optional[str] = Field(default=None, max_length=60)
+    seva_name: Optional[str] = Field(default=None, max_length=100)
+
+    # Booking details
+    amount: Decimal = Field(..., ge=0, le=10000000)  # Max 1 crore
+    scheduled_date: Optional[date] = None
+    valid_until: Optional[date] = None
+    time_slot: Optional[str] = Field(default=None, max_length=40)
+    festival_id: Optional[int] = None
+
+    # Devotee details for pooja
+    gothram: Optional[str] = Field(default=None, max_length=80)
+    nakshatram: Optional[str] = Field(default=None, max_length=40)
+    rasi: Optional[str] = Field(default=None, max_length=40)
+    beneficiary_name: Optional[str] = Field(default=None, max_length=120)
+    participants: Optional[str] = None  # JSON array
+    special_notes: Optional[str] = Field(default=None, max_length=500)
+    vehicle_no: Optional[str] = Field(default=None, max_length=20)
+
+    # Payment
+    payment_method: str = Field(default="Cash", max_length=30)
+    txn_ref: Optional[str] = Field(default=None, max_length=60)
+
+
+class BulkQuickCreateBookingIn(BaseModel):
+    """Multiple bookings with immediate payment for Counter billing."""
+    items: list[QuickCreateBookingIn] = Field(..., min_length=1, max_length=20)
+    payment_method: str = Field(default="Cash", max_length=30)
+
+
+# ── Daily Closing (Phase 1 Security: API-002) ────────────────────────────────
+
+class DailyClosingCloseIn(BaseModel):
+    """Close a day's transactions."""
+    date: Optional[date] = None
+    actual_cash: Optional[Decimal] = Field(default=None, ge=0, le=100000000)  # Max 10 crore
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+
+class DailyClosingReopenIn(BaseModel):
+    """Reopen a previously closed day (Admin only)."""
+    date: Optional[date] = None
+
+
+# ── Backup & Restore (Phase 1 Security: API-002) ─────────────────────────────
+
+class BackupRestoreIn(BaseModel):
+    """Backup restore request with confirmation requirement."""
+    snapshot: Optional[dict] = None  # The backup data itself
+    confirm: bool = Field(default=False)
+
+    # Allow pass-through of tables directly (legacy format)
+    class Config:
+        extra = "allow"
+
+
+class BackupValidateIn(BaseModel):
+    """Backup validation request."""
+    snapshot: Optional[dict] = None
+
+    class Config:
+        extra = "allow"
+
+
+# ── Settings Update (Phase 1 Security: API-002) ──────────────────────────────
+
+class SettingsUpdateIn(BaseModel):
+    """Application settings update."""
+    temple_name: Optional[str] = Field(default=None, max_length=200)
+    temple_name_te: Optional[str] = Field(default=None, max_length=200)
+    temple_address: Optional[str] = Field(default=None, max_length=500)
+    temple_phone: Optional[str] = Field(default=None, max_length=50)
+    temple_email: Optional[str] = Field(default=None, max_length=100)
+    opening_cash: Optional[Decimal] = Field(default=None, ge=0, le=10000000)
+    max_login_attempts: Optional[int] = Field(default=None, ge=1, le=20)
+    notify_sms_enabled: Optional[str] = Field(default=None, max_length=10)
+    notify_email_enabled: Optional[str] = Field(default=None, max_length=10)
+    notify_whatsapp_enabled: Optional[str] = Field(default=None, max_length=10)
+
+    class Config:
+        extra = "allow"  # Allow additional settings keys
+
+
+# ── Role Management (Phase 1 Security: API-002) ──────────────────────────────
+
+class RoleCreateIn(BaseModel):
+    """Create a new role (API-009)."""
+    code: Optional[str] = Field(default=None, max_length=40)  # Auto-generated from name if not provided
+    name: str = Field(..., min_length=1, max_length=60)
+    description: Optional[str] = Field(default=None, max_length=300)
+    modules: list[str] = Field(default_factory=list)
+    active: bool = True
+
+
+class RoleUpdateIn(BaseModel):
+    """Update an existing role (API-010)."""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    description: Optional[str] = Field(default=None, max_length=300)
+    modules: Optional[list[str]] = None
+    active: Optional[bool] = None
+
+
+# ── Booking Operations (Phase 1 Security: API-002) ───────────────────────────
+
+class BookingRescheduleIn(BaseModel):
+    """Reschedule a booking to a new date."""
+    new_date: date
+    reason: Optional[str] = Field(default=None, max_length=300)
+
+
+class BookingCancelIn(BaseModel):
+    """Cancel a booking with optional reason."""
+    reason: Optional[str] = Field(default=None, max_length=300)
+
+
+# ── Hundi Operations (API-002-REG: API-003 to API-005) ────────────────────────
+
+class HundiRejectIn(BaseModel):
+    """Reject a hundi collection with a reason."""
+    reason: str = Field(..., min_length=1, max_length=500)
+
+
+class HundiDepositIn(BaseModel):
+    """Record bank deposit of cash from a hundi collection."""
+    deposited_on: Optional[date] = None
+    bank_name: Optional[str] = Field(default=None, max_length=100)
+    bank_ref: Optional[str] = Field(default=None, max_length=100)
+
+
+class HundiStoreIn(BaseModel):
+    """Record valuables custody from a hundi collection."""
+    stored_on: Optional[date] = None
+    store_location: Optional[str] = Field(default=None, max_length=200)
+    custodian: Optional[str] = Field(default=None, max_length=100)
+    custody_receipt: Optional[str] = Field(default=None, max_length=100)
+
+
+# ── Auction Operations (API-002-REG: API-006 to API-008) ──────────────────────
+
+class AuctionUpdateIn(BaseModel):
+    """Update auction details during lifecycle."""
+    item: Optional[str] = Field(default=None, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=500)
+    base_amount: Optional[Decimal] = Field(default=None, ge=0, le=100000000)
+    current_amount: Optional[Decimal] = Field(default=None, ge=0, le=100000000)
+    bids: Optional[int] = Field(default=None, ge=0, le=10000)
+    winner: Optional[str] = Field(default=None, max_length=200)
+    status: Optional[str] = Field(default=None, max_length=40)
+    auction_date: Optional[date] = None
+    start_time: Optional[str] = Field(default=None, max_length=20)
+    notes: Optional[str] = Field(default=None, max_length=500)
+    devotee_id: Optional[int] = None
+
+
+class AuctionRejectIn(BaseModel):
+    """Reject a completed auction with a reason."""
+    reason: str = Field(..., min_length=1, max_length=500)
+
+
+class AuctionPaymentIn(BaseModel):
+    """Record payment collection from auction winner."""
+    mode: Literal["Cash", "UPI/QR Code"] = "Cash"
+    txn_ref: Optional[str] = Field(default=None, max_length=100)
+
+    @model_validator(mode='after')
+    def validate_txn_ref_for_upi(self):
+        """Transaction reference is required for UPI payments."""
+        if self.mode == "UPI/QR Code" and not (self.txn_ref and self.txn_ref.strip()):
+            raise ValueError("Transaction reference is required for UPI payments")
+        return self
+
+
+# ── Role Operations (API-002-REG: API-009 to API-010) ─────────────────────────
+# Note: RoleCreateIn and RoleUpdateIn already exist above - ensuring usage in router
+
+
+# ── Notifications (API-002-REG: API-012) ──────────────────────────────────────
+
+class NotificationConfigUpdateIn(BaseModel):
+    """Update notification channel enable/disable status."""
+    SMS: Optional[bool] = None
+    Email: Optional[bool] = None
+    WhatsApp: Optional[bool] = None
+
+
+class NotificationTestIn(BaseModel):
+    """Send a test notification."""
+    channel: Literal["SMS", "Email", "WhatsApp"]
+    to: str = Field(..., min_length=1, max_length=200)
+
+
+# ── Settings (API-002-REG: API-011) ─────────────────────────────────────────
+
+class SettingsUpdateIn(BaseModel):
+    """Update temple settings - dynamic key-value pairs.
+
+    API-011: All setting values must be strings (max 2000 chars) or None.
+    Keys must be alphanumeric with underscores (max 100 chars).
+    """
+    model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_settings(cls, values):
+        """Validate all key-value pairs in the settings update."""
+        if not isinstance(values, dict):
+            raise ValueError("Settings must be a dictionary")
+        for key, value in values.items():
+            # Validate key format
+            if not isinstance(key, str) or len(key) > 100:
+                raise ValueError(f"Setting key must be string <= 100 chars: {key}")
+            if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', key):
+                raise ValueError(f"Setting key must be alphanumeric with underscores: {key}")
+            # Validate value
+            if value is not None:
+                if not isinstance(value, (str, int, float, bool)):
+                    raise ValueError(f"Setting value must be string, number, bool, or null: {key}")
+                if isinstance(value, str) and len(value) > 2000:
+                    raise ValueError(f"Setting value too long (max 2000 chars): {key}")
+        return values
 
 
 TokenOut.model_rebuild()

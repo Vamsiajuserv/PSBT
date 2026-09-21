@@ -11,6 +11,7 @@ import { TicketRef } from '../../components/admin/BookingTicket.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
 import { Select, DateField, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, useLang, personName } from '../../i18n/LanguageContext.jsx'
+import { sanitizePhone, validatePhone } from '../../lib/validation.js'
 
 const STEPS = [
   { t: 'Booking Details', s: 'Enter booking information' },
@@ -138,6 +139,7 @@ export default function NewBooking() {
   const [quickAdd, setQuickAdd] = useState(null)   // null | {name, mobile, email}
   const [qaBusy, setQaBusy] = useState(false)
   const [qaErr, setQaErr] = useState('')
+  const [qaMobileError, setQaMobileError] = useState('')  // Quick-add mobile validation error
 
   useEffect(() => { PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => toast('Failed to load poojas', 'error')) }, [])
   // A fresh plan selection clears any previously entered committee amount.
@@ -217,12 +219,18 @@ export default function NewBooking() {
     const q = devQ.trim()
     const isMobile = /^\d{6,}$/.test(q)
     setQaErr('')
-    setQuickAdd({ name: isMobile ? '' : q, mobile: isMobile ? q : '', email: '' })
+    setQaMobileError('')
+    setQuickAdd({ name: isMobile ? '' : q, mobile: isMobile ? q : '', email: '', country_code: '+91' })
   }
   async function saveQuickAdd() {
     setQaErr('')
     if (!quickAdd.name.trim() || !quickAdd.mobile.trim()) { setQaErr('Name and mobile are required.'); return }
     if (!/^\d{10}$/.test(quickAdd.mobile.trim())) { setQaErr('Enter a valid 10-digit mobile number.'); return }
+    // Validate Indian mobile number (must start with 6-9) for +91
+    if ((quickAdd.country_code || '+91') === '+91') {
+      const validation = validatePhone(quickAdd.mobile.trim())
+      if (!validation.valid) { setQaErr('Invalid Mobile Number. Please Enter Valid Mobile Number'); return }
+    }
     setQaBusy(true)
     try {
       const d = await DevoteesAPI.create({
@@ -405,7 +413,16 @@ export default function NewBooking() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div><label className="label"><T>Full Name *</T></label><input autoFocus className="input focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Full name")} placeholder={tr("Full Name")} value={personName(quickAdd, lang)} onChange={(e) => setQuickAdd((q) => ({ ...q, name: e.target.value.replace(/[0-9]/g, '') }))} /></div>
-                  <div><label className="label"><T>Mobile Number *</T></label><div className="flex"><CountryCodeSelect value={quickAdd.country_code || '+91'} onChange={(e) => setQuickAdd((q) => ({ ...q, country_code: e.target.value }))} /><input className="input flex-1 !rounded-l-none focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Mobile number")} placeholder={tr("Enter Mobile Number")} value={quickAdd.mobile} maxLength={getCountryDigits(quickAdd.country_code || '+91')} onChange={(e) => setQuickAdd((q) => ({ ...q, mobile: e.target.value.replace(/\D/g, '') }))} /></div></div>
+                  <div><label className="label"><T>Mobile Number *</T></label><div className="flex"><CountryCodeSelect value={quickAdd.country_code || '+91'} onChange={(e) => { setQuickAdd((q) => ({ ...q, country_code: e.target.value })); setQaMobileError('') }} /><input className={`input flex-1 !rounded-l-none focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent ${qaMobileError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`} aria-label={tr("Mobile number")} placeholder={tr("Enter Mobile Number")} value={quickAdd.mobile} maxLength={getCountryDigits(quickAdd.country_code || '+91')} onChange={(e) => {
+                        const cleaned = sanitizePhone(e.target.value)
+                        setQuickAdd((q) => ({ ...q, mobile: cleaned }))
+                        if ((quickAdd.country_code || '+91') === '+91' && cleaned.length === 10) {
+                          const validation = validatePhone(cleaned)
+                          setQaMobileError(validation.valid ? '' : 'Invalid Mobile Number. Please Enter Valid Mobile Number')
+                        } else {
+                          setQaMobileError('')
+                        }
+                      }} /></div>{qaMobileError && <p className="text-[0.6875rem] text-red-600 mt-1 font-medium">{tr(qaMobileError)}</p>}</div>
                   <div><label className="label"><T>Email (optional)</T></label><input className="input focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Email")} placeholder={tr("email@example.com")} value={quickAdd.email} onChange={(e) => setQuickAdd((q) => ({ ...q, email: e.target.value }))} /></div>
                 </div>
                 {qaErr && <div className="text-[0.75rem] text-red-600 mt-2" role="alert">{qaErr}</div>}
@@ -617,8 +634,8 @@ export default function NewBooking() {
               <div className="bg-[#fdf7ee] border-2 border-dashed border-amber-300 rounded-2xl p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <Landmark size={34} className="text-amber-600" />
-                    <div><div className="font-display font-bold text-maroon-800 text-[0.9375rem] tracking-wide"><T>SRI SHIRDI SAI BABA TEMPLE</T></div><div className="text-[0.625rem] text-gray-500"><T>Endowments Department, Government of Telangana</T></div></div>
+                    <img src="/images/temple-logo.png" alt="Sai Baba Temple" className="w-10 h-10 object-contain" />
+                    <div><div className="font-display font-bold text-maroon-800 text-[0.9375rem] tracking-wide"><T>SRI SHIRDI SAI BABA TEMPLE</T></div><div className="text-[0.625rem] text-gray-700"><T>Endowments Department, Government of Telangana</T></div></div>
                   </div>
                   <TicketRef code={ticket.booking_code} />
                 </div>

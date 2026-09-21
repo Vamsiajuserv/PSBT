@@ -28,10 +28,10 @@ export function sanitizeName(value) {
 export const phonePattern = /^[6-9]\d{9}$/
 
 export function validatePhone(value) {
-  if (!value || !value.trim()) return { valid: false, error: 'Phone number is required' }
+  if (!value || !value.trim()) return { valid: true, error: null }
   const digits = value.replace(/\D/g, '')
-  if (digits.length !== 10) return { valid: false, error: 'Phone number must be exactly 10 digits' }
-  if (!phonePattern.test(digits)) return { valid: false, error: 'Invalid Indian mobile number (must start with 6-9)' }
+  if (digits.length !== 10) return { valid: true, error: null }
+  if (!phonePattern.test(digits)) return { valid: false, error: 'Invalid Mobile Number. Please Enter Valid Mobile Number' }
   return { valid: true, error: null }
 }
 

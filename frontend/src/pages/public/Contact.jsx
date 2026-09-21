@@ -7,6 +7,7 @@ import { Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 import { useLang, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
 import { Select, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
+import { sanitizePhone, validatePhone } from '../../lib/validation.js'
 
 const MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=Shirdi+Sai+Baba+Temple+Dwarakapuri+Colony+Punjagutta+Hyderabad'
 
@@ -37,6 +38,7 @@ export default function Contact() {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const [mobileError, setMobileError] = useState('')  // Mobile validation error
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   async function submit(e) {
@@ -115,7 +117,7 @@ export default function Contact() {
               <p className="text-sm text-gray-600 mt-1.5 max-w-sm mx-auto">
                 {t('Your message has reached the temple office. Our staff will get back to you during temple hours.')}
               </p>
-              <button onClick={() => { setDone(false); setForm({ name: '', countryCode: '+91', mobile: '', email: '', subject: 'General', message: '', website: '' }) }}
+              <button onClick={() => { setDone(false); setMobileError(''); setForm({ name: '', countryCode: '+91', mobile: '', email: '', subject: 'General', message: '', website: '' }) }}
                       className="btn-outline mt-5 !py-2 text-xs">{t('Send another message')}</button>
             </div>
           ) : (
@@ -135,11 +137,21 @@ export default function Contact() {
               <div>
                 <label className="label">{t('Mobile')}</label>
                 <div className="flex w-full">
-                  <CountryCodeSelect value={form.countryCode} onChange={(e) => setForm((f) => ({ ...f, countryCode: e.target.value, mobile: '' }))} />
-                  <input className="input !rounded-l-none flex-1 min-w-0 w-full placeholder:text-gray-500" inputMode="tel" placeholder={tr("Enter mobile number")} value={form.mobile}
+                  <CountryCodeSelect value={form.countryCode} onChange={(e) => { setForm((f) => ({ ...f, countryCode: e.target.value, mobile: '' })); setMobileError('') }} />
+                  <input className={`input !rounded-l-none flex-1 min-w-0 w-full placeholder:text-gray-500 ${mobileError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`} inputMode="tel" placeholder={tr("Enter mobile number")} value={form.mobile}
                     maxLength={getCountryDigits(form.countryCode)}
-                    onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setForm((f) => ({ ...f, mobile: v })) }} />
+                    onChange={(e) => {
+                      const cleaned = sanitizePhone(e.target.value)
+                      setForm((f) => ({ ...f, mobile: cleaned }))
+                      if (form.countryCode === '+91' && cleaned.length === 10) {
+                        const validation = validatePhone(cleaned)
+                        setMobileError(validation.valid ? '' : 'Invalid Mobile Number. Please Enter Valid Mobile Number')
+                      } else {
+                        setMobileError('')
+                      }
+                    }} />
                 </div>
+                {mobileError && <p className="text-[0.6875rem] text-red-600 mt-1 font-medium">{tr(mobileError)}</p>}
               </div>
               <div>
                 <label className="label">{t('Email')}</label>

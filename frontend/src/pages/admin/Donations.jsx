@@ -14,7 +14,7 @@ import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI } from '../../api/clie
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, stamp, personName, useLang } from '../../i18n/LanguageContext.jsx'
-import { sanitizePhone, sanitizeName } from '../../lib/validation.js'
+import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
 
 const TYPE_LABEL = { Cash: 'Cash Donation', Material: 'Material Donation', Sponsorship: 'Sponsorship' }
 const MODES = ['Cash', 'UPI/QR Code']
@@ -50,6 +50,7 @@ export default function Donations() {
   const [dq, setDq] = useState('')
   const [devResults, setDevResults] = useState([])
   const [panErr, setPanErr] = useState('')
+  const [mobileError, setMobileError] = useState('')  // Mobile validation error
 
   // filters
   const [q, setQ] = useState('')
@@ -97,7 +98,7 @@ export default function Donations() {
 
   // debounced devotee type-ahead (only while the drawer is open and none picked yet)
   useEffect(() => {
-    if (!drawer || drawer.devotee_id || dq.trim().length < 4) { setDevResults([]); return }
+    if (!drawer || drawer.devotee_id || dq.trim().length < 1) { setDevResults([]); return }
     const t = setTimeout(
       () => DevoteesAPI.list({ q: dq, size: 6 }).then((r) => setDevResults(r.items || [])).catch(() => setDevResults([])),
       250,
@@ -222,7 +223,7 @@ export default function Donations() {
   return (
     <div>
       <PageTitle title={tr("Donation Management")} subtitle={tr("Record, manage and view all donations.")}
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Donation Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(newDonation()); setDq(''); setDevResults([]); setPanErr('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Donation</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Donation Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(newDonation()); setDq(''); setDevResults([]); setPanErr(''); setMobileError('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Donation</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={Sprout} color="#059669" bg="bg-emerald-50" title={tr("Today's Donations")}
@@ -375,9 +376,19 @@ export default function Donations() {
                   <input required className="input" placeholder={tr("Donor Name")} value={personName({ name: drawer.donor_name }, lang)} onChange={(e) => setDrawer({ ...drawer, donor_name: sanitizeName(e.target.value) })} /></div>
                 <div><label className="label"><T>Mobile (Optional)</T></label>
                   <div className="flex">
-                    <CountryCodeSelect value={drawer.country_code || '+91'} onChange={(e) => setDrawer({ ...drawer, country_code: e.target.value })} />
-                    <input className="input flex-1 !rounded-l-none" placeholder={tr("Enter Mobile Number")} maxLength={getCountryDigits(drawer.country_code || '+91')} value={drawer.mobile} onChange={(e) => setDrawer({ ...drawer, mobile: sanitizePhone(e.target.value) })} />
-                  </div></div>
+                    <CountryCodeSelect value={drawer.country_code || '+91'} onChange={(e) => { setDrawer({ ...drawer, country_code: e.target.value }); setMobileError('') }} />
+                    <input className={`input flex-1 !rounded-l-none ${mobileError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`} placeholder={tr("Enter Mobile Number")} maxLength={getCountryDigits(drawer.country_code || '+91')} value={drawer.mobile} onChange={(e) => {
+                      const cleaned = sanitizePhone(e.target.value)
+                      setDrawer({ ...drawer, mobile: cleaned })
+                      if ((drawer.country_code || '+91') === '+91' && cleaned.length === 10) {
+                        const validation = validatePhone(cleaned)
+                        setMobileError(validation.valid ? '' : 'Invalid Mobile Number. Please Enter Valid Mobile Number')
+                      } else {
+                        setMobileError('')
+                      }
+                    }} />
+                  </div>
+                  {mobileError && <p className="text-[0.6875rem] text-red-600 mt-1 font-medium">{tr(mobileError)}</p>}</div>
               </div>
 
               <div><label className="label"><T>Donation Category *</T></label>

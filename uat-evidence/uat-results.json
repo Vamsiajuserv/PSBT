@@ -1,0 +1,5428 @@
+{
+  "environment": {
+    "testDate": "2026-09-18T08:48:31.672Z",
+    "baseUrl": "http://localhost:3000",
+    "apiUrl": "http://localhost:8000",
+    "browser": "Chromium (Playwright)",
+    "playwrightVersion": "1.61.1"
+  },
+  "screens": [],
+  "elements": [],
+  "defects": [],
+  "consoleErrors": [
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": {
+        "url": "http://localhost:3000/api/backups/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/tithis/upcoming?tithi_type=Pournami&count=3",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/tithis/upcoming?tithi_type=Pournami&count=3",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/tithis/upcoming?tithi_type=Pournami&count=3",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/tithis/upcoming?tithi_type=Pournami&count=3",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/tithis/upcoming?tithi_type=Pournami&count=3",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/tithis/upcoming?tithi_type=Pournami&count=3",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/tithis/upcoming?tithi_type=Pournami&count=3",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/tithis/upcoming?tithi_type=Pournami&count=3",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s General \n    at div\n    at HorizontalBarChart (http://localhost:3000/src/pages/admin/Analytics.jsx:299:31)\n    at div\n    at div\n    at div\n    at Analytics (http://localhost:3000/src/pages/admin/Analytics.jsx:670:29)\n    at Guard (http://localhost:3000/src/App.jsx:75:18)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4528:26)\n    at main\n    at div\n    at div\n    at AdminLayout (http://localhost:3000/src/components/admin/AdminLayout.jsx:318:27)\n    at RequireAuth (http://localhost:3000/src/auth/AuthContext.jsx:85:31)\n    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4122:5)\n    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4592:5)\n    at LanguageProvider (http://localhost:3000/src/i18n/LanguageContext.jsx:2250:36)\n    at SiteProvider (http://localhost:3000/src/lib/SiteContext.jsx:21:32)\n    at App\n    at AuthProvider (http://localhost:3000/src/auth/AuthContext.jsx:30:32)\n    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:4535:15)\n    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=412d9713:5273:5)\n    at ErrorBoundary (http://localhost:3000/src/components/common/ErrorBoundary.jsx:9:5)",
+      "location": {
+        "url": "http://localhost:3000/node_modules/.vite/deps/chunk-BTBCOMUJ.js?v=412d9713",
+        "line": 520,
+        "column": 37,
+        "lineNumber": 520,
+        "columnNumber": 37
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/config",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/stats",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+      "location": {
+        "url": "http://localhost:3000/api/notifications/logs?page=1&size=15",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "networkErrors": [
+    {
+      "url": "http://localhost:3000/api/dashboard?start=2026-09-18&end=2026-09-18",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/backups",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/backups/stats",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/backups",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/dashboard?start=2026-09-18&end=2026-09-18",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/dashboard?start=2026-09-18&end=2026-09-18",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/dashboard?start=2026-09-18&end=2026-09-18",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/api/dashboard?start=2026-09-18&end=2026-09-18",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "summary": {
+    "pass": 70,
+    "fail": 90,
+    "partial": 0
+  },
+  "publicPages": [
+    {
+      "route": "/",
+      "name": "Home",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/home.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/about",
+      "name": "About",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/about.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/history",
+      "name": "History",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/history.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/festivals",
+      "name": "Festivals",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/festivals.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/gallery",
+      "name": "Gallery",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/gallery.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/contact",
+      "name": "Contact",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/contact.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/sevas",
+      "name": "Sevas",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/sevas.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/donations",
+      "name": "Donations",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/donations.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/hundi",
+      "name": "Hundi",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/hundi.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/auction",
+      "name": "Auction",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/auction.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/annadanam",
+      "name": "Annadanam",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/annadanam.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/timings",
+      "name": "Timings",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/timings.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": true
+        },
+        {
+          "name": "Footer",
+          "visible": true
+        }
+      ],
+      "errors": []
+    },
+    {
+      "route": "/staff-login",
+      "name": "Staff Login",
+      "status": "PASS",
+      "screenshot": "uat-evidence/12-PUBLIC/staff-login.png",
+      "elements": [
+        {
+          "name": "Header/Nav",
+          "visible": false
+        },
+        {
+          "name": "Footer",
+          "visible": false
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "roleTests": [
+    {
+      "role": "Administrator",
+      "username": "admin",
+      "loginStatus": "PASS",
+      "screens": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 23
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/dashboard-administrator.png"
+        },
+        {
+          "route": "/admin/devotees",
+          "name": "Devotees",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 64
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/devotees-administrator.png"
+        },
+        {
+          "route": "/admin/bookings",
+          "name": "Bookings",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 94
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/bookings-administrator.png"
+        },
+        {
+          "route": "/admin/bookings/new",
+          "name": "New Booking",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 26
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/new-booking-administrator.png"
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 59
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/donations-administrator.png"
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 62
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/hundi-administrator.png"
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 69
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/auction-administrator.png"
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 57
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/annadanam-administrator.png"
+        },
+        {
+          "route": "/admin/counter",
+          "name": "Counter",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 51
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/counter-administrator.png"
+        },
+        {
+          "route": "/admin/reports",
+          "name": "Reports",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 67
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/reports-administrator.png"
+        },
+        {
+          "route": "/admin/daily-closing",
+          "name": "Daily Closing",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 19
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/daily-closing-administrator.png"
+        },
+        {
+          "route": "/admin/users",
+          "name": "Users",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 48
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/users-administrator.png"
+        },
+        {
+          "route": "/admin/roles",
+          "name": "Role Access",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 2
+            },
+            {
+              "name": "Buttons",
+              "count": 38
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/role-access-administrator.png"
+        },
+        {
+          "route": "/admin/settings",
+          "name": "Settings",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 32
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/settings-administrator.png"
+        },
+        {
+          "route": "/admin/pooja-master",
+          "name": "Pooja Master",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 54
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/pooja-master-administrator.png"
+        },
+        {
+          "route": "/admin/poojari-master",
+          "name": "Poojari Master",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 52
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/poojari-master-administrator.png"
+        },
+        {
+          "route": "/admin/poojari-schedule",
+          "name": "Poojari Schedule",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 42
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/poojari-schedule-administrator.png"
+        },
+        {
+          "route": "/admin/pooja-history",
+          "name": "Pooja History",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 32
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/pooja-history-administrator.png"
+        },
+        {
+          "route": "/admin/waste-sales",
+          "name": "Waste Sales",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 43
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/waste-sales-administrator.png"
+        },
+        {
+          "route": "/admin/vendors",
+          "name": "Vendor Master",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 50
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/vendor-master-administrator.png"
+        },
+        {
+          "route": "/admin/donation-master",
+          "name": "Donation Master",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 72
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/donation-master-administrator.png"
+        },
+        {
+          "route": "/admin/auction-items",
+          "name": "Auction Items",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 36
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/auction-items-administrator.png"
+        },
+        {
+          "route": "/admin/hundi-items",
+          "name": "Hundi Items",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 36
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/hundi-items-administrator.png"
+        },
+        {
+          "route": "/admin/committee",
+          "name": "Committee",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 39
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/committee-administrator.png"
+        },
+        {
+          "route": "/admin/festivals",
+          "name": "Festivals",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 28
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/festivals-administrator.png"
+        },
+        {
+          "route": "/admin/calendar",
+          "name": "Calendar",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 54
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/calendar-administrator.png"
+        },
+        {
+          "route": "/admin/analytics",
+          "name": "Analytics",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 32
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/analytics-administrator.png"
+        },
+        {
+          "route": "/admin/audit",
+          "name": "Audit Trail",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 26
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/audit-trail-administrator.png"
+        },
+        {
+          "route": "/admin/backup",
+          "name": "Backup/Restore",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 20
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/backup-restore-administrator.png"
+        },
+        {
+          "route": "/admin/my-poojas",
+          "name": "My Poojas (Poojari)",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 117
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/my-poojas--poojari--administrator.png"
+        },
+        {
+          "route": "/admin/verify-ticket",
+          "name": "Verify Ticket",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 17
+            },
+            {
+              "name": "Forms",
+              "count": 1
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/verify-ticket-administrator.png"
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Administrator",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 29
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/01-ADMIN/notifications-administrator.png"
+        }
+      ],
+      "crud": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/devotees",
+          "name": "Devotees",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/bookings",
+          "name": "Bookings",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/bookings/new",
+          "name": "New Booking",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/counter",
+          "name": "Counter",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/reports",
+          "name": "Reports",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/daily-closing",
+          "name": "Daily Closing",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/users",
+          "name": "Users",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/roles",
+          "name": "Role Access",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": [
+            "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Cancel\"), button:has-text(\"Close\"), [aria-label=\"Close\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button class=\"btn-outline\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"fixed inset-0 bg-black/40 z-50 grid place-items-center p-4\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"fixed inset-0 bg-black/40 z-50 grid place-items-center p-4\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    57 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div class=\"fixed inset-0 bg-black/40 z-50 grid place-items-center p-4\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n"
+          ]
+        },
+        {
+          "route": "/admin/settings",
+          "name": "Settings",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/pooja-master",
+          "name": "Pooja Master",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/poojari-master",
+          "name": "Poojari Master",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/poojari-schedule",
+          "name": "Poojari Schedule",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/pooja-history",
+          "name": "Pooja History",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/waste-sales",
+          "name": "Waste Sales",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/vendors",
+          "name": "Vendor Master",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/donation-master",
+          "name": "Donation Master",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/auction-items",
+          "name": "Auction Items",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/hundi-items",
+          "name": "Hundi Items",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/committee",
+          "name": "Committee",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/festivals",
+          "name": "Festivals",
+          "role": "Administrator",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/calendar",
+          "name": "Calendar",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/analytics",
+          "name": "Analytics",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/audit",
+          "name": "Audit Trail",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/backup",
+          "name": "Backup/Restore",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/my-poojas",
+          "name": "My Poojas (Poojari)",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/verify-ticket",
+          "name": "Verify Ticket",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Administrator",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        }
+      ],
+      "validation": [
+        {
+          "route": "/admin/devotees",
+          "name": "Devotees",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/bookings",
+          "name": "Bookings",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "validation": "PASS - Shows validation errors",
+          "errors": []
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "validation": "NOT TESTED",
+          "errors": []
+        }
+      ],
+      "errors": [],
+      "languageTest": {
+        "name": "Language Switch",
+        "english": "CAPTURED",
+        "telugu": "NOT TESTED",
+        "screenshots": [
+          "uat-evidence/01-ADMIN/dashboard-english.png"
+        ],
+        "errors": [
+          "Language selector not found"
+        ]
+      }
+    },
+    {
+      "role": "Counter Staff",
+      "username": "counter1",
+      "loginStatus": "PASS",
+      "screens": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 22
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/dashboard-counter-staff.png"
+        },
+        {
+          "route": "/admin/devotees",
+          "name": "Devotees",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 42
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/devotees-counter-staff.png"
+        },
+        {
+          "route": "/admin/bookings",
+          "name": "Bookings",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 83
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/bookings-counter-staff.png"
+        },
+        {
+          "route": "/admin/bookings/new",
+          "name": "New Booking",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 25
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/new-booking-counter-staff.png"
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 58
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/donations-counter-staff.png"
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 43
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/hundi-counter-staff.png"
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 68
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/auction-counter-staff.png"
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 56
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/annadanam-counter-staff.png"
+        },
+        {
+          "route": "/admin/counter",
+          "name": "Counter",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 50
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/counter-counter-staff.png"
+        },
+        {
+          "route": "/admin/reports",
+          "name": "Reports",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/daily-closing",
+          "name": "Daily Closing",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/users",
+          "name": "Users",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/roles",
+          "name": "Role Access",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/settings",
+          "name": "Settings",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/pooja-master",
+          "name": "Pooja Master",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/poojari-master",
+          "name": "Poojari Master",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/poojari-schedule",
+          "name": "Poojari Schedule",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/pooja-history",
+          "name": "Pooja History",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 31
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/pooja-history-counter-staff.png"
+        },
+        {
+          "route": "/admin/waste-sales",
+          "name": "Waste Sales",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 42
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/waste-sales-counter-staff.png"
+        },
+        {
+          "route": "/admin/vendors",
+          "name": "Vendor Master",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/donation-master",
+          "name": "Donation Master",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/auction-items",
+          "name": "Auction Items",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/hundi-items",
+          "name": "Hundi Items",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/committee",
+          "name": "Committee",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/festivals",
+          "name": "Festivals",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/calendar",
+          "name": "Calendar",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 53
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/calendar-counter-staff.png"
+        },
+        {
+          "route": "/admin/analytics",
+          "name": "Analytics",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/audit",
+          "name": "Audit Trail",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/backup",
+          "name": "Backup/Restore",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/my-poojas",
+          "name": "My Poojas (Poojari)",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/verify-ticket",
+          "name": "Verify Ticket",
+          "role": "Counter Staff",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Counter Staff",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 26
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/02-COUNTER/notifications-counter-staff.png"
+        }
+      ],
+      "crud": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/devotees",
+          "name": "Devotees",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/bookings",
+          "name": "Bookings",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/bookings/new",
+          "name": "New Booking",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/counter",
+          "name": "Counter",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/pooja-history",
+          "name": "Pooja History",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/waste-sales",
+          "name": "Waste Sales",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/calendar",
+          "name": "Calendar",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Counter Staff",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        }
+      ],
+      "validation": [
+        {
+          "route": "/admin/devotees",
+          "name": "Devotees",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/bookings",
+          "name": "Bookings",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "validation": "PASS - Shows validation errors",
+          "errors": []
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "validation": "NOT TESTED",
+          "errors": []
+        }
+      ],
+      "errors": []
+    },
+    {
+      "role": "Accountant",
+      "username": "accounts",
+      "loginStatus": "PASS",
+      "screens": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 21
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/dashboard-accountant.png"
+        },
+        {
+          "route": "/admin/devotees",
+          "name": "Devotees",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/bookings",
+          "name": "Bookings",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/bookings/new",
+          "name": "New Booking",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 56
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/donations-accountant.png"
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 40
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/hundi-accountant.png"
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 57
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/auction-accountant.png"
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 54
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/annadanam-accountant.png"
+        },
+        {
+          "route": "/admin/counter",
+          "name": "Counter",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 49
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/counter-accountant.png"
+        },
+        {
+          "route": "/admin/reports",
+          "name": "Reports",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 65
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/reports-accountant.png"
+        },
+        {
+          "route": "/admin/daily-closing",
+          "name": "Daily Closing",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 17
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/daily-closing-accountant.png"
+        },
+        {
+          "route": "/admin/users",
+          "name": "Users",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/roles",
+          "name": "Role Access",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/settings",
+          "name": "Settings",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/pooja-master",
+          "name": "Pooja Master",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/poojari-master",
+          "name": "Poojari Master",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/poojari-schedule",
+          "name": "Poojari Schedule",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/pooja-history",
+          "name": "Pooja History",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/waste-sales",
+          "name": "Waste Sales",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 40
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/waste-sales-accountant.png"
+        },
+        {
+          "route": "/admin/vendors",
+          "name": "Vendor Master",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/donation-master",
+          "name": "Donation Master",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/auction-items",
+          "name": "Auction Items",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/hundi-items",
+          "name": "Hundi Items",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/committee",
+          "name": "Committee",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/festivals",
+          "name": "Festivals",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/calendar",
+          "name": "Calendar",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/analytics",
+          "name": "Analytics",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 30
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/analytics-accountant.png"
+        },
+        {
+          "route": "/admin/audit",
+          "name": "Audit Trail",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/backup",
+          "name": "Backup/Restore",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/my-poojas",
+          "name": "My Poojas (Poojari)",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/verify-ticket",
+          "name": "Verify Ticket",
+          "role": "Accountant",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Accountant",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 25
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/03-ACCOUNTANT/notifications-accountant.png"
+        }
+      ],
+      "crud": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/counter",
+          "name": "Counter",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/reports",
+          "name": "Reports",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/daily-closing",
+          "name": "Daily Closing",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/waste-sales",
+          "name": "Waste Sales",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/analytics",
+          "name": "Analytics",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Accountant",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        }
+      ],
+      "validation": [
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "validation": "NOT TESTED",
+          "errors": []
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "validation": "NOT TESTED",
+          "errors": []
+        }
+      ],
+      "errors": []
+    },
+    {
+      "role": "Poojari",
+      "username": "poojari1",
+      "loginStatus": "PASS",
+      "screens": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Poojari",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 113
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/04-POOJARI/dashboard-poojari.png"
+        },
+        {
+          "route": "/admin/devotees",
+          "name": "Devotees",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/bookings",
+          "name": "Bookings",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/bookings/new",
+          "name": "New Booking",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/counter",
+          "name": "Counter",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/reports",
+          "name": "Reports",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/daily-closing",
+          "name": "Daily Closing",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/users",
+          "name": "Users",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/roles",
+          "name": "Role Access",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/settings",
+          "name": "Settings",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/pooja-master",
+          "name": "Pooja Master",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/poojari-master",
+          "name": "Poojari Master",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/poojari-schedule",
+          "name": "Poojari Schedule",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/pooja-history",
+          "name": "Pooja History",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/waste-sales",
+          "name": "Waste Sales",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/vendors",
+          "name": "Vendor Master",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/donation-master",
+          "name": "Donation Master",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/auction-items",
+          "name": "Auction Items",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/hundi-items",
+          "name": "Hundi Items",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/committee",
+          "name": "Committee",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/festivals",
+          "name": "Festivals",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/calendar",
+          "name": "Calendar",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/analytics",
+          "name": "Analytics",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/audit",
+          "name": "Audit Trail",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/backup",
+          "name": "Backup/Restore",
+          "role": "Poojari",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin/my-poojas"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/my-poojas",
+          "name": "My Poojas (Poojari)",
+          "role": "Poojari",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 113
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/04-POOJARI/my-poojas--poojari--poojari.png"
+        },
+        {
+          "route": "/admin/verify-ticket",
+          "name": "Verify Ticket",
+          "role": "Poojari",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 11
+            },
+            {
+              "name": "Forms",
+              "count": 1
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/04-POOJARI/verify-ticket-poojari.png"
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Poojari",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 21
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/04-POOJARI/notifications-poojari.png"
+        }
+      ],
+      "crud": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Poojari",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/my-poojas",
+          "name": "My Poojas (Poojari)",
+          "role": "Poojari",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/verify-ticket",
+          "name": "Verify Ticket",
+          "role": "Poojari",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Poojari",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        }
+      ],
+      "validation": [],
+      "errors": []
+    },
+    {
+      "role": "Committee",
+      "username": "committee1",
+      "loginStatus": "PASS",
+      "screens": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 21
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/dashboard-committee.png"
+        },
+        {
+          "route": "/admin/devotees",
+          "name": "Devotees",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/bookings",
+          "name": "Bookings",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/bookings/new",
+          "name": "New Booking",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/donations",
+          "name": "Donations",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 60
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/hundi-committee.png"
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 75
+            },
+            {
+              "name": "Add/Create Button",
+              "visible": true
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/auction-committee.png"
+        },
+        {
+          "route": "/admin/annadanam",
+          "name": "Annadanam",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/counter",
+          "name": "Counter",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 49
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/counter-committee.png"
+        },
+        {
+          "route": "/admin/reports",
+          "name": "Reports",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 65
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/reports-committee.png"
+        },
+        {
+          "route": "/admin/daily-closing",
+          "name": "Daily Closing",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 17
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/daily-closing-committee.png"
+        },
+        {
+          "route": "/admin/users",
+          "name": "Users",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/roles",
+          "name": "Role Access",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/settings",
+          "name": "Settings",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/pooja-master",
+          "name": "Pooja Master",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/poojari-master",
+          "name": "Poojari Master",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/poojari-schedule",
+          "name": "Poojari Schedule",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/pooja-history",
+          "name": "Pooja History",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/waste-sales",
+          "name": "Waste Sales",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 67
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/waste-sales-committee.png"
+        },
+        {
+          "route": "/admin/vendors",
+          "name": "Vendor Master",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/donation-master",
+          "name": "Donation Master",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/auction-items",
+          "name": "Auction Items",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/hundi-items",
+          "name": "Hundi Items",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/committee",
+          "name": "Committee",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 20
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/committee-committee.png"
+        },
+        {
+          "route": "/admin/festivals",
+          "name": "Festivals",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/calendar",
+          "name": "Calendar",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/analytics",
+          "name": "Analytics",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Buttons",
+              "count": 30
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/analytics-committee.png"
+        },
+        {
+          "route": "/admin/audit",
+          "name": "Audit Trail",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/backup",
+          "name": "Backup/Restore",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/my-poojas",
+          "name": "My Poojas (Poojari)",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/verify-ticket",
+          "name": "Verify Ticket",
+          "role": "Committee",
+          "status": "ACCESS DENIED",
+          "elements": [],
+          "errors": [
+            "Redirected to http://localhost:3000/admin"
+          ],
+          "screenshot": null
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Committee",
+          "status": "PASS",
+          "elements": [
+            {
+              "name": "Header",
+              "visible": true
+            },
+            {
+              "name": "Sidebar",
+              "visible": true
+            },
+            {
+              "name": "Main Content",
+              "visible": true
+            },
+            {
+              "name": "Data Tables",
+              "count": 1
+            },
+            {
+              "name": "Buttons",
+              "count": 25
+            }
+          ],
+          "errors": [],
+          "screenshot": "uat-evidence/05-COMMITTEE/notifications-committee.png"
+        }
+      ],
+      "crud": [
+        {
+          "route": "/admin",
+          "name": "Dashboard",
+          "role": "Committee",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "role": "Committee",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "role": "Committee",
+          "crud": {
+            "create": "FORM OPENS",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/counter",
+          "name": "Counter",
+          "role": "Committee",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/reports",
+          "name": "Reports",
+          "role": "Committee",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/daily-closing",
+          "name": "Daily Closing",
+          "role": "Committee",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/waste-sales",
+          "name": "Waste Sales",
+          "role": "Committee",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/committee",
+          "name": "Committee",
+          "role": "Committee",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/analytics",
+          "name": "Analytics",
+          "role": "Committee",
+          "crud": {
+            "create": "N/A",
+            "read": "NO DATA",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        },
+        {
+          "route": "/admin/notifications",
+          "name": "Notifications",
+          "role": "Committee",
+          "crud": {
+            "create": "N/A",
+            "read": "PASS",
+            "update": "N/A",
+            "delete": "N/A"
+          },
+          "errors": []
+        }
+      ],
+      "validation": [
+        {
+          "route": "/admin/hundi",
+          "name": "Hundi",
+          "validation": "PASS - Shows validation errors",
+          "errors": []
+        },
+        {
+          "route": "/admin/auction",
+          "name": "Auction",
+          "validation": "NOT TESTED",
+          "errors": []
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "responsiveTests": [
+    {
+      "route": "/admin",
+      "name": "Dashboard",
+      "viewports": {
+        "desktop": {
+          "name": "Desktop",
+          "width": 1920,
+          "height": 1080,
+          "screenshot": "uat-evidence/10-RESPONSIVE/dashboard-desktop.png",
+          "status": "CAPTURED"
+        },
+        "laptop": {
+          "name": "Laptop",
+          "width": 1366,
+          "height": 768,
+          "screenshot": "uat-evidence/10-RESPONSIVE/dashboard-laptop.png",
+          "status": "CAPTURED"
+        },
+        "tablet": {
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "uat-evidence/10-RESPONSIVE/dashboard-tablet.png",
+          "status": "CAPTURED"
+        },
+        "mobile": {
+          "name": "Mobile",
+          "width": 375,
+          "height": 812,
+          "screenshot": "uat-evidence/10-RESPONSIVE/dashboard-mobile.png",
+          "status": "CAPTURED"
+        }
+      },
+      "errors": []
+    },
+    {
+      "route": "/admin/devotees",
+      "name": "Devotees",
+      "viewports": {
+        "desktop": {
+          "name": "Desktop",
+          "width": 1920,
+          "height": 1080,
+          "screenshot": "uat-evidence/10-RESPONSIVE/devotees-desktop.png",
+          "status": "CAPTURED"
+        },
+        "laptop": {
+          "name": "Laptop",
+          "width": 1366,
+          "height": 768,
+          "screenshot": "uat-evidence/10-RESPONSIVE/devotees-laptop.png",
+          "status": "CAPTURED"
+        },
+        "tablet": {
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "uat-evidence/10-RESPONSIVE/devotees-tablet.png",
+          "status": "CAPTURED"
+        },
+        "mobile": {
+          "name": "Mobile",
+          "width": 375,
+          "height": 812,
+          "screenshot": "uat-evidence/10-RESPONSIVE/devotees-mobile.png",
+          "status": "CAPTURED"
+        }
+      },
+      "errors": []
+    },
+    {
+      "route": "/admin/bookings",
+      "name": "Bookings",
+      "viewports": {
+        "desktop": {
+          "name": "Desktop",
+          "width": 1920,
+          "height": 1080,
+          "screenshot": "uat-evidence/10-RESPONSIVE/bookings-desktop.png",
+          "status": "CAPTURED"
+        },
+        "laptop": {
+          "name": "Laptop",
+          "width": 1366,
+          "height": 768,
+          "screenshot": "uat-evidence/10-RESPONSIVE/bookings-laptop.png",
+          "status": "CAPTURED"
+        },
+        "tablet": {
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "uat-evidence/10-RESPONSIVE/bookings-tablet.png",
+          "status": "CAPTURED"
+        },
+        "mobile": {
+          "name": "Mobile",
+          "width": 375,
+          "height": 812,
+          "screenshot": "uat-evidence/10-RESPONSIVE/bookings-mobile.png",
+          "status": "CAPTURED"
+        }
+      },
+      "errors": []
+    },
+    {
+      "route": "/admin/donations",
+      "name": "Donations",
+      "viewports": {
+        "desktop": {
+          "name": "Desktop",
+          "width": 1920,
+          "height": 1080,
+          "screenshot": "uat-evidence/10-RESPONSIVE/donations-desktop.png",
+          "status": "CAPTURED"
+        },
+        "laptop": {
+          "name": "Laptop",
+          "width": 1366,
+          "height": 768,
+          "screenshot": "uat-evidence/10-RESPONSIVE/donations-laptop.png",
+          "status": "CAPTURED"
+        },
+        "tablet": {
+          "name": "Tablet",
+          "width": 768,
+          "height": 1024,
+          "screenshot": "uat-evidence/10-RESPONSIVE/donations-tablet.png",
+          "status": "CAPTURED"
+        },
+        "mobile": {
+          "name": "Mobile",
+          "width": 375,
+          "height": 812,
+          "screenshot": "uat-evidence/10-RESPONSIVE/donations-mobile.png",
+          "status": "CAPTURED"
+        }
+      },
+      "errors": []
+    }
+  ]
+}

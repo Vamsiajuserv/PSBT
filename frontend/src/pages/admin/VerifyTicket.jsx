@@ -69,7 +69,7 @@ export default function VerifyTicket() {
         <label className="label"><T>Ticket / Receipt Number</T></label>
         <div className="flex gap-2 mt-1">
           <div className="relative flex-1">
-            <ScanLine size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <ScanLine size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
             <input ref={inputRef} autoFocus value={ticket}
               onChange={(e) => setTicket(e.target.value)}
               placeholder={tr("e.g. RCPT2607210001")}
@@ -82,7 +82,7 @@ export default function VerifyTicket() {
             <button type="button" onClick={reset} className="btn-outline" title={tr("Clear")}><RotateCcw size={16} /></button>
           )}
         </div>
-        <p className="text-[0.75rem] text-gray-400 mt-2"><T>Tip: a barcode/QR scanner types the number and submits automatically.</T></p>
+        <p className="text-[0.75rem] text-gray-600 mt-2"><T>Tip: a barcode/QR scanner types the number and submits automatically.</T></p>
       </form>
 
       {error && (
@@ -101,8 +101,8 @@ export default function VerifyTicket() {
 
           <div className="p-5 space-y-4">
             <div>
-              <div className="text-lg font-bold text-gray-800">{tr(result.pooja)}{result.plan ? <span className="text-gray-400 font-normal"> · {tr(result.plan)}</span> : null}</div>
-              <div className="text-[0.75rem] text-gray-400 font-mono mt-0.5">#{result.ticket_no || result.booking_code}</div>
+              <div className="text-lg font-bold text-gray-800">{tr(result.pooja)}{result.plan ? <span className="text-gray-600 font-normal"> · {tr(result.plan)}</span> : null}</div>
+              <div className="text-[0.75rem] text-gray-600 font-mono mt-0.5">#{result.ticket_no || result.booking_code}</div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-[0.8125rem]">
@@ -149,8 +149,8 @@ function Field({ icon: Icon, label, value }) {
 
   return (
     <div className="flex items-center gap-2">
-      {Icon && <Icon size={14} className="text-gray-400 shrink-0" />}
-      <span className="text-gray-400">{label}:</span>
+      {Icon && <Icon size={14} className="text-gray-600 shrink-0" />}
+      <span className="text-gray-600">{label}:</span>
       <span className="font-semibold text-gray-700">{value}</span>
     </div>
   )

@@ -1,5 +1,4 @@
 import React from 'react'
-import { Landmark } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { tr, teText } from '../../i18n/LanguageContext.jsx'
 
@@ -24,10 +23,10 @@ export function TicketShell({ code, children }) {
     <div className="bg-[#fdf7ee] border-2 border-dashed border-amber-300 rounded-2xl p-5 md:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Landmark size={40} className="text-amber-600 shrink-0" />
+          <img src="/images/temple-logo.png" alt="Sai Baba Temple" className="w-12 h-12 object-contain shrink-0" />
           <div>
             <div className="font-display font-bold text-maroon-800 text-[1rem] leading-tight tracking-wide">{tr("SRI SHIRDI SAI BABA TEMPLE")}</div>
-            <div className="text-[0.625rem] text-gray-500">{tr("Endowments Department, Government of Telangana")}</div>
+            <div className="text-[0.625rem] text-gray-700">{tr("Endowments Department, Government of Telangana")}</div>
           </div>
         </div>
         <TicketRef code={code} />

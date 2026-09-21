@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Plus, X, Eye, MoreVertical, Search, RotateCcw, Info, Trash2,
   Gavel, CalendarClock, Users, CheckCircle2, User, ShieldCheck,
-  XCircle, Banknote, Receipt, Printer, ArrowDown, ArrowUp, ChevronsUpDown,
+  XCircle, Banknote, Receipt, Printer, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { AuctionAPI, AuctionItemsAPI, DevoteesAPI } from '../../api/client.js'
@@ -83,8 +83,8 @@ export default function Auction() {
   const [results, setResults] = useState([])
   const picked = drawer?.devotee
   useEffect(() => {
-    // Require at least 4 characters for search (consistent with other forms)
-    if (!drawer || picked || dq.trim().length < 4) { setResults([]); return }
+    // Require at least 2 characters for search (consistent with other forms)
+    if (!drawer || picked || dq.trim().length < 2) { setResults([]); return }
     const t = setTimeout(() => {
       DevoteesAPI.list({ q: dq.trim(), size: 8 })
         .then((r) => setResults(Array.isArray(r) ? r : (r.items || [])))

@@ -37,14 +37,14 @@ DEMO_COMMITTEE = [
 # (name, start_date ISO, duration_days, status, [associated pooja names])
 # Real 2026 Hindu-calendar dates (Telugu/Telangana panchang), not demo offsets:
 #   Rama Navami 27 Mar · Guru Purnima 29 Jul · Vinayaka Chavithi 14 Sep ·
-#   Devi Navaratri 11–19 Oct · Vijayadashami (Mahasamadhi) 20 Oct · Karthika Masam 9 Nov–8 Dec.
+#   Devi Navaratri 11–19 Oct · Vijayadashami (Mahasamadhi) 20 Oct · Karthika Masam 10 Nov–9 Dec.
 DEMO_FESTIVALS = [
     ("Sri Rama Navami", "2026-03-27", 1, "Active", ["Sri Rama Navami", "Abhishekam"]),
     ("Guru Purnima", "2026-07-29", 1, "Active", ["Sai Vratam (Pournami)"]),
     ("Vinayaka Chavithi", "2026-09-14", 3, "Active", ["Vinayaka Chavithi Pooja"]),
     ("Devi Navaratri", "2026-10-11", 9, "Active", ["Devi Navaratri Pooja"]),
     ("Sai Baba Mahasamadhi", "2026-10-20", 1, "Active", ["Abhishekam"]),
-    ("Karthika Masam", "2026-11-09", 30, "Active", ["Karthika Masam Pooja"]),
+    ("Karthika Masam", "2026-11-10", 30, "Active", ["Karthika Masam Pooja"]),
 ]
 
 # Tithi dates — Pournami (full moon) dates for 2026-2027 (Hindu Panchang calendar)

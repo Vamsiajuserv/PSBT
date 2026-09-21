@@ -1,4 +1,5 @@
 """Small helpers shared across routers."""
+import re
 from datetime import datetime, date as _date, timedelta
 from fastapi import HTTPException
 from sqlalchemy import func, text
@@ -118,6 +119,51 @@ def ticket_no(booking_id: int) -> str:
     return f"TKT-{datetime.now():%Y}-{str(booking_id).zfill(6)}"
 
 
+# ── PAN Masking (Phase 1 Security: PRIV-001) ─────────────────────────────────
+# Protects sensitive PAN data by masking all but the last 4 characters.
+# Full PAN is stored in database for 80G verification but masked in responses.
+
+def mask_pan(pan: str | None) -> str | None:
+    """Mask PAN number for display, showing only last 4 characters.
+
+    Handles both encrypted (ENC:...) and plaintext PAN values.
+    PAN format: ABCDE1234F (5 letters + 4 digits + 1 letter)
+    Masked output: XXXXXX234F (first 6 chars replaced with X)
+
+    Args:
+        pan: Full PAN number (possibly encrypted) or None
+
+    Returns:
+        Masked PAN or None if input is None/empty
+    """
+    if not pan or len(pan) < 4:
+        return pan
+    # If encrypted, decrypt first then mask
+    if pan.startswith("ENC:"):
+        decrypted = decrypt_pan(pan)
+        if decrypted and not decrypted.startswith("ENC:"):
+            pan = decrypted
+        else:
+            # Can't decrypt - return masked version of what we have
+            return "XXXXXX****"
+    # Show only the last 4 characters
+    return "X" * (len(pan) - 4) + pan[-4:]
+
+
+def is_valid_pan(pan: str | None) -> bool:
+    """Validate PAN format: 5 letters + 4 digits + 1 letter.
+
+    Args:
+        pan: PAN string to validate
+
+    Returns:
+        True if valid PAN format, False otherwise
+    """
+    if not pan:
+        return False
+    return bool(re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan.strip().upper()))
+
+
 # ── Pagination Validation ─────────────────────────────────────────────────────
 MAX_PAGE_SIZE = 200  # Maximum items per page (DoS prevention)
 MAX_PAGE_NUMBER = 10000  # Maximum page number (prevents absurd offset values)
@@ -157,3 +203,191 @@ def validate_pagination(page: int, size: int, max_size: int | None = None) -> tu
 def pagination_offset(page: int, size: int) -> int:
     """Calculate offset from page and size after validation."""
     return (page - 1) * size
+
+
+# ── Rate Limiting (Phase 1 Security: API-004) ────────────────────────────────
+# Database-backed rate limiting that works across multiple app instances.
+# Uses AuditLog to track request counts (similar to brute-force protection).
+
+class RateLimitExceeded(HTTPException):
+    """Exception raised when rate limit is exceeded."""
+    def __init__(self, retry_after: int = 60):
+        super().__init__(
+            status_code=429,
+            detail=f"Rate limit exceeded. Please try again in {retry_after} seconds."
+        )
+        self.headers = {"Retry-After": str(retry_after)}
+
+
+def check_rate_limit(db: Session, key: str, limit: int, window_minutes: int = 1) -> bool:
+    """Check if rate limit is exceeded for a given key.
+
+    Uses AuditLog to count recent requests. Returns True if limit exceeded.
+
+    Args:
+        db: Database session
+        key: Unique key for the rate limit (e.g., IP address, username, or action)
+        limit: Maximum number of requests allowed in the window
+        window_minutes: Time window in minutes (default: 1)
+
+    Returns:
+        True if rate limit is exceeded, False otherwise
+    """
+    from .models import AuditLog
+    since = datetime.now() - timedelta(minutes=window_minutes)
+    count = (db.query(func.count(AuditLog.id))
+             .filter(AuditLog.entity == f"RateLimit:{key}",
+                     AuditLog.ts >= since)
+             .scalar() or 0)
+    return count >= limit
+
+
+def record_rate_limit_hit(db: Session, key: str, ip: str | None = None) -> None:
+    """Record a rate limit hit for tracking purposes.
+
+    Args:
+        db: Database session
+        key: Unique key for the rate limit
+        ip: Optional IP address
+    """
+    from .models import AuditLog
+    db.add(AuditLog(
+        action="RATE_LIMIT",
+        entity=f"RateLimit:{key}",
+        status="HIT",
+        ip=ip
+    ))
+    db.commit()
+
+
+def enforce_rate_limit(db: Session, key: str, limit: int, window_minutes: int = 1,
+                       ip: str | None = None) -> None:
+    """Check and enforce rate limit. Raises RateLimitExceeded if limit exceeded.
+
+    Records a hit if under limit, raises exception if over limit.
+
+    Args:
+        db: Database session
+        key: Unique key for the rate limit
+        limit: Maximum number of requests allowed in the window
+        window_minutes: Time window in minutes (default: 1)
+        ip: Optional IP address for logging
+    """
+    if check_rate_limit(db, key, limit, window_minutes):
+        raise RateLimitExceeded(retry_after=window_minutes * 60)
+    record_rate_limit_hit(db, key, ip)
+
+
+# ── Encryption (Phase 1 Security: PRIV-001, INF-001) ─────────────────────────
+# Fernet symmetric encryption for PAN at rest and backup payloads.
+# Keys are loaded from environment variables; if not configured, encryption
+# is disabled (backwards compatible) but a warning is logged.
+
+_pan_cipher = None
+_backup_cipher = None
+_encryption_warned = False
+
+
+def _get_pan_cipher():
+    """Get or create the PAN encryption cipher (lazy initialization)."""
+    global _pan_cipher, _encryption_warned
+    if _pan_cipher is not None:
+        return _pan_cipher
+    from .config import settings
+    key = settings.PAN_ENCRYPTION_KEY
+    if not key:
+        if not _encryption_warned:
+            import logging
+            logging.getLogger(__name__).warning(
+                "PAN_ENCRYPTION_KEY not configured - PAN stored unencrypted"
+            )
+            _encryption_warned = True
+        return None
+    try:
+        from cryptography.fernet import Fernet
+        _pan_cipher = Fernet(key.encode() if isinstance(key, str) else key)
+        return _pan_cipher
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Invalid PAN_ENCRYPTION_KEY: {e}")
+        return None
+
+
+def _get_backup_cipher():
+    """Get or create the backup encryption cipher (lazy initialization)."""
+    global _backup_cipher
+    if _backup_cipher is not None:
+        return _backup_cipher
+    from .config import settings
+    key = settings.BACKUP_ENCRYPTION_KEY
+    if not key:
+        return None
+    try:
+        from cryptography.fernet import Fernet
+        _backup_cipher = Fernet(key.encode() if isinstance(key, str) else key)
+        return _backup_cipher
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Invalid BACKUP_ENCRYPTION_KEY: {e}")
+        return None
+
+
+def encrypt_pan(pan: str | None) -> str | None:
+    """Encrypt PAN for storage. Returns encrypted string or original if no key.
+
+    The encrypted value is prefixed with 'ENC:' to identify encrypted values.
+    """
+    if not pan or len(pan) < 4:
+        return pan
+    cipher = _get_pan_cipher()
+    if not cipher:
+        return pan  # No encryption configured - store plaintext
+    try:
+        encrypted = cipher.encrypt(pan.encode()).decode()
+        return f"ENC:{encrypted}"
+    except Exception:
+        return pan
+
+
+def decrypt_pan(encrypted_pan: str | None) -> str | None:
+    """Decrypt PAN from storage. Returns decrypted string or original if not encrypted."""
+    if not encrypted_pan:
+        return encrypted_pan
+    if not encrypted_pan.startswith("ENC:"):
+        return encrypted_pan  # Not encrypted (legacy data)
+    cipher = _get_pan_cipher()
+    if not cipher:
+        return encrypted_pan  # Can't decrypt without key
+    try:
+        encrypted_data = encrypted_pan[4:]  # Remove 'ENC:' prefix
+        return cipher.decrypt(encrypted_data.encode()).decode()
+    except Exception:
+        return encrypted_pan  # Return as-is on decryption failure
+
+
+def encrypt_backup_payload(payload: str) -> tuple[str, bool]:
+    """Encrypt backup JSON payload. Returns (data, is_encrypted).
+
+    If encryption key is not configured, returns original payload unencrypted.
+    """
+    cipher = _get_backup_cipher()
+    if not cipher:
+        return payload, False
+    try:
+        encrypted = cipher.encrypt(payload.encode()).decode()
+        return encrypted, True
+    except Exception:
+        return payload, False
+
+
+def decrypt_backup_payload(payload: str, is_encrypted: bool) -> str:
+    """Decrypt backup JSON payload if it was encrypted."""
+    if not is_encrypted:
+        return payload
+    cipher = _get_backup_cipher()
+    if not cipher:
+        raise ValueError("Backup is encrypted but BACKUP_ENCRYPTION_KEY not configured")
+    try:
+        return cipher.decrypt(payload.encode()).decode()
+    except Exception as e:
+        raise ValueError(f"Failed to decrypt backup: {e}")

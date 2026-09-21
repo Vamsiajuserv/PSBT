@@ -44,7 +44,7 @@ export function Receipt({
     <div className={`receipt-a4 ${font}`}>
       {/* ═══════════════ TEMPLE HEADER ═══════════════ */}
       <header className="receipt-header">
-        <div className="temple-logo">🛕</div>
+        <img src="/images/temple-logo.png" alt="Sai Baba Temple" className="temple-logo-img" />
         <h1 className="temple-name">
           {te ? (temple?.nameTelugu || t(temple?.name) || t('Sri Shirdi Sai Baba Temple')) : (temple?.name || 'Sri Shirdi Sai Baba Temple')}
         </h1>

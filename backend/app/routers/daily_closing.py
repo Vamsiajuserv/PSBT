@@ -10,6 +10,7 @@ from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, WasteSale,
                       DailyClosing, Setting, Refund)
 from ..security import RequireModule, log_action, client_ip
+from ..schemas import DailyClosingCloseIn, DailyClosingReopenIn
 
 router = APIRouter(prefix="/api/daily-closing", tags=["daily-closing"])
 read = RequireModule("Reports")
@@ -144,25 +145,23 @@ def list_closings(db: Session = Depends(get_db), user=Depends(read)):
 
 
 @router.post("/close")
-def close_day(body: dict, request: Request, db: Session = Depends(get_db),
+def close_day(body: DailyClosingCloseIn, request: Request, db: Session = Depends(get_db),
               user=Depends(RequireModule("Reports", write=True))):
-    try:
-        on = date.fromisoformat(body["date"]) if body.get("date") else date.today()
-    except (ValueError, TypeError):
-        raise HTTPException(400, "Invalid date format - use YYYY-MM-DD")
+    # Phase 1 Security (API-002): Typed schema ensures validated input
+    on = body.date or date.today()
     if on > date.today():
         raise HTTPException(422, "A future day cannot be closed.")
     if db.query(DailyClosing).filter(DailyClosing.closing_date == on).first():
         raise HTTPException(409, "This day is already closed.")
     s = _summary(db, on)
-    actual = float(body.get("actual_cash", s["expected_cash"]) or 0)
+    actual = float(body.actual_cash) if body.actual_cash is not None else s["expected_cash"]
     dc = DailyClosing(
         closing_date=on, total_amount=Decimal(str(s["total"]["total"])),
         cash_amount=Decimal(str(s["total"]["cash"])), upi_amount=Decimal(str(s["total"]["upi"])),
         txn_count=s["total"]["count"], opening_cash=Decimal(str(s["opening_cash"])),
         refunds=Decimal(str(s["refunds"])), expected_cash=Decimal(str(s["expected_cash"])),
         actual_cash=Decimal(str(actual)), difference=Decimal(str(actual - s["expected_cash"])),
-        breakdown=json.dumps(s["modules"]), notes=body.get("notes"), closed_by=user.username)
+        breakdown=json.dumps(s["modules"]), notes=body.notes, closed_by=user.username)
     db.add(dc); db.commit(); db.refresh(dc)
     log_action(db, username=user.username, action="UPDATE", entity="DailyClosing",
                detail=f"Closed {on} · ₹{s['total']['total']:.2f}", ip=client_ip(request))
@@ -170,17 +169,15 @@ def close_day(body: dict, request: Request, db: Session = Depends(get_db),
 
 
 @router.post("/reopen")
-def reopen_day(body: dict, request: Request, db: Session = Depends(get_db),
+def reopen_day(body: DailyClosingReopenIn, request: Request, db: Session = Depends(get_db),
                user=Depends(RequireModule("Reports", write=True))):
     """Reopen a previously closed day. Admin only."""
-    # Check if user is Admin
+    # Check if user is Admin (Phase 1 Security: AUTHZ-001 recommends decorator)
     if user.role not in ("Admin", "Administrator"):
         raise HTTPException(403, "Only Admin can reopen a closed day.")
 
-    try:
-        on = date.fromisoformat(body["date"]) if body.get("date") else date.today()
-    except (ValueError, TypeError):
-        raise HTTPException(400, "Invalid date format - use YYYY-MM-DD")
+    # Phase 1 Security (API-002): Typed schema ensures validated date
+    on = body.date or date.today()
     existing = db.query(DailyClosing).filter(DailyClosing.closing_date == on).first()
     if not existing:
         raise HTTPException(404, "This day is not closed.")

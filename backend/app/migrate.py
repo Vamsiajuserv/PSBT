@@ -96,6 +96,9 @@ COLUMN_MIGRATIONS = {
         ("expected_cash", "NUMERIC(14,2) DEFAULT 0"), ("actual_cash", "NUMERIC(14,2) DEFAULT 0"),
         ("difference", "NUMERIC(14,2) DEFAULT 0"),
     ],
+    "backups": [
+        ("encrypted", "BOOLEAN DEFAULT FALSE"),
+    ],
 }
 
 

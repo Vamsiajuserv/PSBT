@@ -2,14 +2,15 @@
 from datetime import date, datetime
 from collections import OrderedDict
 from decimal import Decimal, ROUND_HALF_UP
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, WasteSale,
                       Festival, Devotee, PoojaPlan, Pooja)
-from ..security import RequireModule
+from ..security import RequireModule, client_ip
+from ..helpers import mask_pan, enforce_rate_limit
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 read = RequireModule("Reports")
@@ -401,7 +402,8 @@ def generate(report, start, end, db):
             "receipt": d.receipt_no or "-",
             "date": (d.donated_on or d.created_at.date()).strftime("%d %b %Y"),
             "donor": d.donor_name or "-",
-            "pan": d.pan or "-",
+            # Phase 1 Security (PRIV-001): Mask PAN in reports
+            "pan": mask_pan(d.pan) or "-",
             "address": d.address or "-",
             "amount": float(d.amount or 0),
         } for d in rows]
@@ -954,8 +956,12 @@ def generate(report, start, end, db):
 
 
 @router.get("/generate")
-def generate_report(report: str, start: date | None = None, end: date | None = None,
+def generate_report(report: str, request: Request, start: date | None = None, end: date | None = None,
                     db: Session = Depends(get_db), user=Depends(read)):
+    # Phase 1 Security (API-004): Rate limit report generation (max 20 per minute per user)
+    # Reports can be heavy queries, so rate limiting prevents DoS via repeated report generation
+    enforce_rate_limit(db, f"report_generate:{user.username}", limit=20, window_minutes=1,
+                       ip=client_ip(request))
     end = end or date.today()
     start = start or end.replace(day=1)
 

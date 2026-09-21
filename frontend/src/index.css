@@ -369,6 +369,13 @@
   font-size: 48px;
   margin-bottom: 10px;
 }
+.receipt-a4 .temple-logo-img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  margin: 0 auto 10px auto;
+  display: block;
+}
 .receipt-a4 .temple-name {
   font-size: 20px;
   font-weight: 700;
@@ -790,6 +797,13 @@
     font-size: 32pt !important;
     margin-bottom: 2mm !important;
     line-height: 1 !important;
+  }
+  .receipt-a4 .temple-logo-img {
+    width: 50px !important;
+    height: 50px !important;
+    object-fit: contain !important;
+    margin: 0 auto 2mm auto !important;
+    display: block !important;
   }
   .receipt-a4 .temple-name {
     font-size: 16pt !important;

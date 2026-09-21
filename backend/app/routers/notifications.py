@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import NotificationLog
+from ..schemas import NotificationConfigUpdateIn, NotificationTestIn
 from ..security import require_admin, log_action, client_ip
 from .. import notifications as notif
 
@@ -24,14 +25,18 @@ def get_config(db: Session = Depends(get_db), admin=Depends(require_admin)):
 
 
 @router.put("/config")
-def update_config(body: dict, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
-    # body: { "SMS": true/false, "Email": ..., "WhatsApp": ... } — only enable/disable is editable;
-    # provider credentials are env-managed and never accepted/stored via the API.
+def update_config(body: NotificationConfigUpdateIn, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    """Update notification channel enabled/disabled status.
+
+    API-011: Uses typed NotificationConfigUpdateIn schema for input validation.
+    Provider credentials are env-managed and never accepted/stored via the API.
+    """
     changed = []
+    body_dict = body.model_dump(exclude_none=True)
     for ch in notif.CHANNELS:
-        if ch in body:
-            notif.set_channel_enabled(db, ch, bool(body[ch]), by=admin.username)
-            changed.append(f"{ch}={'on' if body[ch] else 'off'}")
+        if ch in body_dict:
+            notif.set_channel_enabled(db, ch, bool(body_dict[ch]), by=admin.username)
+            changed.append(f"{ch}={'on' if body_dict[ch] else 'off'}")
     db.commit()
     log_action(db, username=admin.username, action="UPDATE", entity="NotificationConfig",
                detail=", ".join(changed) or "no change", ip=client_ip(request))
@@ -78,13 +83,14 @@ def templates(admin=Depends(require_admin)):
 
 
 @router.post("/test")
-def send_test(body: dict, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
-    channel = body.get("channel")
-    to = (body.get("to") or "").strip()
-    if channel not in notif.CHANNELS:
-        raise HTTPException(400, "Invalid channel")
-    if not to:
-        raise HTTPException(400, "Recipient (mobile or email) is required")
+def send_test(body: NotificationTestIn, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    """Send a test notification to verify channel configuration.
+
+    API-012: Uses typed NotificationTestIn schema for input validation.
+    Channel must be one of: SMS, Email, WhatsApp.
+    """
+    channel = body.channel
+    to = body.to.strip()
     ctx = {"devotee": "Test User"}
     logs = notif.dispatch(db, "test", ctx,
                           mobile=(to if channel != "Email" else None),

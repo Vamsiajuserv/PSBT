@@ -24,8 +24,9 @@ export const ACCESS = {
   // ── Dashboard ('' = the /admin index) ──
   // The money dashboard is meaningless to a Poojari — /admin already redirects
   // them to My Poojas, so showing a "Dashboard" nav entry that appears to do
-  // nothing is a UX trap. Hide it for them (Administrators always pass).
-  '': { roles: ['Counter Staff', 'Accountant', 'Committee'] },
+  // nothing is a UX trap. Hide it for them. Counter Staff should use the
+  // Counter module directly (Client UAT requirement).
+  '': { roles: ['Accountant', 'Committee'] },
 
   // ── Transactional screens (visible to any role holding the module) ──
   devotees: { module: 'Devotees' },

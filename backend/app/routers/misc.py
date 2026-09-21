@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import HundiCollection, HundiCollectionItem, Auction, Annadanam
-from ..schemas import (HundiCreate, HundiOut, AuctionCreate, AuctionOut,
+from ..schemas import (HundiCreate, HundiOut, HundiRejectIn, HundiDepositIn, HundiStoreIn,
+                       AuctionCreate, AuctionOut, AuctionUpdateIn, AuctionRejectIn, AuctionPaymentIn,
                        AnnadanamCreate, AnnadanamOut)
+from ..helpers import validate_pagination
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
 from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open
 
@@ -100,6 +102,11 @@ def list_hundi(q: str = "", verification: str = "", deposit: str = "",
                start: date | None = None, end: date | None = None,
                page: int = 1, size: int = 50,
                db: Session = Depends(get_db), user=Depends(h_read)):
+    """List hundi collections with pagination and filtering.
+
+    INF-001: Added pagination validation to prevent unbounded result sets.
+    """
+    page, size = validate_pagination(page, size)
     query = db.query(HundiCollection)
     if q:
         query = query.filter(HundiCollection.code.ilike(f"%{q}%"))
@@ -198,18 +205,19 @@ def verify_hundi(hid: int, request: Request, db: Session = Depends(get_db),
 
 
 @hundi_router.put("/{hid}/reject", response_model=HundiOut)
-def reject_hundi(hid: int, body: dict, request: Request, db: Session = Depends(get_db),
+def reject_hundi(hid: int, body: HundiRejectIn, request: Request, db: Session = Depends(get_db),
                  user=Depends(RequireRole("Committee"))):
     """Committee flags a counted collection as having a discrepancy instead of
-    attesting it — previously verification was attest-or-nothing."""
+    attesting it — previously verification was attest-or-nothing.
+
+    API-003: Uses typed HundiRejectIn schema for input validation.
+    """
     h = db.get(HundiCollection, hid)
     if not h:
         raise HTTPException(404, "Hundi collection not found")
     if h.verification_status == "Verified":
         raise HTTPException(409, "An already-verified collection cannot be rejected.")
-    reason = (body.get("reason") or "").strip()
-    if not reason:
-        raise HTTPException(422, "A reason is required to flag a discrepancy.")
+    reason = body.reason.strip()
     h.verification_status = "Rejected"
     h.status = "Rejected"
     h.notes = f"{(h.notes + ' | ') if h.notes else ''}Rejected by {user.name or user.username}: {reason}"
@@ -220,10 +228,13 @@ def reject_hundi(hid: int, body: dict, request: Request, db: Session = Depends(g
 
 
 @hundi_router.put("/{hid}/deposit", response_model=HundiOut)
-def deposit_hundi(hid: int, body: dict, request: Request, db: Session = Depends(get_db),
+def deposit_hundi(hid: int, body: HundiDepositIn, request: Request, db: Session = Depends(get_db),
                   user=Depends(h_write)):
     """Record the bank deposit of CASH items in a collection. Only a VERIFIED collection
-    may be deposited — enforcing the Pending → Verified → Deposited order the audit requires."""
+    may be deposited — enforcing the Pending → Verified → Deposited order the audit requires.
+
+    API-004: Uses typed HundiDepositIn schema for input validation.
+    """
     h = db.get(HundiCollection, hid)
     if not h:
         raise HTTPException(404, "Hundi collection not found")
@@ -233,11 +244,10 @@ def deposit_hundi(hid: int, body: dict, request: Request, db: Session = Depends(
         raise HTTPException(409, "Cash from this collection is already deposited.")
     if h.deposit_status == "N/A":
         raise HTTPException(409, "This collection has no cash items to deposit.")
-    dep_on = body.get("deposited_on")
-    h.deposited_on = date.fromisoformat(dep_on) if dep_on else date.today()
+    h.deposited_on = body.deposited_on if body.deposited_on else date.today()
     assert_txn_date_open(db, h.deposited_on, label="deposit date")
-    h.bank_ref = (body.get("bank_ref") or None)
-    h.bank_name = (body.get("bank_name") or None)
+    h.bank_ref = body.bank_ref
+    h.bank_name = body.bank_name
     h.deposit_status = "Deposited"
     # Update status based on valuables_status
     if h.valuables_status in (None, "In Store"):
@@ -252,11 +262,14 @@ def deposit_hundi(hid: int, body: dict, request: Request, db: Session = Depends(
 
 
 @hundi_router.put("/{hid}/store", response_model=HundiOut)
-def store_hundi_valuables(hid: int, body: dict, request: Request, db: Session = Depends(get_db),
+def store_hundi_valuables(hid: int, body: HundiStoreIn, request: Request, db: Session = Depends(get_db),
                           user=Depends(h_write)):
     """Record the custody of VALUABLES (gold, silver, jewellery, etc.) from a collection.
     Only a VERIFIED collection may have its valuables stored — enforcing the
-    Pending → Verified → In Store order the audit requires."""
+    Pending → Verified → In Store order the audit requires.
+
+    API-005: Uses typed HundiStoreIn schema for input validation.
+    """
     h = db.get(HundiCollection, hid)
     if not h:
         raise HTTPException(404, "Hundi collection not found")
@@ -266,12 +279,11 @@ def store_hundi_valuables(hid: int, body: dict, request: Request, db: Session = 
         raise HTTPException(409, "Valuables from this collection are already in store custody.")
     if h.valuables_status is None:
         raise HTTPException(409, "This collection has no valuables to store.")
-    store_on = body.get("stored_on")
-    h.valuables_stored_on = date.fromisoformat(store_on) if store_on else date.today()
+    h.valuables_stored_on = body.stored_on if body.stored_on else date.today()
     assert_txn_date_open(db, h.valuables_stored_on, label="custody date")
-    h.store_location = (body.get("store_location") or None)
-    h.valuables_custodian = (body.get("custodian") or None)
-    h.custody_receipt = (body.get("custody_receipt") or None)
+    h.store_location = body.store_location
+    h.valuables_custodian = body.custodian
+    h.custody_receipt = body.custody_receipt
     h.valuables_status = "In Store"
     # Update status based on deposit_status
     if h.deposit_status in ("N/A", "Deposited"):
@@ -320,6 +332,11 @@ def list_auctions(q: str = "", status: str = "",
                   start: date | None = None, end: date | None = None,
                   page: int = 1, size: int = 50,
                   db: Session = Depends(get_db), user=Depends(a_read)):
+    """List auctions with pagination and filtering.
+
+    INF-001: Added pagination validation to prevent unbounded result sets.
+    """
+    page, size = validate_pagination(page, size)
     query = db.query(Auction)
     if q:
         like = f"%{q}%"
@@ -365,27 +382,43 @@ def create_auction(body: AuctionCreate, request: Request,
 
 
 @auction_router.put("/{aid}", response_model=AuctionOut)
-def update_auction(aid: int, body: dict, request: Request,
+def update_auction(aid: int, body: AuctionUpdateIn, request: Request,
                    db: Session = Depends(get_db), user=Depends(a_write)):
     """Record the auction lifecycle — bids, highest amount, winner, closing.
     Previously auctions could only be created, so committee decisions (highest
-    bid, winner, completion) had nowhere to be recorded."""
+    bid, winner, completion) had nowhere to be recorded.
+
+    API-006: Uses typed AuctionUpdateIn schema for input validation.
+    """
     au = db.get(Auction, aid)
     if not au:
         raise HTTPException(404, "Auction not found")
     if au.status == "Void":
         raise HTTPException(409, "A voided auction cannot be edited")
-    for k in ("item", "description", "start_time", "notes", "winner", "status",
-              "bids", "devotee_id"):
-        if k in body:
-            setattr(au, k, body[k])
-    if "auction_date" in body:
-        au.auction_date = date.fromisoformat(str(body["auction_date"])) if body["auction_date"] else None
-    if "base_amount" in body:
-        assert_positive(body["base_amount"], "Base amount")
-        au.base_amount = Decimal(str(body["base_amount"]))
-    if "current_amount" in body and body["current_amount"] not in (None, ""):
-        au.current_amount = Decimal(str(body["current_amount"]))
+    # Update only fields that are provided (not None)
+    if body.item is not None:
+        au.item = body.item
+    if body.description is not None:
+        au.description = body.description
+    if body.start_time is not None:
+        au.start_time = body.start_time
+    if body.notes is not None:
+        au.notes = body.notes
+    if body.winner is not None:
+        au.winner = body.winner
+    if body.status is not None:
+        au.status = body.status
+    if body.bids is not None:
+        au.bids = body.bids
+    if body.devotee_id is not None:
+        au.devotee_id = body.devotee_id
+    if body.auction_date is not None:
+        au.auction_date = body.auction_date
+    if body.base_amount is not None:
+        assert_positive(body.base_amount, "Base amount")
+        au.base_amount = body.base_amount
+    if body.current_amount is not None:
+        au.current_amount = body.current_amount
     if au.current_amount is not None and au.base_amount is not None and \
             Decimal(str(au.current_amount)) < Decimal(str(au.base_amount)):
         raise HTTPException(422, "The highest/winning bid cannot be below the base amount.")
@@ -439,9 +472,12 @@ def verify_auction(aid: int, request: Request,
 
 
 @auction_router.post("/{aid}/reject", response_model=AuctionOut)
-def reject_auction(aid: int, body: dict, request: Request,
+def reject_auction(aid: int, body: AuctionRejectIn, request: Request,
                    db: Session = Depends(get_db), user=Depends(RequireRole("Committee"))):
-    """Committee rejects a completed auction — e.g., discrepancy in bid amount or winner."""
+    """Committee rejects a completed auction — e.g., discrepancy in bid amount or winner.
+
+    API-007: Uses typed AuctionRejectIn schema for input validation.
+    """
     au = db.get(Auction, aid)
     if not au:
         raise HTTPException(404, "Auction not found")
@@ -449,9 +485,7 @@ def reject_auction(aid: int, body: dict, request: Request,
         raise HTTPException(409, "Only completed auctions can be rejected.")
     if au.verification_status == "Verified":
         raise HTTPException(409, "An already-verified auction cannot be rejected.")
-    reason = (body.get("reason") or "").strip()
-    if not reason:
-        raise HTTPException(422, "A reason is required to reject the auction.")
+    reason = body.reason.strip()
     au.verification_status = "Rejected"
     au.rejection_reason = reason
     au.verified_by = user.name or user.username
@@ -463,10 +497,13 @@ def reject_auction(aid: int, body: dict, request: Request,
 
 
 @auction_router.post("/{aid}/payment", response_model=AuctionOut)
-def collect_auction_payment(aid: int, body: dict, request: Request,
+def collect_auction_payment(aid: int, body: AuctionPaymentIn, request: Request,
                             db: Session = Depends(get_db), user=Depends(a_write)):
     """Record payment collection from the auction winner.
-    Only verified auctions can have payment collected."""
+    Only verified auctions can have payment collected.
+
+    API-008: Uses typed AuctionPaymentIn schema for input validation.
+    """
     au = db.get(Auction, aid)
     if not au:
         raise HTTPException(404, "Auction not found")
@@ -474,18 +511,14 @@ def collect_auction_payment(aid: int, body: dict, request: Request,
         raise HTTPException(409, "Payment can only be collected for verified auctions.")
     if au.payment_status == "Paid":
         raise HTTPException(409, "Payment has already been collected for this auction.")
-    mode = (body.get("mode") or "Cash").strip()
-    if mode not in ("Cash", "UPI/QR Code"):
-        raise HTTPException(422, "Payment mode must be Cash or UPI/QR Code.")
-    if mode == "UPI/QR Code" and not (body.get("txn_ref") or "").strip():
-        raise HTTPException(422, "Transaction reference is required for UPI payments.")
+    # Validation is handled by AuctionPaymentIn schema
     # Generate receipt number
     year = date.today().year
     from ..helpers import next_code_seq
     seq = next_code_seq(db, "auction_receipt", db.query(func.max(Auction.id)).filter(Auction.receipt_no.isnot(None)).scalar() or 0)
     au.payment_status = "Paid"
-    au.payment_mode = mode
-    au.payment_ref = (body.get("txn_ref") or "").strip() or None
+    au.payment_mode = body.mode
+    au.payment_ref = body.txn_ref.strip() if body.txn_ref else None
     au.receipt_no = f"AUCR-{year}-{str(seq).zfill(4)}"
     au.paid_at = datetime.now(timezone.utc)
     au.paid_by = user.username

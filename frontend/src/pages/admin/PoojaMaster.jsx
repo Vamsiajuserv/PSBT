@@ -110,36 +110,10 @@ export default function PoojaMaster() {
       plans: p.plans.map((pl) => ({ plan_name: pl.plan_name, frequency: pl.frequency || '', rate_type: pl.committee_decided ? 'Committee' : 'Fixed', fee: pl.fee ?? '', validity_type: pl.validity_type || '', validity_value: pl.validity_value ?? '', validity_unit: pl.validity_unit || '', active: pl.active }))
     } })
   }
-  async function remove(p, force = false) {
-    const message = force
-      ? 'WARNING: This will permanently delete the pooja AND all associated bookings. This cannot be undone!'
-      : 'This cannot be undone. Poojas with bookings must be marked Inactive instead.'
-    if (!(await confirmDialog({
-      title: force ? `Force Delete "${p.name}"?` : `Delete pooja "${p.name}"?`,
-      message,
-      tone: 'danger',
-      confirmLabel: force ? tr('Force Delete') : tr('Delete')
-    }))) return
-    try {
-      await PoojasAPI.remove(p.id, force)
-      toast(force ? 'Pooja and associated bookings deleted.' : 'Pooja deleted.')
-      load()
-    } catch (ex) {
-      // If blocked due to bookings, offer force delete option
-      if (ex?.detail?.includes('booking(s) reference')) {
-        const forceDelete = await confirmDialog({
-          title: `Cannot delete "${p.name}"`,
-          message: `${ex.detail}\n\nWould you like to FORCE DELETE the pooja and all its associated bookings? This is typically used for test data cleanup.`,
-          tone: 'danger',
-          confirmLabel: tr('Force Delete All')
-        })
-        if (forceDelete) {
-          remove(p, true)
-        }
-      } else {
-        toast(ex?.detail || 'Could not delete this pooja.', 'error')
-      }
-    }
+  async function remove(p) {
+    if (!(await confirmDialog({ title: `Delete pooja "${p.name}"?`, message: 'This cannot be undone. Poojas with bookings must be marked Inactive instead.', tone: 'danger', confirmLabel: tr('Delete') }))) return
+    try { await PoojasAPI.remove(p.id); toast('Pooja deleted.'); load() }
+    catch (ex) { toast(ex?.detail || 'Could not delete this pooja.', 'error') }
   }
 
   async function save(e) {

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Role, User
+from ..schemas import RoleCreateIn, RoleUpdateIn
 from ..security import require_admin, RequireModule, log_action, client_ip
 
 router = APIRouter(prefix="/api/roles", tags=["roles"])
@@ -78,16 +79,17 @@ def get_role(rid: int, db: Session = Depends(get_db), user=Depends(read)):
 
 
 @router.post("", status_code=201)
-def create_role(body: dict, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
-    # Validate required name field
-    name = (body.get("name") or "").strip()
-    if not name:
-        raise HTTPException(400, "Role name is required")
-    code = body.get("code") or (name.upper().replace(" ", "_").replace("&", "AND"))
+def create_role(body: RoleCreateIn, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    """Create a new role with module permissions.
+
+    API-009: Uses typed RoleCreateIn schema for input validation.
+    """
+    name = body.name.strip()
+    code = body.code or (name.upper().replace(" ", "_").replace("&", "AND"))
     if db.query(Role).filter(Role.code == code).first():
         raise HTTPException(409, "Role code already exists")
-    r = Role(code=code, name=name, description=body.get("description"),
-             modules=",".join(body.get("modules", [])), active=body.get("active", True),
+    r = Role(code=code, name=name, description=body.description,
+             modules=",".join(body.modules), active=body.active,
              created_by=admin.username, updated_by=admin.username)
     db.add(r); db.commit(); db.refresh(r)
     log_action(db, username=admin.username, action="CREATE", entity="Role", detail=r.name, ip=client_ip(request))
@@ -95,23 +97,27 @@ def create_role(body: dict, request: Request, db: Session = Depends(get_db), adm
 
 
 @router.put("/{rid}")
-def update_role(rid: int, body: dict, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
+def update_role(rid: int, body: RoleUpdateIn, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    """Update an existing role's permissions.
+
+    API-010: Uses typed RoleUpdateIn schema for input validation.
+    """
     r = db.get(Role, rid)
     if not r:
         raise HTTPException(404, "Role not found")
-    if "modules" in body:
-        r.modules = ",".join([m for m in body["modules"] if m in ALL_KEYS])
+    if body.modules is not None:
+        r.modules = ",".join([m for m in body.modules if m in ALL_KEYS])
         # Access is enforced from user.modules — propagate the role's new module set
         # to every user holding this role, or the matrix edit would change nothing.
         from ..models import User
         for u in db.query(User).filter(User.role == r.name).all():
             u.modules = r.modules
-    if "description" in body:
-        r.description = body["description"]
-    if "active" in body:
-        r.active = bool(body["active"])
-    if "name" in body:
-        r.name = body["name"]
+    if body.description is not None:
+        r.description = body.description
+    if body.active is not None:
+        r.active = body.active
+    if body.name is not None:
+        r.name = body.name
     r.updated_by = admin.username
     db.commit(); db.refresh(r)
     log_action(db, username=admin.username, action="UPDATE", entity="Role", detail=r.name, ip=client_ip(request))

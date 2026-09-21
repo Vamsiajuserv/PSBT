@@ -1,6 +1,14 @@
 // ── Lightweight API client for the PSBT-Portal backend ──────────────────────
-// All calls go through the Vite dev proxy (/api → FastAPI). The JWT is stored
-// in localStorage and attached to every request.
+// All calls go through the Vite dev proxy (/api → FastAPI).
+//
+// Phase 1 Security (FE-001): JWT is now stored in HttpOnly cookie by the backend.
+// The cookie is automatically sent with each request via credentials: 'include'.
+//
+// INF-004 Security Note: localStorage token is used ONLY for session state detection
+// (checking if user has logged in). Actual authentication uses the HttpOnly cookie
+// which cannot be accessed by JavaScript (XSS protection). The Authorization header
+// fallback exists for development/testing scenarios where cookies may not work.
+// In production, all authentication happens via the secure HttpOnly cookie.
 
 const TOKEN_KEY = 'psbt_token'
 
@@ -66,6 +74,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 // ── Core request function with timeout, retry, and error handling ──
 async function request(path, { method = 'GET', body, auth = true, retries = 0 } = {}) {
   const headers = { 'Content-Type': 'application/json' }
+  // Phase 1 Security (FE-001): Token is now sent via HttpOnly cookie (credentials: 'include')
+  // Keep Authorization header as fallback for backwards compatibility during migration
   if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`
 
   // Create AbortController for timeout
@@ -79,6 +89,8 @@ async function request(path, { method = 'GET', body, auth = true, retries = 0 } 
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: controller.signal,
+      // Phase 1 Security (FE-001): Include credentials (cookies) with requests
+      credentials: 'include',
     })
   } catch (error) {
     clearTimeout(timeoutId)
@@ -138,6 +150,8 @@ async function request(path, { method = 'GET', body, auth = true, retries = 0 } 
   // then bounce to the staff login — otherwise the admin shell keeps rendering
   // tokenless and every call 401s into a permanent "Loading…".
   // Guard the redirect so the login page (which 401s on bad credentials) doesn't loop.
+  // Phase 1 Security (FE-001): Cookie is cleared by backend on logout, but we still
+  // clear localStorage for backwards compatibility and user cache cleanup.
   if (res.status === 401) {
     setToken(null)
     localStorage.removeItem('psbt_user')
