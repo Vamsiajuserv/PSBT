@@ -5,27 +5,28 @@ import { BookingsAPI, FestivalsAPI, TithiAPI, PanchangamAPI, ProkeralaAPI } from
 import { fmtDate } from '../../components/admin/ui.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 // ── Month-only calendar view ────────────────────────────────────────────────
 // The Day/Week toggle was removed: a Month-only calendar is preferred over a
 // toggle that does nothing (see task requirement #6). Events are driven by live
 // booking data, grouped onto their `scheduled_date` cells.
 
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => tr(d))
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December']
+  'July', 'August', 'September', 'October', 'November', 'December'].map(m => tr(m))
 const LEGEND = [
-  { label: 'Confirmed', color: '#059669' },
-  { label: 'Pending', color: '#d4a017' },
-  { label: 'Completed', color: '#2563eb' },
-  { label: 'Cancelled', color: '#dc2626' },
+  { label: tr('Confirmed'), color: '#059669' },
+  { label: tr('Pending'), color: '#d4a017' },
+  { label: tr('Completed'), color: '#2563eb' },
+  { label: tr('Cancelled'), color: '#dc2626' },
 ]
 const TITHI_CONFIG = {
-  Pournami: { label: 'Pournami', labelTe: 'పౌర్ణమి', color: '#f59e0b', bg: 'bg-gradient-to-r from-amber-200 to-yellow-300', text: 'text-amber-800', border: 'border-amber-400', highlight: true, glow: 'shadow-[0_0_8px_rgba(251,191,36,0.8)]' },
-  Amavasya: { label: 'Amavasya', labelTe: 'అమావాస్య', color: '#6b7280', bg: 'bg-gray-200', text: 'text-gray-700', border: 'border-gray-400' },
-  Ekadashi: { label: 'Ekadashi', labelTe: 'ఏకాదశి', color: '#8b5cf6', bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-300' },
-  Chaturthi: { label: 'Chaturthi', labelTe: 'చతుర్థి', color: '#ec4899', bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300' },
-  Pradosham: { label: 'Pradosham', labelTe: 'ప్రదోషం', color: '#3b82f6', bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
+  Pournami: { label: tr('Pournami'), labelTe: 'పౌర్ణమి', color: '#f59e0b', bg: 'bg-gradient-to-r from-amber-200 to-yellow-300', text: 'text-amber-800', border: 'border-amber-400', highlight: true, glow: 'shadow-[0_0_8px_rgba(251,191,36,0.8)]' },
+  Amavasya: { label: tr('Amavasya'), labelTe: 'అమావాస్య', color: '#6b7280', bg: 'bg-gray-200', text: 'text-gray-700', border: 'border-gray-400' },
+  Ekadashi: { label: tr('Ekadashi'), labelTe: 'ఏకాదశి', color: '#8b5cf6', bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-300' },
+  Chaturthi: { label: tr('Chaturthi'), labelTe: 'చతుర్థి', color: '#ec4899', bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300' },
+  Pradosham: { label: tr('Pradosham'), labelTe: 'ప్రదోషం', color: '#3b82f6', bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
 }
 const EVENT_STYLE = {
   Confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -52,8 +53,8 @@ export default function Calendar() {
   const [prokeralaPournami, setProkeralaPournami] = useState([]) // Pournami days from Prokerala
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [service, setService] = useState('')
-  const [status, setStatus] = useState('')
+  // filters - persisted in URL for state preservation across navigation
+  const { service, setService, status, setStatus } = useFilterParams({ service: '', status: '' })
   const [selectedDay, setSelectedDay] = useState(null)
   const [showTithis, setShowTithis] = useState(true)
   const [showFestivals, setShowFestivals] = useState(true)
@@ -89,7 +90,7 @@ export default function Calendar() {
       setProkeralaFestivals(Array.isArray(prokeralaRes?.festivals) ? prokeralaRes.festivals : [])
       setProkeralaPournami(Array.isArray(prokeralaRes?.pournami) ? prokeralaRes.pournami : [])
     } catch (ex) {
-      setError(ex?.detail || 'Could not load calendar events.')
+      setError(ex?.detail || tr('Could not load calendar events.'))
       setBookings([])
     } finally {
       setLoading(false)
@@ -399,7 +400,7 @@ export default function Calendar() {
 
       {loading && <div className="mt-3 text-sm text-gray-400"><T>Loading events…</T></div>}
       {!loading && !error && monthBookings.length === 0 && (
-        <div className="mt-3 text-sm text-gray-400">No events scheduled for {MONTHS[month]} {year}.</div>
+        <div className="mt-3 text-sm text-gray-400">{tr('No events scheduled for')} {tr(MONTHS[month])} {year}.</div>
       )}
 
       {/* Selected-day popup modal (Item 40) */}

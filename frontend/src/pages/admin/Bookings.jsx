@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Search, Eye, Ticket, RotateCcw, SlidersHorizontal, Ban, CheckCircle2,
@@ -11,6 +11,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 // Page-number list with ellipsis, e.g. 1 … 4 5 [6] 7 8 … 12
 function pagesFor(page, count) {
@@ -33,10 +34,16 @@ const STATUS_TONE = {
   Cancelled: 'bg-red-50 text-red-700', Completed: 'bg-blue-50 text-blue-700',
 }
 const fmtDT = (d, slot) => (d
-  ? `${stamp(new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))}`
+  ? `${stamp(new Date(d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }))}`
     + (slot ? ', ' + clock12(slot) : '')
   : '—')
-const fmtStamp = (s) => (s ? stamp(new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })) : '—')
+// Parse datetime as UTC (server returns naive ISO without 'Z')
+const parseUTC = (s) => (s && String(s).includes('T')) ? new Date(String(s) + (String(s).endsWith('Z') ? '' : 'Z')) : null
+const fmtStamp = (s) => {
+  const d = parseUTC(s)
+  if (!d || isNaN(d.getTime())) return '—'
+  return stamp(d.toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }))
+}
 
 export default function Bookings() {
   const { lang } = useLang()
@@ -48,17 +55,15 @@ export default function Bookings() {
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [poojas, setPoojas] = useState([])
-  // filters
+  // filters - persisted in URL for state preservation across navigation
   const SIZE = 10
-  const [q, setQ] = useState('')
-  const [pooja, setPooja] = useState('')
-  const [plan, setPlan] = useState('')
-  const [status, setStatus] = useState('')
-  const [payment, setPayment] = useState('')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
-  const [page, setPage] = useState(1)
-  const [applied, setApplied] = useState({ q: '', pooja: '', plan: '', status: '', payment: '', start: '', end: '' })
+  const {
+    q, setQ, pooja, setPooja, plan, setPlan, status, setStatus,
+    payment, setPayment, start, setStart, end, setEnd, page, setPage,
+    resetFilters,
+  } = useFilterParams({
+    q: '', pooja: '', plan: '', status: '', payment: '', start: '', end: '', page: 1,
+  })
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   // Multi-select for bulk poojari assignment
@@ -66,6 +71,47 @@ export default function Bookings() {
   const [poojaris, setPoojaris] = useState([])
   const [bulkPoojari, setBulkPoojari] = useState('')
   const [assigning, setAssigning] = useState(false)
+
+  // Synced top scrollbar refs
+  const topScrollRef = useRef(null)
+  const tableScrollRef = useRef(null)
+  const [scrollWidth, setScrollWidth] = useState(0)
+
+  // Sync scrollbars
+  useEffect(() => {
+    const tableEl = tableScrollRef.current
+    const topEl = topScrollRef.current
+    if (!tableEl || !topEl) return
+
+    // Update scroll width when table content changes
+    const updateWidth = () => setScrollWidth(tableEl.scrollWidth)
+    updateWidth()
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(tableEl)
+
+    // Sync scroll positions
+    let syncing = false
+    const syncFromTop = () => {
+      if (syncing) return
+      syncing = true
+      tableEl.scrollLeft = topEl.scrollLeft
+      syncing = false
+    }
+    const syncFromTable = () => {
+      if (syncing) return
+      syncing = true
+      topEl.scrollLeft = tableEl.scrollLeft
+      syncing = false
+    }
+    topEl.addEventListener('scroll', syncFromTop)
+    tableEl.addEventListener('scroll', syncFromTable)
+
+    return () => {
+      observer.disconnect()
+      topEl.removeEventListener('scroll', syncFromTop)
+      tableEl.removeEventListener('scroll', syncFromTable)
+    }
+  }, [rows])
 
   // Sortable table columns with filtering support
   const sortColumns = [
@@ -85,21 +131,21 @@ export default function Bookings() {
     filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues, hasFilter,
   } = useFilterableSortableTable(rows, sortColumns, [{ key: 'scheduled_date', direction: 'desc' }])
 
-  const loadList = useCallback(async (f, pg) => {
+  const loadList = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
-      const d = await BookingsAPI.list({ ...f, page: pg, size: SIZE })
+      const d = await BookingsAPI.list({ q, pooja, plan, status, payment, start, end, page, size: SIZE })
       setRows(d.items); setTotal(d.total)
     } catch (ex) {
       setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
     } finally { setLoading(false) }
-  }, [])
+  }, [q, pooja, plan, status, payment, start, end, page])
 
   useEffect(() => {
-    PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => toast('Failed to load poojas', 'error'))
-    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast('Failed to load poojaris', 'error'))
+    PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => toast(tr('Failed to load poojas'), 'error'))
+    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast(tr('Failed to load poojaris'), 'error'))
   }, [])
-  useEffect(() => { loadList(applied, page); setSelected(new Set()) }, [applied, page, loadList])
+  useEffect(() => { loadList(); setSelected(new Set()) }, [loadList])
 
   // Selection helpers
   const toggleSelect = (id) => setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
@@ -113,19 +159,19 @@ export default function Bookings() {
     setAssigning(true)
     try {
       const res = await PoojarisAPI.assignBulk([...selected], Number(bulkPoojari))
-      toast(`${res.assigned} booking(s) assigned to ${res.poojari_name || 'poojari'}.`)
+      toast(tr('${count} booking(s) assigned to ${name}.').replace('${count}', res.assigned).replace('${name}', res.poojari_name || tr('poojari')))
       setSelected(new Set())
       setBulkPoojari('')
-      loadList(applied, page)
+      loadList()
     } catch (ex) {
-      toast(ex.detail || 'Could not assign poojari.', 'error')
+      toast(ex.detail || tr('Could not assign poojari.'), 'error')
     } finally {
       setAssigning(false)
     }
   }
 
-  const search = () => { setPage(1); setApplied({ q, pooja, plan, status, payment, start, end }) }
-  const clear = () => { setQ(''); setPooja(''); setPlan(''); setStatus(''); setPayment(''); setStart(''); setEnd(''); setPage(1); setApplied({ q: '', pooja: '', plan: '', status: '', payment: '', start: '', end: '' }) }
+  const search = () => { if (page !== 1) setPage(1) }
+  const clear = () => { resetFilters() }
   async function cancel(b) {
     const paid = b.payment_status === 'Paid' && Number(b.amount) > 0
     // Suggest a prorated refund when part of a finite quota is already consumed.
@@ -134,38 +180,38 @@ export default function Bookings() {
       ? Math.round(Number(b.amount) * (allowed - done) / allowed)
       : Number(b.amount)
     const res = await promptDialog({
-      title: `Cancel booking ${b.booking_code}?`,
-      tone: 'danger', confirmLabel: tr('Cancel Booking'), cancelLabel: 'Keep Booking',
+      title: `${tr('Cancel booking')} ${b.booking_code}?`,
+      tone: 'danger', confirmLabel: tr('Cancel Booking'), cancelLabel: tr('Keep Booking'),
       fields: [
-        { k: 'reason', label: tr('Reason'), required: true, placeholder: 'Why is this booking being cancelled?' },
+        { k: 'reason', label: tr('Reason'), required: true, placeholder: tr('Why is this booking being cancelled?') },
         ...(paid ? [{ k: 'refund', label: tr('Refund amount (₹)'), type: 'number', defaultValue: String(suggested),
-          note: allowed && done > 0 ? `Prorated — ${done}/${allowed} already performed.` : 'Full paid amount suggested.' }] : []),
+          note: allowed && done > 0 ? `${tr('Prorated')} — ${done}/${allowed} ${tr('already performed')}.` : tr('Full paid amount suggested.') }] : []),
       ],
     })
     if (!res) return
     const refund_amount = paid ? (Number(res.refund) || 0) : undefined
-    try { await BookingsAPI.cancel(b.id, { reason: res.reason.trim(), refund_amount }); toast('Booking cancelled.'); loadList(applied, page); loadStats() }
-    catch (ex) { toast(ex.detail || 'Could not cancel this booking.', 'error') }
+    try { await BookingsAPI.cancel(b.id, { reason: res.reason.trim(), refund_amount }); toast(tr('Booking cancelled.')); loadList() }
+    catch (ex) { toast(ex.detail || tr('Could not cancel this booking.'), 'error') }
   }
   async function reschedule(b) {
     if (!(b.status === 'Confirmed' && b.payment_status === 'Paid' && !(b.performances_done > 0))) {
-      toast('Only a paid booking that has not yet started can be rescheduled.', 'info'); return
+      toast(tr('Only a paid booking that has not yet started can be rescheduled.'), 'info'); return
     }
     // DEF-004: Block past dates - only allow rescheduling to today or future dates
     const today = new Date().toISOString().slice(0, 10)
     const res = await promptDialog({
-      title: `Reschedule ${b.booking_code}`,
+      title: `${tr('Reschedule')} ${b.booking_code}`,
       fields: [{ k: 'date', label: tr('New date'), type: 'date', required: true, defaultValue: b.scheduled_date || '', min: today }],
       confirmLabel: tr('Reschedule'),
     })
     if (!res) return
-    try { await BookingsAPI.reschedule(b.id, { scheduled_date: res.date }); toast('Booking rescheduled.'); loadList(applied, page); loadStats() }
-    catch (ex) { toast(ex.detail || 'Could not reschedule this booking.', 'error') }
+    try { await BookingsAPI.reschedule(b.id, { scheduled_date: res.date }); toast(tr('Booking rescheduled.')); loadList() }
+    catch (ex) { toast(ex.detail || tr('Could not reschedule this booking.'), 'error') }
   }
   async function complete(b) {
-    if (!(await confirmDialog({ title: `Mark ${b.booking_code} as completed?`, message: 'It will move to Pooja History.' }))) return
-    try { await BookingsAPI.complete(b.id); toast('Performance recorded.'); loadList(applied, page); loadStats() }
-    catch (ex) { toast(ex.detail || 'Could not complete this booking.', 'error') }
+    if (!(await confirmDialog({ title: `${tr('Mark')} ${b.booking_code} ${tr('as completed')}?`, message: tr('It will move to Pooja History.') }))) return
+    try { await BookingsAPI.complete(b.id); toast(tr('Performance recorded.')); loadList() }
+    catch (ex) { toast(ex.detail || tr('Could not complete this booking.'), 'error') }
   }
 
   const planOptions = [...new Set((poojas || []).flatMap((p) => (p.plans || []).map((pl) => pl.plan_name)))]
@@ -287,10 +333,20 @@ export default function Bookings() {
           onClearFilter={clearFilter}
           onClearAllFilters={clearAllFilters}
         />
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+        {/* Top scrollbar - thin, subtle, sticky at top */}
+        <div
+          ref={topScrollRef}
+          className="overflow-x-auto overflow-y-hidden scrollbar-top sticky top-0 z-20 bg-white"
+          style={{ height: '8px' }}
+        >
+          <div style={{ width: scrollWidth, height: '1px' }} />
+        </div>
+        {/* Table with sticky header and scrollable body - hide horizontal scrollbar (using top one) */}
+        <div className="scrollbar-hide-x-wrapper">
+          <div ref={tableScrollRef} className="max-h-[60vh] scrollbar-hide-x">
+            <table className="w-full text-sm">
+            <thead className="sticky top-0 z-10 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+              <tr className="text-left text-[0.6875rem] uppercase tracking-wide text-gray-700 [&>th]:bg-gray-50">
                 <th className="px-3 py-3 w-10">
                   <Checkbox checked={allSelected && rows.length > 0} onChange={allSelected ? deselectAll : selectAll} />
                 </th>
@@ -309,6 +365,7 @@ export default function Bookings() {
                     filterValues={getFilterValues(col.key)}
                     onToggleFilter={toggleFilterValue}
                     onClearFilter={clearFilter}
+                    className="!bg-gray-50"
                   />
                 ))}
                 <th className="px-3 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
@@ -340,9 +397,10 @@ export default function Bookings() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={11} loading={loading} error={loadErr} onRetry={() => loadList(applied, page)} empty={tr("No bookings found.")} />}
+              {rows.length === 0 && <TableStates colSpan={11} loading={loading} error={loadErr} onRetry={loadList} empty={tr("No bookings found.")} />}
             </tbody>
           </table>
+          </div>
         </div>
         <div className="px-4 py-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="text-[0.75rem] sm:text-[0.8125rem] text-gray-500">

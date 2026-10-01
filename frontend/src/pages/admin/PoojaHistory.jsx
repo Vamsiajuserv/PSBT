@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Search, RotateCcw, Eye, X, Printer, Calendar, Flame, CalendarCheck, Users, Infinity as InfinityIcon,
-  FileText, User, Sparkles, ClipboardList, StickyNote, Info, CheckCircle2, XCircle, Clock, Download,
+  Search, RotateCcw, Eye, X, Printer, Flame, CalendarCheck, Users, Infinity as InfinityIcon,
+  FileText, User, Sparkles, ClipboardList, StickyNote, CheckCircle2, XCircle, Clock, Download,
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
@@ -12,6 +12,7 @@ import { te } from '../../lib/telugu.js'
 import { PoojaHistoryAPI, PoojasAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'Life Long': 'orange', 'One-Time': 'violet',
   'Full Month': 'violet', '30-Day': 'violet', 'Yearly Once': 'orange', 'Yearly Thrice': 'orange' }
@@ -23,24 +24,13 @@ function StatusPill({ completion }) {
   const I = COMPLETION_ICON[completion]
   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_CLS[COMPLETION_TONE[completion]]}`}><I size={11} /> {tr(COMPLETION_LABEL[completion])}</span>
 }
-const monthLabel = () => stamp(new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }))
+const monthLabel = () => stamp(new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', month: 'short', year: 'numeric' }))
   .replace(/[A-Za-z]{3,}/g, (w) => tr(w))
 const startOf = (slot) => (slot ? slot.split('-')[0].trim() : '')
 const endOf = (slot) => (slot && slot.includes('-') ? slot.split('-')[1].trim() : '')
 
-// Date helpers for presets
-const todayISO = () => new Date().toISOString().slice(0, 10)
-const yesterdayISO = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10) }
-const weekStartISO = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().slice(0, 10) }
-const monthStartISO = () => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10) }
-
-const DATE_PRESETS = [
-  { key: 'today', label: 'Today', getRange: () => ({ start: todayISO(), end: todayISO() }) },
-  { key: 'yesterday', label: 'Yesterday', getRange: () => ({ start: yesterdayISO(), end: yesterdayISO() }) },
-  { key: 'week', label: 'This Week', getRange: () => ({ start: weekStartISO(), end: todayISO() }) },
-  { key: 'month', label: 'This Month', getRange: () => ({ start: monthStartISO(), end: todayISO() }) },
-  { key: 'custom', label: 'Custom', getRange: () => null },
-]
+// Date helper
+const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
 // Calculate validity end date based on plan
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
@@ -64,7 +54,7 @@ function calcValidTo(plan, fromDate, bookingTime) {
 }
 function formatValidTo(plan, fromDate, bookingTime) {
   const validUntil = calcValidTo(plan, fromDate, bookingTime)
-  if (!validUntil) return 'Lifetime'
+  if (!validUntil) return tr('Lifetime')
   const dateStr = fmtDate(validUntil)
   const hours = validUntil.getHours()
   const mins = String(validUntil.getMinutes()).padStart(2, '0')
@@ -79,44 +69,29 @@ export default function PoojaHistory() {
   const SIZE = 15
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
   const [stats, setStats] = useState(null)
   const [poojas, setPoojas] = useState([])
   const [drawer, setDrawer] = useState(null)
   const [printDoc, setPrintDoc] = useState(null)
 
-  const [q, setQ] = useState('')
-  const [pooja, setPooja] = useState('')
-  const [plan, setPlan] = useState('')
-  const [status, setStatus] = useState('')
-  const [start, setStart] = useState(todayISO())
-  const [end, setEnd] = useState(todayISO())
-  const [datePreset, setDatePreset] = useState('today')
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, pooja, setPooja, plan, setPlan, status, setStatus,
+    start, setStart, end, setEnd, page, setPage, setFilters,
+  } = useFilterParams({
+    q: '', pooja: '', plan: '', status: '',
+    start: '', end: '', page: 1,
+  })
   const [showPrintModal, setShowPrintModal] = useState(false)
 
-  // Handle date preset selection
-  const selectPreset = (preset) => {
-    setDatePreset(preset.key)
-    if (preset.key !== 'custom') {
-      const range = preset.getRange()
-      if (range) {
-        setStart(range.start)
-        setEnd(range.end)
-      }
-    }
-  }
-
-  // Handle manual date change - switch to custom
-  // DEF-006: Clear end date if new start is after current end
+  // Handle date change - DEF-006: Clear end date if new start is after current end
   const handleStartChange = (e) => {
     const newStart = e.target.value
     setStart(newStart)
     if (end && newStart > end) setEnd('')
-    setDatePreset('custom')
   }
   const handleEndChange = (e) => {
     setEnd(e.target.value)
-    setDatePreset('custom')
   }
 
   // Download CSV export
@@ -175,7 +150,7 @@ export default function PoojaHistory() {
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
   useEffect(() => { setPage(1) }, [q, pooja, plan, status, start, end])
 
-  useEffect(() => { PoojasAPI.admin().then((r) => setPoojas(r.items || [])).catch(() => toast('Failed to load poojas', 'error')) }, [])
+  useEffect(() => { PoojasAPI.admin().then((r) => setPoojas(r.items || [])).catch(() => toast(tr('Failed to load poojas'), 'error')) }, [])
   const planNames = [...new Set(poojas.flatMap((p) => (p.plans || []).map((pl) => pl.plan_name)))]
 
   function open(id) { nav(`/admin/pooja-history/${id}`) }
@@ -196,24 +171,8 @@ export default function PoojaHistory() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        {/* Date Presets Row */}
-        <div className="px-5 pt-4 pb-2 border-b border-gray-50 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[0.75rem] text-gray-500 font-medium"><T>Quick Select</T>:</span>
-            {DATE_PRESETS.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => selectPreset(p)}
-                className={`px-3 py-1.5 rounded-full text-[0.75rem] font-semibold border transition ${
-                  datePreset === p.key
-                    ? 'bg-maroon-600 text-white border-maroon-600'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-maroon-300 hover:text-maroon-700'
-                }`}
-              >
-                {tr(p.label)}
-              </button>
-            ))}
-          </div>
+        {/* Actions Row */}
+        <div className="px-5 pt-4 pb-2 border-b border-gray-50 flex flex-wrap items-center justify-end gap-3">
           <div className="flex items-center gap-2">
             <button onClick={downloadCSV} disabled={!rows.length} className="btn-outline !py-2 !px-3 text-sm disabled:opacity-50" title={tr("Download CSV")}>
               <Download size={15} /> <T>Download</T>
@@ -251,7 +210,7 @@ export default function PoojaHistory() {
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Completed">{tr("Completed")}</option><option value="Ongoing">{tr("Ongoing")}</option><option value="Cancelled">{tr("Cancelled")}</option></Select>
           </div>
-          <button onClick={() => { setQ(''); setPooja(''); setPlan(''); setStatus(''); setStart(todayISO()); setEnd(todayISO()); setDatePreset('today') }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+          <button onClick={() => setFilters({ q: '', pooja: '', plan: '', status: '', start: '', end: '', page: 1 })} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
 
         <SortFilterPanel
@@ -292,7 +251,7 @@ export default function PoojaHistory() {
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>
                   <td className="px-4 py-3 text-gray-700">{tr(b.pooja_name)}</td>
-                  <td className="px-4 py-3">{b.plan_name ? <Pill tone={PLAN_TONE[b.plan_name] || 'gray'}>{b.plan_name}</Pill> : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3">{b.plan_name ? <Pill tone={PLAN_TONE[b.plan_name] || 'gray'}>{tr(b.plan_name)}</Pill> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 text-gray-600">{b.poojari_name ? personName({ name: b.poojari_name }, lang) : '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(b.scheduled_date)}</div><div className="text-[0.6875rem] text-gray-400">{startOf(b.time_slot)}</div></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
@@ -414,9 +373,9 @@ export default function PoojaHistory() {
               {/* Temple Header */}
               <div className="text-center mb-6 print-header">
                 <div className="flex items-center justify-center gap-3 mb-2">
-                  <img src="/images/logo.png" alt="Temple" className="w-12 h-12 rounded-full" onError={(e) => e.target.style.display = 'none'} />
+                  <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba" className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                   <div>
-                    <h1 className="font-serif text-xl font-bold text-maroon-800">Sri Shirdi Sai Baba Temple</h1>
+                    <h1 className="font-serif text-xl font-bold text-maroon-800">{tr('Sri Shirdi Sai Baba Temple')}</h1>
                     <p className="text-sm text-gray-600">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</p>
                   </div>
                 </div>
@@ -464,15 +423,15 @@ export default function PoojaHistory() {
                   {rows.map((r) => (
                     <tr key={r.id} className="hover:bg-gray-50">
                       <td className="px-3 py-2 font-mono text-xs text-gray-600">{r.receipt_no || r.booking_code}</td>
-                      <td className="px-3 py-2 text-gray-800">{r.devotee_name}</td>
-                      <td className="px-3 py-2 text-gray-700">{r.pooja_name}</td>
-                      <td className="px-3 py-2 text-gray-600">{r.plan_name || '—'}</td>
+                      <td className="px-3 py-2 text-gray-800">{personName({ name: r.devotee_name }, lang)}</td>
+                      <td className="px-3 py-2 text-gray-700">{tr(r.pooja_name)}</td>
+                      <td className="px-3 py-2 text-gray-600">{r.plan_name ? tr(r.plan_name) : '—'}</td>
                       <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{fmtDate(r.scheduled_date)}</td>
                       <td className="px-3 py-2 text-gray-800 font-semibold text-right">₹{(r.amount || 0).toLocaleString('en-IN')}</td>
-                      <td className="px-3 py-2 text-gray-600">{r.payment_method || 'Cash'}</td>
+                      <td className="px-3 py-2 text-gray-600">{tr(r.payment_method || 'Cash')}</td>
                       <td className="px-3 py-2">
                         <span className={`text-xs font-medium ${r.completion === 'Completed' ? 'text-emerald-700' : r.completion === 'Cancelled' ? 'text-red-600' : 'text-amber-600'}`}>
-                          {r.completion}
+                          {tr(r.completion)}
                         </span>
                       </td>
                     </tr>
@@ -489,8 +448,8 @@ export default function PoojaHistory() {
 
               {/* Footer */}
               <div className="mt-6 pt-4 border-t border-gray-200 text-center text-xs text-gray-500 print-footer">
-                <p><T>Generated on</T>: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
-                <p className="mt-1">Sri Shirdi Sai Baba Temple · Pooja History Report</p>
+                <p><T>Generated on</T>: {stamp(new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }))}</p>
+                <p className="mt-1">{tr('Sri Shirdi Sai Baba Temple')} · {tr('Pooja History Report')}</p>
               </div>
             </div>
 

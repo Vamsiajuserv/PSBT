@@ -13,14 +13,6 @@ const TRUST = [
   { icon: ScrollText, title: 'Audit Logs', desc: 'All activities are recorded and monitored' },
 ]
 
-// Demo staff accounts — click a card to auto-fill and sign in.
-const DEMO_ACCOUNTS = [
-  { username: 'admin', password: 'Admin@123', role: 'Administrator', desc: 'Full access · all modules', tone: 'bg-maroon-50 text-maroon-700 border-maroon-200' },
-  { username: 'counter1', password: 'Counter@123', role: 'Counter Staff', desc: 'Billing only · no cancel/delete', tone: 'bg-blue-50 text-blue-700 border-blue-200' },
-  { username: 'accounts', password: 'Accounts@123', role: 'Accountant', desc: 'Read-only · reports & bills', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  { username: 'poojari1', password: 'Poojari@123', role: 'Poojari', desc: 'Pooja queue · verify tickets', tone: 'bg-amber-50 text-amber-700 border-amber-200' },
-  { username: 'committee1', password: 'Committee@123', role: 'Committee', desc: 'Hundi verify · auction · reports', tone: 'bg-violet-50 text-violet-700 border-violet-200' },
-]
 
 export default function StaffLogin() {
   const nav = useNavigate()
@@ -55,20 +47,6 @@ export default function StaffLogin() {
     }
   }
 
-  // Click a demo account → fill the fields and sign in directly.
-  async function quickLogin(acct) {
-    setUsername(acct.username); setPassword(acct.password)
-    setError(''); setBusy(true)
-    try {
-      const res = await AuthAPI.login(acct.username, acct.password)
-      if (res.twofa_required) setChallenge(res.access_token)
-      else { completeLogin(res); nav('/admin') }
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : tr('Login failed. Please try again.'))
-    } finally {
-      setBusy(false)
-    }
-  }
 
   async function verify(e) {
     e.preventDefault()
@@ -143,28 +121,6 @@ export default function StaffLogin() {
                     <ShieldCheck size={16} className="text-gold-500 shrink-0 mt-0.5" />
                     <T>Two-Factor Authentication will be requested after successful login (if enabled for your account).</T>
                   </div>
-
-                  {/* Demo accounts — click to auto-fill & sign in */}
-                  <div className="pt-1">
-                    <div className="flex items-center gap-2 text-[0.625rem] uppercase tracking-widest text-gray-400 mb-2">
-                      <span className="h-px flex-1 bg-gold-200" />{' '}<T>Demo Logins — click to enter</T>{' '}<span className="h-px flex-1 bg-gold-200" />
-                    </div>
-                    <div className="space-y-2">
-                      {DEMO_ACCOUNTS.map((a) => (
-                        <button type="button" key={a.username} disabled={busy} onClick={() => quickLogin(a)}
-                          className={`w-full flex items-center justify-between border rounded-lg px-3 py-2 text-left transition hover:brightness-95 disabled:opacity-60 ${a.tone}`}>
-                          <span>
-                            <span className="block text-sm font-bold leading-tight">{tr(a.role)}</span>
-                            <span className="block text-[0.6875rem] opacity-80">{tr(a.desc)}</span>
-                          </span>
-                          <span className="text-right shrink-0 pl-2">
-                            <span className="block text-[0.6875rem] font-mono font-semibold">{a.username}</span>
-                            <span className="block text-[0.625rem] font-mono opacity-70">{a.password}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </form>
               ) : (
                 <form onSubmit={verify} className="mt-6 space-y-4">
@@ -196,7 +152,7 @@ export default function StaffLogin() {
           })}
         </div>
         <div className="border-t border-white/10 text-center text-[0.6875rem] text-cream/50 py-3">
-          This is a secure login for authorized temple staff only. All login attempts are logged and monitored.
+          <T>This is a secure login for authorized temple staff only. All login attempts are logged and monitored.</T>
           {temple?.phone ? ` · ${temple.phone}` : ''}{temple?.email ? ` · ${temple.email}` : ''}
         </div>
       </div>

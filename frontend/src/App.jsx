@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
 import PublicLayout from './components/public/PublicLayout.jsx'
@@ -9,57 +9,69 @@ import { LanguageProvider } from './i18n/LanguageContext.jsx'
 import { SiteProvider } from './lib/SiteContext.jsx'
 import { DialogHost } from './components/common/Dialog.jsx'
 
-// Public pages
-import Home from './pages/public/Home.jsx'
-import About from './pages/public/About.jsx'
-import History from './pages/public/History.jsx'
-import Festivals from './pages/public/Festivals.jsx'
-import Gallery from './pages/public/Gallery.jsx'
-import Contact from './pages/public/Contact.jsx'
-import Sevas from './pages/public/Sevas.jsx'
-import Donations from './pages/public/Donations.jsx'
-import Hundi from './pages/public/Hundi.jsx'
-import Auction from './pages/public/Auction.jsx'
-import Annadanam from './pages/public/Annadanam.jsx'
-import Timings from './pages/public/Timings.jsx'
+// Loading spinner for lazy-loaded pages
+function PageLoader() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 border-4 border-maroon-200 border-t-maroon-700 rounded-full animate-spin" />
+        <span className="text-sm text-gray-500">Loading...</span>
+      </div>
+    </div>
+  )
+}
 
-// Admin pages
-import StaffLogin from './pages/admin/StaffLogin.jsx'
-import Dashboard from './pages/admin/Dashboard.jsx'
-import AdminBookings from './pages/admin/Bookings.jsx'
-import NewBooking from './pages/admin/NewBooking.jsx'
-import PoojaMaster from './pages/admin/PoojaMaster.jsx'
-import PoojariSchedule from './pages/admin/PoojariSchedule.jsx'
-import PoojaHistory from './pages/admin/PoojaHistory.jsx'
-import PoojaHistoryDetails from './pages/admin/PoojaHistoryDetails.jsx'
-import BookingDetails from './pages/admin/BookingDetails.jsx'
-import WasteSales from './pages/admin/WasteSales.jsx'
-import DonationMaster from './pages/admin/DonationMaster.jsx'
-import Settings from './pages/admin/Settings.jsx'
-import AdminCalendar from './pages/admin/Calendar.jsx'
-import AdminDevotees from './pages/admin/Devotees.jsx'
-import DevoteeDetails from './pages/admin/DevoteeDetails.jsx'
-import AdminDonations from './pages/admin/Donations.jsx'
-import AdminHundi from './pages/admin/Hundi.jsx'
-import AdminAuction from './pages/admin/Auction.jsx'
-import AdminAnnadanam from './pages/admin/Annadanam.jsx'
-import Counter from './pages/admin/Counter.jsx'
-import PoojariQueue from './pages/admin/PoojariQueue.jsx'
-import VerifyTicket from './pages/admin/VerifyTicket.jsx'
-import Users from './pages/admin/Users.jsx'
-import RoleAccess from './pages/admin/RoleAccess.jsx'
-import PoojariMaster from './pages/admin/PoojariMaster.jsx'
-import VendorMaster from './pages/admin/VendorMaster.jsx'
-import AuctionItemMaster from './pages/admin/AuctionItemMaster.jsx'
-import HundiItemMaster from './pages/admin/HundiItemMaster.jsx'
-import CommitteeMaster from './pages/admin/CommitteeMaster.jsx'
-import FestivalMaster from './pages/admin/FestivalMaster.jsx'
-import Reports from './pages/admin/Reports.jsx'
-import Analytics from './pages/admin/Analytics.jsx'
-import AuditTrail from './pages/admin/AuditTrail.jsx'
-import DailyClosing from './pages/admin/DailyClosing.jsx'
-import BackupRestore from './pages/admin/BackupRestore.jsx'
-import Notifications from './pages/admin/Notifications.jsx'
+// Public pages - lazy loaded
+const Home = lazy(() => import('./pages/public/Home.jsx'))
+const About = lazy(() => import('./pages/public/About.jsx'))
+const History = lazy(() => import('./pages/public/History.jsx'))
+const Festivals = lazy(() => import('./pages/public/Festivals.jsx'))
+const Gallery = lazy(() => import('./pages/public/Gallery.jsx'))
+const Contact = lazy(() => import('./pages/public/Contact.jsx'))
+const Sevas = lazy(() => import('./pages/public/Sevas.jsx'))
+const Donations = lazy(() => import('./pages/public/Donations.jsx'))
+const Hundi = lazy(() => import('./pages/public/Hundi.jsx'))
+const Auction = lazy(() => import('./pages/public/Auction.jsx'))
+const Annadanam = lazy(() => import('./pages/public/Annadanam.jsx'))
+const Timings = lazy(() => import('./pages/public/Timings.jsx'))
+
+// Admin pages - lazy loaded
+const StaffLogin = lazy(() => import('./pages/admin/StaffLogin.jsx'))
+const Dashboard = lazy(() => import('./pages/admin/Dashboard.jsx'))
+const AdminBookings = lazy(() => import('./pages/admin/Bookings.jsx'))
+const NewBooking = lazy(() => import('./pages/admin/NewBooking.jsx'))
+const PoojaMaster = lazy(() => import('./pages/admin/PoojaMaster.jsx'))
+const PoojariSchedule = lazy(() => import('./pages/admin/PoojariSchedule.jsx'))
+const PoojaHistory = lazy(() => import('./pages/admin/PoojaHistory.jsx'))
+const PoojaHistoryDetails = lazy(() => import('./pages/admin/PoojaHistoryDetails.jsx'))
+const BookingDetails = lazy(() => import('./pages/admin/BookingDetails.jsx'))
+const WasteSales = lazy(() => import('./pages/admin/WasteSales.jsx'))
+const DonationMaster = lazy(() => import('./pages/admin/DonationMaster.jsx'))
+const Settings = lazy(() => import('./pages/admin/Settings.jsx'))
+const AdminCalendar = lazy(() => import('./pages/admin/Calendar.jsx'))
+const AdminDevotees = lazy(() => import('./pages/admin/Devotees.jsx'))
+const DevoteeDetails = lazy(() => import('./pages/admin/DevoteeDetails.jsx'))
+const AdminDonations = lazy(() => import('./pages/admin/Donations.jsx'))
+const AdminHundi = lazy(() => import('./pages/admin/Hundi.jsx'))
+const AdminAuction = lazy(() => import('./pages/admin/Auction.jsx'))
+const AdminAnnadanam = lazy(() => import('./pages/admin/Annadanam.jsx'))
+const Counter = lazy(() => import('./pages/admin/Counter.jsx'))
+const PoojariQueue = lazy(() => import('./pages/admin/PoojariQueue.jsx'))
+const VerifyTicket = lazy(() => import('./pages/admin/VerifyTicket.jsx'))
+const Users = lazy(() => import('./pages/admin/Users.jsx'))
+const RoleAccess = lazy(() => import('./pages/admin/RoleAccess.jsx'))
+const PoojariMaster = lazy(() => import('./pages/admin/PoojariMaster.jsx'))
+const VendorMaster = lazy(() => import('./pages/admin/VendorMaster.jsx'))
+const AuctionItemMaster = lazy(() => import('./pages/admin/AuctionItemMaster.jsx'))
+const HundiItemMaster = lazy(() => import('./pages/admin/HundiItemMaster.jsx'))
+const CommitteeMaster = lazy(() => import('./pages/admin/CommitteeMaster.jsx'))
+const FestivalMaster = lazy(() => import('./pages/admin/FestivalMaster.jsx'))
+const Reports = lazy(() => import('./pages/admin/Reports.jsx'))
+const Analytics = lazy(() => import('./pages/admin/Analytics.jsx'))
+const AuditTrail = lazy(() => import('./pages/admin/AuditTrail.jsx'))
+const DailyClosing = lazy(() => import('./pages/admin/DailyClosing.jsx'))
+const BackupRestore = lazy(() => import('./pages/admin/BackupRestore.jsx'))
+const Notifications = lazy(() => import('./pages/admin/Notifications.jsx'))
 
 // Per-route module guard. RequireAuth (on the parent) has already ensured a user
 // exists; this sends a signed-in staff member who lacks the screen's module back
@@ -96,6 +108,7 @@ export default function App() {
     <LanguageProvider>
     <DialogHost />
     <ScrollToTop />
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       {/* Public informational website */}
       <Route element={<PublicLayout />}>
@@ -157,6 +170,7 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
     </LanguageProvider>
     </SiteProvider>
   )

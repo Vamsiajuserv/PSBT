@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Users as UsersIcon, Flame, HandHeart, Landmark, Gavel,
@@ -13,88 +13,90 @@ import { getFontScale, setFontScale } from '../../lib/fontScale.js'
 import ChangePasswordModal from './ChangePasswordModal.jsx'
 
 const NAV = [
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/admin/counter', label: 'Counter Billing', icon: Receipt },
-  // Advance booking lives inside Pooja Management → Bookings ("Advance Booking"
-  // action) — a second top-level entry to the same wizard only duplicated it.
-  // The daily queue is "My Poojas" to the Poojari who performs them; to everyone
-  // else (Administrator, supervising staff) it is the temple's pooja queue.
-  { to: '/admin/my-poojas', label: 'Pooja Queue', poojariLabel: 'My Poojas', icon: ClipboardList },
-  { to: '/admin/verify-ticket', label: 'Verify Ticket', icon: ScanLine },
-  { to: '/admin/devotees', label: 'Devotee Management', icon: UsersIcon },
+  { to: '/admin', label: tr('Dashboard'), icon: LayoutDashboard, end: true },
+  { to: '/admin/counter', label: tr('Counter Billing'), icon: Receipt },
+  { to: '/admin/my-poojas', label: tr('Pooja Queue'), poojariLabel: tr('My Poojas'), icon: ClipboardList },
+  { to: '/admin/verify-ticket', label: tr('Verify Ticket'), icon: ScanLine },
+  { to: '/admin/devotees', label: tr('Devotee Management'), icon: UsersIcon },
   {
-    label: 'Pooja Management', icon: Flame,
+    label: tr('Pooja Management'), icon: Flame,
     children: [
-      { to: '/admin/bookings', label: 'Bookings' },
-      { to: '/admin/pooja-master', label: 'Pooja Master' },
-      { to: '/admin/poojari-schedule', label: 'Poojari Schedule' },
-      { to: '/admin/poojari-master', label: 'Poojari Master' },
-      { to: '/admin/pooja-history', label: 'Pooja History' },
-      { to: '/admin/calendar', label: 'Calendar' },
-      { to: '/admin/festivals', label: 'Festival Master' },
+      { to: '/admin/bookings', label: tr('Bookings') },
+      { to: '/admin/pooja-master', label: tr('Pooja Master') },
+      { to: '/admin/poojari-schedule', label: tr('Poojari Schedule') },
+      { to: '/admin/poojari-master', label: tr('Poojari Master') },
+      { to: '/admin/pooja-history', label: tr('Pooja History') },
+      { to: '/admin/calendar', label: tr('Calendar') },
+      { to: '/admin/festivals', label: tr('Festival Master') },
     ],
   },
   {
-    label: 'Donation Management', icon: HandHeart,
+    label: tr('Donation Management'), icon: HandHeart,
     children: [
-      { to: '/admin/donations', label: 'Donations' },
-      { to: '/admin/donation-master', label: 'Donation Master' },
+      { to: '/admin/donations', label: tr('Donations') },
+      { to: '/admin/donation-master', label: tr('Donation Master') },
     ],
   },
   {
-    label: 'Hundi Management', icon: Landmark,
+    label: tr('Hundi Management'), icon: Landmark,
     children: [
-      { to: '/admin/hundi', label: 'Hundi Collections' },
-      { to: '/admin/hundi-items', label: 'Hundi Item Master' },
+      { to: '/admin/hundi', label: tr('Hundi Collections') },
+      { to: '/admin/hundi-items', label: tr('Hundi Item Master') },
     ],
   },
   {
-    label: 'Auction Management', icon: Gavel,
+    label: tr('Auction Management'), icon: Gavel,
     children: [
-      { to: '/admin/auction', label: 'Auctions' },
-      { to: '/admin/auction-items', label: 'Auction Item Master' },
+      { to: '/admin/auction', label: tr('Auctions') },
+      { to: '/admin/auction-items', label: tr('Auction Item Master') },
     ],
   },
-  { to: '/admin/annadanam', label: 'Annadanam Management', icon: UtensilsCrossed, chevron: true },
+  { to: '/admin/annadanam', label: tr('Annadanam Management'), icon: UtensilsCrossed, chevron: true },
   {
-    label: 'Waste Material Sales', icon: Recycle,
+    label: tr('Waste Material Sales'), icon: Recycle,
     children: [
-      { to: '/admin/waste-sales', label: 'Waste Sales' },
-      { to: '/admin/vendors', label: 'Vendor Master' },
+      { to: '/admin/waste-sales', label: tr('Waste Sales') },
+      { to: '/admin/vendors', label: tr('Vendor Master') },
     ],
   },
-  { to: '/admin/reports', label: 'Reports', icon: FileBarChart, chevron: true },
-  { to: '/admin/analytics', label: 'Analytics & Trends', icon: TrendingUp, chevron: true },
-  { to: '/admin/daily-closing', label: 'Daily Closing', icon: Wallet, chevron: true },
-  { to: '/admin/users', label: 'User Management', icon: ShieldCheck, chevron: true },
-  { to: '/admin/roles', label: 'Role & Access Management', icon: KeyRound, chevron: true },
+  { to: '/admin/reports', label: tr('Reports'), icon: FileBarChart, chevron: true },
+  { to: '/admin/analytics', label: tr('Analytics & Trends'), icon: TrendingUp, chevron: true },
+  { to: '/admin/daily-closing', label: tr('Daily Closing'), icon: Wallet, chevron: true },
+  { to: '/admin/users', label: tr('User Management'), icon: ShieldCheck, chevron: true },
+  { to: '/admin/roles', label: tr('Role & Access Management'), icon: KeyRound, chevron: true },
   {
-    label: 'Settings', icon: SettingsIcon,
+    label: tr('Settings'), icon: SettingsIcon,
     children: [
-      { to: '/admin/settings', label: 'System Settings' },
-      { to: '/admin/committee', label: 'Committee Member Master' },
-      { to: '/admin/notifications', label: 'Notifications' },
-      { to: '/admin/audit', label: 'Audit Trail' },
-      { to: '/admin/backup', label: 'Backup & Restore' },
+      { to: '/admin/settings', label: tr('System Settings') },
+      { to: '/admin/committee', label: tr('Committee Member Master') },
+      { to: '/admin/notifications', label: tr('Notifications') },
+      { to: '/admin/audit', label: tr('Audit Trail') },
+      { to: '/admin/backup', label: tr('Backup & Restore') },
     ],
   },
 ]
 
-// Weekday and month are words, so they translate; the digits stay as they are.
-// AM/PM is a word too — a Telugu reader expects ఉదయం / సాయంత్రం.
 const todayLabel = () =>
-  new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', weekday: 'short' })
+  new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', weekday: 'short' })
     .replace(/[A-Za-z]{3,}/g, (w) => tr(w))
 const timeLabel = () =>
-  clock12(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }))
+  clock12(new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit' }))
 
-// Accessibility text-size control (A− / A / A+) — bumps the whole UI via the
-// --font-scale CSS variable, remembered across visits (see lib/fontScale.js).
+// Live clock hook - updates every second
+function useLiveClock() {
+  const [time, setTime] = useState(timeLabel)
+  useEffect(() => {
+    const timer = setInterval(() => setTime(timeLabel()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  return time
+}
+
 function FontSizeToggle() {
   const [level, setLevel] = useState(getFontScale())
   const pick = (l) => setLevel(setFontScale(l))
   const btn = (l, node, title) => (
-    <button onClick={() => pick(l)} title={title} aria-label={title}
+    <button onClick={() => pick(l)} title={tr(title)} aria-label={tr(title)}
       className={`px-2 py-1 leading-none outline-none transition-none ${level === l ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>
       {node}
     </button>
@@ -108,13 +110,11 @@ function FontSizeToggle() {
   )
 }
 
-function SidebarNav({ onNavigate }) {
+function SidebarNav({ onNavigate, collapsed }) {
   const location = useLocation()
   const { user } = useAuth()
   const { t } = useLang()
 
-  // Keep only what this user may reach: leaves gate on their key; a group is
-  // pruned to its visible children and dropped entirely if none remain.
   const nav = NAV.map((n) => {
     if (n.children) {
       const kids = n.children.filter((c) => canAccessKey(user, keyOf(c.to)))
@@ -124,60 +124,83 @@ function SidebarNav({ onNavigate }) {
     return n.poojariLabel && user?.role === 'Poojari' ? { ...n, label: n.poojariLabel } : n
   }).filter(Boolean)
 
-  // Check if we're on a top-level route (non-group item) - if so, don't auto-expand any group
   const isTopLevelRoute = nav.some((n) => !n.children && (
     n.end ? location.pathname === n.to : location.pathname === n.to || location.pathname.startsWith(n.to + '/')
   ))
-  // Only auto-expand a group if we're NOT on a top-level route
   const activeGroup = isTopLevelRoute ? null : nav.find((n) => n.children?.some((c) => location.pathname.startsWith(c.to)))
   const [open, setOpen] = useState(activeGroup ? { [activeGroup.label]: true } : {})
 
+  const labelClass = collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100 flex-1'
+
   return (
-    <nav className="flex-1 overflow-y-auto sidebar-scroll px-3 py-3 space-y-0.5">
+    <nav className={`flex-1 overflow-y-auto overflow-x-hidden sidebar-scroll py-2 space-y-0.5 transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'px-0' : 'px-3'}`}>
       {nav.map((n) => {
         const Icon = n.icon
         if (n.children) {
           const groupActive = n.children.some((c) => location.pathname.startsWith(c.to))
-          const isOpen = open[n.label] ?? groupActive
+          const isOpen = !collapsed && (open[n.label] ?? groupActive)
+          const firstChild = n.children[0]
+
           return (
             <div key={n.label}>
-              <button
-                onClick={() => setOpen((o) => ({ ...o, [n.label]: !isOpen }))}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[0.84375rem] font-medium transition-colors ${
+              <NavLink
+                to={collapsed ? firstChild.to : undefined}
+                onClick={(e) => {
+                  if (!collapsed) {
+                    e.preventDefault()
+                    setOpen((o) => ({ ...o, [n.label]: !isOpen }))
+                  } else {
+                    onNavigate()
+                  }
+                }}
+                title={collapsed ? t(n.label) : undefined}
+                className={`w-full flex items-center py-2 rounded-lg text-[0.84375rem] font-medium transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] cursor-pointer ${
+                  collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+                } ${
                   groupActive ? 'bg-ivory text-maroon-800 font-semibold' : 'text-cream/85 hover:bg-white/10'
                 }`}
               >
-                <Icon size={18} /> <span className="flex-1 text-left">{t(n.label)}</span>
-                {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-              </button>
-              {isOpen && (
+                <Icon size={collapsed ? 16 : 18} className="shrink-0" />
+                <span className={`text-left whitespace-nowrap transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
+                <span className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+                  {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                </span>
+              </NavLink>
+              <div className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] overflow-hidden ${isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
                 <div className="mt-0.5 mb-1 ml-3 pl-3 border-l border-white/15 space-y-0.5">
                   {n.children.map((c) => (
                     <NavLink key={c.to} to={c.to} onClick={onNavigate}
                       className={({ isActive }) =>
-                        `flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg text-[0.8125rem] transition-colors ${
+                        `flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg text-[0.8125rem] transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${
                           isActive ? 'bg-maroon-900/70 text-gold-200 font-semibold border-l-2 border-gold-400 -ml-[0.8125rem] pl-[1.5rem]' : 'text-cream/70 hover:text-cream hover:bg-white/5'
                         }`
                       }
                     >
-                      <span className="w-1 h-1 rounded-full bg-current opacity-60" /> {t(c.label)}
+                      <span className="w-1 h-1 rounded-full bg-current opacity-60 shrink-0" />
+                      <span className="whitespace-nowrap">{t(c.label)}</span>
                     </NavLink>
                   ))}
                 </div>
-              )}
+              </div>
             </div>
           )
         }
+
         return (
-          <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate}
+          <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate} title={collapsed ? t(n.label) : undefined}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-[0.84375rem] font-medium transition-colors ${
+              `w-full flex items-center py-2 rounded-lg text-[0.84375rem] font-medium transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${
+                collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+              } ${
                 isActive ? 'bg-ivory text-maroon-800 font-semibold' : 'text-cream/85 hover:bg-white/10'
               }`
             }
           >
-            <Icon size={18} /> <span className="flex-1">{t(n.label)}</span>
-            {n.chevron && <ChevronRight size={15} className="opacity-55" />}
+            <Icon size={collapsed ? 16 : 18} className="shrink-0" />
+            <span className={`whitespace-nowrap transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
+            <span className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'opacity-0 w-0' : 'opacity-55'}`}>
+              {n.chevron && <ChevronRight size={15} />}
+            </span>
           </NavLink>
         )
       })}
@@ -186,11 +209,13 @@ function SidebarNav({ onNavigate }) {
 }
 
 export default function AdminLayout() {
-  const [open, setOpen] = useState(false)          // mobile overlay
-  const [collapsed, setCollapsed] = useState(false) // desktop slide-away
+  const [open, setOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  const [marqueePaused, setMarqueePaused] = useState(false)
   const { user, logout } = useAuth()
   const { t, lang, setLang } = useLang()
   const navigate = useNavigate()
+  const liveTime = useLiveClock() // Live clock that updates every second
   const name = personName(user, lang) || tr('Administrator')
   const role = user?.role || 'Admin'
   const roleLabel = tr(role === 'Admin' ? 'Administrator' : role)
@@ -201,39 +226,53 @@ export default function AdminLayout() {
   return (
     <div className="h-screen h-dvh bg-cream flex overflow-hidden">
       {/* ── Sidebar ── */}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-60 shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream flex flex-col transition-all duration-300 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${collapsed ? 'lg:-ml-60' : 'lg:ml-0'}`}>
-        <div className="px-5 pt-4 pb-4 text-center border-b border-white/10 relative">
-          <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-20 h-20 mx-auto drop-shadow-md" />
-          <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight mt-1"><T>Sri Shirdi Sai Baba Temple</T></div>
-          <div className="text-[0.65625rem] text-cream/55 leading-tight mt-1"><T>Dwarkapuri Colony, Punjagutta,</T><br /><T>Hyderabad, Telangana</T></div>
-          {/* Toggle button at top right corner of logo section */}
-          <button
-            onClick={() => { setOpen(false); setCollapsed((c) => !c) }}
-            className="hidden lg:flex absolute top-2 right-2 items-center justify-center text-white/70 hover:text-white hover:bg-maroon-600 transition-colors w-8 h-8 rounded-full"
-            title={tr("Toggle sidebar")}
-            aria-label={tr("Toggle sidebar")}>
-            <ChevronLeft size={18} />
-          </button>
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 text-cream flex flex-col overflow-x-hidden transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${open ? 'translate-x-0 w-60' : '-translate-x-full lg:translate-x-0'} ${collapsed ? 'lg:w-[2.75rem]' : 'w-60'}`}>
+        {/* Logo Section */}
+        <div className={`border-b border-white/10 relative text-center transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'py-2 px-0' : 'px-5 pt-4 pb-4'}`}>
+          {/* Toggle button - when expanded */}
+          {!collapsed && (
+            <button
+              onClick={() => { setOpen(false); setCollapsed(true) }}
+              className="hidden lg:flex absolute top-3 right-3 items-center justify-center bg-gold-400 text-maroon-800 hover:bg-gold-300 shadow-md transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] rounded w-8 h-8"
+              title={tr("Collapse sidebar")}
+              aria-label={tr("Collapse sidebar")}>
+              <Menu size={16} />
+            </button>
+          )}
+          {/* Toggle button - when collapsed */}
+          {collapsed && (
+            <button
+              onClick={() => { setOpen(false); setCollapsed(false) }}
+              className="hidden lg:flex mx-auto items-center justify-center bg-gold-400 text-maroon-800 hover:bg-gold-300 shadow-md transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] rounded w-7 h-7 mb-1"
+              title={tr("Expand sidebar")}
+              aria-label={tr("Expand sidebar")}>
+              <Menu size={14} />
+            </button>
+          )}
+          {/* Logo - always centered */}
+          <img
+            src="/images/temple-logo.png"
+            alt="Sri Shirdi Sai Baba Temple"
+            className={`drop-shadow-md rounded-full bg-white object-contain mx-auto transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'w-7 h-7 p-0.5' : 'w-20 h-20 p-1'}`}
+          />
+          {/* Temple name - hidden when collapsed */}
+          <div className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] overflow-hidden ${collapsed ? 'max-h-0 opacity-0 mt-0' : 'max-h-24 opacity-100 mt-1'}`}>
+            <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight"><T>Sri Shirdi Sai Baba Temple</T></div>
+            <div className="text-[0.65625rem] text-cream/55 leading-tight mt-1"><T>Dwarkapuri Colony, Punjagutta,</T><br /><T>Hyderabad, Telangana</T></div>
+          </div>
         </div>
 
-        <SidebarNav onNavigate={() => setOpen(false)} />
+        <SidebarNav onNavigate={() => setOpen(false)} collapsed={collapsed} />
 
-        {/* Sab Ka Malik Ek Hai Footer */}
-        <div className="px-3 py-3 border-t border-white/10 text-center">
-          <div className="font-script text-gold-200 text-xl leading-tight">Sab Ka Malik Ek Hai</div>
+        {/* Footer - hidden when collapsed */}
+        <div className={`border-t border-white/10 text-center transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] overflow-hidden ${collapsed ? 'max-h-0 py-0 opacity-0' : 'max-h-16 py-3 px-3 opacity-100'}`}>
+          <div className="marquee-container" onClick={() => setMarqueePaused(true)} onMouseLeave={() => setMarqueePaused(false)}>
+            <div className={`marquee-text font-script text-gold-200 text-xl leading-tight ${marqueePaused ? 'paused' : ''}`}>
+              {tr('Sab Ka Malik Ek Hai')}
+            </div>
+          </div>
         </div>
       </aside>
-
-      {/* Toggle button when sidebar is collapsed - circle shape */}
-      {collapsed && (
-        <button
-          onClick={() => setCollapsed(false)}
-          className="hidden lg:flex fixed left-0 top-0 z-40 w-9 h-9 bg-maroon-700 hover:bg-maroon-600 rounded-full items-center justify-center text-white transition-colors"
-          title={tr("Show sidebar")}
-          aria-label={tr("Show sidebar")}>
-          <ChevronRight size={18} />
-        </button>
-      )}
 
       {open && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setOpen(false)} role="button" aria-label="Close navigation menu" tabIndex={0} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)} />}
 
@@ -247,10 +286,10 @@ export default function AdminLayout() {
             <span className="font-serif font-bold text-gold-100 text-[1.375rem] whitespace-nowrap lg:ml-2"><T>Sri Shirdi Sai Baba Temple</T></span>
           </div>
 
-          {/* Right: All controls in one line */}
+          {/* Right: All controls */}
           <div className="flex items-center gap-2 lg:gap-4">
-            <button onClick={() => navigate('/admin/calendar')} title={tr("Open Calendar")} className="hidden md:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap hover:text-white hover:bg-white/10 rounded-lg px-2 py-1 -mx-2 transition-colors cursor-pointer"><Calendar size={15} className="text-[#E5B94F]" /> {todayLabel()}</button>
-            <span className="hidden lg:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap"><Clock size={15} className="text-[#E5B94F]" /> {timeLabel()}</span>
+            <button onClick={() => navigate('/admin/calendar')} title={tr("Open Calendar")} className="hidden md:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap hover:text-white hover:bg-white/10 rounded-lg px-2 py-1 -mx-2 transition-all duration-300 cursor-pointer"><Calendar size={15} className="text-[#E5B94F]" /> {todayLabel()}</button>
+            <span className="hidden lg:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap tabular-nums"><Clock size={15} className="text-[#E5B94F]" /> {liveTime}</span>
             <div className="inline-flex items-center rounded-full border border-[#D4AF37] overflow-hidden text-[0.6875rem] font-bold" role="group" aria-label="Language selection">
               <button onClick={() => setLang('en')} title="English" aria-label="Switch to English" aria-pressed={lang === 'en'} className={`px-2 py-1 outline-none transition-none ${lang === 'en' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>EN</button>
               <button onClick={() => setLang('te')} title="తెలుగు" aria-label="Switch to Telugu" aria-pressed={lang === 'te'} className={`px-2 py-1 font-telugu outline-none transition-none ${lang === 'te' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>తెలుగు</button>
@@ -275,7 +314,6 @@ export default function AdminLayout() {
         </main>
       </div>
 
-      {/* Force password change on first login */}
       <ChangePasswordModal />
     </div>
   )

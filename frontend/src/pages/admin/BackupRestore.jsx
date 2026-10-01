@@ -36,8 +36,8 @@ export default function BackupRestore() {
 
   async function createBackup() {
     setBusy(true); setMsg('')
-    try { const r = await BackupAPI.create(); setMsg(`Backup created — ${r.total_records} records.`); load() }
-    catch (ex) { setMsg(ex.detail || 'Backup failed.') } finally { setBusy(false) }
+    try { const r = await BackupAPI.create(); setMsg(tr('Backup created') + ` — ${r.total_records} ${tr('records')}.`); load() }
+    catch (ex) { setMsg(ex.detail || tr('Backup failed.')) } finally { setBusy(false) }
   }
 
   async function download(b) {
@@ -46,7 +46,7 @@ export default function BackupRestore() {
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a'); a.href = url; a.download = b.filename; a.click(); URL.revokeObjectURL(url)
-    } catch { setMsg('Download failed.') }
+    } catch { setMsg(tr('Download failed.')) }
   }
 
   async function onFile(e) {
@@ -57,7 +57,7 @@ export default function BackupRestore() {
       const snapshot = JSON.parse(await file.text())
       const validation = await BackupAPI.validate(snapshot)
       setRestore({ snapshot, validation, filename: file.name })
-    } catch (ex) { setMsg(ex.detail || 'Invalid backup file — could not read or validate.') }
+    } catch (ex) { setMsg(ex.detail || tr('Invalid backup file — could not read or validate.')) }
   }
 
   async function confirmRestore() {
@@ -65,7 +65,7 @@ export default function BackupRestore() {
     try {
       const r = await BackupAPI.restore(restore.snapshot)
       setRestore({ result: r }); load()
-    } catch (ex) { setMsg(ex.detail || 'Restore failed.'); setRestore(null) } finally { setBusy(false) }
+    } catch (ex) { setMsg(ex.detail || tr('Restore failed.')); setRestore(null) } finally { setBusy(false) }
   }
 
   if (!isAdmin) return (
@@ -211,7 +211,7 @@ export default function BackupRestore() {
                 </div>
                 <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
                   <button onClick={() => setRestore(null)} className="btn-outline"><T>Cancel</T></button>
-                  <button onClick={confirmRestore} disabled={busy} className="btn-maroon disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />} Confirm Restore</button>
+                  <button onClick={confirmRestore} disabled={busy} className="btn-maroon disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />} <T>Confirm Restore</T></button>
                 </div>
               </>
             )}

@@ -43,7 +43,7 @@ const NAME_TOKENS = {
   bhaskar: 'భాస్కర్', jyothi: 'జ్యోతి', sailaja: 'శైలజ', vani: 'వాణి',
   // surnames
   acharya: 'ఆచార్య', bhat: 'భట్', chowdary: 'చౌదరి', choudary: 'చౌదరి',
-  devi: 'దేవి', goud: 'గౌడ్', gupta: 'గుప్తా', iyer: 'అయ్యర్', naidu: 'నాయుడు',
+  devi: 'దేవి', goud: 'గౌడ్', gupta: 'గుప్తా', iyer: 'అయ్యర్', kadiyam: 'కడియం', naidu: 'నాయుడు',
   oleti: 'ఒలేటి', pillai: 'పిళ్ళై', rao: 'రావు', reddy: 'రెడ్డి', sarma: 'శర్మ',
   sastry: 'శాస్త్రి', shastri: 'శాస్త్రి', setty: 'శెట్టి', shetty: 'శెట్టి',
   sharma: 'శర్మ', thota: 'తోట', varma: 'వర్మ', yadav: 'యాదవ్', verma: 'వర్మ',

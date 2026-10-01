@@ -24,9 +24,9 @@ function durDays(pl) {
   if (n.includes('year')) return 365
   return 1
 }
-const validityShort = (pl) => { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('daily')) return '1 Day'; if (n.includes('monthly')) return '1 Month'; if (n.includes('life')) return 'Lifetime'; if (n.includes('one')) return 'One-Time'; if (n.includes('year')) return '1 Year'; return pl?.frequency || 'Selected Date' }
-function validityRange(pl, from) { const d = durDays(pl); if (d === null || !from) return 'Lifetime'; const to = addDays(from, d - 1); return `${d} ${tr(d > 1 ? 'Days' : 'Day')} (${fmtDate(from)} ${tr('to')} ${fmtDate(to)})` }
-const bookedBy = (u) => (u === 'admin' ? { name: 'Administrator', sub: 'Super Admin' } : { name: u || '—', sub: 'Staff' })
+const validityShort = (pl) => { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('daily')) return tr('1 Day'); if (n.includes('monthly')) return tr('1 Month'); if (n.includes('life')) return tr('Lifetime'); if (n.includes('one')) return tr('One-Time'); if (n.includes('year')) return tr('1 Year'); return pl?.frequency || tr('Selected Date') }
+function validityRange(pl, from) { const d = durDays(pl); if (d === null || !from) return tr('Lifetime'); const to = addDays(from, d - 1); return `${d} ${tr(d > 1 ? 'Days' : 'Day')} (${fmtDate(from)} ${tr('to')} ${fmtDate(to)})` }
+const bookedBy = (u) => (u === 'admin' ? { name: tr('Administrator'), sub: tr('Super Admin') } : { name: u || '—', sub: tr('Staff') })
 
 export default function BookingDetails() {
   const { lang } = useLang()
@@ -42,9 +42,9 @@ export default function BookingDetails() {
   useEffect(() => { load() }, [load])
   const canOperate = ['Admin', 'Administrator', 'Counter Staff', 'Poojari'].includes(user?.role)
   async function complete() {
-    if (!(await confirmDialog({ title: `Mark ${d.booking_code} as completed?`, message: 'It will move to Pooja History.' }))) return
-    try { await BookingsAPI.complete(id); toast('Performance recorded.'); PoojaHistoryAPI.detail(id).then(setD) }
-    catch (ex) { toast(ex.detail || 'Could not complete this booking.', 'error') }
+    if (!(await confirmDialog({ title: `${tr('Mark')} ${d.booking_code} ${tr('as completed')}?`, message: tr('It will move to Pooja History.') }))) return
+    try { await BookingsAPI.complete(id); toast(tr('Performance recorded.')); PoojaHistoryAPI.detail(id).then(setD) }
+    catch (ex) { toast(ex.detail || tr('Could not complete this booking.'), 'error') }
   }
   if (loadErr) return <ErrorBlock message={loadErr} onRetry={load} />
   if (!d) return <LoadingBlock />

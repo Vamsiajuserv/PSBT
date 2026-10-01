@@ -20,6 +20,42 @@ Thumbs.db
 *.log
 .claude/settings.local.json
 
-
 # Scratch screenshots / working notes
 readings/
+
+# Test files (local testing only)
+backend/*_test.py
+backend/test_*.py
+backend/verify_*.py
+backend/load_test*.py
+backend/*_audit.py
+backend/*_test_*.py
+backend/prove_*.py
+backend/profile_*.py
+backend/investigate_*.py
+backend/quick_*.py
+backend/regression_*.py
+backend/sustained_*.py
+backend/clean_*.py
+backend/comprehensive_*.py
+backend/concurrent_*.py
+backend/db_connection_*.py
+backend/failure_*.py
+backend/final_*.py
+
+# Test output files
+backend/*.txt
+uat-evidence/
+
+# Debug/test scripts (root level)
+debug-*.js
+uat-*.js
+
+# Reference images
+reference\ image.png
+*.png
+!frontend/public/**/*.png
+
+# Generated docs (keep source .md files)
+docs/*.html
+docs/*.pdf

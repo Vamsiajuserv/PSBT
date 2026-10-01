@@ -12,6 +12,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName } from '../../lib/validation.js'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const MOD_ICON = {
   Devotees: UsersIcon, Sevas: Flame, Bookings: Flame, Donations: HeartHandshake,
@@ -28,7 +29,8 @@ export default function RoleAccess() {
   const [catalog, setCatalog] = useState([])
   const [sel, setSel] = useState(null)          // full role detail
   const [mods, setMods] = useState([])          // editable module set
-  const [q, setQ] = useState(''); const [status, setStatus] = useState('')
+  // filters - persisted in URL for state preservation across navigation
+  const { q, setQ, status, setStatus } = useFilterParams({ q: '', status: '' })
   const [saved, setSaved] = useState(false)
   const [creating, setCreating] = useState(null)   // { name, description } while the Add-Role modal is open
   const [createErr, setCreateErr] = useState('')
@@ -52,12 +54,12 @@ export default function RoleAccess() {
   async function createRole(e) {
     e.preventDefault()
     setCreateErr('')
-    if (!creating.name.trim()) { setCreateErr('Role name is required.'); return }
+    if (!creating.name.trim()) { setCreateErr(tr('Role name is required.')); return }
     try {
       const r = await RolesAPI.create({ name: creating.name.trim(), description: creating.description.trim(), modules: [] })
       setCreating(null)
       await reloadRoles(r.id)
-    } catch (ex) { setCreateErr(ex.detail || 'Could not create role.') }
+    } catch (ex) { setCreateErr(ex.detail || tr('Could not create role.')) }
   }
 
   function pick(id) { RolesAPI.get(id).then((r) => { setSel(r); setMods(r.modules || []); setSaved(false) }) }

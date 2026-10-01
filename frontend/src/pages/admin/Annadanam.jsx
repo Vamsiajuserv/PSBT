@@ -14,11 +14,18 @@ import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const RATE = 50
 const OCCASIONS = ['General', 'Birthday', 'Wedding Anniversary', 'Thanksgiving', 'In Memory', 'Festival Offering']
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
-const fmtTime = (s) => (s ? clock12(new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) : '')
+// Parse datetime as UTC (server returns naive ISO without 'Z')
+const parseUTC = (s) => (s && String(s).includes('T')) ? new Date(String(s) + (String(s).endsWith('Z') ? '' : 'Z')) : null
+const fmtTime = (s) => {
+  const d = parseUTC(s)
+  if (!d || isNaN(d.getTime())) return ''
+  return clock12(d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }))
+}
 const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI (QR)' : m)
 
 function toWords(n) {
@@ -43,7 +50,7 @@ const emptyForm = (rate = RATE) => ({ devotee: null, persons: 1, rate, occasionC
 
 // Print Annadanam receipt in new window
 function printAnnadanamReceipt(doc, toWordsFn) {
-  const fmtDateLocal = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+  const fmtDateLocal = (d) => d ? new Date(d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : ''
   const modeText = doc.mode === 'UPI/QR Code' ? 'UPI / QR Code' : doc.mode
   const html = `
     <!DOCTYPE html>
@@ -74,8 +81,9 @@ function printAnnadanamReceipt(doc, toWordsFn) {
     </head>
     <body>
       <div class="header">
-        <div class="icon">🛕</div>
+        <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba" style="width: 70px; height: 70px; border-radius: 50%; margin-bottom: 10px; object-fit: cover;" onerror="this.style.display='none'" />
         <div class="temple-name">Sri Shirdi Sai Baba Temple</div>
+        <div class="temple-name-te" style="font-size: 14px; margin-bottom: 5px;">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
         <div class="address">Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana 500082</div>
         <div class="address">☎ +91 040 2335 3589</div>
       </div>
@@ -121,17 +129,18 @@ export default function Annadanam() {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [printDoc, setPrintDoc] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState('')
 
-  const [q, setQ] = useState('')
-  const [mode, setMode] = useState('')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, mode, setMode, start, setStart, end, setEnd, page, setPage,
+  } = useFilterParams({
+    q: '', mode: '', start: '', end: '', page: 1,
+  })
 
   // Sortable table columns with filtering support
   const sortColumns = [
@@ -170,7 +179,7 @@ export default function Annadanam() {
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
     } catch (ex) {
-      setLoadErr(ex?.detail || "Couldn't load records — check your connection and retry.")
+      setLoadErr(ex?.detail || tr("Couldn't load records — check your connection and retry."))
       setRows([])
     } finally {
       setLoading(false)
@@ -185,7 +194,7 @@ export default function Annadanam() {
   const picked = drawer?.devotee
   useEffect(() => {
     if (!drawer || picked || dq.trim().length < 1) { setResults([]); return }
-    const t = setTimeout(() => DevoteesAPI.list({ q: dq, size: 6 }).then((r) => setResults(r.items)).catch(() => toast('Failed to search devotees', 'error')), 250)
+    const t = setTimeout(() => DevoteesAPI.list({ q: dq, size: 6 }).then((r) => setResults(r.items)).catch(() => toast(tr('Failed to search devotees'), 'error')), 250)
     return () => clearTimeout(t)
   }, [dq, picked, drawer])
 
@@ -209,7 +218,7 @@ export default function Annadanam() {
       })
       setDrawer(null); setDq(''); load(); setPrintDoc(created)
     } catch (err) {
-      setSaveErr(err?.detail || 'Could not save the annadanam receipt. Please try again.')
+      setSaveErr(err?.detail || tr('Could not save the annadanam receipt. Please try again.'))
     } finally {
       setSaving(false)
     }
@@ -349,7 +358,7 @@ export default function Annadanam() {
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{personName(drawer.devotee, lang)}</span><Pill tone="green"><T>Registered</T></Pill></div>
-                      <div className="text-[0.75rem] text-gray-500">Mobile: {drawer.devotee.mobile}</div>
+                      <div className="text-[0.75rem] text-gray-500">{tr('Mobile')}: {drawer.devotee.mobile}</div>
                     </div>
                     <button type="button" onClick={() => { setM({ devotee: null }); setDq('') }} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
                   </div>
@@ -392,7 +401,7 @@ export default function Annadanam() {
                   <div>
                     <div className="text-[0.75rem] text-gray-500"><T>Calculated Donation Amount</T></div>
                     <div className="text-2xl font-extrabold text-gray-800 leading-none mt-0.5">{inr(amount)}</div>
-                    <div className="text-[0.6875rem] text-gray-400 mt-1">Current Rate: ₹{num(drawer.rate)} per person</div>
+                    <div className="text-[0.6875rem] text-gray-400 mt-1">{tr('Current Rate')}: ₹{num(drawer.rate)} {tr('per person')}</div>
                   </div>
                 </div>
               </div>
@@ -445,7 +454,7 @@ export default function Annadanam() {
                   { en: 'Devotee', value: printDoc.donor },
                   { en: 'Mobile', value: printDoc.mobile || '—' },
                   { en: 'No. of Persons', value: printDoc.plates },
-                  { en: 'Rate', value: `₹${num(printDoc.rate || RATE)} / person` },
+                  { en: 'Rate', value: `₹${num(printDoc.rate || RATE)} / ${tr('person')}` },
                   { en: 'Payment Mode', value: modeLabel(printDoc.mode) },
                   ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref }] : []),
                 ]}

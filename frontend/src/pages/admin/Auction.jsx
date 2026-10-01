@@ -14,6 +14,7 @@ import { Select, DateField, TimeField, NumberField, Combobox } from '../../compo
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName } from '../../lib/validation.js'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const STATUS_TONE = { Scheduled: 'blue', 'In Progress': 'amber', Completed: 'green' }
 const VERIFY_TONE = { Pending: 'gray', Verified: 'green', Rejected: 'red' }
@@ -47,20 +48,33 @@ export default function Auction() {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [view, setView] = useState(null)
   const [menu, setMenu] = useState(null)
   const [receipt, setReceipt] = useState(null) // for printing receipt
   const [paymentModal, setPaymentModal] = useState(null) // for payment collection
+  const menuRef = useRef(null)
 
-  const [q, setQ] = useState('')
-  const [status, setStatus] = useState('')
-  const [verification, setVerification] = useState('')
-  const [payment, setPayment] = useState('')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menu) return
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenu(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [menu])
+
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, status, setStatus, verification, setVerification,
+    payment, setPayment, start, setStart, end, setEnd, page, setPage,
+  } = useFilterParams({
+    q: '', status: '', verification: '', payment: '', start: '', end: '', page: 1,
+  })
   const [saving, setSaving] = useState(false)
 
   // Sorting with filtering
@@ -102,14 +116,14 @@ export default function Auction() {
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
     } catch (ex) {
-      setLoadErr(ex?.detail || "Couldn't load auctions — check your connection and retry.")
+      setLoadErr(ex?.detail || tr("Couldn't load auctions — check your connection and retry."))
       setRows([])
     } finally {
       setLoading(false)
     }
   }, [q, status, verification, payment, start, end, page])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
-  useEffect(() => { setPage(1) }, [q, status, verification, payment, start, end])
+  useEffect(() => { setPage(1); setMenu(null) }, [q, status, verification, payment, start, end])
 
   async function save(e) {
     e.preventDefault()
@@ -426,7 +440,7 @@ export default function Auction() {
                       )}
                       <button onClick={() => setMenu(menu === a.id ? null : a.id)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><MoreVertical size={15} /></button>
                       {menu === a.id && (
-                        <div className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-lg shadow-lg py-1 w-36 text-sm">
+                        <div ref={menuRef} className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-lg shadow-lg py-1 w-36 text-sm">
                           <button onClick={() => { setView(a); setMenu(null) }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-600"><Eye size={14} />{' '}<T>View</T></button>
                           {isAdmin && <button onClick={() => remove(a)} className="w-full text-left px-3 py-2 hover:bg-red-50 flex items-center gap-2 text-red-600"><Trash2 size={14} />{' '}<T>Delete</T></button>}
                         </div>
@@ -631,9 +645,16 @@ export default function Auction() {
               <button onClick={() => setReceipt(null)} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
             </div>
             <div id="auction-receipt" className="px-6 py-5 bg-white">
-              {/* Simple receipt - no temple branding as per client request */}
+              {/* Temple header */}
               <div className="text-center border-b border-dashed border-gray-300 pb-4 mb-4">
-                <div className="text-lg font-bold text-gray-800"><T>Auction Payment Receipt</T></div>
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba" className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                  <div>
+                    <div className="font-serif text-lg font-bold text-maroon-800">{tr('Sri Shirdi Sai Baba Temple')}</div>
+                    <div className="text-sm text-gray-600">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
+                  </div>
+                </div>
+                <div className="text-base font-semibold text-gray-800 mt-3"><T>Auction Payment Receipt</T></div>
                 <div className="text-[0.75rem] text-gray-500 mt-1">{fmtDate(receipt.paid_at)}</div>
               </div>
               <div className="space-y-3 text-[0.875rem]">

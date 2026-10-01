@@ -90,7 +90,7 @@ export default function DailyClosing() {
       RefundsAPI.list({ start: day, end: day }).then((r) => setRefunds(r.items || [])).catch(() => setRefunds([]))
     } catch (ex) {
       setSum(null)
-      setLoadErr(ex?.detail || "Couldn't load the daily closing — check your connection and retry.")
+      setLoadErr(ex?.detail || tr("Couldn't load the daily closing — check your connection and retry."))
     }
   }, [day])
   useEffect(() => { load() }, [load])
@@ -100,8 +100,8 @@ export default function DailyClosing() {
     setBusy(true); setMsg('')
     try {
       await DailyClosingAPI.close({ date: day, actual_cash: Number(actual) || 0, notes })
-      setMsg('Day closed and finalised successfully.'); load()
-    } catch (ex) { setMsg(ex.detail || 'Failed to close the day.') } finally { setBusy(false) }
+      setMsg(tr('Day closed and finalised successfully.')); load()
+    } catch (ex) { setMsg(ex.detail || tr('Failed to close the day.')) } finally { setBusy(false) }
   }
 
   async function reopenDay() {
@@ -109,8 +109,8 @@ export default function DailyClosing() {
     setBusy(true); setMsg('')
     try {
       await DailyClosingAPI.reopen({ date: day })
-      setMsg('Day reopened successfully.'); load()
-    } catch (ex) { setMsg(ex.detail || 'Failed to reopen the day.') } finally { setBusy(false) }
+      setMsg(tr('Day reopened successfully.')); load()
+    } catch (ex) { setMsg(ex.detail || tr('Failed to reopen the day.')) } finally { setBusy(false) }
   }
 
   if (loadErr) return <ErrorBlock message={loadErr} onRetry={load} />
@@ -121,7 +121,7 @@ export default function DailyClosing() {
   const actualNum = Number(actual) || 0
   const closingDiff = actualNum - (sum.expected_cash || 0)
   const closed = sum.closed
-  const dateLabel = stamp(new Date(sum.date + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))
+  const dateLabel = stamp(new Date(sum.date + 'T00:00:00').toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }))
 
   return (
     <div>
@@ -270,7 +270,7 @@ export default function DailyClosing() {
           {/* Refunds register for the day — money paid back out (feeds expected cash) */}
           {refunds.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-              <div className="font-serif text-[0.9375rem] font-bold text-maroon-800 mb-3">Refunds ({refunds.length})</div>
+              <div className="font-serif text-[0.9375rem] font-bold text-maroon-800 mb-3"><T>Refunds</T> ({refunds.length})</div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[0.8125rem]">
                   <thead><tr className="text-left text-[0.6875rem] uppercase tracking-wide text-gray-700 bg-gray-50/70">
@@ -300,7 +300,7 @@ export default function DailyClosing() {
           {closed ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="inline-flex items-center gap-2 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
-                <CheckCircle2 size={16} /> Closed by {personName({ name: sum.closed_by }, lang)} · {fmtStamp(sum.closed_at)}
+                <CheckCircle2 size={16} /> <T>Closed by</T> {personName({ name: sum.closed_by }, lang)} · {fmtStamp(sum.closed_at)}
               </div>
               {/* Admin-only Reopen button */}
               {isAdmin && (

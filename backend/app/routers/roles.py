@@ -7,6 +7,7 @@ from ..database import get_db
 from ..models import Role, User
 from ..schemas import RoleCreateIn, RoleUpdateIn
 from ..security import require_admin, RequireModule, log_action, client_ip
+from ..helpers import fmt_ist_datetime
 
 router = APIRouter(prefix="/api/roles", tags=["roles"])
 read = RequireModule("Users")
@@ -42,8 +43,8 @@ def _role_dict(db, r: Role, detail=False):
     d = {"id": r.id, "code": r.code, "name": r.name, "description": r.description,
          "modules": _mods(r), "active": r.active, "assigned_users": _assigned_count(db, r),
          "created_by": r.created_by, "updated_by": r.updated_by,
-         "created_at": r.created_at.strftime("%d %b %Y %I:%M %p") if r.created_at else None,
-         "updated_at": r.updated_at.strftime("%d %b %Y %I:%M %p") if r.updated_at else None}
+         "created_at": fmt_ist_datetime(r.created_at) if r.created_at else None,
+         "updated_at": fmt_ist_datetime(r.updated_at) if r.updated_at else None}
     if detail:
         users = db.query(User).filter(User.role == r.name).order_by(User.id.desc()).all()
         d["users"] = [{"id": u.id, "name": u.name, "email": u.email,

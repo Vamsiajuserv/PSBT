@@ -243,8 +243,10 @@ export function Select({ value, onChange, children, className = '', disabled = f
 // ── MultiSelect ─────────────────────────────────────────────────────────────
 // Multi-select dropdown for filters with "Select All" capability
 
-export function MultiSelect({ value = [], onChange, children, className = '', disabled = false, placeholder = 'Select…', title, allLabel = 'Select All' }) {
+export function MultiSelect({ value = [], onChange, children, className = '', disabled = false, placeholder, title, allLabel }) {
   const { t } = useLang()
+  const ph = placeholder || t('Select…')
+  const allLbl = allLabel || t('Select All')
   const opts = useMemo(() => collectOptions(children), [children])
   const items = opts.filter((o) => !o.group)
   const [open, setOpen] = useState(false)
@@ -277,8 +279,8 @@ export function MultiSelect({ value = [], onChange, children, className = '', di
 
   const allSelected = items.filter((o) => !o.disabled).every((o) => vals.has(o.value))
 
-  const displayLabel = vals.size === 0 ? placeholder
-    : vals.size === 1 ? items.find((o) => vals.has(o.value))?.label || '1 selected'
+  const displayLabel = vals.size === 0 ? ph
+    : vals.size === 1 ? items.find((o) => vals.has(o.value))?.label || t('1 selected')
       : vals.size === items.length ? t('All selected')
         : `${vals.size} ${t('selected')}`
 
@@ -314,7 +316,7 @@ export function MultiSelect({ value = [], onChange, children, className = '', di
           )}
           <div className="px-3 py-2 border-b border-gold-100 flex items-center justify-between gap-2">
             <button type="button" onClick={allSelected ? clearAll : selectAll} className="text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-900">
-              {allSelected ? t('Clear All') : t(allLabel)}
+              {allSelected ? t('Clear All') : allLbl}
             </button>
             {vals.size > 0 && <span className="text-[0.75rem] text-gray-400">{vals.size} {t('selected')}</span>}
           </div>
@@ -359,7 +361,7 @@ const fmt = (s) => {
   const [y, m, d] = s.split('-').map(Number)
   if (!y || !m || !d) return s
   // The month is a word and translates; the numerals are data.
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })
     .replace(/[A-Za-z]{3,}/g, (w) => tr(w))
 }
 const fmt12 = (t) => {
@@ -373,9 +375,9 @@ const nowHHMM = () => { const d = new Date(); return `${String(d.getHours()).pad
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
-function NavBtn({ onClick, children, label }) {
+function NavBtn({ onClick, children, label, disabled }) {
   return (
-    <button type="button" onClick={onClick} title={label} aria-label={label} className="w-7 h-7 grid place-items-center rounded-lg text-maroon-700/70 hover:bg-gold-100 hover:text-maroon-900 transition-colors focus:outline-none focus:ring-2 focus:ring-gold-400">{children}</button>
+    <button type="button" onClick={onClick} disabled={disabled} title={label} aria-label={label} className={`w-7 h-7 grid place-items-center rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gold-400 ${disabled ? 'text-gray-300 cursor-not-allowed' : 'text-maroon-700/70 hover:bg-gold-100 hover:text-maroon-900'}`}>{children}</button>
   )
 }
 
@@ -393,6 +395,17 @@ function CalendarPanel({ value, min, max, onPick }) {
     return { y: d.getFullYear(), m: d.getMonth() }
   })
 
+  // Check if navigation is allowed based on min/max
+  const minYear = min ? Number(min.slice(0, 4)) : null
+  const minMonth = min ? Number(min.slice(5, 7)) - 1 : null
+  const maxYear = max ? Number(max.slice(0, 4)) : null
+  const maxMonth = max ? Number(max.slice(5, 7)) - 1 : null
+
+  const canGoPrevYear = !minYear || view.y > minYear
+  const canGoNextYear = !maxYear || view.y < maxYear
+  const canGoPrevMonth = !min || (view.y > minYear || (view.y === minYear && view.m > minMonth))
+  const canGoNextMonth = !max || (view.y < maxYear || (view.y === maxYear && view.m < maxMonth))
+
   const first = new Date(view.y, view.m, 1)
   const cells = []
   for (let i = 0; i < first.getDay(); i++) cells.push(null)
@@ -403,8 +416,8 @@ function CalendarPanel({ value, min, max, onPick }) {
     <div style={{ minWidth: 270 }}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex">
-          <NavBtn onClick={() => (mode === 'years' ? setView((v) => ({ ...v, y: v.y - 12 })) : nav(-1, 0))} label={tr("Previous year")}><ChevronsLeft size={15} /></NavBtn>
-          {mode === 'days' && <NavBtn onClick={() => nav(0, -1)} label={tr("Previous month")}><ChevronLeft size={15} /></NavBtn>}
+          <NavBtn disabled={!canGoPrevYear} onClick={() => (mode === 'years' ? setView((v) => ({ ...v, y: v.y - 12 })) : nav(-1, 0))} label={tr("Previous year")}><ChevronsLeft size={15} /></NavBtn>
+          {mode === 'days' && <NavBtn disabled={!canGoPrevMonth} onClick={() => nav(0, -1)} label={tr("Previous month")}><ChevronLeft size={15} /></NavBtn>}
         </div>
         <button
           type="button"
@@ -415,24 +428,32 @@ function CalendarPanel({ value, min, max, onPick }) {
           {mode === 'days' ? `${tr(MONTHS[view.m])} ${view.y}` : `${view.y - 5} – ${view.y + 6}`}
         </button>
         <div className="flex">
-          {mode === 'days' && <NavBtn onClick={() => nav(0, 1)} label={tr("Next month")}><ChevronRight size={15} /></NavBtn>}
-          <NavBtn onClick={() => (mode === 'years' ? setView((v) => ({ ...v, y: v.y + 12 })) : nav(1, 0))} label={tr("Next year")}><ChevronsRight size={15} /></NavBtn>
+          {mode === 'days' && <NavBtn disabled={!canGoNextMonth} onClick={() => nav(0, 1)} label={tr("Next month")}><ChevronRight size={15} /></NavBtn>}
+          <NavBtn disabled={!canGoNextYear} onClick={() => (mode === 'years' ? setView((v) => ({ ...v, y: v.y + 12 })) : nav(1, 0))} label={tr("Next year")}><ChevronsRight size={15} /></NavBtn>
         </div>
       </div>
       {mode === 'years' && (
         <div className="grid grid-cols-4 gap-1 py-1">
-          {Array.from({ length: 12 }, (_, i) => view.y - 5 + i).map((y) => (
-            <button
-              key={y}
-              type="button"
-              onClick={() => { setView((v) => ({ ...v, y })); setMode('days') }}
-              className={`h-9 rounded-lg text-[0.78125rem] transition-colors ${
-                y === view.y ? 'bg-maroon-800 text-cream font-bold' : 'text-gray-700 hover:bg-gold-100'
-              }`}
-            >
-              {y}
-            </button>
-          ))}
+          {Array.from({ length: 12 }, (_, i) => view.y - 5 + i).map((y) => {
+            const minYear = min ? Number(min.slice(0, 4)) : null
+            const maxYear = max ? Number(max.slice(0, 4)) : null
+            const yearDisabled = (minYear && y < minYear) || (maxYear && y > maxYear)
+            return (
+              <button
+                key={y}
+                type="button"
+                disabled={yearDisabled}
+                onClick={() => { setView((v) => ({ ...v, y })); setMode('days') }}
+                className={`h-9 rounded-lg text-[0.78125rem] transition-colors ${
+                  y === view.y ? 'bg-maroon-800 text-cream font-bold'
+                    : yearDisabled ? 'text-gray-300 cursor-not-allowed'
+                      : 'text-gray-700 hover:bg-gold-100'
+                }`}
+              >
+                {y}
+              </button>
+            )
+          })}
         </div>
       )}
       {mode === 'days' && (<>
@@ -548,8 +569,9 @@ function FieldTrigger({ triggerRef, open, setOpen, disabled, title, className, l
   )
 }
 
-export function DateField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder = tr('Select date'), title }) {
+export function DateField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder, title }) {
   const { t } = useLang()
+  const ph = placeholder || t('Select date')
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
   const popRef = useRef(null)
@@ -563,7 +585,7 @@ export function DateField({ value, onChange, min, max, required = false, disable
   return (
     <>
       <FieldTrigger triggerRef={triggerRef} open={open} setOpen={setOpen} disabled={disabled} title={title}
-        className={className} empty={!value} label={value ? fmt(value) : t(placeholder)} icon={CalendarIcon} />
+        className={className} empty={!value} label={value ? fmt(value) : ph} icon={CalendarIcon} />
       {required && !disabled && <RequiredProxy value={value ?? ''} onFocus={() => setOpen(true)} />}
       {open && (
         <Popover pos={pos} popRef={popRef}>
@@ -590,8 +612,9 @@ export function DateField({ value, onChange, min, max, required = false, disable
 }
 
 // Time-only field — value is 24h "HH:MM" like a native <input type="time">.
-export function TimeField({ value, onChange, required = false, disabled = false, className = '', placeholder = tr('Select time'), title }) {
+export function TimeField({ value, onChange, required = false, disabled = false, className = '', placeholder, title }) {
   const { t } = useLang()
+  const ph = placeholder || t('Select time')
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
   const popRef = useRef(null)
@@ -603,7 +626,7 @@ export function TimeField({ value, onChange, required = false, disabled = false,
   return (
     <>
       <FieldTrigger triggerRef={triggerRef} open={open} setOpen={setOpen} disabled={disabled} title={title}
-        className={className} empty={!value} label={value ? fmt12(value) : t(placeholder)} icon={Clock} />
+        className={className} empty={!value} label={value ? fmt12(value) : ph} icon={Clock} />
       {required && !disabled && <RequiredProxy value={value ?? ''} onFocus={() => setOpen(true)} />}
       {open && (
         <Popover pos={pos} popRef={popRef}>
@@ -628,8 +651,9 @@ export function TimeField({ value, onChange, required = false, disabled = false,
 // Combined date + time — value is "YYYY-MM-DDTHH:MM" like a native
 // <input type="datetime-local">. Picking either part fills the other with a
 // sensible default (today / the current time) so the value is always complete.
-export function DateTimeField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder = tr('Select date & time'), title }) {
+export function DateTimeField({ value, onChange, min, max, required = false, disabled = false, className = '', placeholder, title }) {
   const { t } = useLang()
+  const ph = placeholder || t('Select date & time')
   const [open, setOpen] = useState(false)
   const triggerRef = useRef(null)
   const popRef = useRef(null)
@@ -643,7 +667,7 @@ export function DateTimeField({ value, onChange, min, max, required = false, dis
     <>
       <FieldTrigger triggerRef={triggerRef} open={open} setOpen={setOpen} disabled={disabled} title={title}
         className={className} empty={!value}
-        label={value ? `${fmt(datePart)} · ${fmt12(timePart)}` : t(placeholder)} icon={CalendarIcon} />
+        label={value ? `${fmt(datePart)} · ${fmt12(timePart)}` : ph} icon={CalendarIcon} />
       {required && !disabled && <RequiredProxy value={value ?? ''} onFocus={() => setOpen(true)} />}
       {open && (
         <Popover pos={pos} popRef={popRef}>
@@ -677,17 +701,26 @@ export function DateTimeField({ value, onChange, min, max, required = false, dis
 // overrides, so it occupies exactly the layout slot the old input did; native
 // `required`/`min`/`max` validation stays on the real inner input.
 // Blocks 'e', '+', '-' keys to prevent scientific notation and signs.
-export function NumberField({ value, onChange, prefix, min, max, step, required = false, disabled = false, placeholder, className = '', inputClass = '', title, innerRef }) {
+export function NumberField({ value, onChange, prefix, min, max, step, required = false, disabled = false, placeholder, className = '', inputClass = '', title, innerRef, allowDecimal = true }) {
   // Block non-numeric keys (e, E, +, -)
   const handleKeyDown = (e) => {
-    if (['e', 'E', '+', '-'].includes(e.key)) {
+    const blocked = ['e', 'E', '+', '-']
+    // Also block decimal point if allowDecimal is false
+    if (!allowDecimal) blocked.push('.')
+    if (blocked.includes(e.key)) {
       e.preventDefault()
     }
   }
-  // Sanitize pasted content - only allow digits and decimal point
+  // Sanitize pasted content - only allow digits (and decimal point if allowed)
   const handleChange = (e) => {
-    const sanitized = e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
+    let sanitized = allowDecimal
+      ? e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
+      : e.target.value.replace(/[^\d]/g, '')
     onChange({ target: { value: sanitized } })
+  }
+  // Prevent mouse wheel from changing the value
+  const handleWheel = (e) => {
+    e.target.blur()
   }
   return (
     <label
@@ -702,6 +735,7 @@ export function NumberField({ value, onChange, prefix, min, max, step, required 
         value={value ?? ''}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onWheel={handleWheel}
         min={min}
         max={max}
         step={step}
@@ -746,10 +780,10 @@ export function Toggle({ checked, onChange, disabled = false, className = '', ti
       title={title}
       onClick={() => onChange?.({ target: { checked: !checked } })}
       className={`relative shrink-0 h-[1.375rem] w-10 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-gold-400 focus:ring-offset-2 ${
-        checked ? 'bg-maroon-800' : 'bg-gray-300'
+        checked ? 'bg-maroon-800' : 'bg-white border border-gray-300'
       } ${disabled ? 'opacity-40 cursor-not-allowed' : ''} ${className}`}
     >
-      <span className={`absolute top-[0.1875rem] left-[0.1875rem] h-4 w-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[1.125rem]' : ''}`} aria-hidden="true" />
+      <span className={`absolute top-[0.1875rem] left-[0.1875rem] h-4 w-4 rounded-full shadow transition-transform ${checked ? 'translate-x-[1.125rem] bg-white' : 'bg-gray-400'}`} aria-hidden="true" />
     </button>
   )
 }
@@ -1040,7 +1074,7 @@ export function CountryCodeSelect({ value = '+91', onChange, className = '', dis
                     sel ? 'bg-maroon-800 text-cream font-semibold' : 'text-gray-700 hover:bg-gold-100/70'
                   }`}
                 >
-                  <span className="truncate">{c.country} ({c.abbr}) {c.code}</span>
+                  <span className="truncate">{tr(c.country)} ({c.abbr}) {c.code}</span>
                   {sel && <Check size={14} className="shrink-0" />}
                 </button>
               )
@@ -1195,7 +1229,7 @@ export function Combobox({
         className={`input flex items-center justify-between gap-2 text-left disabled:bg-gray-50 disabled:text-gray-400 ${open ? 'ring-2 ring-gold-400 border-transparent' : ''} ${className}`}
       >
         <span className={`truncate ${displayValue ? 'text-gray-800' : 'text-gray-400'}`}>
-          {displayValue || t(placeholder) || t('Select or type…')}
+          {displayValue ? t(displayValue) : (t(placeholder) || t('Select or type…'))}
         </span>
         <ChevronDown size={15} className={`shrink-0 text-maroon-700/50 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>

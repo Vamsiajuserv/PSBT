@@ -5,59 +5,59 @@ import {
 } from 'lucide-react'
 import { PageTitle } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
-import { SettingsAPI } from '../../api/client.js'
+import { SettingsAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { T, tr, stamp, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 
 const CATS = [
   {
-    key: 'temple', title: 'Temple Information', desc: 'Manage temple details, address and contact information.',
+    key: 'temple', title: tr('Temple Information'), desc: tr('Manage temple details, address and contact information.'),
     icon: Landmark, color: '#8a1c1c', bg: 'bg-maroon-50',
     subs: [
-      { key: 'basic', label: 'Basic Information', subtitle: 'Manage basic information about the temple.',
+      { key: 'basic', label: tr('Basic Information'), subtitle: tr('Manage basic information about the temple.'),
         fields: [
-          { k: 'temple_name', label: 'Temple Name', req: true }, { k: 'short_name', label: 'Short Name', req: true },
-          { k: 'established_year', label: 'Established Year' }, { k: 'registration_number', label: 'Registration Number' },
-          { k: 'trust_name', label: 'Trust / Organization Name' }, { k: 'gst_number', label: 'GST Number' },
-          { k: 'about', label: 'About Temple', type: 'textarea', full: true, max: 250 },
+          { k: 'temple_name', label: tr('Temple Name'), req: true }, { k: 'short_name', label: tr('Short Name'), req: true },
+          { k: 'established_year', label: tr('Established Year') }, { k: 'registration_number', label: tr('Registration Number') },
+          { k: 'trust_name', label: tr('Trust / Organization Name') }, { k: 'gst_number', label: tr('GST Number') },
+          { k: 'about', label: tr('About Temple'), type: 'textarea', full: true, max: 250 },
         ] },
-      { key: 'address', label: 'Address Details', subtitle: 'Manage the temple address.',
-        fields: [{ k: 'address_line', label: 'Address', full: true }, { k: 'city', label: 'City' }, { k: 'state', label: 'State' }, { k: 'pincode', label: 'Pincode' },
-          { k: 'address_te', label: 'Address (Telugu)', full: true, telugu: true,
-            hint: 'Shown on the public site when a visitor selects తెలుగు. Leave blank to fall back to the English address.' }] },
-      { key: 'contact', label: 'Contact Details', subtitle: 'Manage contact information.',
-        fields: [{ k: 'phone', label: 'Phone' }, { k: 'email', label: 'Email' }, { k: 'website', label: 'Website' }] },
-      { key: 'bank', label: 'Bank Details', subtitle: 'Manage bank account for deposits.',
-        fields: [{ k: 'bank_name', label: 'Bank Name' }, { k: 'account_number', label: 'Account Number' }, { k: 'ifsc', label: 'IFSC Code' }, { k: 'account_name', label: 'Account Holder Name' }] },
-      { key: 'timings', label: 'Temple Timings', subtitle: 'Manage darshan timings.',
-        fields: [{ k: 'timings_morning', label: 'Morning Timings' }, { k: 'timings_evening', label: 'Evening Timings' }] },
+      { key: 'address', label: tr('Address Details'), subtitle: tr('Manage the temple address.'),
+        fields: [{ k: 'address_line', label: tr('Address'), full: true }, { k: 'city', label: tr('City') }, { k: 'state', label: tr('State') }, { k: 'pincode', label: tr('Pincode') },
+          { k: 'address_te', label: tr('Address (Telugu)'), full: true, telugu: true,
+            hint: tr('Shown on the public site when a visitor selects తెలుగు. Leave blank to fall back to the English address.') }] },
+      { key: 'contact', label: tr('Contact Details'), subtitle: tr('Manage contact information.'),
+        fields: [{ k: 'phone', label: tr('Phone') }, { k: 'email', label: tr('Email') }, { k: 'website', label: tr('Website') }] },
+      { key: 'bank', label: tr('Bank Details'), subtitle: tr('Manage bank account for deposits.'),
+        fields: [{ k: 'bank_name', label: tr('Bank Name') }, { k: 'account_number', label: tr('Account Number') }, { k: 'ifsc', label: tr('IFSC Code') }, { k: 'account_name', label: tr('Account Holder Name') }] },
+      { key: 'timings', label: tr('Temple Timings'), subtitle: tr('Manage darshan timings.'),
+        fields: [{ k: 'timings_morning', label: tr('Morning Timings') }, { k: 'timings_evening', label: tr('Evening Timings') }] },
     ],
   },
   {
-    key: 'general', title: 'General Settings', desc: 'Configure general system settings and preferences.',
+    key: 'general', title: tr('General Settings'), desc: tr('Configure general system settings and preferences.'),
     icon: SettingsIcon, color: '#059669', bg: 'bg-emerald-50',
-    subs: [{ key: 'prefs', label: 'Preferences', subtitle: 'Configure general preferences.',
-      fields: [{ k: 'currency', label: 'Currency' },
-        { k: 'default_language', label: 'Default Language', type: 'select', options: ['English', 'Telugu'] }] }],
+    subs: [{ key: 'prefs', label: tr('Preferences'), subtitle: tr('Configure general preferences.'),
+      fields: [{ k: 'currency', label: tr('Currency') },
+        { k: 'default_language', label: tr('Default Language'), type: 'select', options: ['English', 'Telugu'] }] }],
   },
   {
-    key: 'userrole', title: 'User & Role Settings', desc: 'Manage users, roles and permissions.',
+    key: 'userrole', title: tr('User & Role Settings'), desc: tr('Manage users, roles and permissions.'),
     icon: UsersIcon, color: '#7c3aed', bg: 'bg-violet-50',
-    subs: [{ key: 'roles', label: 'Roles & Permissions', subtitle: 'Manage default role for new users.',
-      fields: [{ k: 'default_role', label: 'Default New-User Role', type: 'select', options: ['Administrator', 'Counter Staff', 'Poojari', 'Accountant', 'Committee'] }] }],
+    subs: [{ key: 'roles', label: tr('Roles & Permissions'), subtitle: tr('Manage default role for new users.'),
+      fields: [{ k: 'default_role', label: tr('Default New-User Role'), type: 'select', options: ['Administrator', 'Counter Staff', 'Poojari', 'Accountant', 'Committee'] }] }],
   },
   {
-    key: 'receipt', title: 'Receipt Settings', desc: 'Configure the receipt footer note.',
+    key: 'receipt', title: tr('Receipt Settings'), desc: tr('Configure the receipt footer note.'),
     icon: FileText, color: '#d97706', bg: 'bg-amber-50',
-    subs: [{ key: 'config', label: 'Receipt Configuration', subtitle: 'Configure the note printed at the bottom of every receipt.',
-      fields: [{ k: 'receipt_footer_note', label: 'Footer Note', type: 'textarea', full: true }] }],
+    subs: [{ key: 'config', label: tr('Receipt Configuration'), subtitle: tr('Configure the note printed at the bottom of every receipt.'),
+      fields: [{ k: 'receipt_footer_note', label: tr('Footer Note'), type: 'textarea', full: true }] }],
   },
   {
-    key: 'security', title: 'Security Settings', desc: 'Manage login policy and security preferences.',
+    key: 'security', title: tr('Security Settings'), desc: tr('Manage login policy and security preferences.'),
     icon: Shield, color: '#2563eb', bg: 'bg-blue-50',
-    subs: [{ key: 'login', label: 'Login Policy', subtitle: 'Lock an account after too many failed sign-in attempts.',
-      fields: [{ k: 'max_login_attempts', label: 'Max Login Attempts' }] }],
+    subs: [{ key: 'login', label: tr('Login Policy'), subtitle: tr('Lock an account after too many failed sign-in attempts.'),
+      fields: [{ k: 'max_login_attempts', label: tr('Max Login Attempts') }] }],
   },
 ]
 
@@ -84,7 +84,9 @@ export default function Settings() {
 
   const loadSettings = useCallback(() => {
     setLoadErr('')
-    SettingsAPI.get().then(setData).catch((ex) => setLoadErr(ex?.detail || "Couldn't load settings — check your connection and retry."))
+    SettingsAPI.get().then(setData).catch((ex) => {
+      setLoadErr(getErrorMessage(ex, tr("Couldn't load settings — check your connection and retry.")))
+    })
   }, [])
   useEffect(() => { loadSettings() }, [loadSettings])
 
@@ -98,7 +100,7 @@ export default function Settings() {
       const res = await SettingsAPI.update(data)
       setData(res); setSaved(true); setTimeout(() => setSaved(false), 2500)
     } catch (ex) {
-      setSaveErr(ex?.detail || 'Could not save settings — check your connection and try again.')
+      setSaveErr(getErrorMessage(ex, tr('Could not save settings — check your connection and try again.')))
     }
   }
 

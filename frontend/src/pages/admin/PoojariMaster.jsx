@@ -11,17 +11,17 @@ const api = {
 
 export default function PoojariMaster() {
   return <MasterScreen config={{
-    title: 'Poojari Master', subtitle: "Maintain the temple's poojaris and their specializations.",
-    api, entity: 'poojari', addLabel: 'Add New Poojari', searchPlaceholder: 'Search by name, code or phone…',
+    title: tr('Poojari Master'), subtitle: tr("Maintain the temple's poojaris and their specializations."),
+    api, entity: 'poojari', addLabel: tr('Add New Poojari'), searchPlaceholder: tr('Search by name, code or phone…'),
     statCards: [
-      { key: 'total', icon: Users, color: '#8a1c1c', bg: 'bg-maroon-50', title: 'Total Poojaris', sub: 'All poojaris' },
-      { key: 'active', icon: UserCheck, color: '#059669', bg: 'bg-emerald-50', title: 'Active', sub: 'Currently active' },
-      { key: 'inactive', icon: UserX, color: '#dc2626', bg: 'bg-red-50', title: 'Inactive', sub: 'Not active' },
+      { key: 'total', icon: Users, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Poojaris'), sub: tr('All poojaris') },
+      { key: 'active', icon: UserCheck, color: '#059669', bg: 'bg-emerald-50', title: tr('Active'), sub: tr('Currently active') },
+      { key: 'inactive', icon: UserX, color: '#dc2626', bg: 'bg-red-50', title: tr('Inactive'), sub: tr('Not active') },
     ],
     sortColumns: [
-      { key: 'name', label: 'Name', type: 'text' },
-      { key: 'specialization', label: 'Specialization', type: 'text' },
-      { key: 'active', label: 'Status', type: 'text' },
+      { key: 'name', label: tr('Name'), type: 'text' },
+      { key: 'specialization', label: tr('Specialization'), type: 'text' },
+      { key: 'active', label: tr('Status'), type: 'text' },
     ],
     columns: [
       { key: 'code', label: tr('Poojari ID'), mono: true },
@@ -36,7 +36,7 @@ export default function PoojariMaster() {
       { k: 'name', label: tr('Full Name'), type: 'name', required: true },
       { k: 'phone', label: tr('Phone'), type: 'phone' },
       { k: 'email', label: tr('Email'), type: 'email' },
-      { k: 'specialization', label: tr('Specialization'), type: 'name', placeholder: 'Abhishekam, Homam, Archana, Satyanarayana' },
+      { k: 'specialization', label: tr('Specialization'), type: 'name', placeholder: tr('Abhishekam, Homam, Archana, Satyanarayana') },
       { k: 'active', label: tr('Status'), type: 'active' },
     ],
   }} />

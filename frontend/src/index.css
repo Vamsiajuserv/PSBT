@@ -96,19 +96,13 @@
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
 
-/* Sidebar scrollbar styling - matches maroon sidebar */
+/* Sidebar scrollbar - hidden but still scrollable */
+.sidebar-scroll {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
 .sidebar-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-.sidebar-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.sidebar-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-}
-.sidebar-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  display: none; /* Chrome/Safari/Opera */
 }
 
 /* Thin scrollbar for light panels - subtle, appears on hover */
@@ -133,6 +127,53 @@
   background: rgba(0, 0, 0, 0.15);
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Top horizontal scrollbar - thin, subtle, always visible */
+.scrollbar-top {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 160, 140, 0.35) transparent;
+}
+.scrollbar-top::-webkit-scrollbar {
+  height: 5px;
+}
+.scrollbar-top::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 3px;
+}
+.scrollbar-top::-webkit-scrollbar-thumb {
+  background: rgba(180, 160, 140, 0.4);
+  border-radius: 3px;
+}
+.scrollbar-top::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 100, 80, 0.5);
+}
+
+/* Hide horizontal scrollbar but keep vertical - for tables with top scrollbar */
+.scrollbar-hide-x-wrapper {
+  overflow: hidden;
+}
+.scrollbar-hide-x {
+  overflow-x: auto;
+  overflow-y: auto;
+  padding-bottom: 20px;
+  margin-bottom: -20px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+.scrollbar-hide-x::-webkit-scrollbar {
+  width: 6px;
+  height: 0;
+}
+.scrollbar-hide-x::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-hide-x::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+.scrollbar-hide-x::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.25);
 }
 
@@ -550,6 +591,33 @@
   font-size: 10px;
   color: #888;
   margin-top: 16px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MARQUEE ANIMATION - Sab Ka Malik Ek Hai
+   ═══════════════════════════════════════════════════════════════════════════ */
+@keyframes marquee-scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.marquee-container {
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+  width: 100%;
+}
+
+.marquee-text {
+  display: inline-block;
+  animation: marquee-scroll 8s linear infinite;
+}
+
+.marquee-text.paused {
+  animation: none;
+  transform: translateX(0);
+  text-align: center;
+  width: 100%;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

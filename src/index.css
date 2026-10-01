@@ -96,6 +96,40 @@
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
 
+/* Sidebar scrollbar - hidden but still scrollable */
+.sidebar-scroll {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.sidebar-scroll::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Opera */
+}
+
+/* Thin scrollbar for light panels - subtle, appears on hover */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scrollbar-thin:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
 /* ── Loading screen (TempleLoader) — a calm maroon ground + gently pulsing seal */
 .temple-loader {
   background: linear-gradient(160deg, #4A0F0F 0%, #380A0A 55%, #2B0505 100%);
@@ -292,7 +326,7 @@
   .lamp, .flame, .divider-glow { animation: none; }
 }
 
-/* ── Printable receipt / ticket ──────────────────────────────────────────── */
+/* ── Printable receipt / ticket (legacy) ──────────────────────────────────── */
 .receipt {
   max-width: 340px;
   margin: 0 auto;
@@ -303,245 +337,218 @@
   border-radius: 10px;
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   PROFESSIONAL RECEIPT STYLES - A4 OPTIMIZED
-   ══════════════════════════════════════════════════════════════════════════ */
-
-/* Screen styles for receipt container */
-.receipt-container {
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROFESSIONAL A4 RECEIPT - SCREEN STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.receipt-a4 {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  max-width: 420px;
+  max-width: 500px;
   margin: 0 auto;
-  padding: 24px;
   background: #fff;
   color: #1a1a1a;
+  padding: 30px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
   line-height: 1.5;
 }
 
-.receipt-header {
+/* Header */
+.receipt-a4 .receipt-header {
   text-align: center;
-  padding-bottom: 16px;
-  border-bottom: 3px double #8b4513;
-  margin-bottom: 16px;
+  padding-bottom: 20px;
+  border-bottom: 3px double #8b1a1a;
+  margin-bottom: 20px;
 }
-
-.receipt-header .temple-icon {
+.receipt-a4 .temple-logo {
   font-size: 48px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
-
-.receipt-header .temple-name {
-  font-size: 22px;
+.receipt-a4 .temple-logo-img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  margin: 0 auto 10px auto;
+  display: block;
+}
+.receipt-a4 .temple-name {
+  font-size: 20px;
   font-weight: 700;
-  color: #8b4513;
-  margin: 0 0 6px 0;
+  color: #8b1a1a;
+  margin: 0 0 8px 0;
   letter-spacing: 0.5px;
 }
-
-.receipt-header .temple-address {
-  font-size: 14px;
+.receipt-a4 .temple-address {
+  font-size: 13px;
+  color: #555;
+  margin: 4px 0;
+}
+.receipt-a4 .temple-contact {
+  font-size: 13px;
   color: #555;
   margin: 4px 0;
 }
 
-.receipt-header .temple-phone {
-  font-size: 14px;
-  color: #555;
-  margin: 2px 0;
-}
-
-.receipt-title-section {
+/* Title Bar */
+.receipt-a4 .receipt-title-bar {
+  background: linear-gradient(135deg, #8b1a1a 0%, #a52a2a 100%);
+  padding: 12px 24px;
   text-align: center;
   margin-bottom: 20px;
-}
-
-.receipt-title-box {
-  display: inline-block;
-  background: linear-gradient(135deg, #8b4513 0%, #a0522d 100%);
-  padding: 10px 32px;
   border-radius: 4px;
-  margin-bottom: 12px;
 }
-
-.receipt-title {
-  font-size: 20px;
+.receipt-a4 .receipt-type {
+  font-size: 16px;
   font-weight: 700;
   color: #fff;
-  margin: 0;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
 }
 
-.receipt-numbers {
+/* Receipt Meta */
+.receipt-a4 .receipt-meta {
   display: flex;
   justify-content: center;
-  gap: 24px;
+  gap: 40px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
-
-.receipt-no, .ticket-no {
-  font-size: 15px;
+.receipt-a4 .meta-item {
+  text-align: center;
 }
-
-.receipt-no .label, .ticket-no .label {
+.receipt-a4 .meta-label {
+  display: block;
+  font-size: 11px;
   color: #666;
-  margin-right: 6px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
 }
-
-.receipt-no .value, .ticket-no .value {
+.receipt-a4 .meta-value {
+  font-size: 14px;
   font-weight: 700;
   color: #1a1a1a;
   font-family: 'Consolas', 'Courier New', monospace;
 }
 
-.receipt-details-section {
-  background: #faf8f5;
-  border: 1px solid #e8e0d5;
+/* Details Section */
+.receipt-a4 .receipt-details {
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
   border-radius: 6px;
-  padding: 16px 20px;
+  padding: 20px;
   margin-bottom: 20px;
 }
-
-.details-table {
+.receipt-a4 .details-table {
   width: 100%;
   border-collapse: collapse;
 }
-
-.details-table tr {
+.receipt-a4 .details-table tr {
   border-bottom: 1px dashed #ddd;
 }
-
-.details-table tr:last-child {
+.receipt-a4 .details-table tr:last-child {
   border-bottom: none;
 }
-
-.details-table .detail-label {
-  padding: 12px 12px 12px 0;
-  font-size: 15px;
+.receipt-a4 .detail-label {
+  padding: 12px 10px 12px 0;
   color: #555;
-  font-weight: 500;
-  width: 40%;
+  font-size: 14px;
   vertical-align: top;
 }
-
-.details-table .detail-value {
+.receipt-a4 .detail-value {
   padding: 12px 0;
-  font-size: 17px;
-  color: #1a1a1a;
-  font-weight: 700;
   text-align: right;
-  vertical-align: top;
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 14px;
 }
 
-.receipt-amount-section {
-  background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%);
+/* Amount Section */
+.receipt-a4 .receipt-amount {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
   border: 2px solid #d97706;
   border-radius: 8px;
-  padding: 20px;
+  padding: 20px 24px;
   margin-bottom: 20px;
-  text-align: center;
 }
-
-.amount-row {
+.receipt-a4 .amount-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
 }
-
-.amount-label {
-  font-size: 18px;
+.receipt-a4 .amount-label {
+  font-size: 16px;
   font-weight: 600;
   color: #92400e;
 }
-
-.amount-value {
-  font-size: 32px;
+.receipt-a4 .amount-value {
+  font-size: 28px;
   font-weight: 800;
-  color: #92400e;
+  color: #8b1a1a;
 }
-
-.amount-words {
-  font-size: 13px;
-  color: #b45309;
+.receipt-a4 .amount-words {
+  font-size: 12px;
+  color: #78350f;
+  margin-top: 8px;
   font-style: italic;
-  text-transform: capitalize;
+  text-align: right;
 }
 
-.expiry-notice {
-  background: #fef3cd;
-  border: 1px solid #ffc107;
-  border-radius: 6px;
-  padding: 12px 16px;
-  text-align: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: #856404;
-  margin-bottom: 16px;
-}
-
-.receipt-terms-section {
+/* Terms Section */
+.receipt-a4 .receipt-terms {
   border-top: 1px solid #ddd;
   padding-top: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
-
-.terms-title {
-  font-size: 14px;
+.receipt-a4 .terms-title {
+  font-size: 13px;
   font-weight: 700;
-  color: #444;
+  color: #222;
   margin: 0 0 10px 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
-
-.terms-list {
+.receipt-a4 .terms-list {
   margin: 0;
   padding-left: 20px;
   font-size: 12px;
-  color: #666;
-  line-height: 1.7;
+  color: #333;
+  line-height: 1.6;
+  font-weight: 450;
 }
-
-.terms-list li {
+.receipt-a4 .terms-list li {
   margin-bottom: 4px;
+  color: #333;
 }
 
-.receipt-footer-section {
+/* Footer */
+.receipt-a4 .receipt-footer {
   text-align: center;
-  border-top: 2px solid #8b4513;
-  padding-top: 16px;
+  border-top: 2px solid #8b1a1a;
+  padding-top: 20px;
+  margin-top: 10px;
+}
+.receipt-a4 .blessing {
+  font-size: 16px;
+  font-weight: 700;
+  color: #8b1a1a;
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+}
+.receipt-a4 .footer-note,
+.receipt-a4 .temple-message {
+  font-size: 12px;
+  color: #555;
+  margin: 6px 0;
+}
+.receipt-a4 .computer-gen {
+  font-size: 10px;
+  color: #888;
   margin-top: 16px;
 }
 
-.receipt-footer-section .blessing {
-  font-size: 18px;
-  font-weight: 700;
-  color: #8b4513;
-  margin-bottom: 10px;
-}
-
-.receipt-footer-section .footer-note,
-.receipt-footer-section .temple-footer {
-  font-size: 13px;
-  color: #666;
-  margin: 6px 0;
-}
-
-.receipt-footer-section .computer-generated {
-  font-size: 11px;
-  color: #999;
-  margin-top: 12px;
-}
-
-/* Print area container - visible on screen, optimized for print */
-#print-area {
-  position: relative;
-}
-
-.no-print { }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   A4 PRINT STYLES - 210mm × 297mm
-   ══════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════
+   A4 PRINT STYLES (210mm × 297mm) - COMPACT SINGLE PAGE LAYOUT
+   ═══════════════════════════════════════════════════════════════════════════ */
 @media print {
   @page {
     size: A4 portrait;
@@ -554,161 +561,422 @@
   }
 
   html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: white !important;
     width: 210mm;
     height: 297mm;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
   }
 
-  /* Hide everything except print area */
-  body > *:not(.print-modal) { display: none !important; }
-  .print-modal { display: block !important; }
-  .print-modal > *:not(#print-area) { display: none !important; }
-  .no-print { display: none !important; }
+  /* Hide everything first */
+  body * {
+    visibility: hidden;
+  }
 
-  /* Print area - full A4 with proper margins */
-  #print-area {
-    position: static !important;
-    left: auto !important;
-    display: block !important;
+  /* Show the receipt and all its contents */
+  .receipt-a4,
+  .receipt-a4 *,
+  #print-area,
+  #print-area *,
+  #auction-receipt,
+  #auction-receipt *,
+  #print-history-area,
+  #print-history-area *,
+  #print-pooja-queue,
+  #print-pooja-queue * {
+    visibility: visible !important;
+  }
+
+  /* Position #auction-receipt for printing */
+  #auction-receipt {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
     width: 210mm !important;
-    min-height: 297mm !important;
-    padding: 15mm 20mm !important;
+    min-height: auto !important;
+    max-width: none !important;
     margin: 0 !important;
-    background: white !important;
+    padding: 20mm !important;
+    background: #fff !important;
+    z-index: 99999 !important;
     box-sizing: border-box !important;
   }
 
-  /* Receipt container for print - wider layout */
-  .receipt-container {
-    max-width: 100% !important;
-    width: 100% !important;
-    padding: 0 !important;
+  /* Position #print-history-area for Pooja History Report printing */
+  #print-history-area {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    min-height: auto !important;
+    max-width: none !important;
     margin: 0 !important;
-    font-size: 14pt !important;
+    padding: 10mm 15mm !important;
+    background: #fff !important;
+    z-index: 99999 !important;
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  .receipt-header {
-    padding-bottom: 12mm !important;
-    margin-bottom: 10mm !important;
-    border-bottom: 2pt double #8b4513 !important;
-  }
-
-  .receipt-header .temple-icon {
-    font-size: 42pt !important;
-  }
-
-  .receipt-header .temple-name {
-    font-size: 22pt !important;
-    margin-bottom: 4mm !important;
-  }
-
-  .receipt-header .temple-address,
-  .receipt-header .temple-phone {
-    font-size: 12pt !important;
-  }
-
-  .receipt-title-section {
-    margin-bottom: 12mm !important;
-  }
-
-  .receipt-title-box {
-    padding: 8mm 24mm !important;
-    background: #8b4513 !important;
-  }
-
-  .receipt-title {
-    font-size: 18pt !important;
-    color: white !important;
-  }
-
-  .receipt-numbers {
-    margin-top: 8mm !important;
-  }
-
-  .receipt-no, .ticket-no {
-    font-size: 13pt !important;
-  }
-
-  .receipt-details-section {
-    padding: 10mm 12mm !important;
-    margin-bottom: 12mm !important;
-    border: 1pt solid #ccc !important;
-    background: #fafafa !important;
-  }
-
-  .details-table .detail-label {
-    font-size: 13pt !important;
-    padding: 6mm 8mm 6mm 0 !important;
-  }
-
-  .details-table .detail-value {
-    font-size: 15pt !important;
-    padding: 6mm 0 !important;
-  }
-
-  .receipt-amount-section {
-    padding: 10mm 12mm !important;
-    margin-bottom: 12mm !important;
-    border: 2pt solid #d97706 !important;
-    background: #fffbeb !important;
-  }
-
-  .amount-label {
-    font-size: 16pt !important;
-  }
-
-  .amount-value {
-    font-size: 28pt !important;
-  }
-
-  .amount-words {
-    font-size: 11pt !important;
-    margin-top: 4mm !important;
-  }
-
-  .expiry-notice {
-    padding: 6mm 10mm !important;
-    font-size: 12pt !important;
-    margin-bottom: 10mm !important;
-  }
-
-  .receipt-terms-section {
-    padding-top: 8mm !important;
+  #print-history-area .print-header {
     margin-bottom: 8mm !important;
   }
 
-  .terms-title {
-    font-size: 12pt !important;
-    margin-bottom: 4mm !important;
-  }
-
-  .terms-list {
-    font-size: 10pt !important;
-  }
-
-  .receipt-footer-section {
-    padding-top: 10mm !important;
-    margin-top: 10mm !important;
-    border-top: 1.5pt solid #8b4513 !important;
-  }
-
-  .receipt-footer-section .blessing {
-    font-size: 16pt !important;
+  #print-history-area .print-stats {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 4mm !important;
     margin-bottom: 6mm !important;
   }
 
-  .receipt-footer-section .footer-note,
-  .receipt-footer-section .temple-footer {
-    font-size: 11pt !important;
+  #print-history-area .print-stats > div {
+    border: 1px solid #e5e7eb !important;
+    padding: 3mm !important;
+    background: #f9fafb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  .receipt-footer-section .computer-generated {
+  #print-history-area .print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8pt !important;
+  }
+
+  #print-history-area .print-table th,
+  #print-history-area .print-table td {
+    padding: 2mm 3mm !important;
+    border: 0.5pt solid #d1d5db !important;
+  }
+
+  #print-history-area .print-table thead tr {
+    background: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-history-area .print-footer {
+    margin-top: 5mm !important;
+    padding-top: 3mm !important;
+    border-top: 0.5pt solid #e5e7eb !important;
+  }
+
+  /* Position #print-pooja-queue for My Poojas / Pooja Queue Report printing */
+  #print-pooja-queue {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 10mm 15mm !important;
+    background: #fff !important;
+    z-index: 99999 !important;
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-pooja-queue .print-header {
+    margin-bottom: 8mm !important;
+  }
+
+  #print-pooja-queue table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8pt !important;
+  }
+
+  #print-pooja-queue table th,
+  #print-pooja-queue table td {
+    padding: 2mm 3mm !important;
+    border: 0.5pt solid #d1d5db !important;
+  }
+
+  #print-pooja-queue table thead tr {
+    background: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #print-pooja-queue table tfoot tr {
+    background: #f9fafb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Position #print-area at top-left of page for A4 printing */
+  #print-area {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 20mm !important;
+    background: #fff !important;
+    z-index: 99998 !important;
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* When #print-area contains .receipt-a4, let receipt handle positioning */
+  #print-area:has(.receipt-a4) {
+    position: static !important;
+    width: auto !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Position receipt at top-left of page - COMPACT A4 layout */
+  .receipt-a4 {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 15mm 18mm !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    font-size: 11pt !important;
+    background: #fff !important;
+    z-index: 99999 !important;
+    overflow: hidden !important;
+    /* Print-safe font stack for crisp text */
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility !important;
+    color: #000 !important;
+  }
+
+  /* Hide print buttons and non-print elements */
+  .no-print,
+  .print\\:hidden,
+  [class*="no-print"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Print modal container - becomes transparent background for printing */
+  .print-modal {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  .print-modal > * {
+    max-width: none !important;
+    width: auto !important;
+  }
+
+  /* ─── HEADER - Compact & Readable ─── */
+  .receipt-a4 .receipt-header {
+    padding-bottom: 4mm !important;
+    margin-bottom: 4mm !important;
+    border-bottom: 1.5pt double #8b1a1a !important;
+    flex-shrink: 0 !important;
+  }
+  .receipt-a4 .temple-logo {
+    font-size: 32pt !important;
+    margin-bottom: 2mm !important;
+    line-height: 1 !important;
+  }
+  .receipt-a4 .temple-logo-img {
+    width: 50px !important;
+    height: 50px !important;
+    object-fit: contain !important;
+    margin: 0 auto 2mm auto !important;
+    display: block !important;
+  }
+  .receipt-a4 .temple-name {
+    font-size: 16pt !important;
+    margin-bottom: 1.5mm !important;
+    line-height: 1.2 !important;
+    color: #8b1a1a !important;
+    font-weight: 700 !important;
+  }
+  .receipt-a4 .temple-address,
+  .receipt-a4 .temple-contact {
+    font-size: 10pt !important;
+    margin: 0.5mm 0 !important;
+    line-height: 1.3 !important;
+    color: #333 !important;
+  }
+
+  /* ─── TITLE BAR - Compact ─── */
+  .receipt-a4 .receipt-title-bar {
+    padding: 3mm 12mm !important;
+    margin-bottom: 4mm !important;
+    background: #8b1a1a !important;
+    border-radius: 1.5mm !important;
+    flex-shrink: 0 !important;
+  }
+  .receipt-a4 .receipt-type {
+    font-size: 13pt !important;
+    letter-spacing: 2pt !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+  }
+
+  /* ─── META (Receipt No / Booking No) - Readable ─── */
+  .receipt-a4 .receipt-meta {
+    gap: 15mm !important;
+    margin-bottom: 4mm !important;
+    flex-shrink: 0 !important;
+  }
+  .receipt-a4 .meta-label {
     font-size: 9pt !important;
-    margin-top: 8mm !important;
+    margin-bottom: 1mm !important;
+    color: #444 !important;
+    font-weight: 600 !important;
+  }
+  .receipt-a4 .meta-value {
+    font-size: 11pt !important;
+    color: #111 !important;
+    font-weight: 700 !important;
+  }
+
+  /* ─── DETAILS TABLE - Readable ─── */
+  .receipt-a4 .receipt-details {
+    padding: 4mm 6mm !important;
+    margin-bottom: 4mm !important;
+    background: #f9f9f9 !important;
+    border: 0.5pt solid #ccc !important;
+    border-radius: 1.5mm !important;
+    flex-shrink: 0 !important;
+  }
+  .receipt-a4 .detail-label {
+    font-size: 11pt !important;
+    padding: 2.5mm 4mm 2.5mm 0 !important;
+    line-height: 1.35 !important;
+    color: #333 !important;
+    font-weight: 500 !important;
+  }
+  .receipt-a4 .detail-value {
+    font-size: 11pt !important;
+    padding: 2.5mm 0 !important;
+    line-height: 1.35 !important;
+    color: #111 !important;
+    font-weight: 600 !important;
+  }
+  .receipt-a4 .details-table tr {
+    border-bottom: 0.4pt dashed #bbb !important;
+  }
+  .receipt-a4 .details-table tr:last-child {
+    border-bottom: none !important;
+  }
+
+  /* ─── AMOUNT SECTION - Prominent & Compact ─── */
+  .receipt-a4 .receipt-amount {
+    padding: 4mm 8mm !important;
+    margin-bottom: 4mm !important;
+    border: 1.5pt solid #d97706 !important;
+    border-radius: 1.5mm !important;
+    background: #fffbeb !important;
+    flex-shrink: 0 !important;
+  }
+  .receipt-a4 .amount-label {
+    font-size: 12pt !important;
+    color: #78350f !important;
+    font-weight: 600 !important;
+  }
+  .receipt-a4 .amount-value {
+    font-size: 20pt !important;
+    color: #8b1a1a !important;
+    font-weight: 800 !important;
+  }
+  .receipt-a4 .amount-words {
+    font-size: 10pt !important;
+    margin-top: 1.5mm !important;
+    color: #78350f !important;
+    font-style: italic !important;
+  }
+
+  /* ─── TERMS & CONDITIONS - Crisp Print Optimized ─── */
+  .receipt-a4 .receipt-terms {
+    padding-top: 3mm !important;
+    margin-bottom: 3mm !important;
+    border-top: 0.5pt solid #999 !important;
+    flex-shrink: 0 !important;
+    /* Remove any effects that cause blur */
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility !important;
+  }
+  .receipt-a4 .terms-title {
+    font-size: 11pt !important;
+    margin-bottom: 2.5mm !important;
+    font-weight: 700 !important;
+    color: #000 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5pt !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  .receipt-a4 .terms-list {
+    font-size: 10pt !important;
+    line-height: 1.45 !important;
+    margin: 0 !important;
+    padding-left: 16pt !important;
+    color: #111 !important;
+    font-weight: 450 !important;
+    /* Ensure crisp text rendering */
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility !important;
+  }
+  .receipt-a4 .terms-list li {
+    margin-bottom: 1.5mm !important;
+    color: #111 !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+
+  /* ─── FOOTER - Readable ─── */
+  .receipt-a4 .receipt-footer {
+    padding-top: 3mm !important;
+    margin-top: auto !important;
+    border-top: 1pt solid #8b1a1a !important;
+    flex-shrink: 0 !important;
+  }
+  .receipt-a4 .blessing {
+    font-size: 12pt !important;
+    margin-bottom: 2mm !important;
+    color: #8b1a1a !important;
+    font-weight: 700 !important;
+  }
+  .receipt-a4 .footer-note,
+  .receipt-a4 .temple-message {
+    font-size: 9pt !important;
+    margin: 1.5mm 0 !important;
+    color: #444 !important;
+  }
+  .receipt-a4 .computer-gen {
+    font-size: 8pt !important;
+    margin-top: 2mm !important;
+    color: #555 !important;
   }
 }
+
 
 /* ── Telugu heading faces ──────────────────────────────────────────────────
    `font-serif` is Playfair Display → Noto Serif Telugu, and `font-display` is

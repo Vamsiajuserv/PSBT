@@ -2,22 +2,37 @@ import React from 'react'
 import { useTemple } from '../../lib/SiteContext.jsx'
 import { useLang } from '../../i18n/LanguageContext.jsx'
 
-// Number to words converter for Indian currency
-function numberToWords(num) {
-  if (num === 0) return 'Zero'
-  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+// Number to words converter for Indian currency - supports English and Telugu
+function numberToWords(num, isTelugu = false) {
+  if (num === 0) return isTelugu ? 'సున్నా' : 'Zero'
+
+  // English number words
+  const onesEn = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
     'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen']
-  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+  const tensEn = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+
+  // Telugu number words
+  const onesTe = ['', 'ఒకటి', 'రెండు', 'మూడు', 'నాలుగు', 'ఐదు', 'ఆరు', 'ఏడు', 'ఎనిమిది', 'తొమ్మిది',
+    'పది', 'పదకొండు', 'పన్నెండు', 'పదమూడు', 'పద్నాలుగు', 'పదిహేను', 'పదహారు', 'పదిహేడు', 'పద్దెనిమిది', 'పంతొమ్మిది']
+  const tensTe = ['', '', 'ఇరవై', 'ముప్పై', 'నలభై', 'యాభై', 'అరవై', 'డెబ్బై', 'ఎనభై', 'తొంభై']
+
+  const ones = isTelugu ? onesTe : onesEn
+  const tens = isTelugu ? tensTe : tensEn
+  const hundred = isTelugu ? ' వంద' : ' Hundred'
+  const thousand = isTelugu ? ' వేల' : ' Thousand'
+  const lakh = isTelugu ? ' లక్షల' : ' Lakh'
+  const crore = isTelugu ? ' కోట్ల' : ' Crore'
+  const only = isTelugu ? ' మాత్రమే' : ' Only'
 
   const convert = (n) => {
     if (n < 20) return ones[n]
     if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '')
-    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + convert(n % 100) : '')
-    if (n < 100000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + convert(n % 1000) : '')
-    if (n < 10000000) return convert(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + convert(n % 100000) : '')
-    return convert(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + convert(n % 10000000) : '')
+    if (n < 1000) return ones[Math.floor(n / 100)] + hundred + (n % 100 ? ' ' + convert(n % 100) : '')
+    if (n < 100000) return convert(Math.floor(n / 1000)) + thousand + (n % 1000 ? ' ' + convert(n % 1000) : '')
+    if (n < 10000000) return convert(Math.floor(n / 100000)) + lakh + (n % 100000 ? ' ' + convert(n % 100000) : '')
+    return convert(Math.floor(n / 10000000)) + crore + (n % 10000000 ? ' ' + convert(n % 10000000) : '')
   }
-  return convert(Math.floor(num)) + ' Only'
+  return convert(Math.floor(num)) + only
 }
 
 // Professional A4-optimized temple receipt
@@ -96,7 +111,7 @@ export function Receipt({
           <span className="amount-value">₹ {amountNum.toLocaleString('en-IN')}</span>
         </div>
         <div className="amount-words">
-          {L('Rupees')} {numberToWords(amountNum)}
+          {L('Rupees')} {numberToWords(amountNum, te)}
         </div>
       </section>
 

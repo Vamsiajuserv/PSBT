@@ -6,6 +6,7 @@ import { AuditAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { T, tr, auditDetail, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const ACTION_TONE = { LOGIN: 'blue', CREATE: 'green', UPDATE: 'amber', DELETE: 'red', DENIED: 'red', LOGOUT: 'gray' }
 const ACTIONS = ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'DENIED']
@@ -24,12 +25,13 @@ export default function AuditTrail() {
   const [total, setTotal] = useState(0)
   const [entities, setEntities] = useState([])
   const [stats, setStats] = useState(null)
-  const [q, setQ] = useState('')
-  const [action, setAction] = useState('')
-  const [entity, setEntity] = useState('')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
-  const [page, setPage] = useState(1)
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, action, setAction, entity, setEntity,
+    start, setStart, end, setEnd, page, setPage, setFilters,
+  } = useFilterParams({
+    q: '', action: '', entity: '', start: '', end: '', page: 1,
+  })
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const size = 20
@@ -85,7 +87,7 @@ export default function AuditTrail() {
           <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label><DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" /></div>
           <div className="flex gap-2 items-end">
             <div className="flex-1"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label><DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" /></div>
-            <button type="button" onClick={() => { setQ(''); setAction(''); setEntity(''); setStart(''); setEnd(''); setPage(1) }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+            <button type="button" onClick={() => setFilters({ q: '', action: '', entity: '', start: '', end: '', page: 1 })} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
           </div>
         </div>
         <SortFilterPanel

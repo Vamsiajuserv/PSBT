@@ -47,6 +47,57 @@ def _booking_notify(db, b, event, user):
     thread = threading.Thread(target=_booking_notify_sync, args=(b.id, event, username), daemon=True)
     thread.start()
 
+
+def _is_lifetime_plan(plan_name: str | None) -> bool:
+    """Check if plan name indicates a Lifetime/Life Long plan."""
+    if not plan_name:
+        return False
+    return bool(__import__('re').search(r'life\s*long|life\s*time|lifetime', plan_name, __import__('re').IGNORECASE))
+
+
+def _check_lifetime_duplicate(db: Session, devotee_id: int | None, mobile: str | None,
+                               pooja_id: int, plan: PoojaPlan) -> None:
+    """Raise HTTPException if devotee already has an active Lifetime booking for this pooja.
+
+    BLOCKING: For Lifetime plans, duplicate bookings are not allowed - the devotee already
+    has a permanent booking for this pooja. Unlike Monthly plans where users can acknowledge
+    and proceed, Lifetime duplicates are a hard block.
+    """
+    if not plan or not _is_lifetime_plan(plan.plan_name):
+        return  # Only check for Lifetime plans
+
+    if not devotee_id and not mobile:
+        return  # Cannot check without identification
+
+    # Check for existing active Lifetime bookings for the same pooja
+    filters = [
+        Booking.pooja_id == pooja_id,
+        Booking.status.notin_(["Cancelled", "Completed"]),
+        or_(Booking.valid_until.is_(None), Booking.valid_until >= date.today()),
+    ]
+    # Also check by plan_name pattern (in case plan_id differs between Lifetime plans)
+    filters.append(or_(
+        Booking.plan_id == plan.id,
+        Booking.plan_name.ilike('%life%long%'),
+        Booking.plan_name.ilike('%lifetime%')
+    ))
+
+    if devotee_id:
+        filters.append(Booking.devotee_id == devotee_id)
+    elif mobile:
+        filters.append(Booking.mobile == mobile.strip())
+
+    existing = db.query(Booking).filter(*filters).first()
+
+    if existing:
+        raise HTTPException(
+            409,
+            f"Duplicate Lifetime booking blocked: This devotee already has an active Lifetime plan "
+            f"for this pooja (Ticket: {existing.ticket_no or existing.booking_code}). "
+            f"Lifetime plans are permanent and cannot be duplicated."
+        )
+
+
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 
 read = RequireModule("Bookings")
@@ -173,6 +224,10 @@ def create_booking(body: BookingCreate, request: Request,
 
     start = data.get("scheduled_date") or date.today()
     plan = db.get(PoojaPlan, data["plan_id"]) if data.get("plan_id") else None
+
+    # BLOCK: Lifetime plan duplicates are not allowed
+    if data.get("pooja_id") and plan:
+        _check_lifetime_duplicate(db, data.get("devotee_id"), data.get("mobile"), data["pooja_id"], plan)
 
     # Festival resolution — a Festival pooja must fall inside its configured window;
     # the matched festival is linked on the booking (exact festival-wise reporting),
@@ -786,6 +841,10 @@ def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Dep
         # Either pooja_id or seva_name must be provided
         pass  # seva_name may come from other source
 
+    # BLOCK: Lifetime plan duplicates are not allowed
+    if data.get("pooja_id") and plan:
+        _check_lifetime_duplicate(db, data.get("devotee_id"), data.get("mobile"), data["pooja_id"], plan)
+
     # Fee validation: use plan fee (not legacy Seva table)
     # The plan.fee is already set above from PoojaPlan lookup
 
@@ -931,6 +990,10 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
                 pj = db.get(Pooja, data["pooja_id"])
                 if pj:
                     data["seva_name"] = pj.name
+
+            # BLOCK: Lifetime plan duplicates are not allowed
+            if data.get("pooja_id") and plan:
+                _check_lifetime_duplicate(db, data.get("devotee_id"), data.get("mobile"), data["pooja_id"], plan)
 
             if not data.get("amount") or float(data.get("amount", 0)) <= 0:
                 raise ValueError("Invalid amount")

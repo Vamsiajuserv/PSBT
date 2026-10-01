@@ -73,6 +73,7 @@ class Devotee(Base):
     city = Column(String(80), nullable=True)
     gothram = Column(String(80), nullable=True)
     nakshatram = Column(String(80), nullable=True)
+    rasi = Column(String(80), nullable=True)  # Zodiac sign for Sankalpam
     pan_number = Column(String(10), nullable=True)  # PAN for 80G receipts (optional)
     dob = Column(Date, nullable=True)
     preferred_language = Column(String(20), default="English", nullable=False)  # English | Telugu

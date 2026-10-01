@@ -9,26 +9,27 @@ const TYPE_TONE = { Cash: 'green', Coins: 'amber', 'Foreign Currency': 'blue', G
 
 export default function HundiItemMaster() {
   return <MasterScreen config={{
-    title: 'Hundi Item Master', subtitle: 'Configure item categories counted during hundi collection.',
-    api: HundiItemsAPI, entity: 'item', addLabel: 'Add New Item', searchPlaceholder: 'Search by name or code…',
+    title: tr('Hundi Item Master'), subtitle: tr('Configure item categories counted during hundi collection.'),
+    api: HundiItemsAPI, entity: 'item', addLabel: tr('Add New Item'), searchPlaceholder: tr('Search by name or code…'),
     statCards: [
-      { key: 'total', icon: Landmark, color: '#8a1c1c', bg: 'bg-maroon-50', title: 'Total Items', sub: 'All hundi items' },
-      { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: 'Active', sub: 'In use' },
-      { key: 'inactive', icon: XCircle, color: '#dc2626', bg: 'bg-red-50', title: 'Inactive', sub: 'Not in use' },
+      { key: 'total', icon: Landmark, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Items'), sub: tr('All hundi items') },
+      { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: tr('Active'), sub: tr('In use') },
+      { key: 'inactive', icon: XCircle, color: '#dc2626', bg: 'bg-red-50', title: tr('Inactive'), sub: tr('Not in use') },
     ],
     sortColumns: [
-      { key: 'name', label: 'Item Name', type: 'text' },
-      { key: 'item_type', label: 'Type', type: 'text' },
-      { key: 'active', label: 'Status', type: 'text' },
+      { key: 'name', label: tr('Item Name'), type: 'text' },
+      { key: 'item_type', label: tr('Type'), type: 'text' },
+      { key: 'active', label: tr('Status'), type: 'text' },
     ],
     columns: [
       { key: 'code', label: tr('Item ID'), mono: true },
-      { key: 'name', label: tr('Item Name'), strong: true },
-      { key: 'item_type', label: tr('Type'), render: (r) => (r.item_type ? <Pill tone={TYPE_TONE[r.item_type] || 'gray'}>{r.item_type}</Pill> : '—') },
-      { key: 'unit', label: tr('Unit / Measurement') },
+      { key: 'name', label: tr('Item Name'), strong: true, person: true },
+      { key: 'item_type', label: tr('Type'), render: (r) => (r.item_type ? <Pill tone={TYPE_TONE[r.item_type] || 'gray'}>{tr(r.item_type)}</Pill> : '—') },
+      { key: 'unit', label: tr('Unit / Measurement'), render: (r) => tr(r.unit || '—') },
     ],
     fields: [
-      { k: 'name', label: tr('Item Name'), type: 'name', required: true },
+      { k: 'name', label: tr('Item Name (English)'), type: 'name', required: true },
+      { k: 'name_te', label: tr('Item Name (Telugu)'), type: 'text', placeholder: 'వస్తువు పేరు' },
       { k: 'item_type', label: tr('Item Type'), type: 'select', options: ['Cash', 'Coins', 'Foreign Currency', 'Gold', 'Silver', 'Jewellery', 'Valuables'] },
       { k: 'unit', label: tr('Unit / Measurement'), type: 'select', options: ['Amount', 'Count', 'Grams'] },
       { k: 'description', label: tr('Description'), type: 'textarea' },

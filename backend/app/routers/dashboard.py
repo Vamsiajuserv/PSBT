@@ -9,6 +9,7 @@ from ..models import (User, Booking, Donation, HundiCollection, Auction, Annadan
                       WasteSale, Devotee, AuditLog, Festival)
 from ..schemas import AuditOut
 from ..security import get_current_user, RequireModule
+from ..helpers import fmt_ist_time
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -125,7 +126,7 @@ def dashboard(start: str = "", end: str = "", day: str = "",
     recent = db.query(Booking).order_by(Booking.id.desc()).limit(5).all()
     recent_bookings = [{
         "pooja": b.seva_name, "plan": b.plan_name, "devotee": b.devotee_name,
-        "time": b.created_at.strftime("%I:%M %p") if b.created_at else "",
+        "time": fmt_ist_time(b.created_at),
         "status": "Booked" if b.status in ("Confirmed", "Pending") else b.status,
     } for b in recent]
 

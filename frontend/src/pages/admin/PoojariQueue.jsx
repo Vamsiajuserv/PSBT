@@ -11,6 +11,7 @@ import { PoojarisAPI, BookingsAPI, ApiError } from '../../api/client.js'
 import { DateField } from '../../components/common/Field.jsx'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 // Sortable columns for the queue
 const SORT_COLUMNS = [
@@ -22,13 +23,13 @@ const SORT_COLUMNS = [
   { key: 'performed_on', label: 'Performed On', type: 'date' },
 ]
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
-const yesterdayISO = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10) }
-const weekStartISO = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().slice(0, 10) }
-const monthStartISO = () => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10) }
+const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+const yesterdayISO = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) }
+const weekStartISO = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) }
+const monthStartISO = () => { const d = new Date(); d.setDate(1); return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) }
 
 const fmtDate = (iso) =>
-  iso ? stamp(new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : ''
+  iso ? stamp(new Date(iso).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })) : ''
 
 // Date presets for quick selection
 const DATE_PRESETS = [
@@ -55,13 +56,14 @@ export default function PoojariQueue() {
   const name = personName(user, lang) || tr('Administrator')
   const role = user?.role === 'Admin' ? 'Administrator' : (user?.role || '')
 
-  // Date state - supports both single day and range
+  // Date state - persisted in URL for state preservation across navigation
+  const {
+    startDate, setStartDate, endDate, setEndDate, mine, setMine,
+  } = useFilterParams({
+    startDate: todayISO(), endDate: todayISO(), mine: '',
+  })
   const [datePreset, setDatePreset] = useState('today')
-  const [startDate, setStartDate] = useState(todayISO())
-  const [endDate, setEndDate] = useState(todayISO())
   const [isRangeMode, setIsRangeMode] = useState(false)
-
-  const [mine, setMine] = useState(false)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -110,7 +112,7 @@ export default function PoojariQueue() {
       : { day: startDate, mine }
     PoojarisAPI.queue(params)
       .then((r) => setData(r))
-      .catch((e) => setError(e instanceof ApiError ? e.detail : 'Could not load the pooja queue.'))
+      .catch((e) => setError(e instanceof ApiError ? e.detail : tr('Could not load the pooja queue.')))
       .finally(() => setLoading(false))
   }, [startDate, endDate, isRangeMode, mine])
   useEffect(() => { load() }, [load])
@@ -150,7 +152,7 @@ export default function PoojariQueue() {
       await BookingsAPI.complete(id)
       load()
     } catch (e) {
-      setError(e instanceof ApiError ? e.detail : 'Could not mark the pooja performed.')
+      setError(e instanceof ApiError ? e.detail : tr('Could not mark the pooja performed.'))
     } finally {
       setBusyId(null)
     }
@@ -167,7 +169,7 @@ export default function PoojariQueue() {
       load()
       if (r.skipped?.length) setError(`${r.completed} ${tr('performed')} · ${r.skipped.length} ${tr('skipped (quota exhausted).')}`)
     } catch (e) {
-      setError(e instanceof ApiError ? e.detail : 'Bulk action failed.')
+      setError(e instanceof ApiError ? e.detail : tr('Bulk action failed.'))
     }
   }
 
@@ -211,7 +213,7 @@ export default function PoojariQueue() {
         </div>
         {linked && (
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-            {[['all', 'All poojas', false], ['mine', 'Assigned to me', true]].map(([k, lbl, val]) => (
+            {[['all', 'All poojas', ''], ['mine', 'Assigned to me', 'true']].map(([k, lbl, val]) => (
               <button key={k} onClick={() => setMine(val)}
                 className={`px-4 py-2 text-[0.8125rem] font-semibold transition ${mine === val ? 'bg-maroon-700 text-cream' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
                 {tr(lbl)}
@@ -402,6 +404,7 @@ export default function PoojariQueue() {
             <div className="flex-1 overflow-y-auto p-6" id="print-pooja-queue">
               {/* Header */}
               <div className="text-center mb-6 print-header">
+                <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba" className="w-16 h-16 mx-auto mb-2 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                 <h1 className="font-serif text-xl font-bold text-maroon-800">Sri Shirdi Sai Baba Temple</h1>
                 <p className="text-sm text-gray-600">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</p>
                 <h2 className="text-lg font-semibold text-gray-800 mt-3">
@@ -448,8 +451,8 @@ export default function PoojariQueue() {
                     <tr key={r.id}>
                       <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{fmtDate(r.performed_on || startDate)}</td>
                       <td className="px-3 py-2 text-gray-600">{clock12(r.time_slot) || '—'}</td>
-                      <td className="px-3 py-2 text-gray-800">{r.pooja}{r.plan ? ` · ${r.plan}` : ''}</td>
-                      <td className="px-3 py-2 text-gray-700">{r.devotee_name}</td>
+                      <td className="px-3 py-2 text-gray-800">{tr(r.pooja)}{r.plan ? ` · ${tr(r.plan)}` : ''}</td>
+                      <td className="px-3 py-2 text-gray-700">{personName({ name: r.devotee_name }, lang)}</td>
                       <td className="px-3 py-2 text-gray-600">{r.mobile || '—'}</td>
                       <td className="px-3 py-2 font-mono text-xs text-gray-600">{r.ticket_no || r.booking_code}</td>
                       <td className="px-3 py-2 text-gray-800 font-semibold text-right">₹{(r.amount || 0).toLocaleString('en-IN')}</td>
@@ -472,7 +475,7 @@ export default function PoojariQueue() {
 
               {/* Footer */}
               <div className="mt-6 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
-                <p><T>Generated on</T>: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                <p><T>Generated on</T>: {stamp(new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }))}</p>
                 <p className="mt-1">Sri Shirdi Sai Baba Temple · Pooja Report</p>
               </div>
             </div>

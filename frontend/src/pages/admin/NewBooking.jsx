@@ -11,7 +11,7 @@ import { TicketRef } from '../../components/admin/BookingTicket.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
 import { Select, DateField, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, useLang, personName } from '../../i18n/LanguageContext.jsx'
-import { sanitizePhone, validatePhone } from '../../lib/validation.js'
+import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
 
 const STEPS = [
   { t: 'Booking Details', s: 'Enter booking information' },
@@ -23,6 +23,32 @@ const SLOTS = [
   '06:00 AM - 07:00 AM', '07:30 AM - 08:30 AM', '09:00 AM - 10:00 AM',
   '10:30 AM - 11:30 AM', '12:00 PM - 01:00 PM', '04:00 PM - 05:00 PM',
 ]
+
+// Helper to get IST date in YYYY-MM-DD format
+const todayIST = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
+// Filter out past time slots for today's bookings
+const getAvailableSlots = (date) => {
+  if (date !== todayIST()) return SLOTS
+
+  // Get current time in IST
+  const now = new Date()
+  const nowIST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+
+  return SLOTS.filter(slot => {
+    const timeMatch = slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+    if (!timeMatch) return true
+    let hours = parseInt(timeMatch[1], 10)
+    const minutes = parseInt(timeMatch[2], 10)
+    const period = timeMatch[3].toUpperCase()
+    if (period === 'PM' && hours !== 12) hours += 12
+    if (period === 'AM' && hours === 12) hours = 0
+
+    const slotDate = new Date(nowIST)
+    slotDate.setHours(hours, minutes, 0, 0)
+    return slotDate > nowIST
+  })
+}
 
 // Complete list of Hindu Gotras (52 Gotras from across India)
 const GOTHRAMS = [
@@ -47,7 +73,7 @@ const NAKSHATRAMS = [
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
-const stampNow = () => new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+const stampNow = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
 const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
 
 function durDays(pl) {
@@ -61,18 +87,18 @@ function durDays(pl) {
 }
 const validityShort = (pl) => {
   const n = (pl?.plan_name || '').toLowerCase()
-  if (n.includes('daily')) return '1 Day'
-  if (n.includes('monthly')) return '1 Month'
-  if (n.includes('life')) return 'Lifetime'
-  if (n.includes('one')) return 'One-Time'
-  if (n.includes('year')) return '1 Year'
+  if (n.includes('daily')) return tr('1 Day')
+  if (n.includes('monthly')) return tr('1 Month')
+  if (n.includes('life')) return tr('Lifetime')
+  if (n.includes('one')) return tr('One-Time')
+  if (n.includes('year')) return tr('1 Year')
   return pl?.frequency || tr('Selected Date')
 }
 function validityRange(pl, from) {
   const d = durDays(pl)
-  if (d === null) return 'Lifetime'
+  if (d === null) return tr('Lifetime')
   const to = addDays(from, d - 1)
-  return `${d} Day${d > 1 ? 's' : ''} (${fmtDate(from)} to ${fmtDate(to)})`
+  return `${d} ${tr(d > 1 ? 'Days' : 'Day')} (${fmtDate(from)} ${tr('to')} ${fmtDate(to)})`
 }
 
 // Ticket reference with the real scannable QR (shared component — see
@@ -134,6 +160,7 @@ export default function NewBooking() {
   const [error, setError] = useState('')
   const [ticket, setTicket] = useState(null)
   const [duplicateWarning, setDuplicateWarning] = useState(null)
+  const [duplicateConfirmed, setDuplicateConfirmed] = useState(false)
 
   // Inline "quick add devotee" — stays inside the wizard, no navigation / state loss.
   const [quickAdd, setQuickAdd] = useState(null)   // null | {name, mobile, email}
@@ -141,7 +168,7 @@ export default function NewBooking() {
   const [qaErr, setQaErr] = useState('')
   const [qaMobileError, setQaMobileError] = useState('')  // Quick-add mobile validation error
 
-  useEffect(() => { PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => toast('Failed to load poojas', 'error')) }, [])
+  useEffect(() => { PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => toast(tr('Failed to load poojas'), 'error')) }, [])
   // A fresh plan selection clears any previously entered committee amount.
   useEffect(() => { setCommitteeAmt('') }, [plan])
   // Prefill sankalpam details from the selected devotee's record.
@@ -150,12 +177,12 @@ export default function NewBooking() {
     setNakshatram(devotee?.nakshatram || '')
     setBeneficiary('')
   }, [devotee])
-  useEffect(() => { PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast('Failed to load poojaris', 'error')) }, [])
+  useEffect(() => { PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast(tr('Failed to load poojaris'), 'error')) }, [])
 
   // Festival windows — a Festival-category pooja defaults its date into the
   // configured festival window (the backend also enforces this).
   const [festivals, setFestivals] = useState([])
-  useEffect(() => { FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => toast('Failed to load festivals', 'error')) }, [])
+  useEffect(() => { FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => toast(tr('Failed to load festivals'), 'error')) }, [])
 
   // Debounced auto-search as the user types (mirrors the Devotees master screen).
   useEffect(() => {
@@ -171,13 +198,18 @@ export default function NewBooking() {
 
   // Check for duplicate Monthly/long-term bookings when plan is selected
   useEffect(() => {
-    if (!devotee?.id || !pooja?.id || !plan?.id) { setDuplicateWarning(null); return }
+    if (!devotee?.id || !pooja?.id || !plan?.id) { setDuplicateWarning(null); setDuplicateConfirmed(false); return }
     const isMonthlyOrLongTerm = plan.plan_name === 'Monthly' || plan.plan_name === 'Life Long' || plan.validity_type === 'Life Long'
-    if (!isMonthlyOrLongTerm) { setDuplicateWarning(null); return }
+    if (!isMonthlyOrLongTerm) { setDuplicateWarning(null); setDuplicateConfirmed(false); return }
     BookingsAPI.checkDuplicate({ devotee_id: devotee.id, pooja_id: pooja.id, plan_id: plan.id })
-      .then((res) => { setDuplicateWarning(res.has_duplicate ? res : null) })
-      .catch(() => { setDuplicateWarning(null) })
+      .then((res) => { setDuplicateWarning(res.has_duplicate ? res : null); setDuplicateConfirmed(false) })
+      .catch(() => { setDuplicateWarning(null); setDuplicateConfirmed(false) })
   }, [devotee?.id, pooja?.id, plan?.id, plan?.plan_name, plan?.validity_type])
+
+  // Helper to check if plan is Lifetime (blocked for duplicates)
+  const isLifetimePlan = (planName) => /life\s*long|life\s*time|lifetime/i.test(planName || '')
+  // Check if the duplicate is for a Lifetime plan (hard block)
+  const isLifetimeDuplicate = duplicateWarning && isLifetimePlan(duplicateWarning.plan_name)
 
   // Active festival window linked to the selected pooja (if it is a Festival pooja).
   const festWindow = (() => {
@@ -239,12 +271,12 @@ export default function NewBooking() {
       })
       setDevotee(d)            // drop straight into the booking — no page change
       setQuickAdd(null); setDevResults(null); setDevQ('')
-    } catch (ex) { setQaErr(ex.detail || 'Could not create devotee.') } finally { setQaBusy(false) }
+    } catch (ex) { setQaErr(ex.detail || tr('Could not create devotee.')) } finally { setQaBusy(false) }
   }
   async function pay() {
     setError('')
     if (plan?.committee_decided && !amountReady) {
-      setError('Enter the committee-decided amount for this pooja before confirming.'); return
+      setError(tr('Enter the committee-decided amount for this pooja before confirming.')); return
     }
     // UTR is required for UPI/QR Code payments
     if (method === 'UPI/QR Code') {
@@ -263,9 +295,11 @@ export default function NewBooking() {
         setError(tr('UTR must contain only letters and numbers.')); return
       }
     }
-    // DEF-010: Validate that the selected time slot has not expired for today's bookings
-    const today = new Date().toISOString().slice(0, 10)
+    // DEF-010: Validate that the selected time slot has not expired for today's bookings (using IST)
+    const today = todayIST()
     if (schedDate === today && slot) {
+      const now = new Date()
+      const nowIST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
       const timeMatch = slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
       if (timeMatch) {
         let hours = parseInt(timeMatch[1], 10)
@@ -273,9 +307,9 @@ export default function NewBooking() {
         const period = timeMatch[3].toUpperCase()
         if (period === 'PM' && hours !== 12) hours += 12
         if (period === 'AM' && hours === 12) hours = 0
-        const slotTime = new Date()
+        const slotTime = new Date(nowIST)
         slotTime.setHours(hours, minutes, 0, 0)
-        if (slotTime < new Date()) {
+        if (slotTime <= nowIST) {
           setError(tr('The selected time slot has already passed. Please choose a future time slot or a different date.'))
           return
         }
@@ -299,9 +333,9 @@ export default function NewBooking() {
       }
       const assignedPoojari = poojaris.find((p) => String(p.id) === String(poojariId)) || null
       const confirmed = await BookingsAPI.list({ q: b.booking_code, size: 1 }).then((r) => r.items?.[0]).catch(() => null)
-      setTicket({ ...(confirmed || b), _paidAt: stampNow(), _method: method, _utr: utr, _poojari: assignedPoojari?.name || null })
+      setTicket({ ...(confirmed || b), _paidAt: stampNow(), _method: method, _utr: utr, _poojari: personName(assignedPoojari, lang) || null })
       setStep(2)
-    } catch (err) { setError(err.detail || 'Payment failed. Please try again.') } finally { setBusy(false) }
+    } catch (err) { setError(err.detail || tr('Payment failed. Please try again.')) } finally { setBusy(false) }
   }
 
   const canNext = devotee && plan && schedDate
@@ -316,7 +350,7 @@ export default function NewBooking() {
     { icon: Tag, k: 'Plan Type', v: plan?.plan_name },
     { icon: Calendar, k: 'Booking Date', v: fmtDate(schedDate) },
     { icon: Clock, k: 'Time Slot', v: slot },
-    ...(poojariId ? [{ icon: User, k: 'Poojari', v: poojaris.find((p) => String(p.id) === String(poojariId))?.name || '—' }] : []),
+    ...(poojariId ? [{ icon: User, k: 'Poojari', v: personName(poojaris.find((p) => String(p.id) === String(poojariId)), lang) || '—' }] : []),
     { icon: ShieldCheck, k: 'Validity', v: validText },
     { icon: IndianRupee, k: 'Rate Type', v: rateType },
     ...(t ? [{ icon: IndianRupee, k: 'Amount Paid (₹)', v: money2(fee) }] : []),
@@ -357,7 +391,7 @@ export default function NewBooking() {
                       <input className="input flex-1 !rounded-l-none focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" placeholder={tr("Enter Mobile Number")} aria-label={tr("Mobile number")} value={devQ} maxLength={getCountryDigits(searchCountryCode)} onChange={(e) => setDevQ(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => e.key === 'Enter' && search()} />
                     </div>
                   ) : (
-                    <input className="input flex-1 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" placeholder={tr("Enter Devotee Name")} aria-label={tr("Devotee name")} value={devQ} onChange={(e) => setDevQ(e.target.value.replace(/[0-9]/g, ''))} onKeyDown={(e) => e.key === 'Enter' && search()} />
+                    <input className="input flex-1 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" placeholder={tr("Enter Devotee Name")} aria-label={tr("Devotee name")} value={devQ} onChange={(e) => setDevQ(sanitizeName(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && search()} />
                   )}
                   <button type="button" onClick={search} className="btn-maroon !px-4 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1" aria-label={tr("Search devotee")}><Search size={15} aria-hidden="true" />{' '}<T>Search</T></button>
                 </div>
@@ -379,7 +413,7 @@ export default function NewBooking() {
                       <div><label className="label !text-[0.6875rem]"><T>Nakshatram</T></label>
                         <Combobox value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} options={NAKSHATRAMS} placeholder={tr("Select or type Nakshatram")} className="!py-1.5 text-sm" /></div>
                       <div><label className="label !text-[0.6875rem]"><T>In the name of</T></label>
-                        <input className="input !py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Beneficiary name")} value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder={tr("Optional — e.g. the child")} /></div>
+                        <input className="input !py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Beneficiary name")} value={beneficiary} onChange={(e) => setBeneficiary(sanitizeName(e.target.value))} placeholder={tr("Optional — e.g. the child")} /></div>
                     </div>
                   </>
                 ) : devResults === null ? (
@@ -412,13 +446,19 @@ export default function NewBooking() {
                   <button type="button" onClick={() => setQuickAdd(null)} className="text-gray-400 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-lg p-1" aria-label={tr("Close")}><X size={16} aria-hidden="true" /></button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div><label className="label"><T>Full Name *</T></label><input autoFocus className="input focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Full name")} placeholder={tr("Full Name")} value={personName(quickAdd, lang)} onChange={(e) => setQuickAdd((q) => ({ ...q, name: e.target.value.replace(/[0-9]/g, '') }))} /></div>
+                  <div><label className="label"><T>Full Name *</T></label><input autoFocus className="input focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" aria-label={tr("Full name")} placeholder={tr("Full Name")} value={personName(quickAdd, lang)} onChange={(e) => setQuickAdd((q) => ({ ...q, name: sanitizeName(e.target.value) }))} /></div>
                   <div><label className="label"><T>Mobile Number *</T></label><div className="flex"><CountryCodeSelect value={quickAdd.country_code || '+91'} onChange={(e) => { setQuickAdd((q) => ({ ...q, country_code: e.target.value })); setQaMobileError('') }} /><input className={`input flex-1 !rounded-l-none focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent ${qaMobileError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`} aria-label={tr("Mobile number")} placeholder={tr("Enter Mobile Number")} value={quickAdd.mobile} maxLength={getCountryDigits(quickAdd.country_code || '+91')} onChange={(e) => {
                         const cleaned = sanitizePhone(e.target.value)
                         setQuickAdd((q) => ({ ...q, mobile: cleaned }))
-                        if ((quickAdd.country_code || '+91') === '+91' && cleaned.length === 10) {
-                          const validation = validatePhone(cleaned)
-                          setQaMobileError(validation.valid ? '' : 'Invalid Mobile Number. Please Enter Valid Mobile Number')
+                        if ((quickAdd.country_code || '+91') === '+91') {
+                          if (cleaned.length === 10) {
+                            const validation = validatePhone(cleaned)
+                            setQaMobileError(validation.valid ? '' : 'Invalid Mobile Number. Please Enter Valid Mobile Number')
+                          } else if (cleaned.length >= 1 && cleaned.length < 10) {
+                            setQaMobileError('Please Enter 10 digits Mobile Number')
+                          } else {
+                            setQaMobileError('')
+                          }
                         } else {
                           setQaMobileError('')
                         }
@@ -474,12 +514,39 @@ export default function NewBooking() {
 
               {/* Duplicate booking warning for Monthly/Long-term plans */}
               {duplicateWarning && (
-                <div className="mt-4 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3.5 flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 grid place-items-center shrink-0">⚠️</div>
-                  <div>
-                    <div className="font-bold text-amber-800"><T>Duplicate Booking Alert</T></div>
-                    <div className="text-[0.8125rem] text-amber-700 mt-0.5">{tr(duplicateWarning.message)}</div>
+                <div className={`mt-4 rounded-xl px-4 py-3.5 flex items-start gap-3 ${isLifetimeDuplicate ? 'bg-red-50 border-2 border-red-400' : duplicateConfirmed ? 'bg-emerald-50 border border-emerald-400' : 'bg-amber-50 border border-amber-300'}`}>
+                  <div className={`w-10 h-10 rounded-full grid place-items-center shrink-0 ${isLifetimeDuplicate ? 'bg-red-100 text-red-700' : duplicateConfirmed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {isLifetimeDuplicate ? '🚫' : duplicateConfirmed ? '✓' : '⚠️'}
+                  </div>
+                  <div className="flex-1">
+                    <div className={`font-bold ${isLifetimeDuplicate ? 'text-red-800' : duplicateConfirmed ? 'text-emerald-800' : 'text-amber-800'}`}>
+                      {isLifetimeDuplicate ? <T>Lifetime Plan Already Exists - Booking Blocked</T> : <T>Duplicate Booking Alert</T>}
+                    </div>
+                    <div className={`text-[0.8125rem] mt-0.5 ${isLifetimeDuplicate ? 'text-red-700' : 'text-amber-700'}`}>{tr(duplicateWarning.message)}</div>
                     {duplicateWarning.valid_until && <div className="text-[0.75rem] text-gray-500 mt-1"><T>Valid until</T>: {duplicateWarning.valid_until}</div>}
+                    {duplicateWarning.ticket_no && <div className="text-[0.75rem] text-gray-500 mt-0.5"><T>Ticket</T>: {duplicateWarning.ticket_no}</div>}
+
+                    {isLifetimeDuplicate ? (
+                      /* Lifetime plan - BLOCKED, no checkbox */
+                      <div className="mt-3 p-2.5 rounded-lg bg-red-200 border border-red-300">
+                        <span className="text-[0.75rem] leading-tight text-red-800 font-semibold">
+                          <T>Duplicate Lifetime bookings are not allowed. This devotee already has a Lifetime plan for this pooja. A new booking cannot be created.</T>
+                        </span>
+                      </div>
+                    ) : (
+                      /* Non-lifetime plan - show confirmation checkbox */
+                      <label className={`mt-3 flex items-start gap-2 cursor-pointer p-2.5 rounded-lg border ${duplicateConfirmed ? 'bg-emerald-100 border-emerald-300' : 'bg-white border-amber-200 hover:bg-amber-50'}`}>
+                        <input
+                          type="checkbox"
+                          checked={duplicateConfirmed}
+                          onChange={(e) => setDuplicateConfirmed(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className={`text-[0.75rem] leading-tight ${duplicateConfirmed ? 'text-emerald-700' : 'text-gray-600'}`}>
+                          <T>I have informed the devotee about the existing active plan and they wish to proceed with a new booking.</T>
+                        </span>
+                      </label>
+                    )}
                   </div>
                 </div>
               )}
@@ -499,8 +566,15 @@ export default function NewBooking() {
               <div>
                 <label className="label"><T>Booking Date *</T></label>
                 <DateField value={schedDate}
-                  min={festWindow?.start_date && festWindow.start_date > new Date().toISOString().slice(0, 10) ? festWindow.start_date : new Date().toISOString().slice(0, 10)} max={festWindow?.end_date}
-                  onChange={(e) => setSchedDate(e.target.value)} />
+                  min={festWindow?.start_date && festWindow.start_date > todayIST() ? festWindow.start_date : todayIST()} max={festWindow?.end_date}
+                  onChange={(e) => {
+                    setSchedDate(e.target.value)
+                    // Auto-select first available slot when date changes
+                    const available = getAvailableSlots(e.target.value)
+                    if (available.length > 0 && !available.includes(slot)) {
+                      setSlot(available[0])
+                    }
+                  }} />
                 {festWindow && (
                   <div className="text-[0.75rem] text-amber-700 mt-1.5">
                     {festWindow.name}: {festWindow.start_date} – {festWindow.end_date} — the booking date must fall in this festival window.
@@ -510,7 +584,14 @@ export default function NewBooking() {
               </div>
               <div>
                 <label className="label"><T>Time Slot *</T></label>
-                <Select value={slot} onChange={(e) => setSlot(e.target.value)}>{SLOTS.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}</Select>
+                {(() => {
+                  const availableSlots = getAvailableSlots(schedDate)
+                  return availableSlots.length === 0 ? (
+                    <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"><T>All time slots for today have passed. Please select a future date.</T></div>
+                  ) : (
+                    <Select value={slot} onChange={(e) => setSlot(e.target.value)}>{availableSlots.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}</Select>
+                  )
+                })()}
                 <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Select the pooja timing slot for the booking.</T></div>
               </div>
               <div>
@@ -560,7 +641,7 @@ export default function NewBooking() {
                   <label className="label"><T>Payment Date &amp; Time</T></label>
                   <div className="flex gap-2">
                     <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={fmtDate(new Date().toISOString())} readOnly /><Calendar size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
-                    <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={clock12(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }))} readOnly /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
+                    <div className="relative flex-1"><input className="input pr-8 bg-gray-50" value={clock12(new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }))} readOnly /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div>
                   </div>
                 </div>
                 <div>
@@ -599,9 +680,22 @@ export default function NewBooking() {
             <div className="bg-amber-50/50 border border-amber-100 rounded-lg px-4 py-3 text-[0.78125rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-amber-600 shrink-0 mt-0.5" />{' '}<T>All payments are subject to temple rules and availability.</T></div>
           </div>
 
-          <div className="lg:col-span-2 flex justify-between">
-            <button onClick={() => setStep(0)} className="btn-outline"><ArrowLeft size={15} />{' '}<T>Previous</T></button>
-            <button onClick={pay} disabled={busy || !amountReady} className="btn-maroon disabled:opacity-60">{busy ? tr('Processing…') : <>{tr('Confirm Booking & Pay')} <ArrowRight size={15} /></>}</button>
+          <div className="lg:col-span-2">
+            {/* Warning messages for duplicate bookings */}
+            {isLifetimeDuplicate && (
+              <div className="bg-red-100 border border-red-300 rounded-lg px-4 py-2.5 mb-3 text-sm text-red-800 font-medium text-center">
+                <T>Booking blocked: Lifetime plan already exists for this devotee and pooja.</T>
+              </div>
+            )}
+            {duplicateWarning && !isLifetimeDuplicate && !duplicateConfirmed && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 mb-3 text-sm text-amber-700 font-medium text-center">
+                <T>Please confirm the duplicate plan acknowledgement above to proceed.</T>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <button onClick={() => setStep(0)} className="btn-outline"><ArrowLeft size={15} />{' '}<T>Previous</T></button>
+              <button onClick={pay} disabled={busy || !amountReady || isLifetimeDuplicate || (duplicateWarning && !duplicateConfirmed)} className="btn-maroon disabled:opacity-60">{busy ? tr('Processing…') : <>{tr('Confirm Booking & Pay')} <ArrowRight size={15} /></>}</button>
+            </div>
           </div>
         </div>
       )}

@@ -68,6 +68,7 @@ COLUMN_MIGRATIONS = {
         ("name_te", "VARCHAR(160)"),
         ("preferred_language", "VARCHAR(20) DEFAULT 'English'"),
         ("pan_number", "VARCHAR(10)"),  # PAN for 80G receipts
+        ("rasi", "VARCHAR(80)"),  # Zodiac sign for Sankalpam
     ],
     "annadanam": [
         ("devotee_id", "INTEGER"), ("mobile", "VARCHAR(20)"), ("rate", "NUMERIC(12,2) DEFAULT 50"),

@@ -36,6 +36,20 @@ export class ApiError extends Error {
   }
 }
 
+// ── Extract error message from API response ──
+// FastAPI validation errors return an array of objects: [{type, loc, msg, input, ctx}]
+// Regular errors return a string. This function safely extracts a displayable message.
+export function getErrorMessage(ex, fallback = 'An error occurred.') {
+  const detail = ex?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail) && detail.length > 0) {
+    // Join all validation error messages
+    const msgs = detail.map((d) => d?.msg).filter(Boolean)
+    return msgs.length > 0 ? msgs.join('; ') : fallback
+  }
+  return ex?.message || fallback
+}
+
 // ── User-friendly error messages ──
 function getNetworkErrorMessage(error) {
   if (error.name === 'AbortError') {
@@ -252,6 +266,7 @@ export const DonationCategoriesAPI = {
   create: (b) => api.post('/donation-categories', b),
   update: (id, b) => api.put(`/donation-categories/${id}`, b),
   remove: (id) => api.del(`/donation-categories/${id}`),
+  reset: () => api.post('/donation-categories/reset'),
 }
 
 export const HundiAPI = {

@@ -10,6 +10,7 @@ import { Select } from '../../components/common/Field.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const CH_ICON = { SMS: Smartphone, Email: Mail, WhatsApp: MessageSquare }
 const STATUS_TONE = { SENT: 'green', FAILED: 'red', SKIPPED: 'amber', DISABLED: 'gray', QUEUED: 'blue' }
@@ -28,9 +29,10 @@ export default function Notifications() {
   const [stats, setStats] = useState(null)
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [channel, setChannel] = useState('')
-  const [status, setStatus] = useState('')
+  // filters - persisted in URL for state preservation across navigation
+  const { channel, setChannel, status, setStatus, page, setPage } = useFilterParams({
+    channel: '', status: '', page: 1,
+  })
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState(null)
 
@@ -38,12 +40,12 @@ export default function Notifications() {
   const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'ts', direction: 'desc' }])
 
   const loadConfig = useCallback(() => {
-    NotificationsAPI.config().then((c) => setChannels(c.channels)).catch(() => toast('Failed to load notification config', 'error'))
-    NotificationsAPI.stats().then(setStats).catch(() => toast('Failed to load notification stats', 'error'))
+    NotificationsAPI.config().then((c) => setChannels(c.channels)).catch(() => toast(tr('Failed to load notification config'), 'error'))
+    NotificationsAPI.stats().then(setStats).catch(() => toast(tr('Failed to load notification stats'), 'error'))
   }, [])
   const loadLogs = useCallback(() => {
     NotificationsAPI.logs({ channel, status, page, size: SIZE })
-      .then((d) => { setRows(d.items); setTotal(d.total) }).catch(() => toast('Failed to load notification logs', 'error'))
+      .then((d) => { setRows(d.items); setTotal(d.total) }).catch(() => toast(tr('Failed to load notification logs'), 'error'))
   }, [channel, status, page])
 
   useEffect(() => { loadConfig() }, [loadConfig])
@@ -59,7 +61,7 @@ export default function Notifications() {
     const res = await promptDialog({
       title: `${tr('Send a test')} ${ch}`,
       confirmLabel: tr('Send Test'),
-      fields: [{ k: 'to', label: ch === 'Email' ? 'Email address' : 'Mobile number', required: true }],
+      fields: [{ k: 'to', label: ch === 'Email' ? tr('Email address') : tr('Mobile number'), required: true }],
     })
     if (!res) return
     const to = res.to.trim()
@@ -68,7 +70,7 @@ export default function Notifications() {
       const r = await NotificationsAPI.test({ channel: ch, to })
       setMsg({ ch, ...r })
       loadConfig(); loadLogs()
-    } catch (ex) { setMsg({ ch, status: 'ERROR', error: ex.detail || 'Failed' }) }
+    } catch (ex) { setMsg({ ch, status: 'ERROR', error: ex.detail || tr('Failed') }) }
     finally { setBusy('') }
   }
 

@@ -12,6 +12,7 @@ import { Select, Checkbox, CountryCodeSelect, getCountryDigits } from '../../com
 import { alertDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail, validatePassword, getPasswordStrength } from '../../lib/validation.js'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const AVATAR_TONES = ['bg-maroon-700', 'bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600']
 const initials = (n) => (n || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
@@ -35,12 +36,13 @@ export default function Users() {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
 
-  const [q, setQ] = useState('')
-  const [role, setRole] = useState('')
-  const [status, setStatus] = useState('')
-  const [page, setPage] = useState(1)
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, role, setRole, status, setStatus, page, setPage,
+  } = useFilterParams({
+    q: '', role: '', status: '', page: 1,
+  })
   const [perPage, setPerPage] = useState(10)
-  useEffect(() => { setPage(1) }, [q, role, status])
 
   const load = () => {
     setLoading(true); setLoadErr('')
@@ -122,15 +124,15 @@ export default function Users() {
     }
     setFieldErrors({})
 
-    if ((drawer.mode === 'create' || d.password) && d.password !== d.confirm) { setErr('Passwords do not match.'); return }
+    if ((drawer.mode === 'create' || d.password) && d.password !== d.confirm) { setErr(tr('Passwords do not match.')); return }
     try {
       const payload = { name: d.name, email: d.email, mobile: d.mobile, role: d.role, is_active: d.is_active, modules: d.modules }
       if (drawer.mode === 'create') await UsersAPI.create({ ...payload, password: d.password })
       else await UsersAPI.update(d.id, { ...payload, ...(d.password ? { password: d.password } : {}) })
       setDrawer(null); load()
-    } catch (ex) { setErr(ex.detail || ex.message || 'Failed to save user.') }
+    } catch (ex) { setErr(ex.detail || ex.message || tr('Failed to save user.')) }
   }
-  async function remove(u) { setMenu(null); if (await confirmDialog({ title: `Delete user "${personName(u, lang)}"?`, message: 'They will no longer be able to sign in.', tone: 'danger', confirmLabel: tr('Delete') })) { try { await UsersAPI.remove(u.id); toast('User deleted.'); load() } catch (ex) { toast(ex.detail || 'Failed', 'error') } } }
+  async function remove(u) { setMenu(null); if (await confirmDialog({ title: tr('Delete user') + ` "${personName(u, lang)}"?`, message: tr('They will no longer be able to sign in.'), tone: 'danger', confirmLabel: tr('Delete') })) { try { await UsersAPI.remove(u.id); toast(tr('User deleted.')); load() } catch (ex) { toast(ex.detail || tr('Failed'), 'error') } } }
 
   return (
     <div>
@@ -209,11 +211,11 @@ export default function Users() {
                         try {
                           const t = await UsersAPI.totp(u.id)
                           alertDialog({
-                            title: `2FA setup for ${u.username}`,
-                            message: 'Enter the secret manually in Google Authenticator / Authy, or add it via the otpauth link. Without this the user CANNOT log in.',
+                            title: tr('2FA setup for') + ` ${u.username}`,
+                            message: tr('Enter the secret manually in Google Authenticator / Authy, or add it via the otpauth link. Without this the user CANNOT log in.'),
                             mono: `Secret: ${t.secret}\n\n${t.otpauth_uri}`,
                           })
-                        } catch (ex) { toast(ex?.detail || 'Could not fetch the 2FA setup.', 'error') }
+                        } catch (ex) { toast(ex?.detail || tr('Could not fetch the 2FA setup.'), 'error') }
                       }} title={tr("Show 2FA setup secret")} className="px-2 h-8 rounded-lg border border-amber-200 text-amber-700 text-[0.6875rem] font-bold hover:bg-amber-50"><T>2FA</T></button>}
                       <button onClick={() => setMenu(menu === u.id ? null : u.id)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700"><MoreVertical size={15} /></button>
                       {menu === u.id && (
@@ -277,7 +279,22 @@ export default function Users() {
                   </div>
                   <div>
                     <label className="label"><T>Mobile Number *</T></label>
-                    <div className="flex"><CountryCodeSelect value={drawer.data.country_code || '+91'} onChange={(e) => setD({ country_code: e.target.value })} /><input required className={`input flex-1 !rounded-l-none ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("Mobile Number")} maxLength={getCountryDigits(drawer.data.country_code || '+91')} value={drawer.data.mobile} onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setD({ mobile: sanitizePhone(e.target.value) }) }} /></div>
+                    <div className="flex"><CountryCodeSelect value={drawer.data.country_code || '+91'} onChange={(e) => { setD({ country_code: e.target.value }); setFieldErrors((p) => ({ ...p, mobile: null })) }} /><input required className={`input flex-1 !rounded-l-none ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("Mobile Number")} maxLength={getCountryDigits(drawer.data.country_code || '+91')} value={drawer.data.mobile} onChange={(e) => {
+                      const cleaned = sanitizePhone(e.target.value)
+                      setD({ mobile: cleaned })
+                      if ((drawer.data.country_code || '+91') === '+91') {
+                        if (cleaned.length === 10) {
+                          const validation = validatePhone(cleaned)
+                          setFieldErrors((p) => ({ ...p, mobile: validation.valid ? null : tr('Invalid Mobile Number') }))
+                        } else if (cleaned.length >= 1 && cleaned.length < 10) {
+                          setFieldErrors((p) => ({ ...p, mobile: tr('Please Enter 10 digits Mobile Number') }))
+                        } else {
+                          setFieldErrors((p) => ({ ...p, mobile: null }))
+                        }
+                      } else {
+                        setFieldErrors((p) => ({ ...p, mobile: null }))
+                      }
+                    }} /></div>
                     {fieldErrors.mobile && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.mobile}</div>}
                   </div>
                   <div><label className="label"><T>Role *</T></label><Select required className="input" value={drawer.data.role} onChange={(e) => setD({ role: e.target.value })}><option value="">{tr("Select Role")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>

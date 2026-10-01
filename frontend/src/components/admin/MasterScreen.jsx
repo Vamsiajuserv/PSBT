@@ -90,7 +90,7 @@ export default function MasterScreen({ config }) {
       if (drawer.mode === 'create') await api.create(d)
       else await api.update(d.id, d)
       setDrawer(null); load()
-    } catch (ex) { setErr(ex.detail || ex.message || 'Failed to save.') }
+    } catch (ex) { setErr(ex.detail || ex.message || tr('Failed to save.')) }
   }
   async function remove(row) { if (await confirmDialog({ title: tr(`Delete this ${entity}?`), message: tr('This cannot be undone.'), tone: 'danger', confirmLabel: tr('Delete') })) { try { await api.remove(row.id); toast(tr(`${entity} deleted.`)); load() } catch (ex) { toast(ex.detail || tr('Failed'), 'error') } } }
 

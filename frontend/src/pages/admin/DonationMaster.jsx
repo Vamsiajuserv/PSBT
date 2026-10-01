@@ -8,6 +8,7 @@ import { Select } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName } from '../../lib/validation.js'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const TYPE_TONE = { Cash: 'green', Material: 'blue', Sponsorship: 'violet' }
 
@@ -40,7 +41,8 @@ export default function DonationMaster() {
   // Only Admin can add/edit/delete categories - backend uses require_admin
   const [items, setItems] = useState([])
   const [stats, setStats] = useState(null)
-  const [q, setQ] = useState(''); const [type, setType] = useState(''); const [status, setStatus] = useState('')
+  // filters - persisted in URL for state preservation across navigation
+  const { q, setQ, type, setType, status, setStatus } = useFilterParams({ q: '', type: '', status: '' })
   const [drawer, setDrawer] = useState(null)
 
   const load = () => Promise.all([DonationCategoriesAPI.list(), DonationCategoriesAPI.stats().catch(() => null)])
@@ -77,14 +79,36 @@ export default function DonationMaster() {
       toast(ex?.detail || tr('Could not save the category. Please check the details and try again.'), 'error')
     }
   }
-  async function remove(c) { if (await confirmDialog({ title: `Delete category "${c.name}"?`, message: 'This cannot be undone.', tone: 'danger', confirmLabel: tr('Delete') })) { await DonationCategoriesAPI.remove(c.id); toast('Category deleted.'); load() } }
+  async function remove(c) { if (await confirmDialog({ title: tr('Delete category') + ` "${c.name}"?`, message: tr('This cannot be undone.'), tone: 'danger', confirmLabel: tr('Delete') })) { await DonationCategoriesAPI.remove(c.id); toast(tr('Category deleted.')); load() } }
+
+  async function resetCategories() {
+    if (await confirmDialog({
+      title: tr('Reset Donation Categories'),
+      message: tr('This will delete all existing categories and create standard temple donation categories. This action cannot be undone.'),
+      tone: 'danger',
+      confirmLabel: tr('Reset All')
+    })) {
+      try {
+        const result = await DonationCategoriesAPI.reset()
+        toast(result.message || tr('Categories reset successfully.'))
+        load()
+      } catch (ex) {
+        toast(ex?.detail || tr('Could not reset categories. Please try again.'), 'error')
+      }
+    }
+  }
 
   const dtype = drawer?.data.type
 
   return (
     <div>
       <PageTitle title={tr("Donation Master")} subtitle={tr("Maintain and configure donation categories used for cash donations, material donations and sponsorships.")}
-        actions={isAdmin && <button onClick={() => setDrawer({ mode: 'create', data: emptyCat() })} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Category</T></button>} />
+        actions={isAdmin && (
+          <div className="flex items-center gap-2">
+            <button onClick={resetCategories} className="btn-outline !py-2.5" title={tr("Reset to standard categories")}><RotateCcw size={16} />{' '}<T>Reset</T></button>
+            <button onClick={() => setDrawer({ mode: 'create', data: emptyCat() })} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Category</T></button>
+          </div>
+        )} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={HandHeart} color="#059669" bg="bg-emerald-50" title={tr("Total Categories")} value={stats ? num(stats.total) : '—'} sub={tr("Active Donation Categories")} />
@@ -179,7 +203,7 @@ export default function DonationMaster() {
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
-          <span className="text-[0.8125rem] text-gray-500">Showing 1 to {sortedRows.length} of {sortedRows.length} categories</span>
+          <span className="text-[0.8125rem] text-gray-500">{tr('Showing')} 1 {tr('to')} {sortedRows.length} {tr('of')} {sortedRows.length} {tr('categories')}</span>
           <div className="flex items-center gap-1.5"><button disabled className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-400 opacity-40"><T>Previous</T></button><span className="w-8 h-8 grid place-items-center rounded-lg bg-maroon-700 text-cream text-[0.8125rem] font-semibold">1</span><button disabled className="px-3 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-400 opacity-40"><T>Next</T></button></div>
         </div>
       </div>
@@ -196,29 +220,29 @@ export default function DonationMaster() {
             <div className="px-6 py-5 space-y-5 flex-1">
               <div><label className="label"><T>Category Type *</T></label>
                 <div className="flex gap-5 mt-1">{['Cash', 'Material', 'Sponsorship'].map((t) => (
-                  <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="ctype" className="accent-maroon-700" checked={dtype === t} onChange={() => setType2(t)} /> {t === 'Cash' ? 'Cash Donation' : t === 'Material' ? 'Material Donation' : 'Sponsorship'}</label>
+                  <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="ctype" className="accent-maroon-700" checked={dtype === t} onChange={() => setType2(t)} /> {tr(t === 'Cash' ? 'Cash Donation' : t === 'Material' ? 'Material Donation' : 'Sponsorship')}</label>
                 ))}</div></div>
               <div><label className="label"><T>Category Name *</T></label><input required className="input" placeholder={tr("Category Name")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: sanitizeName(e.target.value) } })} /></div>
               <div><label className="label"><T>Description (Optional)</T></label><textarea className="input min-h-[4.5rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.data.description || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
               <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Fields below will change based on the category type selected.</T></div>
               {dtype !== 'Material' && (
                 <div className="bg-amber-50/70 border border-amber-200 rounded-lg px-3 py-3">
-                  <div className="text-amber-700 font-semibold text-sm">{dtype} Selected</div>
+                  <div className="text-amber-700 font-semibold text-sm">{tr(dtype)} {tr('Selected')}</div>
                   <div className="text-[0.75rem] text-gray-600 mt-1"><T>Cash and Sponsorship categories do not require unit and quantity. They are recorded by amount only.</T></div>
                 </div>
               )}
               <div><label className="label"><T>Unit / Measurement</T></label>
                 {dtype === 'Material'
-                  ? <Select className="input" value={drawer.data.unit || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, unit: e.target.value } })}><option value="">{tr("Select…")}</option>{MATERIAL_UNITS.map((u) => <option key={u}>{u}</option>)}</Select>
-                  : <input disabled className="input bg-gray-50" value={dtype === 'Cash' ? tr('Not applicable for Cash Donation') : 'Not applicable for Sponsorship'} />}
+                  ? <Select className="input" value={drawer.data.unit || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, unit: e.target.value } })}><option value="">{tr("Select…")}</option>{MATERIAL_UNITS.map((u) => <option key={u} value={u}>{tr(u)}</option>)}</Select>
+                  : <input disabled className="input bg-gray-50" value={dtype === 'Cash' ? tr('Not applicable for Cash Donation') : tr('Not applicable for Sponsorship')} />}
               </div>
               <div><label className="label"><T>Quantity Required</T></label>
                 <div className="flex gap-5 mt-1">{['Yes', 'No'].map((y) => (
                   <label key={y} className={`flex items-center gap-2 text-sm ${dtype !== 'Material' ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 cursor-pointer'}`}>
-                    <input type="radio" name="qreq" disabled={dtype !== 'Material'} className="accent-maroon-700 w-4 h-4" checked={y === 'Yes' ? !!drawer.data.quantity_required : !drawer.data.quantity_required} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, quantity_required: y === 'Yes' } })} /> {y}
+                    <input type="radio" name="qreq" disabled={dtype !== 'Material'} className="accent-maroon-700 w-4 h-4" checked={y === 'Yes' ? !!drawer.data.quantity_required : !drawer.data.quantity_required} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, quantity_required: y === 'Yes' } })} /> {tr(y)}
                   </label>
                 ))}</div>
-                {dtype !== 'Material' && <div className="text-[0.6875rem] text-gray-400 mt-1">Quantity is not required for {dtype.toLowerCase()} donation categories.</div>}
+                {dtype !== 'Material' && <div className="text-[0.6875rem] text-gray-400 mt-1">{tr('Quantity is not required for')} {tr(dtype.toLowerCase())} {tr('donation categories.')}</div>}
               </div>
               <div><label className="label"><T>Status *</T></label><Select className="input" value={drawer.data.active ? tr('Active') : tr('Inactive')} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, active: e.target.value === 'Active' } })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
             </div>

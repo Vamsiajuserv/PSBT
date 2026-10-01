@@ -5,10 +5,10 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { BookingsAPI, ApiError } from '../../api/client.js'
-import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, teText, stamp } from '../../i18n/LanguageContext.jsx'
 
 const fmtDate = (iso) =>
-  iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+  iso ? stamp(new Date(iso).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })) : ''
 
 export default function VerifyTicket() {
   const { lang } = useLang()
@@ -22,12 +22,12 @@ export default function VerifyTicket() {
   async function verify(e) {
     e?.preventDefault()
     const code = ticket.trim()
-    if (!code) { setError('Enter or scan a ticket / receipt number.'); return }
+    if (!code) { setError(tr('Enter or scan a ticket / receipt number.')); return }
     setBusy(true); setError(''); setResult(null)
     try {
       setResult(await BookingsAPI.lookup(code))
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Verification failed. Please try again.')
+      setError(err instanceof ApiError ? err.detail : tr('Verification failed. Please try again.'))
     } finally {
       setBusy(false)
     }
@@ -48,7 +48,7 @@ export default function VerifyTicket() {
         verdict: completed ? 'All performances completed' : 'Performed — done for today',
       })
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Could not mark the pooja performed.')
+      setError(err instanceof ApiError ? err.detail : tr('Could not mark the pooja performed.'))
     } finally {
       setMarking(false)
     }
@@ -126,15 +126,15 @@ export default function VerifyTicket() {
 
             {result.repeat && (
               <div className="inline-flex items-center gap-1.5 text-[0.75rem] font-semibold text-violet-700 bg-violet-50 rounded-full px-3 py-1">
-                <Repeat size={13} /> Repeat devotee · {result.visits} previous visit{result.visits === 1 ? '' : 's'}
-                {result.last_visit ? ` · last ${fmtDate(result.last_visit)}` : ''}
+                <Repeat size={13} /> <T>Repeat devotee</T> · {result.visits} {result.visits === 1 ? tr('previous visit') : tr('previous visits')}
+                {result.last_visit ? ` · ${tr('last')} ${fmtDate(result.last_visit)}` : ''}
               </div>
             )}
 
             {ok && (
               <button onClick={markPerformed} disabled={marking}
                 className="btn-maroon w-full justify-center disabled:opacity-60">
-                {marking ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} Mark Pooja Performed
+                {marking ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} <T>Mark Pooja Performed</T>
               </button>
             )}
           </div>

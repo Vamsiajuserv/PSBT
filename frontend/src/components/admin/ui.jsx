@@ -23,16 +23,33 @@ export const roundMoney = (n) => Math.round(Number(n || 0) * 100) / 100
 // Dates keep their numerals — only the month token is language-dependent, so
 // translate that and leave the digits alone.
 const localiseMonth = (out) => out.replace(/[A-Za-z]{3,}/g, (mon) => tr(mon))
-export const fmtDate = (s) => (s ? localiseMonth(new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : '—')
+
+// Parse server timestamps as UTC. Server stores in UTC but returns naive ISO strings
+// without 'Z' suffix. For datetime strings (contains 'T'), treat as UTC. For date-only
+// strings (YYYY-MM-DD), parse normally (no timezone shift needed for calendar dates).
+export const parseAsUTC = (s) => {
+  if (!s) return null
+  const str = String(s)
+  // If already has timezone indicator, parse as-is
+  if (str.endsWith('Z') || str.includes('+') || (str.includes('T') && str.lastIndexOf('-') > 10)) {
+    return new Date(str)
+  }
+  // If it's a datetime string (has 'T'), treat as UTC by appending 'Z'
+  if (str.includes('T')) {
+    return new Date(str + 'Z')
+  }
+  // Date-only string (YYYY-MM-DD) - parse as local date (no UTC shift)
+  return new Date(str)
+}
+
+export const fmtDate = (s) => (s ? localiseMonth(new Date(s).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })) : '—')
 export const fmtStamp = (s) => {
   if (!s) return '—'
-  const d = new Date(s)
-  const dateStr = localiseMonth(d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))
-  const hours = d.getHours()
-  const mins = String(d.getMinutes()).padStart(2, '0')
-  const ampm = hours >= 12 ? 'PM' : 'AM'
-  const hr12 = hours % 12 || 12
-  return `${dateStr}, ${String(hr12).padStart(2, '0')}:${mins} ${ampm}`
+  const d = parseAsUTC(s)
+  if (!d || isNaN(d.getTime())) return '—'
+  const dateStr = localiseMonth(d.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }))
+  const timeStr = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
+  return `${dateStr}, ${timeStr}`
 }
 
 const PILL_TONES = {

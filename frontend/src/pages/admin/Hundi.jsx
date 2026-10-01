@@ -14,6 +14,7 @@ import { Select, DateField, DateTimeField, Checkbox, NumberField, Combobox } fro
 import { promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeItemName } from '../../lib/validation.js'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
 const VER_TONE = { Verified: 'green', 'Pending Verification': 'blue', Rejected: 'red' }
@@ -43,7 +44,6 @@ export default function Hundi() {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [view, setView] = useState(null)
@@ -51,11 +51,13 @@ export default function Hundi() {
   const [banks, setBanks] = useState([])
   const [itemMaster, setItemMaster] = useState([])
 
-  const [q, setQ] = useState('')
-  const [verification, setVerification] = useState('')
-  const [deposit, setDeposit] = useState('')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, verification, setVerification, deposit, setDeposit,
+    start, setStart, end, setEnd, page, setPage,
+  } = useFilterParams({
+    q: '', verification: '', deposit: '', start: '', end: '', page: 1,
+  })
   const [saving, setSaving] = useState(false)
 
   // Sortable table columns with filtering support
@@ -95,13 +97,13 @@ export default function Hundi() {
   useEffect(() => {
     CommitteeAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setCommittee(arr.filter((c) => c.active)) })
-      .catch(() => toast('Failed to load committee members', 'error'))
+      .catch(() => toast(tr('Failed to load committee members'), 'error'))
     SettingsAPI.config()
       .then((c) => setBanks(Array.isArray(c?.banks) ? c.banks : []))
-      .catch(() => toast('Failed to load bank settings', 'error'))
+      .catch(() => toast(tr('Failed to load bank settings'), 'error'))
     HundiItemsAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setItemMaster(arr.filter((i) => i.active)) })
-      .catch(() => toast('Failed to load hundi items', 'error'))
+      .catch(() => toast(tr('Failed to load hundi items'), 'error'))
   }, [])
 
   // DEF-009: Use language-aware names for committee members

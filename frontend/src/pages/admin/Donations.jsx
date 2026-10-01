@@ -10,22 +10,29 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
-import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI } from '../../api/client.js'
+import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, stamp, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const TYPE_LABEL = { Cash: 'Cash Donation', Material: 'Material Donation', Sponsorship: 'Sponsorship' }
 const MODES = ['Cash', 'UPI/QR Code']
 const todayStamp = () => {
   const d = new Date()
-  return stamp(d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))
+  return stamp(d.toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }))
 }
-const fmtTime = (s) => (s ? clock12(new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) : '')
+// Parse datetime as UTC (server returns naive ISO without 'Z')
+const parseUTC = (s) => (s && String(s).includes('T')) ? new Date(String(s) + (String(s).endsWith('Z') ? '' : 'Z')) : null
+const fmtTime = (s) => {
+  const d = parseUTC(s)
+  if (!d || isNaN(d.getTime())) return ''
+  return clock12(d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }))
+}
 
 const newDonation = () => ({
-  donation_type: 'Cash', devotee_id: '', donor_name: '', mobile: '', pan: '', fund: '', amount: '',
+  donation_type: 'Cash', devotee_id: '', donor_name: '', country_code: '+91', mobile: '', pan: '', fund: '', amount: '',
   unit: '', quantity: '', mode: 'Cash', txn_ref: '', g80: false, notes: '',
 })
 
@@ -37,7 +44,6 @@ export default function Donations() {
   const SIZE = 15
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
   const [stats, setStats] = useState(null)
   const [cats, setCats] = useState([])
   const [drawer, setDrawer] = useState(null)
@@ -52,13 +58,13 @@ export default function Donations() {
   const [panErr, setPanErr] = useState('')
   const [mobileError, setMobileError] = useState('')  // Mobile validation error
 
-  // filters
-  const [q, setQ] = useState('')
-  const [type, setType] = useState('')
-  const [category, setCategory] = useState('')
-  const [mode, setMode] = useState('')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, type, setType, category, setCategory, mode, setMode,
+    start, setStart, end, setEnd, page, setPage,
+  } = useFilterParams({
+    q: '', type: '', category: '', mode: '', start: '', end: '', page: 1,
+  })
 
   // Sortable table columns with filtering support
   const sortColumns = [
@@ -86,14 +92,14 @@ export default function Donations() {
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
     } catch (ex) {
-      setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
+      setLoadErr(getErrorMessage(ex, LOAD_ERROR)); setRows([]); setTotal(0)
     } finally { setLoading(false) }
   }, [q, type, category, mode, start, end, page])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
   useEffect(() => { setPage(1) }, [q, type, category, mode, start, end])
 
   useEffect(() => {
-    DonationCategoriesAPI.list().then((r) => setCats(r.items.filter((c) => c.active))).catch(() => toast('Failed to load donation categories', 'error'))
+    DonationCategoriesAPI.list().then((r) => setCats(r.items.filter((c) => c.active))).catch(() => toast(tr('Failed to load donation categories'), 'error'))
   }, [])
 
   // debounced devotee type-ahead (only while the drawer is open and none picked yet)
@@ -139,6 +145,12 @@ export default function Donations() {
     e.preventDefault()
     if (saving) return
     const m = drawer
+
+    // Validate Donation Category is selected
+    if (!(m.fund || '').trim()) {
+      setPanErr(tr('Please select a Donation Category.'))
+      return
+    }
 
     // Validate amount/quantity based on donation type
     if (m.donation_type === 'Material') {
@@ -199,7 +211,7 @@ export default function Donations() {
       setDrawer(null); setDq(''); setDevResults([]); setPanErr(''); load()
       if (print) setPrintDoc(created)
     } catch (err) {
-      setPanErr(err?.detail || 'Could not save the donation. Please try again.')
+      setPanErr(getErrorMessage(err, tr('Could not save the donation. Please try again.')))
     } finally {
       setSaving(false)
     }
@@ -380,9 +392,15 @@ export default function Donations() {
                     <input className={`input flex-1 !rounded-l-none ${mobileError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`} placeholder={tr("Enter Mobile Number")} maxLength={getCountryDigits(drawer.country_code || '+91')} value={drawer.mobile} onChange={(e) => {
                       const cleaned = sanitizePhone(e.target.value)
                       setDrawer({ ...drawer, mobile: cleaned })
-                      if ((drawer.country_code || '+91') === '+91' && cleaned.length === 10) {
-                        const validation = validatePhone(cleaned)
-                        setMobileError(validation.valid ? '' : 'Invalid Mobile Number. Please Enter Valid Mobile Number')
+                      if ((drawer.country_code || '+91') === '+91') {
+                        if (cleaned.length === 10) {
+                          const validation = validatePhone(cleaned)
+                          setMobileError(validation.valid ? '' : 'Invalid Mobile Number. Please Enter Valid Mobile Number')
+                        } else if (cleaned.length >= 1 && cleaned.length < 10) {
+                          setMobileError('Please Enter 10 digits Mobile Number')
+                        } else {
+                          setMobileError('')
+                        }
                       } else {
                         setMobileError('')
                       }
@@ -402,18 +420,18 @@ export default function Donations() {
 
               {drawer.donation_type === 'Material' ? (
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="label"><T>Quantity *</T></label><NumberField required step="0.01" min="0.01" max="999999" value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
+                  <div><label className="label"><T>Quantity *</T></label><NumberField required step="1" min="1" max="999999" allowDecimal={false} value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
                   <div><label className="label"><T>Unit</T></label><input className="input" placeholder={tr("e.g. bags, kg")} value={drawer.unit || ''} onChange={(e) => setDrawer({ ...drawer, unit: e.target.value })} /></div>
                 </div>
               ) : (
-                <div><label className="label"><T>Amount (₹) *</T></label><NumberField required min="1" max="99999999" step="0.01" prefix="₹" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>
+                <div><label className="label"><T>Amount (₹) *</T></label><NumberField required min="1" max="99999999" step="1" allowDecimal={false} prefix="₹" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>
               )}
 
               {drawer.donation_type !== 'Material' && (
                 <>
                   <div><label className="label"><T>Payment Mode *</T></label>
                     <div className="flex gap-6 mt-1">{MODES.map((mo) => (
-                      <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setDrawer({ ...drawer, mode: mo })} /> {mo === 'UPI/QR Code' ? 'UPI / QR Code' : mo}</label>
+                      <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setDrawer({ ...drawer, mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'UPI / QR Code' : mo)}</label>
                     ))}</div>
                   </div>
                   {drawer.mode === 'UPI/QR Code'

@@ -10,7 +10,7 @@ from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, WasteSale,
                       Festival, Devotee, PoojaPlan, Pooja)
 from ..security import RequireModule, client_ip
-from ..helpers import mask_pan, enforce_rate_limit
+from ..helpers import mask_pan, enforce_rate_limit, fmt_ist_datetime
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 read = RequireModule("Reports")
@@ -205,7 +205,7 @@ def generate(report, start, end, db):
             data.append({
                 "receipt": b.receipt_no or "-",
                 "ticket": b.ticket_no or "-",
-                "date": b.created_at.strftime("%d %b %Y %I:%M %p") if b.created_at else "-",
+                "date": fmt_ist_datetime(b.created_at),
                 "devotee": b.devotee_name or "-",
                 "mobile": b.mobile or "-",
                 "pooja": b.seva_name or "-",

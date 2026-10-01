@@ -216,6 +216,7 @@ class DevoteeBase(BaseModel):
     city: Optional[str] = None
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
+    rasi: Optional[str] = None  # Zodiac sign for Sankalpam
     pan_number: Optional[str] = None  # PAN for 80G receipts
     dob: Optional[date] = None
     preferred_language: str = "English"
@@ -260,6 +261,7 @@ class DevoteeUpdate(BaseModel):
     city: Optional[str] = None
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
+    rasi: Optional[str] = None  # Zodiac sign for Sankalpam
     pan_number: Optional[str] = None
     dob: Optional[date] = None
     preferred_language: Optional[str] = None
@@ -302,6 +304,7 @@ class DevoteeOut(ORM):
     city: Optional[str] = None
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
+    rasi: Optional[str] = None  # Zodiac sign for Sankalpam
     pan_number: Optional[str] = None
     dob: Optional[date] = None
     preferred_language: Optional[str] = "English"
@@ -713,25 +716,6 @@ class BackupValidateIn(BaseModel):
         extra = "allow"
 
 
-# ── Settings Update (Phase 1 Security: API-002) ──────────────────────────────
-
-class SettingsUpdateIn(BaseModel):
-    """Application settings update."""
-    temple_name: Optional[str] = Field(default=None, max_length=200)
-    temple_name_te: Optional[str] = Field(default=None, max_length=200)
-    temple_address: Optional[str] = Field(default=None, max_length=500)
-    temple_phone: Optional[str] = Field(default=None, max_length=50)
-    temple_email: Optional[str] = Field(default=None, max_length=100)
-    opening_cash: Optional[Decimal] = Field(default=None, ge=0, le=10000000)
-    max_login_attempts: Optional[int] = Field(default=None, ge=1, le=20)
-    notify_sms_enabled: Optional[str] = Field(default=None, max_length=10)
-    notify_email_enabled: Optional[str] = Field(default=None, max_length=10)
-    notify_whatsapp_enabled: Optional[str] = Field(default=None, max_length=10)
-
-    class Config:
-        extra = "allow"  # Allow additional settings keys
-
-
 # ── Role Management (Phase 1 Security: API-002) ──────────────────────────────
 
 class RoleCreateIn(BaseModel):
@@ -842,32 +826,30 @@ class NotificationTestIn(BaseModel):
 
 # ── Settings (API-002-REG: API-011) ─────────────────────────────────────────
 
-class SettingsUpdateIn(BaseModel):
-    """Update temple settings - dynamic key-value pairs.
+# Keys that can hold large content (HTML, JSON, etc.) - up to 100KB
+_LARGE_CONTENT_KEYS = {'site_content', 'about', 'description', 'receipt_footer_note'}
 
-    API-011: All setting values must be strings (max 2000 chars) or None.
-    Keys must be alphanumeric with underscores (max 100 chars).
-    """
+class SettingsUpdateIn(BaseModel):
+    """Update temple settings - dynamic key-value pairs."""
     model_config = ConfigDict(extra="allow")
 
     @model_validator(mode='before')
     @classmethod
     def validate_settings(cls, values):
-        """Validate all key-value pairs in the settings update."""
         if not isinstance(values, dict):
             raise ValueError("Settings must be a dictionary")
         for key, value in values.items():
-            # Validate key format
             if not isinstance(key, str) or len(key) > 100:
                 raise ValueError(f"Setting key must be string <= 100 chars: {key}")
             if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', key):
                 raise ValueError(f"Setting key must be alphanumeric with underscores: {key}")
-            # Validate value
             if value is not None:
                 if not isinstance(value, (str, int, float, bool)):
                     raise ValueError(f"Setting value must be string, number, bool, or null: {key}")
-                if isinstance(value, str) and len(value) > 2000:
-                    raise ValueError(f"Setting value too long (max 2000 chars): {key}")
+                if isinstance(value, str):
+                    max_len = 100000 if key in _LARGE_CONTENT_KEYS else 2000
+                    if len(value) > max_len:
+                        raise ValueError(f"Setting value too long (max {max_len} chars): {key}")
         return values
 
 

@@ -8,6 +8,7 @@ import { AnalyticsAPI } from '../../api/client.js'
 import { DateField, Select } from '../../components/common/Field.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -186,7 +187,7 @@ function HorizontalBarChart({ items, maxItems = 10, color = '#8b1a1a' }) {
           <div className="flex items-center justify-between text-[0.8125rem] mb-1">
             <span className="text-gray-700 font-medium flex-1 mr-2 leading-tight">
               {item.rank && <span className="text-gray-400 mr-1.5">#{item.rank}</span>}
-              {item.name}
+              {tr(item.name)}
             </span>
             <span className="font-semibold text-gray-800 tabular-nums shrink-0">{inr(item.amount)}</span>
           </div>
@@ -244,7 +245,7 @@ function DonutChart({ segments, size = 180, label }) {
         {segments.slice(0, 6).map((seg, i) => (
           <div key={i} className="flex items-center gap-1.5 text-[0.75rem]">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
-            <span className="text-gray-600">{seg.label}</span>
+            <span className="text-gray-600">{tr(seg.label)}</span>
           </div>
         ))}
       </div>
@@ -336,11 +337,13 @@ export default function Analytics() {
   const todayISO = new Date().toISOString().slice(0, 10)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  const [start, setStart] = useState(thirtyDaysAgo)
-  const [end, setEnd] = useState(todayISO)
-  const [granularity, setGranularity] = useState('daily')
-  const [selectedMetric, setSelectedMetric] = useState('all')
-  const [comparisonPeriod, setComparisonPeriod] = useState('month')
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    start, setStart, end, setEnd, granularity, setGranularity,
+    selectedMetric, setSelectedMetric, comparisonPeriod, setComparisonPeriod,
+  } = useFilterParams({
+    start: thirtyDaysAgo, end: todayISO, granularity: 'daily', selectedMetric: 'all', comparisonPeriod: 'month',
+  })
   const [loading, setLoading] = useState(true)
 
   const [summary, setSummary] = useState(null)

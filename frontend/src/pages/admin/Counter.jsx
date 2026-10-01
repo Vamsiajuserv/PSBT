@@ -1,25 +1,48 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import {
   Printer, Plus, Trash2, Receipt as ReceiptIcon, Search, User, X, IndianRupee, Loader2, Eye, AlertTriangle,
-  ArrowRight, ArrowLeft, Check, Flame, CalendarDays, Moon, Car, Info, ShieldCheck, FileText, Edit3, Clock,
+  Check, Flame, CalendarDays, Moon, Car, ShieldCheck, FileText, Clock, RotateCcw, ChevronDown, ChevronUp, CheckCircle2,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { Select, DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
-import { PoojasAPI, DevoteesAPI, BookingsAPI, PaymentsAPI, FestivalsAPI, PoojarisAPI, TithiAPI, SettingsAPI } from '../../api/client.js'
+import { PoojasAPI, DevoteesAPI, BookingsAPI, FestivalsAPI, PoojarisAPI, TithiAPI, SettingsAPI } from '../../api/client.js'
 import { QRCodeSVG } from 'qrcode.react'
-import { promptDialog, toast } from '../../components/common/Dialog.jsx'
+import { toast } from '../../components/common/Dialog.jsx'
 import { T, tr, useLang, personName, stamp, clock12 } from '../../i18n/LanguageContext.jsx'
-import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
+import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
 
+// ── Constants ──
 const CATS = ['All', 'Daily', 'Monthly', 'Long-Term', 'Occasion', 'Festival', 'Vehicle']
 const SLOTS = [
   '06:00 AM - 07:00 AM', '07:30 AM - 08:30 AM', '09:00 AM - 10:00 AM',
   '10:30 AM - 11:30 AM', '12:00 PM - 01:00 PM', '04:00 PM - 05:00 PM',
 ]
 
-// Complete list of Hindu Gotras (52 Gotras from across India)
+// Filter out past time slots for today's bookings
+const getAvailableSlots = (date) => {
+  if (date !== todayISO()) return SLOTS
+
+  // Get current time in IST
+  const now = new Date()
+  const nowIST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+
+  return SLOTS.filter(slot => {
+    const timeMatch = slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+    if (!timeMatch) return true
+    let hours = parseInt(timeMatch[1], 10)
+    const minutes = parseInt(timeMatch[2], 10)
+    const period = timeMatch[3].toUpperCase()
+    if (period === 'PM' && hours !== 12) hours += 12
+    if (period === 'AM' && hours === 12) hours = 0
+
+    const slotDate = new Date(nowIST)
+    slotDate.setHours(hours, minutes, 0, 0)
+    return slotDate > nowIST
+  })
+}
+
 const GOTHRAMS = [
   'Agastya', 'Alambayana', 'Angirasa', 'Atri', 'Babhravya', 'Bharadwaja', 'Bhargava',
   'Bhrigu', 'Daksha', 'Dhananjaya', 'Garga', 'Gautama', 'Harita', 'Jamadagni',
@@ -31,7 +54,6 @@ const GOTHRAMS = [
   'Vishwamitra', 'Yaska',
 ]
 
-// 27 Nakshatras (Lunar Mansions) in order
 const NAKSHATRAMS = [
   'Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu',
   'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni', 'Hasta',
@@ -40,7 +62,6 @@ const NAKSHATRAMS = [
   'Uttara Bhadrapada', 'Revati',
 ]
 
-// 12 Rashis (Zodiac Signs) in order - Hindu names with English equivalents
 const RASHIS = [
   { value: 'Mesha', label: 'Mesha (Aries)' },
   { value: 'Vrishabha', label: 'Vrishabha (Taurus)' },
@@ -56,31 +77,24 @@ const RASHIS = [
   { value: 'Meena', label: 'Meena (Pisces)' },
 ]
 
+// ── Utility Functions ──
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
-const todayISO = () => new Date().toISOString().slice(0, 10)
-const stampNow = () => stamp(new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))
+const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) // Returns YYYY-MM-DD in IST
+const stampNow = () => stamp(new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }))
 const fmtDate = (d) => {
   if (!d) return '—'
   const date = new Date(d)
   if (isNaN(date.getTime())) return '—'
-  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })
 }
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 
-// Generate UPI payment URL for QR code
 const buildUpiUrl = (upiId, payeeName, amount, note = 'Temple Booking') => {
   if (!upiId) return ''
-  const params = new URLSearchParams({
-    pa: upiId,
-    pn: payeeName || 'Temple',
-    am: String(Number(amount) || 0),
-    cu: 'INR',
-    tn: note,
-  })
+  const params = new URLSearchParams({ pa: upiId, pn: payeeName || 'Temple', am: String(Number(amount) || 0), cu: 'INR', tn: note })
   return `upi://pay?${params.toString()}`
 }
 
-// Calculate validity duration in days from plan name
 const durDays = (planName) => {
   const n = (planName || '').toLowerCase()
   if (n.includes('life')) return null
@@ -90,76 +104,66 @@ const durDays = (planName) => {
   return 1
 }
 
-// Short validity label
 const validityShort = (planName) => {
   const n = (planName || '').toLowerCase()
-  if (n.includes('daily')) return '1 Day'
-  if (n.includes('monthly') || n.includes('month')) return '1 Month'
-  if (n.includes('life')) return 'Lifetime'
-  if (n.includes('one')) return 'One-Time'
-  if (n.includes('year')) return '1 Year'
-  return 'Selected Date'
+  if (n.includes('daily')) return tr('1 Day')
+  if (n.includes('monthly') || n.includes('month')) return tr('1 Month')
+  if (n.includes('life')) return tr('Lifetime')
+  if (n.includes('one')) return tr('One-Time')
+  if (n.includes('year')) return tr('1 Year')
+  return tr('Selected Date')
 }
 
-// Full validity range string
 const validityRange = (planName, fromDate) => {
   const d = durDays(planName)
-  if (d === null) return 'Lifetime'
+  if (d === null) return tr('Lifetime')
   const to = addDays(fromDate, d - 1)
-  return `${d} Day${d > 1 ? 's' : ''} (${fmtDate(fromDate)} to ${fmtDate(to)})`
+  return `${d} ${tr(d > 1 ? 'Days' : 'Day')} (${stamp(fmtDate(fromDate))} ${tr('to')} ${stamp(fmtDate(to))})`
 }
 
-// Calculate expiry date for display
 const calcExpiry = (bookedDate, planName) => {
   if (!bookedDate) return null
   const d = new Date(bookedDate)
   if (isNaN(d.getTime())) return null
   const pn = (planName || '').toLowerCase()
-  if (pn.includes('life')) return 'Lifetime'
+  if (pn.includes('life')) return tr('Lifetime')
   if (pn.includes('year')) { d.setFullYear(d.getFullYear() + 1); return fmtDate(d) }
   if (pn.includes('monthly') || pn.includes('month')) { d.setDate(d.getDate() + 30); return fmtDate(d) }
   return null
 }
 
-// Determine booking mode from category and plan
-const getBookingMode = (category, planName) => {
-  if (category === 'Daily' || category === 'Vehicle') return 'cart'
-  if (category === 'Occasion') return 'ceremony'
-  if (category === 'Festival') return 'festival'
-  if (category === 'Monthly') return 'tithi'
-  if (category === 'Long-Term') return 'registration'
+// Determine if pooja requires additional booking details
+const requiresBookingDetails = (category, planName) => {
+  if (category === 'Monthly' || category === 'Festival' || category === 'Occasion' || category === 'Long-Term') return true
   const pn = (planName || '').toLowerCase()
-  if (pn.includes('life') || pn.includes('year')) return 'registration'
-  if (pn.includes('monthly')) return 'tithi'
-  return 'cart'
+  if (pn.includes('life') || pn.includes('year') || pn.includes('monthly')) return true
+  return false
 }
 
-// Pournami dates are fetched from backend API using astronomical calculation (PyEphem)
-// This works forever without manual date entry - no year limitation
+const isLifetimePlan = (planName) => /life\s*long|life\s*time|lifetime/i.test(planName || '')
 
+// ── Main Component ──
 export default function Counter() {
   const { lang } = useLang()
   const { role } = useOutletContext()
   const canBill = role !== 'Accountant'
 
-  // ── UPI Config for QR code ──
+  // ── UPI Config ──
   const [upiConfig, setUpiConfig] = useState({ upi_id: '', upi_payee_name: '' })
   useEffect(() => {
     SettingsAPI.config()
       .then((c) => setUpiConfig({ upi_id: c?.upi_id || '', upi_payee_name: c?.upi_payee_name || '' }))
-      .catch(() => toast('Failed to load UPI settings', 'error'))
+      .catch(() => toast(tr('Failed to load UPI settings'), 'error'))
   }, [])
 
-  // ── Pooja catalogue ──
+  // ── Pooja Catalogue ──
   const [catalog, setCatalog] = useState([])
-  const [poojas, setPoojas] = useState([])
   const [sevaQ, setSevaQ] = useState('')
   const [catalogErr, setCatalogErr] = useState('')
 
   useEffect(() => {
     PoojasAPI.list()
       .then((r) => {
-        setPoojas(r.items || [])
         const flat = []
         for (const p of (r.items || [])) {
           for (const pl of (p.plans || [])) {
@@ -175,83 +179,67 @@ export default function Counter() {
         }
         setCatalog(flat)
       })
-      .catch((e) => setCatalogErr(e.detail || 'Could not load the pooja catalogue.'))
+      .catch((e) => setCatalogErr(e.detail || tr('Could not load the pooja catalogue.')))
   }, [])
 
-  // Festival windows
+  // ── Festival Windows ──
   const [festivals, setFestivals] = useState([])
   useEffect(() => {
-    FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => toast('Failed to load festivals', 'error'))
-  }, [])
-
-  // Poojaris for assignment
-  const [poojaris, setPoojaris] = useState([])
-  useEffect(() => {
-    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast('Failed to load poojaris', 'error'))
+    FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => {})
   }, [])
 
   const festivalFor = (entry) => {
     if (entry.category !== 'Festival') return null
     const t = todayISO()
-    const linked = festivals.filter((f) => f.status === 'Active' && f.start_date && f.end_date &&
-      (f.pooja_ids || []).includes(entry.pooja_id))
+    const linked = festivals.filter((f) => f.status === 'Active' && f.start_date && f.end_date && (f.pooja_ids || []).includes(entry.pooja_id))
     if (!linked.length) return { none: true }
     const current = linked.find((f) => f.start_date <= t && t <= f.end_date)
     if (current) return { date: t, name: current.name, fest: current }
-    const upcoming = linked.filter((f) => f.start_date > t)
-      .sort((a, b) => a.start_date.localeCompare(b.start_date))[0]
+    const upcoming = linked.filter((f) => f.start_date > t).sort((a, b) => a.start_date.localeCompare(b.start_date))[0]
     if (upcoming) return { date: upcoming.start_date, name: upcoming.name, fest: upcoming }
     return { past: true, windows: linked.map((f) => `${f.name} (${f.start_date} – ${f.end_date})`).join(', ') }
   }
 
-  // ── Category filter ──
+  // ── Poojaris ──
+  const [poojaris, setPoojaris] = useState([])
+  useEffect(() => {
+    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => {})
+  }, [])
+
+  // ── Pournami Dates ──
+  const [pournamiDates, setPournamiDates] = useState([])
+  useEffect(() => {
+    TithiAPI.upcoming('Pournami', 3)
+      .then((r) => setPournamiDates((r.dates || []).map((d) => d.date)))
+      .catch(() => setPournamiDates([]))
+  }, [])
+
+  // ── Category Filter ──
   const [cat, setCat] = useState('All')
   const filtered = useMemo(() => {
     const q = sevaQ.trim().toLowerCase()
     return catalog.filter((s) => {
-      // Filter by category/plan
       let catMatch = false
-      if (cat === 'All') {
-        catMatch = true
-      } else if (cat === 'Daily') {
-        // Show only Daily plans (plan_name contains 'Daily' or is 'Per Day')
-        catMatch = s.category === 'Daily' && /daily|per day/i.test(s.plan_name || '')
-      } else if (cat === 'Monthly') {
-        // Show only Monthly plans
-        catMatch = /monthly/i.test(s.plan_name || '')
-      } else if (cat === 'Long-Term') {
-        // Show Long-Term plans (Life Long, Yearly, etc.)
-        catMatch = s.category === 'Long-Term' || /life|year|long/i.test(s.plan_name || '')
-      } else {
-        // For Occasion, Festival, Vehicle - filter by category
-        catMatch = s.category === cat
-      }
-      // Filter by search query
+      if (cat === 'All') catMatch = true
+      else if (cat === 'Daily') catMatch = s.category === 'Daily' && /daily|per day/i.test(s.plan_name || '')
+      else if (cat === 'Monthly') catMatch = /monthly/i.test(s.plan_name || '')
+      else if (cat === 'Long-Term') catMatch = s.category === 'Long-Term' || /life|year|long/i.test(s.plan_name || '')
+      else catMatch = s.category === cat
       const queryMatch = !q || `${s.pooja_name} ${s.name_te || ''} ${s.plan_name} ${s.category || ''}`.toLowerCase().includes(q)
       return catMatch && queryMatch
     })
   }, [catalog, sevaQ, cat])
 
-  // ── Devotee state (Phone-first flow) ──
+  // ── Devotee State ──
   const [mobile, setMobile] = useState('')
-  const [mobileError, setMobileError] = useState('')  // Mobile validation error
+  const [mobileError, setMobileError] = useState('')
   const [countryCode, setCountryCode] = useState('+91')
   const [name, setName] = useState('')
-  const [mobileResults, setMobileResults] = useState(null)  // Devotees matching mobile
+  const [mobileResults, setMobileResults] = useState(null)
   const [showMobileDropdown, setShowMobileDropdown] = useState(false)
-  const [devotee, setDevotee] = useState(null)  // Linked devotee (if selected from dropdown)
+  const [devotee, setDevotee] = useState(null)
   const searchRef = useRef(0)
 
-  // Sankalpam details
-  const [gothram, setGothram] = useState('')
-  const [nakshatram, setNakshatram] = useState('')
-  const [rasi, setRasi] = useState('')
-  const [beneficiary, setBeneficiary] = useState('')
-  const [participants, setParticipants] = useState([])  // Array of { name, relation? }
-  const [specialNotes, setSpecialNotes] = useState('')
-  const [showSankalpamModal, setShowSankalpamModal] = useState(false)
-
-  // Search devotees by mobile number (when 4+ digits)
   useEffect(() => {
     const m = mobile.trim()
     if (m.length < 4 || devotee) { setMobileResults(null); setShowMobileDropdown(false); return }
@@ -270,15 +258,51 @@ export default function Counter() {
     return () => clearTimeout(t)
   }, [mobile, devotee])
 
+  // ── Sankalpam (Transaction-Level Shared) ──
+  const [gothram, setGothram] = useState('')
+  const [nakshatram, setNakshatram] = useState('')
+  const [rasi, setRasi] = useState('')
+  const [beneficiary, setBeneficiary] = useState('')
+  const [participants, setParticipants] = useState([])
+  const [specialNotes, setSpecialNotes] = useState('')
+  const [sankalpamExpanded, setSankalpamExpanded] = useState(false)
+  const [sankalpamSaveState, setSankalpamSaveState] = useState('idle') // 'idle' | 'saving' | 'saved'
+  const sankalpamDebounceRef = useRef(null)
+
+  // Debounced Sankalpam save indicator
+  const hasSankalpamData = gothram || nakshatram || rasi || beneficiary || participants.length > 0 || specialNotes
+  useEffect(() => {
+    if (!hasSankalpamData) {
+      setSankalpamSaveState('idle')
+      return
+    }
+    setSankalpamSaveState('saving')
+    if (sankalpamDebounceRef.current) clearTimeout(sankalpamDebounceRef.current)
+    sankalpamDebounceRef.current = setTimeout(() => {
+      setSankalpamSaveState('saved')
+    }, 400)
+    return () => { if (sankalpamDebounceRef.current) clearTimeout(sankalpamDebounceRef.current) }
+  }, [gothram, nakshatram, rasi, beneficiary, participants, specialNotes, hasSankalpamData])
+
+  // ── Section Collapse States ──
+  const [vehicleExpanded, setVehicleExpanded] = useState(true)
+  const [bookingExpanded, setBookingExpanded] = useState(true)
+
+  // ── Existing Devotee "Use Details" State ──
+  const [detailsApplied, setDetailsApplied] = useState(false)
+
+  // ── Reset Confirmation State ──
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+
   const pickDevotee = (d) => {
     setDevotee(d)
     setMobile(d.mobile || '')
-    setMobileError('')  // Clear error when selecting valid devotee
+    setMobileError('')
     setName(d.name)
-    setGothram(d.gothram || '')
-    setNakshatram(d.nakshatram || '')
+    // Don't auto-populate Sankalpam - let user click "Use Details"
     setMobileResults(null)
     setShowMobileDropdown(false)
+    setDetailsApplied(false)
   }
 
   const clearDevotee = () => {
@@ -294,118 +318,119 @@ export default function Counter() {
     setSpecialNotes('')
     setMobileResults(null)
     setShowMobileDropdown(false)
+    setDetailsApplied(false)
   }
 
-  // When user changes mobile after selecting a devotee, unlink devotee
+  // Apply existing devotee's Sankalpam details to current billing
+  const applyDevoteeDetails = () => {
+    if (!devotee) return
+    if (devotee.gothram) setGothram(devotee.gothram)
+    if (devotee.nakshatram) setNakshatram(devotee.nakshatram)
+    if (devotee.rasi) setRasi(devotee.rasi)
+    setDetailsApplied(true)
+  }
+
+  // Check if devotee has any usable Sankalpam details
+  const devoteeHasSankalpamDetails = devotee && (devotee.gothram || devotee.nakshatram || devotee.rasi)
+
   const handleMobileChange = (val) => {
     const cleaned = sanitizePhone(val)
     setMobile(cleaned)
-    setError('')  // Clear any previous error when user starts typing
-    // Validate Indian mobile number (only for +91)
-    if (countryCode === '+91' && cleaned.length === 10) {
-      const validation = validatePhone(cleaned)
-      setMobileError(validation.valid ? '' : 'Invalid Mobile Number. Please Enter Valid Mobile Number')
+    setError('')
+    if (countryCode === '+91') {
+      if (cleaned.length === 10) {
+        const validation = validatePhone(cleaned)
+        setMobileError(validation.valid ? '' : tr('Invalid Mobile Number'))
+      } else if (cleaned.length >= 1 && cleaned.length < 10) {
+        setMobileError(tr('Please Enter 10 digits Mobile Number'))
+      } else {
+        setMobileError('')
+      }
     } else {
       setMobileError('')
     }
-    if (devotee && cleaned !== devotee.mobile) {
-      setDevotee(null)  // Unlink if mobile changed
-    }
+    if (devotee && cleaned !== devotee.mobile) setDevotee(null)
   }
 
-  // When user changes name after selecting a devotee, unlink if different
   const handleNameChange = (val) => {
     const cleaned = sanitizeName(val)
     setName(cleaned)
-    setError('')  // Clear any previous error when user starts typing
-    if (devotee && cleaned !== devotee.name) {
-      setDevotee(null)  // Unlink if name changed (different family member)
-    }
+    setError('')
+    if (devotee && cleaned !== devotee.name) setDevotee(null)
   }
 
-  // Auto-create devotee on successful booking (if new mobile+name combination)
-  // Includes gothram/nakshatram from form if provided
-  const autoCreateDevotee = async (bookingMobile, bookingName, bookingGothram, bookingNakshatram) => {
+  const autoCreateOrUpdateDevotee = async (bookingMobile, bookingName, bookingGothram, bookingNakshatram, bookingRasi) => {
     if (!bookingMobile || !bookingName || bookingMobile.length !== 10) return null
     try {
-      // Check if this exact mobile+name combination exists
       const existing = await DevoteesAPI.list({ q: bookingMobile, size: 10 })
-      const exact = (existing.items || []).find(d =>
-        d.mobile === bookingMobile && d.name.toLowerCase() === bookingName.toLowerCase()
-      )
+      const exact = (existing.items || []).find(d => d.mobile === bookingMobile && d.name.toLowerCase() === bookingName.toLowerCase())
+
       if (exact) {
+        // Build updates object with all Sankalpam fields that have values
+        const updates = {}
+        if (bookingGothram) updates.gothram = bookingGothram
+        if (bookingNakshatram) updates.nakshatram = bookingNakshatram
+        if (bookingRasi) updates.rasi = bookingRasi
+
+        // Only update if there are Sankalpam details to save
+        if (Object.keys(updates).length > 0) {
+          try {
+            console.log('[Devotee Update] Saving Sankalpam for', exact.code, updates)
+            await DevoteesAPI.update(exact.id, updates)
+            console.log('[Devotee Update] Saved successfully')
+          } catch (err) {
+            console.error('[Devotee Update] Failed:', err)
+          }
+        }
         return exact
       }
 
-      // Create new devotee with Sankalpam details
+      // Create new devotee with all Sankalpam details
       const newDev = await DevoteesAPI.create({
         name: bookingName,
         mobile: bookingMobile,
         gothram: bookingGothram || undefined,
         nakshatram: bookingNakshatram || undefined,
+        rasi: bookingRasi || undefined
       })
+      console.log('[Devotee Create] Created new devotee with Sankalpam:', newDev.code)
       return newDev
-    } catch {
-      return null  // Silently fail - booking already succeeded
+    } catch (err) {
+      console.error('[Devotee Create/Update] Error:', err)
+      return null
     }
   }
 
-  // ── Booking Mode State ──
-  const [selectedEntry, setSelectedEntry] = useState(null)
-  const [selectedPlan, setSelectedPlan] = useState(null)
-  const bookingMode = useMemo(() => {
-    if (!selectedEntry) return 'cart'
-    return getBookingMode(selectedEntry.category, selectedEntry.plan_name)
-  }, [selectedEntry])
-
-  // ── Form mode state ──
-  const [schedDate, setSchedDate] = useState(todayISO())
-  const [slot, setSlot] = useState(SLOTS[0])
-  const [poojariId, setPoojariId] = useState('')
-  const [committeeAmt, setCommitteeAmt] = useState('')
-
-  // Pournami dates for Monthly poojas - fetched from backend using Swiss Ephemeris Panchang calculation
-  const [pournamiDates, setPournamiDates] = useState([])
-  useEffect(() => {
-    TithiAPI.upcoming('Pournami', 3)  // Current month + next 2 months
-      .then((r) => setPournamiDates((r.dates || []).map((d) => d.date)))
-      .catch(() => setPournamiDates([]))
-  }, [])
-
-  // ── Cart state ──
+  // ── Selected Items (Multi-Select) ──
   const lineSeq = useRef(0)
-  const [cart, setCart] = useState([])
+  const [selected, setSelected] = useState([])
 
-  // ── Payment state ──
+  // ── Payment State ──
   const [mode, setMode] = useState('Cash')
   const [utr, setUtr] = useState('')
   const [busy, setBusy] = useState(false)
-  const [billingProgress, setBillingProgress] = useState(null)
   const [error, setError] = useState('')
   const [bill, setBill] = useState(null)
 
-  // ── Duplicate warnings ──
+  // ── Duplicate Warnings ──
   const [dupWarnings, setDupWarnings] = useState([])
-  const [formDupWarning, setFormDupWarning] = useState(null)
-  const [dupConfirmed, setDupConfirmed] = useState({})  // { lineId: true/false } for cart mode
-  const [formDupConfirmed, setFormDupConfirmed] = useState(false)  // for form mode
+  const [dupConfirmed, setDupConfirmed] = useState({})
 
-  // Check if all duplicate warnings are confirmed
-  const allDupConfirmed = dupWarnings.length === 0 || dupWarnings.every(w => dupConfirmed[w.lineId])
+  const hasLifetimeDuplicate = dupWarnings.some(w => isLifetimePlan(w.plan_name))
+  const allDupConfirmed = dupWarnings.length === 0 || (!hasLifetimeDuplicate && dupWarnings.every(w => dupConfirmed[w.lineId]))
 
-  const cartKey = cart.map(c => `${c.pooja_id}-${c.plan_id}`).join(',')
+  const selectedKey = selected.map(c => `${c.pooja_id}-${c.plan_id}`).join(',')
   const mobileFor10 = mobile.trim().length === 10 ? mobile.trim() : null
+
+  // Check duplicates for long-term items
   useEffect(() => {
-    if ((!devotee?.id && !mobileFor10) || !cart.length) { setDupWarnings([]); return }
-    const monthlyItems = cart.filter((x) =>
-      x.category === 'Monthly' || x.category === 'Long-Term' ||
-      /monthly|life|year/i.test(x.plan_name || '')
-    )
-    if (!monthlyItems.length) { setDupWarnings([]); return }
+    if ((!devotee?.id && !mobileFor10) || !selected.length) { setDupWarnings([]); return }
+    const longTermItems = selected.filter((x) => x.category === 'Monthly' || x.category === 'Long-Term' || /monthly|life|year/i.test(x.plan_name || ''))
+    if (!longTermItems.length) { setDupWarnings([]); return }
 
     const checkAll = async () => {
       const warnings = []
-      for (const item of monthlyItems) {
+      for (const item of longTermItems) {
         try {
           const res = await BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobileFor10, pooja_id: item.pooja_id, plan_id: item.plan_id })
           if (res.has_duplicate) {
@@ -421,145 +446,177 @@ export default function Counter() {
         } catch { /* ignore */ }
       }
       setDupWarnings(warnings)
-      setDupConfirmed({})  // Reset confirmations when warnings change
+      setDupConfirmed({})
     }
     checkAll()
-  }, [devotee?.id, mobileFor10, cartKey])
+  }, [devotee?.id, mobileFor10, selectedKey])
 
-  useEffect(() => {
-    if ((!devotee?.id && !mobileFor10) || !selectedEntry || bookingMode === 'cart') { setFormDupWarning(null); setFormDupConfirmed(false); return }
-    const plan = selectedPlan || selectedEntry
-    const isLongTerm = selectedEntry.category === 'Monthly' || selectedEntry.category === 'Long-Term' ||
-      /monthly|life|year/i.test(plan.plan_name || '')
-    if (!isLongTerm) { setFormDupWarning(null); setFormDupConfirmed(false); return }
-
-    BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobileFor10, pooja_id: selectedEntry.pooja_id, plan_id: plan.plan_id || plan.id })
-      .then((res) => { setFormDupWarning(res.has_duplicate ? res : null); setFormDupConfirmed(false) })
-      .catch(() => { setFormDupWarning(null); setFormDupConfirmed(false) })
-  }, [devotee?.id, mobileFor10, selectedEntry?.pooja_id, selectedPlan?.id, bookingMode])
-
-  // ── Handle pooja selection ──
-  const selectPooja = async (entry) => {
-    const mode = getBookingMode(entry.category, entry.plan_name)
-
-    if (mode === 'cart') {
-      await addToCart(entry)
+  // ── Toggle Selection ──
+  const toggleSelect = (entry) => {
+    const isSelected = selected.some(s => s.key === entry.key)
+    if (isSelected) {
+      setSelected(prev => prev.filter(s => s.key !== entry.key))
     } else {
-      setSelectedEntry(entry)
-      setSelectedPlan(null)
-      setCommitteeAmt('')
-      setError('')
-
+      // Check committee pricing
+      let amount = Number(entry.fee) || 0
       if (entry.category === 'Festival') {
         const fw = festivalFor(entry)
-        if (fw?.date) setSchedDate(fw.date)
-      } else if (entry.category === 'Monthly') {
-        if (pournamiDates.length > 0) setSchedDate(pournamiDates[0])
-      } else {
-        setSchedDate(todayISO())
+        if (fw?.past) {
+          setError(tr('The festival window for this pooja is over') + ` (${fw.windows}).`)
+          return
+        }
+        if (!(amount > 0)) {
+          const festFee = Number(fw?.fest?.plan_fees?.[String(entry.plan_id)] || 0)
+          if (festFee > 0) amount = festFee
+        }
       }
+      if ((entry.committee || entry.fee == null) && !(amount > 0)) {
+        setError(tr('Awaiting committee decision on pricing.'))
+        return
+      }
+
+      // Determine default date based on category
+      let scheduled_date = todayISO()
+      if (entry.category === 'Festival') {
+        const fw = festivalFor(entry)
+        if (fw?.date) scheduled_date = fw.date
+      } else if (entry.category === 'Monthly') {
+        if (pournamiDates.length > 0) scheduled_date = pournamiDates[0]
+      }
+
+      // Get first available time slot for the scheduled date
+      const availableSlots = getAvailableSlots(scheduled_date)
+      const defaultSlot = availableSlots.length > 0 ? availableSlots[0] : SLOTS[0]
+
+      setSelected(prev => [...prev, {
+        ...entry,
+        amount,
+        lineId: ++lineSeq.current,
+        scheduled_date,
+        time_slot: defaultSlot,
+        poojari_id: '',
+        vehicle_no: '',
+      }])
+      setError('')
     }
   }
 
-  // ── Add to cart ──
-  const addToCart = async (entry) => {
-    let amount = Number(entry.fee) || 0
-    let scheduled_date
-    let vehicle_no
+  const removeSelected = (lineId) => {
+    setSelected(prev => prev.filter(s => s.lineId !== lineId))
+    setError('')
+  }
 
-    if (entry.category === 'Festival') {
-      const fw = festivalFor(entry)
-      if (fw?.past) {
-        setError(`The festival window for this pooja is over (${fw.windows}).`)
+  const updateItemMeta = (lineId, field, value) => {
+    setSelected(prev => prev.map(s => s.lineId === lineId ? { ...s, [field]: value } : s))
+  }
+
+  const total = selected.reduce((s, x) => s + Number(x.amount || 0), 0)
+
+  // Items requiring booking details
+  const itemsNeedingBookingDetails = selected.filter(s => requiresBookingDetails(s.category, s.plan_name))
+  const vehicleItems = selected.filter(s => s.category === 'Vehicle')
+
+  // Check if there's meaningful data entered
+  const hasMeaningfulData = selected.length > 0 || mobile.trim() || name.trim() ||
+    gothram || nakshatram || rasi || beneficiary || participants.length > 0 ||
+    specialNotes || utr.trim() || vehicleItems.some(v => v.vehicle_no)
+
+  // ── Full Reset ──
+  const fullReset = () => {
+    clearDevotee()
+    setSelected([])
+    setMode('Cash')
+    setUtr('')
+    setError('')
+    setSankalpamExpanded(false)
+    setDupWarnings([])
+    setDupConfirmed({})
+    setDetailsApplied(false)
+    setShowResetConfirm(false)
+  }
+
+  // Handle Reset button click
+  const handleResetClick = () => {
+    if (hasMeaningfulData) {
+      setShowResetConfirm(true)
+    } else {
+      fullReset()
+    }
+  }
+
+  // ── Checkout ──
+  const checkout = async () => {
+    setError('')
+    if (!canBill) { setError(tr('View-only access.')); return }
+    if (!name.trim()) { setError(tr('Enter the devotee / payer name.')); return }
+    // Validate mobile number - must be exactly 10 digits for Indian numbers
+    const mobileTrimmed = mobile.trim()
+    if (countryCode === '+91') {
+      if (mobileTrimmed.length !== 10) {
+        setError(tr('Please Enter 10 digits Mobile Number'))
+        setMobileError(tr('Please Enter 10 digits Mobile Number'))
         return
       }
-      if (fw?.date) scheduled_date = fw.date
-      // Only override with festival fee if it's set and current fee is 0
-      if (!(amount > 0)) {
-        const festFee = Number(fw?.fest?.plan_fees?.[String(entry.plan_id)] || 0)
-        if (festFee > 0) amount = festFee
+      const mobileValidation = validatePhone(mobileTrimmed)
+      if (!mobileValidation.valid) {
+        setError(mobileValidation.error)
+        setMobileError(tr('Invalid Mobile Number'))
+        return
+      }
+    } else if (!mobileTrimmed) {
+      setError(tr('Enter the mobile number.'))
+      return
+    }
+    if (!selected.length) { setError(tr('Select at least one pooja.')); return }
+    if (mode === 'UPI/QR Code' && !utr.trim()) { setError(tr('Enter the UTR / Transaction ID.')); return }
+
+    // Validate per-item requirements (Vehicle number is optional)
+    for (const item of selected) {
+      if (item.category === 'Occasion' && !item.scheduled_date) {
+        setError(tr('Select date for') + ` ${item.pooja_name}`)
+        return
       }
     }
 
-    if (entry.category === 'Vehicle') {
-      const res = await promptDialog({
-        title: tr('Vehicle Pooja'),
-        confirmLabel: tr('Add to Bill'),
-        fields: [{ k: 'vehicle', label: tr('Vehicle Number'), placeholder: 'e.g. TS09 AB 1234', note: 'Optional — printed on the receipt.' }],
-      })
-      if (!res) return
-      vehicle_no = res.vehicle.trim().toUpperCase() || undefined
+    // Validate time slots for today's bookings
+    const today = todayISO()
+    for (const item of selected) {
+      const schedDate = item.scheduled_date || today
+      if (schedDate === today && item.time_slot) {
+        const now = new Date()
+        const nowIST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+        const timeMatch = item.time_slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1], 10)
+          const minutes = parseInt(timeMatch[2], 10)
+          const period = timeMatch[3].toUpperCase()
+          if (period === 'PM' && hours !== 12) hours += 12
+          if (period === 'AM' && hours === 12) hours = 0
+          const slotTime = new Date(nowIST)
+          slotTime.setHours(hours, minutes, 0, 0)
+          if (slotTime <= nowIST) {
+            setError(tr('The selected time slot has already passed for') + ` ${item.pooja_name}. ` + tr('Please choose a future time slot or a different date.'))
+            return
+          }
+        }
+      }
     }
 
-    // Block if committee hasn't decided the price yet
-    if ((entry.committee || entry.fee == null) && !(amount > 0)) {
-      setError(tr('Awaiting committee decision on pricing. This pooja cannot be booked until the committee sets the price.'))
+    // Check for unconfirmed duplicates
+    if (!allDupConfirmed) {
+      if (hasLifetimeDuplicate) {
+        setError(tr('Cannot proceed - Lifetime plan duplicate detected.'))
+        return
+      }
+      setError(tr('Please confirm duplicate plan acknowledgements.'))
       return
     }
 
-    const mobCheck = mobile.trim().length === 10 ? mobile.trim() : null
-    if ((devotee?.id || mobCheck) && (entry.category === 'Monthly' || entry.category === 'Long-Term' || /monthly|life|year/i.test(entry.plan_name || ''))) {
-      try {
-        const dupCheck = await BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobCheck, pooja_id: entry.pooja_id, plan_id: entry.plan_id })
-        if (dupCheck.has_duplicate) {
-          const proceed = await promptDialog({
-            title: tr('Duplicate Booking Found'),
-            message: tr(dupCheck.message || `Active ${entry.plan_name} booking exists.`),
-            confirmLabel: tr('Add Anyway'),
-            cancelLabel: tr('Cancel'),
-            tone: 'warning',
-          })
-          if (!proceed) return
-        }
-      } catch { /* ignore */ }
-    }
-
-    setCart((c) => [...c, { ...entry, amount, scheduled_date, vehicle_no, lineId: ++lineSeq.current }])
-    setError('')  // Clear any previous error when adding items
-  }
-
-  const removeFromCart = (lineId) => {
-    setCart((c) => c.filter((x) => x.lineId !== lineId))
-    setError('')  // Clear any previous error when removing items
-  }
-  const total = cart.reduce((s, x) => s + Number(x.amount || 0), 0)
-
-  const clearSelection = () => {
-    setSelectedEntry(null)
-    setSelectedPlan(null)
-    setCommitteeAmt('')
-    setSchedDate(todayISO())
-    setSlot(SLOTS[0])
-    setPoojariId('')
-    setBeneficiary('')
-    setRasi('')
-    setParticipants([])
-    setSpecialNotes('')
-    setFormDupWarning(null)
-    setError('')
-  }
-
-  // ── Checkout (cart mode) - OPTIMIZED: single API call for all items ──
-  const checkout = async () => {
-    setError('')
-    if (!canBill) { setError('View-only access.'); return }
-    if (!name.trim()) { setError('Enter the devotee / payer name.'); return }
-    const mobileValidation = validatePhone(mobile.trim())
-    if (!mobileValidation.valid) { setError(mobileValidation.error); return }
-    if (!cart.length) { setError('Add at least one pooja to the bill.'); return }
-    if (mode === 'UPI/QR Code' && !utr.trim()) { setError('Enter the UTR / Transaction ID.'); return }
-
     setBusy(true)
-    setBillingProgress({ current: 1, total: cart.length })
-
-    const sum = (ls) => ls.reduce((s, x) => s + Number(x.amount || 0), 0)
-
-    // Capture cart items before async operation (React state may change)
-    const originalCartItems = [...cart]
+    const originalItems = [...selected]
 
     try {
-      // Prepare all items for bulk creation
-      const items = originalCartItems.map((item) => ({
+      const items = originalItems.map((item) => ({
         devotee_id: devotee?.id ?? undefined,
         devotee_name: name.trim(),
         mobile: mobile.trim(),
@@ -570,8 +627,8 @@ export default function Counter() {
         category: item.category || undefined,
         amount: Number(item.amount),
         scheduled_date: item.scheduled_date || todayISO(),
-        vehicle_no: item.vehicle_no,
-        // Include Sankalpam details if available
+        time_slot: item.time_slot || undefined,
+        vehicle_no: item.vehicle_no?.trim() || undefined,
         gothram: gothram.trim() || undefined,
         nakshatram: nakshatram.trim() || undefined,
         rasi: rasi.trim() || undefined,
@@ -581,37 +638,18 @@ export default function Counter() {
         source: 'Counter',
       }))
 
-      // Single API call for all bookings (replaces 4 × N calls)
-      const result = await BookingsAPI.bulkQuickCreate({
-        items,
-        payment_method: mode,
-      })
+      const result = await BookingsAPI.bulkQuickCreate({ items, payment_method: mode })
+      if (!result || typeof result !== 'object') throw new Error('Invalid response')
 
-      // Defensive: ensure result has expected structure
-      if (!result || typeof result !== 'object') {
-        throw new Error('Invalid response from server')
-      }
-
-      // Map results back to cart items (use originalCartItems, not cart state)
       const successItems = result.success || []
       const done = successItems.map((s) => {
-        const cartItem = originalCartItems[s.index] || {}
+        const cartItem = originalItems[s.index] || {}
         return {
           ...cartItem,
           pooja_name: cartItem.pooja_name || s.seva_name || 'Seva',
           plan_name: cartItem.plan_name || s.plan_name || 'Daily',
           amount: cartItem.amount || s.amount || 0,
-          booking: {
-            id: s.id,
-            booking_code: s.booking_code,
-            ticket_no: s.ticket_no,
-            receipt_no: s.receipt_no,
-            seva_name: s.seva_name,
-            plan_name: s.plan_name,
-            amount: s.amount,
-            valid_until: s.valid_until,
-            scheduled_date: s.scheduled_date,
-          },
+          booking: { id: s.id, booking_code: s.booking_code, ticket_no: s.ticket_no, receipt_no: s.receipt_no, seva_name: s.seva_name, plan_name: s.plan_name, amount: s.amount, valid_until: s.valid_until, scheduled_date: s.scheduled_date },
         }
       })
 
@@ -619,7 +657,7 @@ export default function Counter() {
 
       setBill({
         lines: done,
-        total: sum(done),
+        total: done.reduce((s, x) => s + Number(x.amount || 0), 0),
         name: name.trim(),
         mobile: mobile.trim(),
         mode,
@@ -627,1049 +665,651 @@ export default function Counter() {
         ref: done[0]?.booking?.receipt_no || done[0]?.booking?.booking_code,
         paidAt: stampNow(),
         failed: failedCount,
+        _gothram: gothram,
+        _nakshatram: nakshatram,
+        _rasi: rasi,
+        _beneficiary: beneficiary,
+        _participants: participants,
+        _specialNotes: specialNotes,
       })
 
-      // Auto-create devotee if new mobile+name (only if booking succeeded)
-      if (done.length > 0 && !devotee) {
-        autoCreateDevotee(mobile.trim(), name.trim(), gothram.trim(), nakshatram.trim())  // Fire and forget
+      // Save/update devotee with Sankalpam details for future bookings
+      if (done.length > 0) {
+        autoCreateOrUpdateDevotee(mobile.trim(), name.trim(), gothram.trim(), nakshatram.trim(), rasi.trim())
       }
 
       if (failedCount) {
-        // Show first error message for debugging
-        const firstError = result.failed?.[0]?.error || 'Unknown error'
-        setError(`${done.length} item(s) billed; ${failedCount} failed. Error: ${firstError}`)
+        const firstError = result.failed?.[0]?.error || tr('Unknown error')
+        setError(`${done.length} ${tr('item(s) billed')}; ${failedCount} ${tr('failed')}. ${firstError}`)
       } else {
-        setCart([])
+        setSelected([])
         clearDevotee()
         setUtr('')
+        setSankalpamExpanded(false)
       }
     } catch (err) {
       console.error('Billing error:', err)
-      setError(err.detail || err.message || 'Billing failed. Please try again.')
+      setError(err.detail || err.message || tr('Billing failed.'))
     }
 
     setBusy(false)
-    setBillingProgress(null)
-  }
-
-  // ── Book (form mode) - OPTIMIZED: single API call ──
-  const bookForm = async () => {
-    setError('')
-    if (!canBill) { setError('View-only access.'); return }
-    if (!name.trim()) { setError('Enter the devotee name.'); return }
-    const mobileValidation = validatePhone(mobile.trim())
-    if (!mobileValidation.valid) { setError(mobileValidation.error); return }
-    if (!schedDate) { setError('Select a booking date.'); return }
-    if (mode === 'UPI/QR Code' && !utr.trim()) { setError('Enter the UTR / Transaction ID.'); return }
-
-    const plan = selectedPlan || selectedEntry
-    let amount = Number(plan.fee) || 0
-
-    // If fee is already set (by admin or committee), use it
-    if (amount > 0) {
-      // amount is already set from plan.fee
-    } else if (plan.committee || plan.fee == null) {
-      // Check festival fee override
-      if (selectedEntry.category === 'Festival') {
-        const fw = festivalFor(selectedEntry)
-        const festFee = Number(fw?.fest?.plan_fees?.[String(plan.plan_id || plan.id)] || 0)
-        if (festFee > 0) amount = festFee
-      }
-      // Block if committee hasn't decided the price
-      if (!(Number(amount) > 0)) {
-        setError(tr('Awaiting committee decision on pricing. This pooja cannot be booked until the committee sets the price.'))
-        return
-      }
-    }
-
-    setBusy(true)
-    try {
-      // Single API call (replaces 4 sequential calls)
-      const booking = await BookingsAPI.quickCreate({
-        devotee_id: devotee?.id ?? undefined,
-        devotee_name: name.trim(),
-        mobile: mobile.trim(),
-        pooja_id: selectedEntry.pooja_id,
-        plan_id: plan.plan_id || plan.id,
-        plan_name: plan.plan_name,
-        seva_name: selectedEntry.pooja_name,
-        category: selectedEntry.category,
-        amount: Number(amount),
-        scheduled_date: schedDate,
-        time_slot: slot,
-        gothram: gothram.trim() || undefined,
-        nakshatram: nakshatram.trim() || undefined,
-        rasi: rasi.trim() || undefined,
-        beneficiary_name: beneficiary.trim() || undefined,
-        participants: participants.length > 0 ? JSON.stringify(participants) : undefined,
-        special_notes: specialNotes.trim() || undefined,
-        source: 'Counter',
-        payment_method: mode,
-      })
-
-      // Poojari assignment (optional, best-effort)
-      if (poojariId) {
-        try { await PoojarisAPI.assign(booking.id, Number(poojariId)) } catch { /* best-effort */ }
-      }
-
-      const assignedPoojari = poojaris.find((p) => String(p.id) === String(poojariId)) || null
-
-      setBill({
-        lines: [{
-          ...selectedEntry,
-          ...plan,
-          amount,
-          booking,
-          _gothram: gothram,
-          _nakshatram: nakshatram,
-          _rasi: rasi,
-          _beneficiary: beneficiary,
-          _participants: participants,
-          _specialNotes: specialNotes,
-          _slot: slot,
-          _poojari: assignedPoojari?.name,
-          _schedDate: schedDate,
-        }],
-        total: amount,
-        name: name.trim(),
-        mobile: mobile.trim(),
-        mode,
-        utr: utr.trim(),
-        ref: booking.receipt_no || booking.booking_code,
-        paidAt: stampNow(),
-        failed: 0,
-        isFormBooking: true,
-      })
-
-      // Auto-create devotee if new mobile+name
-      if (!devotee) {
-        autoCreateDevotee(mobile.trim(), name.trim(), gothram.trim(), nakshatram.trim())  // Fire and forget
-      }
-
-      clearSelection()
-      clearDevotee()
-      setUtr('')
-    } catch (err) {
-      console.error('Booking error:', err)
-      setError(err.detail || err.message || 'Booking failed. Please try again.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI / QR Code' : m)
-
-  const getCurrentFee = () => {
-    if (!selectedEntry) return 0
-    const plan = selectedPlan || selectedEntry
-    // If plan has a fee set (by admin or committee), use it
-    if (Number(plan.fee) > 0) return Number(plan.fee)
-    // For committee-decided plans without fee, check festival override first
-    if (plan.committee || plan.fee == null) {
-      if (selectedEntry.category === 'Festival') {
-        const fw = festivalFor(selectedEntry)
-        const festFee = Number(fw?.fest?.plan_fees?.[String(plan.plan_id || plan.id)] || 0)
-        if (festFee > 0) return festFee
-      }
-      return 0
-    }
-    return 0
-  }
-
-  // Check if booking is blocked due to pending committee decision
-  const isPendingCommitteeDecision = () => {
-    if (!selectedEntry) return false
-    const plan = selectedPlan || selectedEntry
-    // If fee is already set, not blocked
-    if (Number(plan.fee) > 0) return false
-    // If not committee-decided, not blocked
-    if (!plan.committee && plan.fee != null) return false
-    // Check for festival fee override
-    if (selectedEntry.category === 'Festival') {
-      const fw = festivalFor(selectedEntry)
-      const festFee = Number(fw?.fest?.plan_fees?.[String(plan.plan_id || plan.id)] || 0)
-      if (festFee > 0) return false
-    }
-    // No fee set and no override - blocked
-    return true
   }
 
   return (
-    <div>
-      <PageHeader
-        title={tr("Counter Billing")}
-        subtitle={tr("One screen for all pooja bookings — daily, ceremonies, festivals, registrations")}
-        action={<span className="badge bg-saffron-50 text-saffron-700">{tr('Counter')} 1 · {tr(role)}</span>}
-      />
+    <div className="min-h-screen bg-gradient-to-br from-amber-50/80 via-orange-50/40 to-amber-50/60">
+      <div className="px-4">
+        <PageHeader
+          title={tr("Counter Billing")}
+          action={
+            <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">{tr('Counter')} 1 · {tr(role)}</span>
+          }
+        />
+      </div>
 
-      {catalogErr && <div className="mt-4 rounded-lg bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-2.5">{catalogErr}</div>}
+      {catalogErr && <div className="mx-4 mt-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2">{catalogErr}</div>}
       {!canBill && (
-        <div className="mt-4 rounded-lg bg-blue-50 border border-blue-100 text-blue-700 text-sm px-4 py-2.5 flex items-center gap-2">
-          <Eye size={15} className="shrink-0" />
-          <T>View-only access — the Accountant role cannot issue receipts.</T>
+        <div className="mx-4 mt-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm px-4 py-2 flex items-center gap-2">
+          <Eye size={14} /> <T>View-only access — Accountant role cannot issue receipts.</T>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-5">
-        {/* ── Left Panel: Pooja Picker ── */}
-        <div className="md:col-span-1 lg:col-span-2 card p-5 sm:p-6">
-          {/* Phone-first devotee entry */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-            {/* Mobile FIRST */}
-            <div className="relative">
-              <label className="label"><T>Mobile</T> *</label>
-              <div className="flex">
-                <CountryCodeSelect value={countryCode} onChange={(e) => setCountryCode(e.target.value)} />
-                <input
-                  value={mobile}
-                  onChange={(e) => handleMobileChange(e.target.value)}
-                  placeholder={tr("Enter Mobile Number")}
-                  maxLength={getCountryDigits(countryCode)}
-                  className={`input flex-1 !rounded-l-none ${mobileError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`}
-                  autoFocus
-                  aria-label={tr("Mobile number")}
-                  aria-describedby="mobile-hint"
-                  aria-invalid={!!mobileError}
-                />
-              </div>
-              {mobileError ? (
-                <p className="text-[0.625rem] text-red-600 mt-1 font-medium">{tr(mobileError)}</p>
-              ) : (
-                <p id="mobile-hint" className="text-[0.625rem] text-gray-600 mt-1"><T>Type to search existing devotees</T></p>
-              )}
-              {/* Dropdown showing matching devotees by mobile */}
-              {showMobileDropdown && mobileResults && mobileResults.length > 0 && (
-                <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                  <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-[0.6875rem] text-gray-700 font-medium">
-                    <T>Select to auto-fill</T>
-                  </div>
-                  {mobileResults.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => pickDevotee(d)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-saffron-50 flex items-center justify-between border-b border-gray-50 last:border-0"
-                    >
-                      <span className="font-medium text-gray-800">{personName(d, lang)}</span>
-                      <span className="text-gray-600 text-xs">{d.mobile}</span>
-                    </button>
-                  ))}
+      <div className="grid grid-cols-1 lg:grid-cols-[55fr_45fr] gap-2 px-4 pb-4">
+        {/* ══════════════════════════════════════════════════════════════════════════
+            LEFT PANEL: Devotee Details + Pooja Selection
+        ══════════════════════════════════════════════════════════════════════════ */}
+        <div className="space-y-2 h-[calc(100vh-140px)] flex flex-col">
+          {/* Devotee Details */}
+          <div className="bg-white rounded-xl border border-amber-200/60 shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+              <User size={14} className="text-amber-600" />
+              <T>Devotee Details</T>
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="relative">
+                <label className="text-xs font-medium text-gray-600 mb-1 block"><T>Mobile</T> *</label>
+                <div className="flex">
+                  <CountryCodeSelect value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="!rounded-r-none !text-xs !py-2" />
+                  <input
+                    value={mobile}
+                    onChange={(e) => handleMobileChange(e.target.value)}
+                    placeholder={tr("Enter Mobile Number")}
+                    maxLength={getCountryDigits(countryCode)}
+                    className={`input flex-1 !rounded-l-none !text-sm !py-2 ${mobileError ? 'border-red-400' : ''}`}
+                  />
                 </div>
-              )}
-            </div>
-            {/* Name SECOND */}
-            <div>
-              <label className="label"><T>Name</T> *</label>
-              <input
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder={tr("Devotee / Payer name")}
-                className="input"
-              />
-            </div>
-          </div>
-
-          {/* Linked devotee indicator */}
-          {devotee && (
-            <div className="mb-5 flex items-center justify-between bg-emerald-50 border-2 border-emerald-200 rounded-xl px-4 py-3">
-              <div className="flex items-center gap-3 text-sm text-emerald-800">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 grid place-items-center">
-                  <User size={16} className="text-emerald-600" />
-                </div>
-                <div>
-                  <span className="font-semibold">{personName(devotee, lang)}</span>
-                  {devotee.gothram && <span className="text-emerald-600 text-xs ml-2">· {devotee.gothram}</span>}
-                  <div className="text-[0.6875rem] text-emerald-600">{devotee.mobile}</div>
-                </div>
-              </div>
-              <button onClick={clearDevotee} className="text-emerald-600 hover:text-red-600 text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-red-50 transition"><T>Clear</T></button>
-            </div>
-          )}
-
-          {/* Category chips */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
-            <h3 className="font-bold text-gray-900 text-lg"><T>Select Pooja</T></h3>
-            <div className="relative w-full sm:w-72">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
-              <input value={sevaQ} onChange={(e) => setSevaQ(e.target.value)} placeholder={tr("Search pooja / plan…")} className="input !pl-10 !py-2.5" aria-label={tr("Search poojas")} />
-            </div>
-          </div>
-          <div className="flex gap-2 sm:gap-2.5 mb-5 overflow-x-auto pb-2 -mx-1 px-1 sm:flex-wrap sm:overflow-visible scrollbar-thin" role="group" aria-label="Pooja categories">
-            {CATS.map((c) => (
-              <button key={c} onClick={() => setCat(c)}
-                aria-pressed={cat === c}
-                className={`px-4 py-2 rounded-full text-sm font-semibold border-2 transition whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1 ${cat === c ? 'bg-maroon-700 text-cream border-maroon-700 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:border-maroon-300 hover:bg-maroon-50'}`}>
-                {tr(c)}
-              </button>
-            ))}
-          </div>
-
-          {/* Category hints */}
-          {cat === 'Occasion' && (
-            <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-3">
-              <Info size={16} className="shrink-0 mt-0.5" />
-              <T>Ceremony poojas open a detailed form with date, time slot, sankalpam details and poojari selection.</T>
-            </div>
-          )}
-          {cat === 'Festival' && (
-            <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-3">
-              <Info size={16} className="shrink-0 mt-0.5" />
-              <T>Festival poojas are scheduled within their festival window from Festival Master.</T>
-            </div>
-          )}
-          {cat === 'Monthly' && (
-            <div className="text-[0.8125rem] text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-3">
-              <Moon size={16} className="shrink-0 mt-0.5" />
-              <span><T>Monthly poojas like Sai Vratam are performed on Pournami days.</T>{' '}
-              <span className="font-semibold"><T>Upcoming</T>: {pournamiDates.slice(0, 3).map(d => fmtDate(d)).join(', ')}</span></span>
-            </div>
-          )}
-          {cat === 'Long-Term' && (
-            <div className="text-[0.8125rem] text-maroon-700 bg-maroon-50 border border-maroon-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-3">
-              <ShieldCheck size={16} className="shrink-0 mt-0.5" />
-              <T>Long-term poojas (Life Long, Yearly) require a registered devotee.</T>
-            </div>
-          )}
-
-          {/* Pooja grid */}
-          {catalogErr && <div className="text-red-600 text-sm text-center py-6" role="alert">{catalogErr}</div>}
-          {!catalogErr && catalog.length === 0 && (
-            <div className="flex items-center justify-center py-12 text-gray-600">
-              <Loader2 size={24} className="animate-spin mr-3" />
-              <span className="text-base"><T>Loading poojas...</T></span>
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[32rem] overflow-y-auto pr-1 scrollbar-thin" role="list" aria-label={tr("Available poojas")}>
-            {filtered.map((s) => {
-              const poojaMode = getBookingMode(s.category, s.plan_name)
-              const isCartMode = poojaMode === 'cart'
-              return (
-                <button key={s.key} onClick={() => selectPooja(s)}
-                  role="listitem"
-                  aria-label={`${s.pooja_name}, ${s.plan_name}, ₹${Number(s.fee || 0)}`}
-                  className="flex items-center justify-between border-2 border-gray-200 rounded-xl px-4 py-3.5 text-left hover:border-saffron-400 hover:bg-saffron-50 hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-saffron-500 focus:ring-offset-1">
-                  <div className="min-w-0">
-                    <div className="text-[0.9375rem] font-semibold text-gray-800 leading-tight">{lang === 'te' && s.name_te ? s.name_te : tr(s.pooja_name)}</div>
-                    <div className="text-[0.75rem] text-gray-700 leading-tight flex items-center gap-1.5 mt-1">
-                      {s.category === 'Vehicle' && <Car size={12} aria-hidden="true" />}
-                      {s.category === 'Festival' && <CalendarDays size={12} aria-hidden="true" />}
-                      {s.category === 'Occasion' && <Flame size={12} aria-hidden="true" />}
-                      {s.category === 'Monthly' && <Moon size={12} aria-hidden="true" />}
-                      {tr(s.plan_name)}
-                    </div>
-                  </div>
-                  <span className="flex items-center gap-1.5 text-saffron-700 font-bold text-base shrink-0 ml-2">
-                    {isCartMode ? <Plus size={16} aria-hidden="true" /> : <ArrowRight size={16} aria-hidden="true" />}
-                    {`₹${Number(s.fee || 0).toLocaleString('en-IN')}`}
-                  </span>
-                </button>
-              )
-            })}
-            {filtered.length === 0 && catalog.length > 0 && <p className="text-base text-gray-600 col-span-full text-center py-12"><T>No matching poojas.</T></p>}
-          </div>
-        </div>
-
-        {/* ── Right Panel ── */}
-        <div className="card p-5 sm:p-6 flex flex-col">
-          {/* Cart Mode */}
-          {(!selectedEntry || bookingMode === 'cart') && (
-            <>
-              <div className="flex items-center gap-2.5 mb-2">
-                <div className="w-9 h-9 rounded-full bg-saffron-100 grid place-items-center">
-                  <ReceiptIcon size={18} className="text-saffron-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 text-lg">{lang === 'te' ? 'రసీదు' : 'Bill / రసీదు'}</h3>
-                  <p className="text-[0.75rem] text-gray-600"><T>Add daily poojas or vehicle poojas to the bill</T></p>
-                </div>
-              </div>
-
-              <div className="flex-1 space-y-3 min-h-[6rem] max-h-[20rem] overflow-y-auto mt-4 mb-4">
-                {cart.length === 0 && (
-                  <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
-                    <ReceiptIcon size={32} className="mx-auto text-gray-300 mb-2" />
-                    <p className="text-sm text-gray-600"><T>No items added. Select a pooja from the left.</T></p>
-                  </div>
-                )}
-                {cart.map((x) => (
-                  <div key={x.lineId} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
-                    <div className="min-w-0">
-                      <div className="font-semibold text-gray-800 leading-tight">{x.pooja_name}</div>
-                      <div className="text-[0.75rem] text-gray-700 leading-tight mt-0.5">
-                        {x.plan_name}
-                        {x.vehicle_no && ` · ${x.vehicle_no}`}
-                        {x.scheduled_date && x.scheduled_date !== todayISO() && ` · ${fmtDate(x.scheduled_date)}`}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="font-bold text-gray-800 text-base">₹{Number(x.amount || 0).toLocaleString('en-IN')}</span>
-                      <button onClick={() => removeFromCart(x.lineId)} className="w-8 h-8 rounded-lg bg-white border border-gray-200 grid place-items-center text-gray-600 hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition"><Trash2 size={14} /></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {dupWarnings.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {dupWarnings.map((w) => (
-                    <div key={w.lineId} className={`rounded-lg px-3 py-2.5 shadow-sm border-2 ${dupConfirmed[w.lineId] ? 'bg-emerald-50 border-emerald-400' : 'bg-orange-100 border-orange-400'}`}>
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${dupConfirmed[w.lineId] ? 'text-emerald-600' : 'text-orange-600'}`} />
-                        <div className="text-xs flex-1">
-                          <div className={`font-bold text-sm ${dupConfirmed[w.lineId] ? 'text-emerald-800' : 'text-orange-900'}`}><T>Active Plan Exists</T></div>
-                          <div className="font-semibold text-gray-800 mt-0.5">{w.pooja_name} ({w.plan_name})</div>
-                          <div className="mt-1 space-y-0.5 text-gray-700">
-                            {w.booked_on && <div><span className="font-medium text-gray-600"><T>Booked</T>:</span> {fmtDate(w.booked_on)}</div>}
-                            {w.valid_until && <div><span className="font-medium text-gray-600"><T>Valid Until</T>:</span> {typeof w.valid_until === 'string' && w.valid_until.includes('-') ? fmtDate(w.valid_until) : w.valid_until}</div>}
-                          </div>
-                          {w.existing_ticket && <div className="text-[0.6875rem] text-gray-700 mt-1"><T>Ticket</T>: {w.existing_ticket}</div>}
-
-                          {/* Confirmation checkbox */}
-                          <label className={`mt-2 flex items-start gap-2 cursor-pointer p-2 rounded-lg border ${dupConfirmed[w.lineId] ? 'bg-emerald-100 border-emerald-300' : 'bg-white border-orange-200 hover:bg-orange-50'}`}>
-                            <input
-                              type="checkbox"
-                              checked={!!dupConfirmed[w.lineId]}
-                              onChange={(e) => setDupConfirmed(prev => ({ ...prev, [w.lineId]: e.target.checked }))}
-                              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                            />
-                            <span className={`text-[0.6875rem] leading-tight ${dupConfirmed[w.lineId] ? 'text-emerald-700' : 'text-gray-600'}`}>
-                              <T>I have informed the devotee about the existing active plan and they wish to proceed with a new booking.</T>
-                            </span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Payment Method Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-3"><T>Payment Method</T></label>
-                <div className="grid grid-cols-2 gap-3">
-                  {['Cash', 'UPI/QR Code'].map((m) => (
-                    <button key={m} onClick={() => { setMode(m); setError('') }}
-                      className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 py-4 px-3 font-semibold transition-all ${mode === m
-                        ? 'border-saffron-500 bg-saffron-50 text-saffron-800 shadow-sm'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}>
-                      <div className={`w-10 h-10 rounded-full grid place-items-center ${mode === m ? 'bg-saffron-200' : 'bg-gray-100'}`}>
-                        <IndianRupee size={20} />
-                      </div>
-                      <span className="text-sm">{modeLabel(m)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {mode === 'UPI/QR Code' && (
-                <div className="mb-4">
-                  {/* UPI QR Code */}
-                  {upiConfig.upi_id && total > 0 && (
-                    <div className="flex flex-col items-center bg-white border border-gray-200 rounded-xl p-4 mb-4">
-                      <div className="bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
-                        <QRCodeSVG
-                          value={buildUpiUrl(upiConfig.upi_id, upiConfig.upi_payee_name, total, 'Temple Seva Booking')}
-                          size={160}
-                          level="M"
-                          includeMargin={false}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-700 mt-3 text-center"><T>Scan with any UPI app to pay</T></p>
-                      <p className="text-[0.7rem] text-gray-600 mt-1 font-mono">{upiConfig.upi_id}</p>
-                    </div>
-                  )}
-                  <label className="block text-sm font-medium text-gray-600 mb-2"><T>UTR / Transaction ID</T> *</label>
-                  <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("Enter UTR or Transaction ID")} className="input !py-3 text-base" />
-                </div>
-              )}
-
-              {/* Total & Checkout */}
-              <div className="border-t-2 border-gray-100 pt-4 mt-auto">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-base font-semibold text-gray-600">{lang === 'te' ? 'మొత్తం' : 'Total / మొత్తం'}</span>
-                  <span className="text-2xl font-extrabold text-maroon-700">{inr(total)}</span>
-                </div>
-                {error && <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-sm text-red-700 font-medium text-center">{error}</div>}
-                {dupWarnings.length > 0 && !allDupConfirmed && (
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-3 text-sm text-orange-700 font-medium text-center">
-                    <T>Please confirm the duplicate plan acknowledgement above to proceed.</T>
-                  </div>
-                )}
-                <button onClick={checkout} disabled={busy || !cart.length || !canBill || !allDupConfirmed} className="btn-primary w-full py-4 text-base disabled:bg-gray-300 justify-center rounded-xl">
-                  {busy
-                    ? <><Loader2 size={18} className="animate-spin" /> {billingProgress ? `${tr('Processing')} ${billingProgress.current}/${billingProgress.total}…` : <T>Processing…</T>}</>
-                    : !canBill ? <><Eye size={18} /> <T>View Only</T></>
-                    : <><ReceiptIcon size={18} /> <T>Complete Billing</T></>}
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* Form Mode */}
-          {selectedEntry && bookingMode !== 'cart' && (
-            <>
-              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
-                <div className="flex items-center gap-3 text-maroon-700">
-                  <div className={`w-10 h-10 rounded-full grid place-items-center ${
-                    bookingMode === 'ceremony' ? 'bg-orange-100' :
-                    bookingMode === 'festival' ? 'bg-amber-100' :
-                    bookingMode === 'registration' ? 'bg-maroon-100' : 'bg-blue-100'
-                  }`}>
-                    {bookingMode === 'ceremony' && <Flame size={20} />}
-                    {bookingMode === 'festival' && <CalendarDays size={20} />}
-                    {bookingMode === 'registration' && <ShieldCheck size={20} />}
-                    {bookingMode === 'tithi' && <Moon size={20} />}
-                  </div>
-                  <h3 className="font-serif text-lg font-bold leading-tight">{tr(selectedEntry.pooja_name)}</h3>
-                </div>
-                <button onClick={clearSelection} className="w-9 h-9 rounded-lg border border-gray-200 grid place-items-center text-gray-600 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition"><X size={18} /></button>
-              </div>
-
-              {/* Plan selection */}
-              {selectedEntry.plans && selectedEntry.plans.length > 1 && (
-                <div className="mb-5">
-                  <label className="label text-sm font-semibold"><T>Select Plan</T></label>
-                  <div className="space-y-2 max-h-36 overflow-y-auto mt-2">
-                    {selectedEntry.plans.map((pl) => {
-                      const isSelected = (selectedPlan?.id || selectedEntry.plan_id) === pl.id
-                      return (
-                        <button key={pl.id} onClick={() => setSelectedPlan(pl)}
-                          className={`w-full flex items-center justify-between border-2 rounded-xl px-4 py-3 transition ${isSelected ? 'border-maroon-400 bg-maroon-50' : 'border-gray-200 hover:border-maroon-300 hover:bg-gray-50'}`}>
-                          <div className="flex items-center gap-3">
-                            <span className={`w-4 h-4 rounded-full border-2 ${isSelected ? 'border-maroon-600 bg-maroon-600' : 'border-gray-300'}`} />
-                            <div className="text-left">
-                              <span className="font-semibold text-gray-800">{tr(pl.plan_name)}</span>
-                              <span className="text-[0.75rem] text-gray-700 ml-2">{validityShort(pl.plan_name)}</span>
-                            </div>
-                          </div>
-                          <span className="font-bold text-gray-800 text-base">
-                            {`₹${Number(pl.fee || 0).toLocaleString('en-IN')}`}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Sankalpam details - clickable card opens modal */}
-              {(bookingMode === 'ceremony' || bookingMode === 'festival' || bookingMode === 'tithi' || bookingMode === 'registration') && (
-                <button
-                  type="button"
-                  onClick={() => setShowSankalpamModal(true)}
-                  className="mb-4 w-full p-3 bg-amber-50/50 border border-amber-100 rounded-lg text-left hover:border-amber-300 hover:bg-amber-50 transition-colors group"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileText size={16} className="text-amber-600" />
-                      <span className="font-semibold text-amber-800 text-sm"><T>Sankalpam Details</T></span>
-                    </div>
-                    <Edit3 size={14} className="text-amber-400 group-hover:text-amber-600" />
-                  </div>
-                  {/* Show summary if any field is filled */}
-                  {(gothram || nakshatram || rasi || beneficiary || participants.length > 0 || specialNotes) ? (
-                    <div className="mt-2 text-[0.75rem] text-amber-700 space-y-0.5">
-                      {gothram && <div><span className="text-amber-500">{tr('Gothram')}:</span> {gothram}</div>}
-                      {nakshatram && <div><span className="text-amber-500">{tr('Nakshatram')}:</span> {nakshatram}</div>}
-                      {rasi && <div><span className="text-amber-500">{tr('Rasi')}:</span> {rasi}</div>}
-                      {beneficiary && <div><span className="text-amber-500">{tr('In name of')}:</span> {beneficiary}</div>}
-                      {participants.length > 0 && (
-                        <div><span className="text-amber-500">{tr('Participants')}:</span> {participants.map(p => p.name).join(', ')}</div>
-                      )}
-                      {specialNotes && <div><span className="text-amber-500">{tr('Notes')}:</span> {specialNotes.slice(0, 30)}{specialNotes.length > 30 ? '...' : ''}</div>}
-                    </div>
-                  ) : (
-                    <div className="mt-1.5 text-[0.6875rem] text-amber-500">
-                      <T>Click to add Sankalpam details, participants & notes</T>
-                    </div>
-                  )}
-                </button>
-              )}
-
-              {/* Festival window */}
-              {bookingMode === 'festival' && (() => {
-                const fw = festivalFor(selectedEntry)
-                if (!fw || fw.none || fw.past) return null
-                return (
-                  <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    <div className="flex items-center gap-2 text-amber-800">
-                      <CalendarDays size={14} />
-                      <span className="text-sm font-semibold">{fw.name}</span>
-                    </div>
-                    <div className="text-[0.6875rem] text-amber-600 mt-0.5">
-                      {fmtDate(fw.fest?.start_date)} – {fmtDate(fw.fest?.end_date)}
-                    </div>
-                  </div>
-                )
-              })()}
-
-              {/* Pournami dates */}
-              {bookingMode === 'tithi' && (
-                <div className="mb-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                  <div className="flex items-center gap-2 text-blue-800 mb-2">
-                    <Moon size={14} />
-                    <span className="text-sm font-semibold"><T>Pournami Dates</T></span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {pournamiDates.map((d) => (
-                      <button key={d} onClick={() => setSchedDate(d)}
-                        className={`px-2.5 py-1 rounded text-[0.6875rem] font-medium transition ${schedDate === d ? 'bg-blue-600 text-white' : 'bg-white border border-blue-200 text-blue-700 hover:bg-blue-100'}`}>
-                        {fmtDate(d)}
+                {mobileError && <p className="text-[10px] text-red-600 mt-0.5">{mobileError}</p>}
+                {showMobileDropdown && mobileResults?.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                    <div className="px-3 py-1.5 bg-gray-50 border-b text-[10px] text-gray-600 font-medium"><T>Select to auto-fill</T></div>
+                    {mobileResults.map((d) => (
+                      <button key={d.id} onClick={() => pickDevotee(d)} className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 flex items-center justify-between border-b border-gray-50 last:border-0">
+                        <span className="font-medium text-gray-800">{personName(d, lang)}</span>
+                        <span className="text-gray-500 text-xs">{d.mobile}</span>
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Date & Slot */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="label text-sm font-medium"><T>Date</T> *</label>
-                  <DateField value={schedDate}
-                    min={bookingMode === 'festival' ? (festivalFor(selectedEntry)?.fest?.start_date || todayISO()) : todayISO()}
-                    max={bookingMode === 'festival' ? festivalFor(selectedEntry)?.fest?.end_date : undefined}
-                    onChange={(e) => setSchedDate(e.target.value)}
-                    className="!py-2.5" />
-                </div>
-                <div>
-                  <label className="label text-sm font-medium"><T>Time Slot</T> *</label>
-                  <Select value={slot} onChange={(e) => setSlot(e.target.value)} className="!py-2.5">
-                    {SLOTS.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}
-                  </Select>
-                </div>
+                )}
               </div>
-
-              {/* Poojari */}
-              <div className="mb-4">
-                <label className="label text-sm font-medium"><T>Assign Poojari</T></label>
-                <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)} className="!py-2.5">
-                  <option value="">{tr("Not assigned (optional)")}</option>
-                  {poojaris.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)}{p.specialization ? ` · ${tr(p.specialization)}` : ''}</option>)}
-                </Select>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block"><T>Name</T> *</label>
+                <input value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder={tr("Devotee Name")} className="input !text-sm !py-2" />
               </div>
-
-              {/* Validity */}
-              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                <div className="flex items-center justify-between">
-                  <span className="text-emerald-700 font-medium"><T>Validity</T></span>
-                  <span className="font-semibold text-emerald-800">{validityRange((selectedPlan || selectedEntry).plan_name, schedDate)}</span>
-                </div>
-              </div>
-
-              {/* Committee pending - show warning if no fee is set */}
-              {((selectedPlan || selectedEntry).committee || (selectedPlan || selectedEntry).fee == null) && !(Number((selectedPlan || selectedEntry).fee) > 0) && (() => {
-                if (selectedEntry.category === 'Festival') {
-                  const fw = festivalFor(selectedEntry)
-                  const festFee = Number(fw?.fest?.plan_fees?.[String((selectedPlan || selectedEntry).plan_id || (selectedPlan || selectedEntry).id)] || 0)
-                  if (festFee > 0) return null
-                }
-                return (
-                  <div className="mb-3 p-4 bg-amber-50 border-2 border-amber-300 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-200 text-amber-700 grid place-items-center shrink-0">
-                        <Clock size={20} />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-amber-800 text-sm"><T>Awaiting Committee Decision</T></div>
-                        <div className="text-[0.75rem] text-amber-700 mt-0.5"><T>The committee has not yet set the price for this pooja. Please check back later.</T></div>
-                      </div>
+            </div>
+            {/* Existing Devotee Strip */}
+            {devotee && (
+              <div className="mt-3 border border-gray-200 bg-cream-50 rounded-lg px-3 py-2">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-700">
+                      <Check size={12} className="text-emerald-600 shrink-0" />
+                      <span className="font-medium"><T>Existing devotee found</T></span>
                     </div>
-                  </div>
-                )
-              })()}
-
-              {/* Duplicate warning */}
-              {formDupWarning && (
-                <div className={`mb-3 rounded-lg px-3 py-2.5 shadow-sm border-2 ${formDupConfirmed ? 'bg-emerald-50 border-emerald-400' : 'bg-orange-100 border-orange-400'}`}>
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${formDupConfirmed ? 'text-emerald-600' : 'text-orange-600'}`} />
-                    <div className="text-xs flex-1">
-                      <div className={`font-bold text-sm ${formDupConfirmed ? 'text-emerald-800' : 'text-orange-900'}`}><T>Active Plan Exists</T></div>
-                      <div className="font-semibold text-gray-800 mt-0.5">{tr(formDupWarning.message)}</div>
-                      <div className="mt-1 space-y-0.5 text-gray-700">
-                        {formDupWarning.booked_on && <div><span className="font-medium text-gray-600"><T>Booked</T>:</span> {fmtDate(formDupWarning.booked_on)}</div>}
-                        {formDupWarning.valid_until && <div><span className="font-medium text-gray-600"><T>Valid Until</T>:</span> {typeof formDupWarning.valid_until === 'string' && formDupWarning.valid_until.includes('-') ? fmtDate(formDupWarning.valid_until) : formDupWarning.valid_until}</div>}
+                    {devoteeHasSankalpamDetails ? (
+                      <div className="text-[11px] text-gray-600 mt-0.5 ml-4">
+                        {[
+                          devotee.gothram && `${tr('Gothram')}: ${devotee.gothram}`,
+                          devotee.nakshatram && `${tr('Nakshatram')}: ${devotee.nakshatram}`,
+                          devotee.rasi && `${tr('Rasi')}: ${devotee.rasi}`
+                        ].filter(Boolean).join(' · ')}
                       </div>
-                      {formDupWarning.ticket_no && <div className="text-[0.6875rem] text-gray-700 mt-1"><T>Ticket</T>: {formDupWarning.ticket_no}</div>}
-
-                      {/* Confirmation checkbox */}
-                      <label className={`mt-2 flex items-start gap-2 cursor-pointer p-2 rounded-lg border ${formDupConfirmed ? 'bg-emerald-100 border-emerald-300' : 'bg-white border-orange-200 hover:bg-orange-50'}`}>
-                        <input
-                          type="checkbox"
-                          checked={formDupConfirmed}
-                          onChange={(e) => setFormDupConfirmed(e.target.checked)}
-                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span className={`text-[0.6875rem] leading-tight ${formDupConfirmed ? 'text-emerald-700' : 'text-gray-600'}`}>
-                          <T>I have informed the devotee about the existing active plan and they wish to proceed with a new booking.</T>
+                    ) : (
+                      <div className="text-[11px] text-gray-400 mt-0.5 ml-4 italic">
+                        <T>No Sankalpam details available</T>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    {devoteeHasSankalpamDetails && (
+                      detailsApplied ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                          <CheckCircle2 size={12} />
+                          <T>Applied</T>
                         </span>
-                      </label>
-                    </div>
+                      ) : (
+                        <button
+                          onClick={applyDevoteeDetails}
+                          className="text-[10px] px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-700 font-medium hover:bg-amber-100 transition-colors"
+                        >
+                          <T>Use Details</T>
+                        </button>
+                      )
+                    )}
+                    <button onClick={clearDevotee} className="text-[10px] text-gray-500 hover:text-red-600 font-medium">
+                      <X size={14} />
+                    </button>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
+          </div>
 
-              {/* Payment Method */}
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-3"><T>Payment Method</T></label>
-                <div className="grid grid-cols-2 gap-3">
-                  {['Cash', 'UPI/QR Code'].map((m) => (
-                    <button key={m} onClick={() => { setMode(m); setError('') }}
-                      className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 py-4 px-3 font-semibold transition-all ${mode === m
-                        ? 'border-saffron-500 bg-saffron-50 text-saffron-800 shadow-sm'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'}`}>
-                      <div className={`w-10 h-10 rounded-full grid place-items-center ${mode === m ? 'bg-saffron-200' : 'bg-gray-100'}`}>
-                        <IndianRupee size={20} />
+          {/* Pooja Selection */}
+          <div className="bg-white rounded-xl border border-amber-200/60 shadow-sm p-4 flex-1 flex flex-col min-h-0">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                <Flame size={14} className="text-amber-600" />
+                <T>Select Pooja</T>
+                {selected.length > 0 && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-maroon-100 text-maroon-700 font-medium">{selected.length} {tr('selected')}</span>}
+              </h3>
+              <div className="relative w-48">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={sevaQ} onChange={(e) => setSevaQ(e.target.value)} placeholder={tr("Search...")} className="input !pl-8 !py-1.5 !text-xs" />
+              </div>
+            </div>
+
+            {/* Category Filters */}
+            <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-thin">
+              {CATS.map((c) => (
+                <button key={c} onClick={() => setCat(c)} className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 ${cat === c ? 'bg-maroon-700 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-maroon-50 hover:text-maroon-700'}`}>
+                  {tr(c)}
+                </button>
+              ))}
+            </div>
+
+            {/* Pooja Grid */}
+            {catalog.length === 0 && !catalogErr && (
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                <Loader2 size={20} className="animate-spin mr-2" />
+                <span className="text-sm"><T>Loading poojas...</T></span>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pr-1 scrollbar-thin">
+              {filtered.map((s) => {
+                const isSelected = selected.some(sel => sel.key === s.key)
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => toggleSelect(s)}
+                    className={`relative flex items-start gap-2.5 border-2 rounded-lg px-3 py-2.5 text-left transition-all duration-150 ${isSelected ? 'border-maroon-500 bg-maroon-50/50 shadow-sm' : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50/30'}`}
+                  >
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all duration-150 ${isSelected ? 'border-maroon-600 bg-maroon-600' : 'border-gray-300'}`}>
+                      {isSelected && <Check size={10} className="text-white" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-gray-800 leading-tight truncate">{lang === 'te' && s.name_te ? s.name_te : s.pooja_name}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-gray-500">{tr(s.plan_name)}</span>
+                        {s.category === 'Vehicle' && <Car size={10} className="text-gray-400" />}
+                        {s.category === 'Festival' && <CalendarDays size={10} className="text-gray-400" />}
+                        {s.category === 'Monthly' && <Moon size={10} className="text-gray-400" />}
                       </div>
-                      <span className="text-sm">{modeLabel(m)}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-amber-700 shrink-0">₹{Number(s.fee || 0).toLocaleString('en-IN')}</span>
+                  </button>
+                )
+              })}
+              {filtered.length === 0 && catalog.length > 0 && <p className="text-sm text-gray-500 col-span-2 text-center py-8"><T>No matching poojas.</T></p>}
+            </div>
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════════════
+            RIGHT PANEL: Bill Summary + Details + Payment
+            Structure: Fixed Header → Scrollable Body → Fixed Footer
+        ══════════════════════════════════════════════════════════════════════════ */}
+        <div className="bg-white rounded-xl border border-amber-200/60 shadow-sm flex flex-col h-[calc(100vh-140px)]">
+          {/* Fixed Header */}
+          <div className="flex-shrink-0 px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-maroon-700 to-maroon-800 rounded-t-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-white/20 grid place-items-center">
+                  <ReceiptIcon size={16} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold text-sm">{lang === 'te' ? 'బిల్ / రసీదు' : 'Bill / రసీదు'}</h3>
+                  <p className="text-white/70 text-[10px]"><T>Review selected poojas and complete billing</T></p>
+                </div>
+              </div>
+              <button
+                onClick={handleResetClick}
+                className="flex items-center gap-1 px-2 py-1 rounded border border-white/30 bg-white/10 text-white/90 text-[10px] font-medium hover:bg-white/20 transition-colors"
+              >
+                <RotateCcw size={12} />
+                <T>Reset</T>
+              </button>
+            </div>
+          </div>
+
+          {/* Scrollable Body - min-h-0 prevents flex item from overflowing */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 pb-4">
+            {/* Selected Items */}
+            <div className="border border-gray-200 rounded-lg p-3">
+              <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center justify-between">
+                <span><T>Selected Items</T> ({selected.length})</span>
+                {selected.length > 0 && <span className="text-amber-700">{inr(total)}</span>}
+              </div>
+              {selected.length === 0 ? (
+                <div className="text-center py-5 border-2 border-dashed border-gray-200 rounded-lg" style={{ minHeight: '80px' }}>
+                  <ReceiptIcon size={24} className="mx-auto text-gray-300 mb-1.5" />
+                  <p className="text-sm text-gray-500"><T>No items selected</T></p>
+                  <p className="text-xs text-gray-400"><T>Select a pooja from the left</T></p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {selected.map((item, idx) => (
+                    <div key={item.lineId} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 group">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-gray-800 truncate">{lang === 'te' && item.name_te ? item.name_te : item.pooja_name}</div>
+                        <div className="text-[10px] text-gray-500 flex items-center gap-1.5">
+                          {tr(item.plan_name)}
+                          {item.category === 'Vehicle' && item.vehicle_no && <span className="text-amber-600">· {item.vehicle_no}</span>}
+                          {item.scheduled_date && item.scheduled_date !== todayISO() && <span className="text-blue-600">· {stamp(fmtDate(item.scheduled_date))}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-sm font-semibold text-gray-700">₹{Number(item.amount || 0).toLocaleString('en-IN')}</span>
+                        <button onClick={() => removeSelected(item.lineId)} className="w-6 h-6 rounded bg-white border border-gray-200 grid place-items-center text-gray-400 hover:text-red-500 hover:border-red-300">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Duplicate Warnings */}
+            {dupWarnings.length > 0 && (
+              <div className="space-y-2">
+                {dupWarnings.map((w) => {
+                  const isLifetime = isLifetimePlan(w.plan_name)
+                  return (
+                    <div key={w.lineId} className={`rounded-lg px-3 py-2 border-2 ${isLifetime ? 'bg-red-50 border-red-300' : dupConfirmed[w.lineId] ? 'bg-emerald-50 border-emerald-300' : 'bg-orange-50 border-orange-300'}`}>
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle size={14} className={`shrink-0 mt-0.5 ${isLifetime ? 'text-red-600' : 'text-orange-600'}`} />
+                        <div className="text-xs flex-1">
+                          <div className="font-semibold text-gray-800">{isLifetime ? tr('Lifetime Plan Exists') : tr('Active Plan Exists')}</div>
+                          <div className="text-gray-600 mt-0.5">{w.pooja_name} · {w.plan_name}</div>
+                          {!isLifetime && (
+                            <label className="mt-2 flex items-start gap-2 cursor-pointer">
+                              <input type="checkbox" checked={!!dupConfirmed[w.lineId]} onChange={(e) => setDupConfirmed(prev => ({ ...prev, [w.lineId]: e.target.checked }))} className="mt-0.5 w-3.5 h-3.5 rounded border-gray-300 text-emerald-600" />
+                              <span className="text-[10px] text-gray-600"><T>I confirm the devotee wants to proceed</T></span>
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Vehicle Details (Per-Item) - Vehicle number is optional */}
+            {vehicleItems.length > 0 && (
+              <CollapsibleSection title={tr("Vehicle Details")} subtitle={tr("Optional")} icon={<Car size={14} />} expanded={vehicleExpanded} onToggle={() => setVehicleExpanded(!vehicleExpanded)} hasData={vehicleItems.some(v => v.vehicle_no)}>
+                <div className="space-y-2">
+                  {vehicleItems.map((item) => (
+                    <div key={item.lineId} className="bg-gray-50 rounded-lg px-3 py-2">
+                      <div className="text-xs font-medium text-gray-700 mb-1.5">{item.pooja_name}</div>
+                      <input
+                        value={item.vehicle_no || ''}
+                        onChange={(e) => updateItemMeta(item.lineId, 'vehicle_no', sanitizeVehicle(e.target.value))}
+                        placeholder={tr("Enter Vehicle Number (e.g., TS 09 AB 1234)")}
+                        className="input !text-sm !py-1.5 w-full"
+                        maxLength={12}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* Booking Details (Per-Item for Monthly/Festival/Occasion/Long-Term) */}
+            {itemsNeedingBookingDetails.length > 0 && (
+              <CollapsibleSection title={tr("Booking Details")} subtitle={tr("Required")} icon={<CalendarDays size={14} />} expanded={bookingExpanded} onToggle={() => setBookingExpanded(!bookingExpanded)} hasData={true}>
+                <div className="space-y-3">
+                  {itemsNeedingBookingDetails.map((item) => (
+                    <BookingItemDetails
+                      key={item.lineId}
+                      item={item}
+                      updateMeta={(field, value) => updateItemMeta(item.lineId, field, value)}
+                      pournamiDates={pournamiDates}
+                      festivalFor={festivalFor}
+                      poojaris={poojaris}
+                      lang={lang}
+                    />
+                  ))}
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* Sankalpam (Shared Transaction-Level) - Only show when poojas are selected */}
+            {selected.length > 0 && (
+              <SankalpamSection
+                expanded={sankalpamExpanded}
+                onToggle={() => setSankalpamExpanded(!sankalpamExpanded)}
+                saveState={sankalpamSaveState}
+                hasData={hasSankalpamData}
+              >
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Gothram</T></label>
+                      <Combobox value={gothram} onChange={(e) => setGothram(e.target.value)} options={GOTHRAMS} placeholder={tr("Select")} className="!py-1.5 !text-xs" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Nakshatram</T></label>
+                      <Combobox value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} options={NAKSHATRAMS} placeholder={tr("Select")} className="!py-1.5 !text-xs" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Rasi</T></label>
+                      <Combobox value={rasi} onChange={(e) => setRasi(e.target.value)} options={RASHIS} placeholder={tr("Select")} className="!py-1.5 !text-xs" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Beneficiary</T></label>
+                    <input value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder={tr("Person for whom pooja is performed")} className="input !text-xs !py-1.5" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Participants</T></label>
+                    <ParticipantsInput participants={participants} setParticipants={setParticipants} devotee={devotee} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Special Notes</T></label>
+                    <textarea value={specialNotes} onChange={(e) => setSpecialNotes(e.target.value)} placeholder={tr("Special instructions...")} rows={2} className="input !text-xs !py-1.5 resize-none" />
+                  </div>
+                </div>
+              </SankalpamSection>
+            )}
+
+            {/* Payment Method */}
+            {selected.length > 0 && (
+              <div className="border border-gray-200 rounded-lg p-3">
+                <div className="text-xs font-semibold text-gray-700 mb-2"><T>Payment Method</T></div>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Cash', 'UPI/QR Code'].map((m) => (
+                    <button key={m} onClick={() => { setMode(m); setError('') }} className={`flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-all duration-150 ${mode === m ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-600 hover:border-amber-300'}`}>
+                      <IndianRupee size={16} />
+                      {tr(m === 'UPI/QR Code' ? 'UPI / QR Code' : m)}
                     </button>
                   ))}
                 </div>
-              </div>
-              {mode === 'UPI/QR Code' && (
-                <div className="mb-4">
-                  {/* UPI QR Code */}
-                  {upiConfig.upi_id && getCurrentFee() > 0 && (
-                    <div className="flex flex-col items-center bg-white border border-gray-200 rounded-xl p-4 mb-4">
-                      <div className="bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
-                        <QRCodeSVG
-                          value={buildUpiUrl(upiConfig.upi_id, upiConfig.upi_payee_name, getCurrentFee(), 'Temple Seva Booking')}
-                          size={160}
-                          level="M"
-                          includeMargin={false}
-                        />
+                {mode === 'UPI/QR Code' && (
+                  <div className="mt-3 space-y-3">
+                    {upiConfig.upi_id && total > 0 && (
+                      <div className="flex flex-col items-center bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <div className="bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
+                          <QRCodeSVG value={buildUpiUrl(upiConfig.upi_id, upiConfig.upi_payee_name, total, 'Temple Seva')} size={120} level="M" />
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-2 text-center"><T>Scan to pay</T> · {upiConfig.upi_id}</p>
                       </div>
-                      <p className="text-xs text-gray-700 mt-3 text-center"><T>Scan with any UPI app to pay</T></p>
-                      <p className="text-[0.7rem] text-gray-600 mt-1 font-mono">{upiConfig.upi_id}</p>
+                    )}
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>UTR / Transaction ID</T> *</label>
+                      <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("Enter UTR")} className="input !text-sm !py-2" />
                     </div>
-                  )}
-                  <label className="block text-sm font-medium text-gray-600 mb-2"><T>UTR / Transaction ID</T> *</label>
-                  <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("Enter UTR or Transaction ID")} className="input !py-3 text-base" />
-                </div>
-              )}
-
-              {/* Amount & Book */}
-              <div className="border-t-2 border-gray-100 pt-4 mt-auto">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="font-semibold text-gray-600"><T>Total Amount</T></span>
-                  <span className="text-2xl font-extrabold text-maroon-800">{inr(getCurrentFee())}</span>
-                </div>
-                {error && <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-sm text-red-700 font-medium text-center">{error}</div>}
-                {formDupWarning && !formDupConfirmed && (
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-3 text-sm text-orange-700 font-medium text-center">
-                    <T>Please confirm the duplicate plan acknowledgement above to proceed.</T>
                   </div>
                 )}
-                <div className="flex gap-3">
-                  <button onClick={clearSelection} className="btn-outline flex-1 justify-center py-3 rounded-xl">
-                    <ArrowLeft size={16} /> <T>Back</T>
-                  </button>
-                  <button onClick={bookForm} disabled={busy || !canBill || (formDupWarning && !formDupConfirmed) || isPendingCommitteeDecision()} className="btn-maroon flex-1 justify-center py-3 rounded-xl disabled:opacity-50">
-                    {busy ? <><Loader2 size={18} className="animate-spin" /> <T>Processing…</T></> : <><Check size={18} /> <T>Book & Pay</T></>}
-                  </button>
-                </div>
               </div>
-            </>
-          )}
+            )}
+          </div>
+
+          {/* Fixed Footer - Total & Checkout */}
+          <div className="flex-shrink-0 px-4 py-3 border-t border-gray-200 bg-white rounded-b-xl shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+            {error && <div className="mb-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-medium text-center">{error}</div>}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-gray-600"><T>Total Amount</T></span>
+              <span className="text-xl font-bold text-maroon-700">{inr(total)}</span>
+            </div>
+            <button onClick={checkout} disabled={busy || !selected.length || !canBill} className="w-full bg-gradient-to-r from-maroon-700 to-maroon-800 text-white rounded-lg py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:from-maroon-800 hover:to-maroon-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm">
+              {busy ? <><Loader2 size={16} className="animate-spin" /> <T>Processing...</T></> : <><ReceiptIcon size={16} /> <T>Complete Billing</T></>}
+            </button>
+          </div>
         </div>
       </div>
 
-      {bill && <BillReceiptModal bill={bill} onClose={() => { setBill(null); setError('') }} />}
+      {bill && <BillReceiptModal bill={bill} onClose={() => { setBill(null); setError('') }} lang={lang} />}
 
-      {/* Sankalpam Details Modal */}
-      {showSankalpamModal && (
-        <SankalpamModal
-          gothram={gothram}
-          setGothram={setGothram}
-          nakshatram={nakshatram}
-          setNakshatram={setNakshatram}
-          rasi={rasi}
-          setRasi={setRasi}
-          beneficiary={beneficiary}
-          setBeneficiary={setBeneficiary}
-          participants={participants}
-          setParticipants={setParticipants}
-          specialNotes={specialNotes}
-          setSpecialNotes={setSpecialNotes}
-          devotee={devotee}
-          onClose={() => setShowSankalpamModal(false)}
-        />
+      {/* Reset Confirmation Dialog */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowResetConfirm(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 grid place-items-center">
+                <AlertTriangle size={20} className="text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-800"><T>Reset current billing?</T></h3>
+                <p className="text-xs text-gray-500 mt-0.5"><T>All selected poojas and entered details will be cleared.</T></p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                <T>Cancel</T>
+              </button>
+              <button
+                onClick={fullReset}
+                className="px-4 py-2 rounded-lg bg-maroon-700 text-white text-sm font-medium hover:bg-maroon-800 transition-colors"
+              >
+                <T>Reset</T>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
 }
 
-// ── Sankalpam Details Modal ──
-// Comprehensive popup for Sankalpam details including family members and special notes.
-function SankalpamModal({
-  gothram, setGothram,
-  nakshatram, setNakshatram,
-  rasi, setRasi,
-  beneficiary, setBeneficiary,
-  participants, setParticipants,
-  specialNotes, setSpecialNotes,
-  devotee,
-  onClose
-}) {
-  const { lang } = useLang()
-  const [newParticipant, setNewParticipant] = useState('')
-  const [familyMembers, setFamilyMembers] = useState([])
-  const [loadingFamily, setLoadingFamily] = useState(false)
+// ══════════════════════════════════════════════════════════════════════════════
+// SUBCOMPONENTS
+// ══════════════════════════════════════════════════════════════════════════════
 
-  // Pre-fill from linked devotee if available
-  const prefillFromDevotee = () => {
-    if (devotee) {
-      if (devotee.gothram && !gothram) setGothram(devotee.gothram)
-      if (devotee.nakshatram && !nakshatram) setNakshatram(devotee.nakshatram)
-    }
-  }
-
-  // Fetch family members when devotee is linked
-  useEffect(() => {
-    prefillFromDevotee()
-    if (devotee?.id) {
-      setLoadingFamily(true)
-      DevoteesAPI.get(devotee.id)
-        .then((d) => setFamilyMembers(d.family || []))
-        .catch(() => setFamilyMembers([]))
-        .finally(() => setLoadingFamily(false))
-    } else {
-      setFamilyMembers([])
-    }
-  }, [devotee?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const addParticipant = (name, relation) => {
-    if (!name.trim()) return
-    const exists = participants.some(p => p.name.toLowerCase() === name.trim().toLowerCase())
-    if (exists) return
-    setParticipants([...participants, { name: name.trim(), relation: relation || '' }])
-  }
-
-  const removeParticipant = (index) => {
-    setParticipants(participants.filter((_, i) => i !== index))
-  }
-
-  const addFromFamily = (member) => {
-    addParticipant(member.name, member.relation)
-  }
-
-  const handleAddCustom = () => {
-    if (newParticipant.trim()) {
-      addParticipant(newParticipant.trim(), '')
-      setNewParticipant('')
-    }
-  }
-
-  const clearAll = () => {
-    setGothram('')
-    setNakshatram('')
-    setRasi('')
-    setBeneficiary('')
-    setParticipants([])
-    setSpecialNotes('')
-  }
-
-  const hasFilled = gothram || nakshatram || rasi || beneficiary || participants.length > 0 || specialNotes
-
+function CollapsibleSection({ title, subtitle, icon, expanded, onToggle, hasData, children }) {
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl shadow-xl w-full max-w-lg my-4 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <div className="flex items-center gap-2">
-            <FileText size={20} className="text-amber-600" />
-            <h3 className="font-bold text-gray-900"><T>Sankalpam Details</T></h3>
-          </div>
-          <button onClick={onClose} className="text-gray-600 hover:text-maroon-700"><X size={18} /></button>
+    <div className={`border rounded-lg overflow-hidden transition-all duration-200 ${hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}>
+      <button onClick={onToggle} className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50/50 transition-colors duration-150">
+        <div className="flex items-center gap-2">
+          <span className="text-amber-600">{icon}</span>
+          <span className="text-xs font-semibold text-gray-800">{title}</span>
+          {hasData && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+          <span className="text-[10px] text-gray-500">· {subtitle}</span>
         </div>
-
-        {/* Content */}
-        <div className="p-5 space-y-4">
-          {/* Linked devotee hint */}
-          {devotee && (devotee.gothram || devotee.nakshatram) && (
-            <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 text-[0.75rem]">
-              <div className="flex items-center justify-between">
-                <div className="text-emerald-700">
-                  <span className="font-medium"><T>From devotee record</T>:</span>{' '}
-                  {[devotee.gothram, devotee.nakshatram].filter(Boolean).join(' · ')}
-                </div>
-                {(!gothram && !nakshatram) && (
-                  <button
-                    type="button"
-                    onClick={prefillFromDevotee}
-                    className="text-emerald-600 font-semibold hover:text-emerald-800"
-                  >
-                    <T>Use</T>
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Section: Astrological Details */}
-          <div className="bg-amber-50/30 border border-amber-100 rounded-lg p-4">
-            <h4 className="text-sm font-semibold text-amber-800 mb-3 flex items-center gap-2">
-              <Moon size={14} />
-              <T>Astrological Details</T>
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Gothram */}
-              <div>
-                <label className="label text-[0.6875rem]"><T>Gothram</T></label>
-                <Combobox
-                  value={gothram}
-                  onChange={(e) => setGothram(e.target.value)}
-                  options={GOTHRAMS}
-                  placeholder={tr("Select Gothram")}
-                  className="!py-1.5 text-sm"
-                />
-              </div>
-
-              {/* Nakshatram */}
-              <div>
-                <label className="label text-[0.6875rem]"><T>Nakshatram</T></label>
-                <Combobox
-                  value={nakshatram}
-                  onChange={(e) => setNakshatram(e.target.value)}
-                  options={NAKSHATRAMS}
-                  placeholder={tr("Select Nakshatram")}
-                  className="!py-1.5 text-sm"
-                />
-              </div>
-
-              {/* Rasi */}
-              <div className="col-span-2">
-                <label className="label text-[0.6875rem]"><T>Rasi (Zodiac)</T></label>
-                <Combobox
-                  value={rasi}
-                  onChange={(e) => setRasi(e.target.value)}
-                  options={RASHIS}
-                  placeholder={tr("Select Rasi")}
-                  className="!py-1.5 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section: Beneficiary */}
-          <div>
-            <label className="label"><T>In the name of</T> <span className="text-gray-600 font-normal">({tr('optional')})</span></label>
-            <input
-              value={beneficiary}
-              onChange={(e) => setBeneficiary(e.target.value)}
-              placeholder={tr("Primary person for whom pooja is performed")}
-              className="input"
-            />
-          </div>
-
-          {/* Section: Participants / Family Members */}
-          <div className="border-t border-dashed border-gray-200 pt-4">
-            <label className="label flex items-center gap-2">
-              <User size={14} />
-              <T>Additional Participants</T>
-              <span className="text-gray-600 font-normal">({tr('optional')})</span>
-            </label>
-
-            {/* Current participants */}
-            {participants.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {participants.map((p, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 bg-maroon-50 text-maroon-700 px-2.5 py-1 rounded-full text-sm">
-                    {p.name}
-                    {p.relation && <span className="text-maroon-400 text-[0.6875rem]">({p.relation})</span>}
-                    <button onClick={() => removeParticipant(i)} className="ml-0.5 text-maroon-400 hover:text-red-600">
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Family members from devotee record */}
-            {devotee && familyMembers.length > 0 && (
-              <div className="mb-3">
-                <p className="text-[0.6875rem] text-gray-700 mb-1.5"><T>Click to add from family</T>:</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {familyMembers.map((m, i) => {
-                    const alreadyAdded = participants.some(p => p.name.toLowerCase() === m.name.toLowerCase())
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => !alreadyAdded && addFromFamily(m)}
-                        disabled={alreadyAdded}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm border transition ${
-                          alreadyAdded
-                            ? 'bg-gray-100 text-gray-600 border-gray-200 cursor-not-allowed'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                        }`}
-                      >
-                        <Plus size={12} />
-                        {m.name}
-                        {m.relation && <span className="text-[0.6875rem] opacity-70">({m.relation})</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {loadingFamily && devotee && (
-              <div className="text-[0.75rem] text-gray-600 mb-3 flex items-center gap-1">
-                <Loader2 size={12} className="animate-spin" />
-                <T>Loading family members...</T>
-              </div>
-            )}
-
-            {/* Add custom participant */}
-            <div className="flex gap-2">
-              <input
-                value={newParticipant}
-                onChange={(e) => setNewParticipant(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddCustom())}
-                placeholder={tr("Type name and press Enter")}
-                className="input flex-1 !py-1.5 text-sm"
-              />
-              <button
-                onClick={handleAddCustom}
-                disabled={!newParticipant.trim()}
-                className="btn-outline !py-1.5 !px-3 text-sm disabled:opacity-50"
-              >
-                <Plus size={14} />
-              </button>
-            </div>
-          </div>
-
-          {/* Section: Special Notes */}
-          <div className="border-t border-dashed border-gray-200 pt-4">
-            <label className="label"><T>Special Instructions</T> <span className="text-gray-600 font-normal">({tr('optional')})</span></label>
-            <textarea
-              value={specialNotes}
-              onChange={(e) => setSpecialNotes(e.target.value)}
-              placeholder={tr("Any special requests or notes for the poojari...")}
-              rows={2}
-              className="input resize-none"
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex gap-2 px-5 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
-          <button
-            onClick={clearAll}
-            className="btn-outline flex-1 justify-center text-sm"
-            disabled={!hasFilled}
-          >
-            <X size={14} /> <T>Clear All</T>
-          </button>
-          <button onClick={onClose} className="btn-maroon flex-1 justify-center text-sm">
-            <Check size={14} /> <T>Done</T>
-          </button>
-        </div>
+        {expanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+      </button>
+      <div className={`transition-all duration-200 ease-in-out ${expanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+        <div className="px-3 pb-3">{children}</div>
       </div>
     </div>
   )
 }
 
-function BillReceiptModal({ bill, onClose }) {
-  const { lang } = useLang()
+// Sankalpam section with save state indicator
+function SankalpamSection({ expanded, onToggle, saveState, hasData, children }) {
+  const getSaveIndicator = () => {
+    if (saveState === 'saving') return { text: tr('Saving...'), color: 'text-amber-600', icon: null }
+    if (saveState === 'saved') return { text: tr('Saved'), color: 'text-emerald-600', icon: <CheckCircle2 size={12} className="text-emerald-600" /> }
+    return { text: tr('Optional'), color: 'text-gray-500', icon: null }
+  }
+  const indicator = getSaveIndicator()
+
+  return (
+    <div className={`border rounded-lg overflow-hidden transition-all duration-200 ${hasData ? 'border-emerald-300 bg-emerald-50/20' : 'border-gray-200'}`}>
+      <button onClick={onToggle} className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50/50 transition-colors duration-150">
+        <div className="flex items-center gap-2">
+          <FileText size={14} className="text-amber-600" />
+          <span className="text-xs font-semibold text-gray-800">{tr('Sankalpam Details')}</span>
+          {indicator.icon}
+          <span className={`text-[10px] ${indicator.color}`}>· {indicator.text}</span>
+        </div>
+        {expanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+      </button>
+      <div className={`transition-all duration-200 ease-in-out ${expanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+        <div className="px-3 pb-3">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, poojaris, lang }) {
+  const fw = item.category === 'Festival' ? festivalFor(item) : null
+
+  return (
+    <div className="bg-gray-50 rounded-lg px-3 py-2.5">
+      <div className="text-xs font-medium text-gray-800 mb-2 flex items-center gap-1.5">
+        {item.category === 'Monthly' && <Moon size={12} className="text-blue-600" />}
+        {item.category === 'Festival' && <CalendarDays size={12} className="text-amber-600" />}
+        {item.category === 'Occasion' && <Flame size={12} className="text-orange-600" />}
+        {item.category === 'Long-Term' && <ShieldCheck size={12} className="text-maroon-600" />}
+        {lang === 'te' && item.name_te ? item.name_te : item.pooja_name}
+        <span className="text-[10px] text-gray-500 font-normal">· {tr(item.plan_name)}</span>
+      </div>
+
+      <div className="space-y-2">
+        {/* Monthly: Pournami Dates */}
+        {item.category === 'Monthly' && (
+          <div>
+            <label className="text-[10px] font-medium text-gray-600 mb-1 block flex items-center gap-1">
+              <Moon size={10} /> <T>Pournami Date</T>
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {pournamiDates.map((d) => (
+                <button key={d} onClick={() => updateMeta('scheduled_date', d)} className={`px-2 py-1 rounded text-[10px] font-medium transition-all duration-150 ${item.scheduled_date === d ? 'bg-blue-600 text-white' : 'bg-white border border-blue-200 text-blue-700 hover:bg-blue-50'}`}>
+                  {stamp(fmtDate(d))}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Festival: Date within window */}
+        {item.category === 'Festival' && fw?.fest && (
+          <div>
+            <label className="text-[10px] font-medium text-gray-600 mb-1 block flex items-center gap-1">
+              <CalendarDays size={10} /> <T>Festival Date</T>
+              <span className="text-[9px] text-amber-600 ml-1">({fw.name}: {stamp(fmtDate(fw.fest.start_date))} – {stamp(fmtDate(fw.fest.end_date))})</span>
+            </label>
+            <DateField value={item.scheduled_date} min={fw.fest.start_date} max={fw.fest.end_date} onChange={(e) => updateMeta('scheduled_date', e.target.value)} className="!py-1.5 !text-xs" />
+          </div>
+        )}
+
+        {/* Occasion: Date + Time + Poojari */}
+        {item.category === 'Occasion' && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Date</T></label>
+                <DateField value={item.scheduled_date} min={todayISO()} onChange={(e) => {
+                  updateMeta('scheduled_date', e.target.value)
+                  // Auto-select first available slot when date changes
+                  const available = getAvailableSlots(e.target.value)
+                  if (available.length > 0 && !available.includes(item.time_slot)) {
+                    updateMeta('time_slot', available[0])
+                  }
+                }} className="!py-1.5 !text-xs" />
+              </div>
+              <div>
+                <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Time Slot</T></label>
+                {(() => {
+                  const availableSlots = getAvailableSlots(item.scheduled_date)
+                  return availableSlots.length === 0 ? (
+                    <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5"><T>All slots passed. Select future date.</T></div>
+                  ) : (
+                    <Select value={item.time_slot} onChange={(e) => updateMeta('time_slot', e.target.value)} className="!py-1.5 !text-xs">
+                      {availableSlots.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}
+                    </Select>
+                  )
+                })()}
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Poojari</T></label>
+              <Select value={item.poojari_id || ''} onChange={(e) => updateMeta('poojari_id', e.target.value)} className="!py-1.5 !text-xs">
+                <option value="">{tr("Not assigned")}</option>
+                {poojaris.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)}</option>)}
+              </Select>
+            </div>
+          </>
+        )}
+
+        {/* Long-Term: Show validity info */}
+        {item.category === 'Long-Term' && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded px-2 py-1.5">
+            <div className="text-[10px] text-emerald-700 flex items-center justify-between">
+              <span><T>Validity</T>:</span>
+              <span className="font-medium">{validityRange(item.plan_name, item.scheduled_date)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ParticipantsInput({ participants, setParticipants, devotee }) {
+  const [newName, setNewName] = useState('')
+  const [familyMembers, setFamilyMembers] = useState([])
+
+  useEffect(() => {
+    if (devotee?.id) {
+      DevoteesAPI.get(devotee.id).then((d) => setFamilyMembers(d.family || [])).catch(() => setFamilyMembers([]))
+    } else {
+      setFamilyMembers([])
+    }
+  }, [devotee?.id])
+
+  const addParticipant = (name, relation = '') => {
+    if (!name.trim()) return
+    if (participants.some(p => p.name.toLowerCase() === name.trim().toLowerCase())) return
+    setParticipants([...participants, { name: name.trim(), relation }])
+  }
+
+  return (
+    <div className="space-y-2">
+      {participants.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {participants.map((p, i) => (
+            <span key={i} className="inline-flex items-center gap-1 bg-maroon-50 text-maroon-700 px-2 py-0.5 rounded-full text-[10px]">
+              {p.name}
+              <button onClick={() => setParticipants(participants.filter((_, j) => j !== i))} className="text-maroon-400 hover:text-red-600"><X size={10} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      {familyMembers.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {familyMembers.map((m, i) => {
+            const added = participants.some(p => p.name.toLowerCase() === m.name.toLowerCase())
+            return (
+              <button key={i} onClick={() => !added && addParticipant(m.name, m.relation)} disabled={added} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${added ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>
+                <Plus size={10} /> {m.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      <div className="flex gap-1.5">
+        <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addParticipant(newName), setNewName(''))} placeholder={tr("Add participant")} className="input flex-1 !text-xs !py-1" />
+        <button onClick={() => { addParticipant(newName); setNewName('') }} disabled={!newName.trim()} className="btn-outline !py-1 !px-2 text-xs disabled:opacity-50"><Plus size={12} /></button>
+      </div>
+    </div>
+  )
+}
+
+function BillReceiptModal({ bill, onClose, lang }) {
   const line = bill.lines?.[0] || {}
   const booking = line?.booking || {}
   const isMultiItem = (bill.lines?.length || 0) > 1
@@ -1679,10 +1319,9 @@ function BillReceiptModal({ bill, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-auto max-h-[92vh] overflow-y-auto">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 print:hidden">
           {bill.failed
-            ? <span className="text-sm font-semibold text-amber-700">⚠ Partial — {bill.failed} item(s) not billed</span>
+            ? <span className="text-sm font-semibold text-amber-700">⚠ {tr('Partial')} — {bill.failed} {tr('item(s) not billed')}</span>
             : <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-emerald-600 text-white grid place-items-center"><Check size={14} /></div>
                 <span className="text-sm font-semibold text-emerald-700"><T>Booking Successful!</T></span>
@@ -1690,31 +1329,21 @@ function BillReceiptModal({ bill, onClose }) {
           <button onClick={onClose} className="text-gray-600 hover:text-maroon-700"><X size={18} /></button>
         </div>
 
-        {/* Ticket */}
         <div className="p-5" id="print-area">
           <TicketShell code={booking?.booking_code || bill.ref}>
-            {/* Booking & Ticket Numbers */}
             <TF label={tr("Receipt No")} value={bill.ref} mono />
             <TF label={tr("Ticket No")} value={booking?.ticket_no || booking?.booking_code} mono />
+            <TF label={tr("Devotee")} value={<>{personName({ name: bill.name }, lang)}<span className="block text-[0.6875rem] text-gray-700 font-normal">{bill.mobile}</span></>} />
 
-            {/* Devotee Info */}
-            <TF label={tr("Devotee")} value={<>{bill.name}<span className="block text-[0.6875rem] text-gray-700 font-normal">{bill.mobile}</span></>} />
+            {(bill._gothram || bill._nakshatram || bill._rasi) && (
+              <TF label={tr("Sankalpam")} value={[bill._gothram, bill._nakshatram, bill._rasi].filter(Boolean).join(' · ')} wide />
+            )}
+            {bill._beneficiary && <TF label={tr("In the name of")} value={bill._beneficiary} />}
+            {bill._participants?.length > 0 && (
+              <TF label={tr("Participants")} value={bill._participants.map(p => personName({ name: p.name }, lang)).join(', ')} wide />
+            )}
+            {bill._specialNotes && <TF label={tr("Special Notes")} value={bill._specialNotes} wide />}
 
-            {/* Sankalpam (for form bookings) */}
-            {bill.isFormBooking && (line._gothram || line._nakshatram || line._rasi) && (
-              <TF label={tr("Sankalpam")} value={[line._gothram, line._nakshatram, line._rasi].filter(Boolean).join(' · ')} wide />
-            )}
-            {bill.isFormBooking && line._beneficiary && (
-              <TF label={tr("In the name of")} value={line._beneficiary} />
-            )}
-            {bill.isFormBooking && line._participants?.length > 0 && (
-              <TF label={tr("Participants")} value={line._participants.map(p => p.name).join(', ')} wide />
-            )}
-            {bill.isFormBooking && line._specialNotes && (
-              <TF label={tr("Special Notes")} value={line._specialNotes} wide />
-            )}
-
-            {/* Pooja Details - Single Item */}
             {!isMultiItem && (
               <>
                 <TF label={tr("Pooja")} value={lang === 'te' && line.name_te ? line.name_te : tr(line.pooja_name || booking?.seva_name || 'Seva')} />
@@ -1723,7 +1352,6 @@ function BillReceiptModal({ bill, onClose }) {
               </>
             )}
 
-            {/* Pooja Details - Multiple Items */}
             {isMultiItem && (
               <div className="col-span-2 bg-amber-50/50 rounded-lg p-3 -mx-1">
                 <div className="text-[0.6875rem] text-gray-700 mb-2">{tr("Poojas Booked")}</div>
@@ -1742,45 +1370,27 @@ function BillReceiptModal({ bill, onClose }) {
               </div>
             )}
 
-            {/* Schedule (for form bookings) */}
-            {bill.isFormBooking && line._schedDate && (
-              <TF label={tr("Booking Date")} value={fmtDate(line._schedDate)} />
-            )}
-            {bill.isFormBooking && line._slot && (
-              <TF label={tr("Time Slot")} value={clock12(line._slot)} />
-            )}
-            {bill.isFormBooking && line._poojari && (
-              <TF label={tr("Poojari")} value={line._poojari} />
-            )}
-
-            {/* Amount */}
             <div className="bg-amber-100/60 rounded-lg px-3 py-2 col-span-2 flex items-center justify-between">
               <span className="text-[0.6875rem] text-gray-700"><T>Total Amount (₹)</T></span>
               <span className="font-extrabold text-maroon-800 text-lg">₹ {Number(bill.total || 0).toLocaleString('en-IN')}</span>
             </div>
 
-            {/* Payment Info */}
             <TF label={tr("Payment Mode")} value={tr(modeLabel)} />
             <TF label={tr("Payment Date & Time")} value={bill.paidAt} />
             {bill.utr && <TF label={tr("UTR / Transaction ID")} value={bill.utr} mono wide />}
 
-            {/* Multiple ticket numbers */}
             {isMultiItem && (
               <div className="col-span-2 text-[0.6875rem] text-gray-700">
                 <span className="font-medium">{tr("Ticket Numbers")}:</span>{' '}
-                <span className="font-mono text-gray-700">
-                  {bill.lines.map((l) => l.booking?.ticket_no || l.booking?.booking_code).filter(Boolean).join(', ')}
-                </span>
+                <span className="font-mono text-gray-700">{bill.lines.map((l) => l.booking?.ticket_no || l.booking?.booking_code).filter(Boolean).join(', ')}</span>
               </div>
             )}
 
-            {/* Validity Notice based on Plan Type */}
             {(() => {
               const planName = (line.plan_name || booking?.plan_name || '').toLowerCase()
               const validUntil = booking?.valid_until || line.booking?.valid_until
-              const schedDate = booking?.scheduled_date || line.booking?.scheduled_date || line._schedDate
+              const schedDate = booking?.scheduled_date || line.booking?.scheduled_date
 
-              // Life Long - no expiry
               if (planName.includes('life')) {
                 return (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 col-span-2 text-center">
@@ -1788,24 +1398,18 @@ function BillReceiptModal({ bill, onClose }) {
                   </div>
                 )
               }
-
-              // Monthly/Yearly - show validity period
               if ((planName.includes('month') || planName.includes('year')) && (validUntil || schedDate)) {
-                const fromDate = schedDate ? fmtDate(schedDate) : fmtDate(new Date())
-                const toDate = validUntil ? fmtDate(validUntil) : null
+                const fromDate = schedDate ? stamp(fmtDate(schedDate)) : stamp(fmtDate(new Date()))
+                const toDate = validUntil ? stamp(fmtDate(validUntil)) : null
                 return (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 col-span-2">
                     <div className="flex items-center justify-between text-[0.6875rem]">
                       <span className="text-blue-600 font-medium"><T>Validity Period</T>:</span>
-                      <span className="font-semibold text-blue-800">
-                        {fromDate} → {toDate || <T>As per plan</T>}
-                      </span>
+                      <span className="font-semibold text-blue-800">{fromDate} → {toDate || <T>As per plan</T>}</span>
                     </div>
                   </div>
                 )
               }
-
-              // Daily - same day only
               if (isDailyOnly) {
                 return (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 col-span-2 text-center">
@@ -1813,11 +1417,9 @@ function BillReceiptModal({ bill, onClose }) {
                   </div>
                 )
               }
-
               return null
             })()}
 
-            {/* Terms & Conditions */}
             <div className="col-span-2 text-[0.5625rem] text-gray-700 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-1">
               <div className="font-semibold text-gray-600 mb-1"><T>Terms & Conditions</T>:</div>
               <ol className="list-decimal list-inside space-y-0.5 pl-1">
@@ -1830,7 +1432,6 @@ function BillReceiptModal({ bill, onClose }) {
           </TicketShell>
         </div>
 
-        {/* Actions */}
         <div className="flex gap-2 px-5 py-4 border-t border-gray-100 print:hidden">
           <button onClick={() => window.print()} className="btn-outline flex-1 justify-center"><Printer size={15} /> <T>Print Ticket</T></button>
           <button onClick={onClose} className="btn-maroon flex-1 justify-center"><Plus size={15} /> <T>New Booking</T></button>

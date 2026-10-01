@@ -13,12 +13,12 @@ import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageCo
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
-const weekday = (d) => (d ? stamp(new Date(d).toLocaleDateString('en-US', { weekday: 'long' })) : '')
+const weekday = (d) => (d ? stamp(new Date(d).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', weekday: 'long' })) : '')
 const modeLabel = (m) => tr(m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'UPI / QR Code' : (m || 'Cash'))
 function durDays(pl) { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('life')) return null; if (pl?.duration_days) return pl.duration_days; if (n.includes('monthly')) return 30; if (n.includes('year')) return 365; return 1 }
 function validityRange(pl, fromDate, bookingTime) {
   const d = durDays(pl)
-  if (d === null || !fromDate) return 'Lifetime'
+  if (d === null || !fromDate) return tr('Lifetime')
   // Calculate expiry: booking date + duration days, same time as booking
   const from = new Date(fromDate)
   if (bookingTime) {
@@ -34,7 +34,7 @@ function validityRange(pl, fromDate, bookingTime) {
   const hr12 = hours % 12 || 12
   return `${dateStr}, ${String(hr12).padStart(2, '0')}:${mins} ${ampm}`
 }
-const validityShort = (pl) => { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('daily')) return '1 Day'; if (n.includes('monthly')) return '1 Month'; if (n.includes('life')) return 'Lifetime'; if (n.includes('one')) return 'One-Time'; if (n.includes('year')) return '1 Year'; return pl?.frequency || 'Selected Date' }
+const validityShort = (pl) => { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('daily')) return tr('1 Day'); if (n.includes('monthly')) return tr('1 Month'); if (n.includes('life')) return tr('Lifetime'); if (n.includes('one')) return tr('One-Time'); if (n.includes('year')) return tr('1 Year'); return pl?.frequency || tr('Selected Date') }
 
 export default function PoojaHistoryDetails() {
   const { lang } = useLang()
@@ -44,7 +44,7 @@ export default function PoojaHistoryDetails() {
   const [loadErr, setLoadErr] = useState('')
   const load = useCallback(() => {
     setLoadErr('')
-    PoojaHistoryAPI.detail(id).then(setD).catch((ex) => { setD(null); setLoadErr(ex?.detail || "Couldn't load this pooja record — check your connection and retry.") })
+    PoojaHistoryAPI.detail(id).then(setD).catch((ex) => { setD(null); setLoadErr(ex?.detail || tr("Couldn't load this pooja record — check your connection and retry.")) })
   }, [id])
   useEffect(() => { load() }, [load])
   if (loadErr) return <ErrorBlock message={loadErr} onRetry={load} />
@@ -70,7 +70,7 @@ export default function PoojaHistoryDetails() {
         <Meta icon={CalendarDays} label={tr("Pooja Date")} value={fmtDate(d.scheduled_date)} />
         <div className="ml-auto flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2">
           <CheckCircle2 size={26} className="text-emerald-600" />
-          <div><div className="text-[0.6875rem] text-gray-500"><T>Final Status</T></div><div className="text-[0.9375rem] font-extrabold text-emerald-700 leading-none">{completed ? 'COMPLETED' : (d.completion || '').toUpperCase()}</div><div className="text-[0.625rem] text-gray-400 mt-0.5"><T>Pooja Completed Successfully</T></div></div>
+          <div><div className="text-[0.6875rem] text-gray-500"><T>Final Status</T></div><div className="text-[0.9375rem] font-extrabold text-emerald-700 leading-none">{completed ? tr('COMPLETED') : tr((d.completion || '').toUpperCase())}</div><div className="text-[0.625rem] text-gray-400 mt-0.5"><T>Pooja Completed Successfully</T></div></div>
         </div>
       </div>
 
@@ -129,7 +129,7 @@ export default function PoojaHistoryDetails() {
             {isUpi && <Row label={tr("UTR / Transaction ID")} value={<span className="text-emerald-700 font-mono">{d.payment_ref}</span>} />}
             <Row label={tr("Payment Date & Time")} value={fmtStamp(d.created_at)} />
             <Row label={tr("Payment Status")} value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} />{' '}<T>Payment Successful</T></span>} />
-            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> Payment received successfully on {fmtStamp(d.created_at)}.</div>
+            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg px-3.5 py-2.5 text-[0.78125rem] text-gray-600 flex items-center gap-2 mt-1"><CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> {tr('Payment received successfully on')} {fmtStamp(d.created_at)}.</div>
           </Section>
         </div>
       </div>

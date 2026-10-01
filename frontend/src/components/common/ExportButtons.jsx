@@ -8,7 +8,7 @@ import { T, tr } from '../../i18n/LanguageContext.jsx'
 // as a real downloaded PDF / Excel file — the accountant's hand-off need.
 export default function ExportButtons({ title, columns, rows, total }) {
   if (!rows?.length) return null
-  const result = () => ({ title, subtitle: `${rows.length} record(s) · exported ${new Date().toLocaleDateString('en-GB')}`, columns, rows, total })
+  const result = () => ({ title, subtitle: `${rows.length} record(s) · exported ${new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' })}`, columns, rows, total })
   return (
     <span className="inline-flex gap-1.5">
       <button type="button" onClick={() => exportReportToPdf(result())} className="btn-outline !py-2 text-[0.75rem]" title={tr("Download PDF")}><FileDown size={14} />{' '}<T>PDF</T></button>

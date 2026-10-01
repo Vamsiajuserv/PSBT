@@ -5,7 +5,7 @@ import MasterScreen from '../../components/admin/MasterScreen.jsx'
 import { Pill, fmtDate } from '../../components/admin/ui.jsx'
 import { FestivalsAPI, PoojasAPI, TithiAPI, PanchangamAPI } from '../../api/client.js'
 import { NumberField } from '../../components/common/Field.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, stamp, teText } from '../../i18n/LanguageContext.jsx'
 
 // ── Panchangam Reference Component ─────────────────────────────────────────────
 // Provides tithi date suggestions and panchangam info as REFERENCE only.
@@ -26,7 +26,7 @@ function PanchangamReference({ data, setD }) {
       const result = await TithiAPI.upcoming(tithiType, 12)
       setSuggestions(result.dates || [])
     } catch (err) {
-      toast('Failed to fetch tithi dates', 'error')
+      toast(tr('Failed to fetch tithi dates'), 'error')
       setSuggestions([])
     } finally {
       setLoading(false)
@@ -97,7 +97,7 @@ function PanchangamReference({ data, setD }) {
           ) : (
             <div className="divide-y divide-gray-100">
               <div className="px-3 py-2 bg-gray-50 text-[0.6875rem] text-gray-500 uppercase tracking-wide font-semibold">
-                <T>Upcoming</T> {showSuggestions} <T>Dates</T> ({suggestions.length})
+                <T>Upcoming</T> {tr(showSuggestions)} <T>Dates</T> ({suggestions.length})
               </div>
               {suggestions.map((s, idx) => (
                 <button
@@ -107,10 +107,10 @@ function PanchangamReference({ data, setD }) {
                   className="w-full text-left px-3 py-2 hover:bg-amber-50 text-[0.8125rem] flex items-center justify-between group"
                 >
                   <span className="text-gray-800 font-medium">
-                    {new Date(s.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                    {stamp(new Date(s.date + 'T00:00:00').toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }))}
                   </span>
                   {s.name && (
-                    <span className="text-[0.75rem] text-amber-600">{s.name}</span>
+                    <span className="text-[0.75rem] text-amber-600">{teText(s.name)}</span>
                   )}
                 </button>
               ))}
@@ -139,7 +139,7 @@ function PanchangamReference({ data, setD }) {
               <div className="flex items-center gap-2 text-[0.8125rem]">
                 <Calendar size={14} className="text-maroon-600" />
                 <span className="font-medium text-gray-800">
-                  {new Date(data.start_date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  {new Date(data.start_date + 'T00:00:00').toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-[0.75rem]">
@@ -203,21 +203,21 @@ export default function FestivalMaster() {
       const items = r.items || []
       setPoojaAll(items)
       setPoojaOptions(items.map((p) => ({ value: p.id, label: p.name })))
-    }).catch(() => toast('Failed to load poojas', 'error'))
+    }).catch(() => toast(tr('Failed to load poojas'), 'error'))
   }, [])
 
   const config = useMemo(() => ({
-    title: 'Festival Master', subtitle: 'Configure temple festivals and their associated poojas.',
-    api: FestivalsAPI, entity: 'festival', addLabel: 'Add New Festival', searchPlaceholder: 'Search by name or code…',
+    title: tr('Festival Master'), subtitle: tr('Configure temple festivals and their associated poojas.'),
+    api: FestivalsAPI, entity: 'festival', addLabel: tr('Add New Festival'), searchPlaceholder: tr('Search by name or code…'),
     statCards: [
-      { key: 'total', icon: CalendarDays, color: '#8a1c1c', bg: 'bg-maroon-50', title: 'Total Festivals', sub: 'All festivals' },
-      { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: 'Active', sub: 'Currently active' },
-      { key: 'upcoming', icon: CalendarClock, color: '#d97706', bg: 'bg-amber-50', title: 'Upcoming', sub: 'Yet to start' },
+      { key: 'total', icon: CalendarDays, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Festivals'), sub: tr('All festivals') },
+      { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: tr('Active'), sub: tr('Currently active') },
+      { key: 'upcoming', icon: CalendarClock, color: '#d97706', bg: 'bg-amber-50', title: tr('Upcoming'), sub: tr('Yet to start') },
     ],
     sortColumns: [
-      { key: 'name', label: 'Festival Name', type: 'text' },
-      { key: 'start_date', label: 'Start Date', type: 'date' },
-      { key: 'status', label: 'Status', type: 'text' },
+      { key: 'name', label: tr('Festival Name'), type: 'text' },
+      { key: 'start_date', label: tr('Start Date'), type: 'date' },
+      { key: 'status', label: tr('Status'), type: 'text' },
     ],
     columns: [
       { key: 'code', label: tr('Festival ID'), mono: true },
@@ -236,7 +236,7 @@ export default function FestivalMaster() {
       { k: 'end_date', label: tr('End Date'), type: 'date' },
       { k: 'pooja_ids', label: tr('Associated Poojas'), type: 'multiselect', options: poojaOptions },
       {
-        k: 'plan_fees', label: 'Committee Prices (set once for this festival)', type: 'custom', default: {},
+        k: 'plan_fees', label: tr('Committee Prices (set once for this festival)'), type: 'custom', default: {},
         render: (data, setD) => {
           const selected = poojaAll.filter((p) => (data.pooja_ids || []).includes(p.id))
           const rows = selected.flatMap((p) => (p.plans || []).filter((pl) => pl.committee_decided).map((pl) => ({ p, pl })))

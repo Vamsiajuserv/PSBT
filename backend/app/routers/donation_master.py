@@ -83,3 +83,61 @@ def delete_category(cid: int, request: Request, db: Session = Depends(get_db), u
         raise HTTPException(404, "Category not found")
     log_action(db, username=user.username, action="DELETE", entity="DonationCategory", detail=c.name, ip=client_ip(request))
     db.delete(c); db.commit()
+
+
+# Standard donation categories for temple management
+STANDARD_CATEGORIES = [
+    # Cash Donations
+    ("General Donation", "Cash", "Amount", False),
+    ("Temple Development", "Cash", "Amount", False),
+    ("Corpus / Endowment Fund", "Cash", "Amount", False),
+    ("Medical Donation", "Cash", "Amount", False),
+    ("Anna Daanam", "Cash", "Amount", False),
+    ("Nithya Pooja", "Cash", "Amount", False),
+    ("Festival Donation", "Cash", "Amount", False),
+    ("Education Fund", "Cash", "Amount", False),
+    ("Go Daanam", "Cash", "Amount", False),
+    # Material Donations
+    ("Gold", "Material", "Grams", True),
+    ("Silver", "Material", "Grams", True),
+    ("Rice Bags", "Material", "Bags / Kg", True),
+    ("Oil", "Material", "Liters", True),
+    ("Ghee", "Material", "Liters", True),
+    ("Flowers", "Material", "Kg", True),
+    ("Fruits", "Material", "Kg", True),
+    ("Pooja Materials", "Material", "Packet", True),
+    ("Utensils", "Material", "Nos", True),
+    ("Cloth / Vastram", "Material", "Nos", True),
+    # Sponsorships
+    ("Festival Sponsorship", "Sponsorship", None, False),
+    ("Annadanam Sponsorship", "Sponsorship", None, False),
+    ("Pooja Sponsorship", "Sponsorship", None, False),
+    ("Aarti Sponsorship", "Sponsorship", None, False),
+]
+
+
+@router.post("/reset")
+def reset_categories(request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    """Clear all donation categories and re-seed with standard temple categories."""
+    # Delete all existing categories
+    db.query(DonationCategory).delete()
+    db.commit()
+
+    # Re-seed standard categories
+    for i, (name, typ, unit, qr) in enumerate(STANDARD_CATEGORIES, start=1):
+        c = DonationCategory(
+            code=f"CAT-{str(i).zfill(4)}",
+            name=name,
+            type=typ,
+            unit=unit,
+            quantity_required=qr,
+            active=True
+        )
+        db.add(c)
+    db.commit()
+
+    log_action(db, username=user.username, action="RESET", entity="DonationCategory",
+               detail=f"Reset to {len(STANDARD_CATEGORIES)} standard categories", ip=client_ip(request))
+
+    return {"message": f"Reset complete. {len(STANDARD_CATEGORIES)} standard categories created.",
+            "count": len(STANDARD_CATEGORIES)}

@@ -24,7 +24,7 @@ function FontSizeToggle({ className = '' }) {
   const [level, setLevel] = useState(getFontScale())
   const pick = (l) => setLevel(setFontScale(l))
   const btn = (l, node, title) => (
-    <button onClick={() => pick(l)} title={title} aria-label={title}
+    <button onClick={() => pick(l)} title={tr(title)} aria-label={tr(title)}
       className={`px-2 py-1 leading-none ${level === l ? 'bg-gold-500 text-maroon-900' : 'text-current hover:bg-white/10'}`}>
       {node}
     </button>

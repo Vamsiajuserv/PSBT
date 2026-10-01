@@ -17,7 +17,7 @@ export default function AuditLog() {
     <div>
       <PageHeader title={tr("Audit Log")} subtitle={tr("Immutable trail of all staff actions — who, what, when")}
         action={<button onClick={load} className="btn-outline"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />{' '}<T>Refresh</T></button>} />
-      <Table columns={['Timestamp', 'User', 'Action', 'Entity', 'Detail', 'Status', 'IP']}>
+      <Table columns={[tr('Timestamp'), tr('User'), tr('Action'), tr('Entity'), tr('Detail'), tr('Status'), tr('IP')]}>
         {rows.map((a) => (
           <tr key={a.id} className="hover:bg-gray-50">
             <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{a.ts ? a.ts.replace('T', ' ').slice(0, 19) : '—'}</td>

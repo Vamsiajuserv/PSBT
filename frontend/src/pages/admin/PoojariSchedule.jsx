@@ -10,13 +10,14 @@ import { SchedulesAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, MultiSelect } from '../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'Life Long': 'amber', 'One-Time': 'violet' }
 const STATUS_TONE = { Scheduled: 'green', 'In Progress': 'blue', Completed: 'gray', Cancelled: 'red' }
 const planTone = (n) => PLAN_TONE[n] || (/\d+-Day/.test(n || '') ? 'violet' : 'gray')
-const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })
   .replace(/[A-Za-z]{3,}/g, (w) => tr(w)) : '—')
-const weekday = (s) => (s ? tr(new Date(s).toLocaleDateString('en-US', { weekday: 'short' })) : '')
+const weekday = (s) => (s ? tr(new Date(s).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', weekday: 'short' })) : '')
 
 function StatTile({ icon: Icon, color, bg, title, value, sub }) {
   return (
@@ -51,30 +52,33 @@ export default function PoojariSchedule() {
   const [total, setTotal] = useState(0)
   const [poojas, setPoojas] = useState([])
   const [poojaris, setPoojaris] = useState([])
-  const [q, setQ] = useState(''); const [pooja, setPooja] = useState(''); const [poojari, setPoojari] = useState('')
-  const [status, setStatus] = useState(''); const [start, setStart] = useState(''); const [end, setEnd] = useState('')
-  const [page, setPage] = useState(1)
-  const [applied, setApplied] = useState({})
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, pooja, setPooja, poojari, setPoojari,
+    status, setStatus, start, setStart, end, setEnd, page, setPage, setFilters,
+  } = useFilterParams({
+    q: '', pooja: '', poojari: '', status: '', start: '', end: '', page: 1,
+  })
   const [drawer, setDrawer] = useState(null)
   const SIZE = 8
 
   // Sorting
   const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'schedule_date', direction: 'desc' }])
 
-  const loadStats = useCallback(() => SchedulesAPI.stats().then(setStats).catch(() => toast('Failed to load schedule stats', 'error')), [])
-  const loadList = useCallback(async (f, pg) => {
-    const d = await SchedulesAPI.list({ ...f, page: pg, size: SIZE })
+  const loadStats = useCallback(() => SchedulesAPI.stats().then(setStats).catch(() => toast(tr('Failed to load schedule stats'), 'error')), [])
+  const loadList = useCallback(async () => {
+    const d = await SchedulesAPI.list({ q, pooja, poojari, status, start, end, page, size: SIZE })
     setRows(d.items); setTotal(d.total)
-  }, [])
+  }, [q, pooja, poojari, status, start, end, page])
   useEffect(() => {
     loadStats()
-    PoojasAPI.admin().then((d) => setPoojas(d.items)).catch(() => toast('Failed to load poojas', 'error'))
-    PoojarisAPI.list().then(setPoojaris).catch(() => toast('Failed to load poojaris', 'error'))
+    PoojasAPI.admin().then((d) => setPoojas(d.items)).catch(() => toast(tr('Failed to load poojas'), 'error'))
+    PoojarisAPI.list().then(setPoojaris).catch(() => toast(tr('Failed to load poojaris'), 'error'))
   }, [loadStats])
-  useEffect(() => { loadList(applied, page) }, [applied, page, loadList])
+  useEffect(() => { loadList() }, [loadList])
 
-  const search = () => { setPage(1); setApplied({ q, pooja, poojari, status, start, end }) }
-  const clear = () => { setQ(''); setPooja(''); setPoojari(''); setStatus(''); setStart(''); setEnd(''); setPage(1); setApplied({}) }
+  const search = () => { if (page !== 1) setPage(1) }
+  const clear = () => setFilters({ q: '', pooja: '', poojari: '', status: '', start: '', end: '', page: 1 })
   const pageCount = Math.max(1, Math.ceil(total / SIZE))
 
   const [saveErr, setSaveErr] = useState('')
@@ -169,7 +173,7 @@ export default function PoojariSchedule() {
               <div className="flex-[1_1_9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
                 <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">{tr("All Poojas")}</option>{uniquePoojaNames.map((n) => <option key={n}>{n}</option>)}</Select></div>
               <div className="flex-[1_1_9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
-                <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input"><option value="">{tr("All Poojaris")}</option>{poojaris.map((p) => <option key={p.id}>{p.name}</option>)}</Select></div>
+                <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input"><option value="">{tr("All Poojaris")}</option>{poojaris.map((p) => <option key={p.id} value={p.name}>{personName(p, lang)}</option>)}</Select></div>
               <div className="flex-[1_1_9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
                 <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Scheduled">{tr("Scheduled")}</option><option value="In Progress">{tr("In Progress")}</option><option value="Completed">{tr("Completed")}</option></Select></div>
               <div className="flex-[1_1_6rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5">&nbsp;</label>
@@ -317,13 +321,13 @@ export default function PoojariSchedule() {
                   value={drawer.data.pooja_ids || []}
                   onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, pooja_ids: e.target.value, plan_id: '' } })}
                   placeholder={tr("Select Pooja(s)")}
-                  allLabel="Select All Poojas"
+                  allLabel={tr("Select All Poojas")}
                   className="w-full"
                 >
                   {poojas.map((p) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
                 </MultiSelect>
                 {selectedPoojaIds.length > 1 && (
-                  <div className="text-[0.75rem] text-amber-600 mt-1">{selectedPoojaIds.length} {tr('poojas selected — default plan will be used for each')}</div>
+                  <div className="text-[0.75rem] text-amber-600 mt-1">{selectedPoojaIds.length} {tr('poojas selected')} — {tr('default plan will be used for each')}</div>
                 )}
               </div>
               {isSinglePooja && (
@@ -333,11 +337,11 @@ export default function PoojariSchedule() {
               )}
               <div><label className="label"><T>Poojari *</T></label>
                 <Select required className="input" value={drawer.data.poojari_id} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, poojari_id: e.target.value } })}>
-                  <option value="">{tr("Select Poojari")}</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></div>
+                  <option value="">{tr("Select Poojari")}</option>{poojaris.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)}</option>)}</Select></div>
               <div><label className="label"><T>Schedule Type *</T></label>
                 <div className="flex gap-6 mt-1">
                   {['One-Time', 'Recurring'].map((t) => (
-                    <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="stype" className="accent-maroon-700" checked={drawer.data.schedule_type === t} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, schedule_type: t } })} /> {t}</label>
+                    <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="stype" className="accent-maroon-700" checked={drawer.data.schedule_type === t} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, schedule_type: t } })} /> {tr(t)}</label>
                   ))}
                 </div></div>
               <div><label className="label"><T>Schedule Date *</T></label><DateField required className="input" value={drawer.data.schedule_date} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, schedule_date: e.target.value } })} /></div>

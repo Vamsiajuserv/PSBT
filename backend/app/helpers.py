@@ -1,9 +1,60 @@
 """Small helpers shared across routers."""
 import re
-from datetime import datetime, date as _date, timedelta
+from datetime import datetime, date as _date, timedelta, timezone
 from fastapi import HTTPException
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
+
+# ── IST Timezone Conversion (UTC → Asia/Kolkata) ──────────────────────────────
+# Database stores timestamps in UTC. These helpers convert to IST for display.
+# Using fixed offset (+5:30) rather than pytz dependency for simplicity.
+
+IST_OFFSET = timezone(timedelta(hours=5, minutes=30))
+
+
+def to_ist(dt: datetime | None) -> datetime | None:
+    """Convert a naive UTC datetime to IST (UTC+5:30).
+
+    Assumes input is UTC (from database func.now()). Returns a timezone-aware
+    datetime in IST, or None if input is None.
+    """
+    if dt is None:
+        return None
+    # Attach UTC timezone, then convert to IST
+    utc_dt = dt.replace(tzinfo=timezone.utc)
+    return utc_dt.astimezone(IST_OFFSET)
+
+
+def fmt_ist_datetime(dt: datetime | None, fmt: str = "%d %b %Y %I:%M %p") -> str:
+    """Format a UTC datetime as IST string.
+
+    Args:
+        dt: Naive datetime from database (assumed UTC)
+        fmt: strftime format string (default: "26 Sep 2026 11:59 AM")
+
+    Returns:
+        Formatted IST string, or "-" if dt is None
+    """
+    if dt is None:
+        return "-"
+    ist_dt = to_ist(dt)
+    return ist_dt.strftime(fmt)
+
+
+def fmt_ist_time(dt: datetime | None, fmt: str = "%I:%M %p") -> str:
+    """Format just the time portion of a UTC datetime as IST.
+
+    Args:
+        dt: Naive datetime from database (assumed UTC)
+        fmt: strftime format string (default: "11:59 AM")
+
+    Returns:
+        Formatted IST time string, or "" if dt is None
+    """
+    if dt is None:
+        return ""
+    ist_dt = to_ist(dt)
+    return ist_dt.strftime(fmt)
 
 
 def plan_terms(plan, start):

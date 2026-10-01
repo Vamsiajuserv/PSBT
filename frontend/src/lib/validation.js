@@ -18,9 +18,10 @@ export function validateName(value) {
   return { valid: true, error: null }
 }
 
-// Sanitize name input - remove numbers as user types
+// Sanitize name input - remove numbers and special characters as user types
+// Only allows letters, spaces, dots, apostrophes, parentheses, hyphens, and Telugu characters
 export function sanitizeName(value) {
-  return value.replace(/[0-9]/g, '')
+  return value.replace(/[^A-Za-z\s.'()\u0C00-\u0C7F-]/g, '')
 }
 
 // ── Phone Validation ──

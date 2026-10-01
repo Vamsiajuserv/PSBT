@@ -16,11 +16,18 @@ import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone } from '../../lib/validation.js'
+import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const DEFAULT_MATERIALS = ['Coconut Shells', 'Flowers', 'Banana Leaves', 'Cardboard', 'Plastic', 'Waste Oil', 'Metal Scrap', 'Old Cloth', 'Waste Papers']
 const UNITS = ['Kilogram (kg)', 'Tonne', 'Piece', 'Bundle']
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
-const fmtTime = (s) => (s ? clock12(new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) : '')
+// Parse datetime as UTC (server returns naive ISO without 'Z')
+const parseUTC = (s) => (s && String(s).includes('T')) ? new Date(String(s) + (String(s).endsWith('Z') ? '' : 'Z')) : null
+const fmtTime = (s) => {
+  const d = parseUTC(s)
+  if (!d || isNaN(d.getTime())) return ''
+  return clock12(d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }))
+}
 const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI (QR)' : m)
 const unitShort = (u) => { const m = /\(([^)]+)\)/.exec(u || ''); return m ? m[1] : (u || '').toLowerCase() }
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -54,7 +61,6 @@ export default function WasteSales() {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [printDoc, setPrintDoc] = useState(null)
@@ -69,11 +75,13 @@ export default function WasteSales() {
   // Committee role check for verification
   const isCommittee = user?.role === 'Committee' || user?.role === 'Admin'
 
-  const [q, setQ] = useState('')
-  const [material, setMaterial] = useState('')
-  const [mode, setMode] = useState('')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, material, setMaterial, mode, setMode,
+    start, setStart, end, setEnd, page, setPage,
+  } = useFilterParams({
+    q: '', material: '', mode: '', start: '', end: '', page: 1,
+  })
 
   // Sortable table columns with filtering support
   const sortColumns = [
@@ -103,7 +111,7 @@ export default function WasteSales() {
       setVerifyModal(null)
       load()
     } catch (ex) {
-      alert(ex?.detail || 'Verification failed')
+      alert(ex?.detail || tr('Verification failed'))
     }
   }
 
@@ -115,7 +123,7 @@ export default function WasteSales() {
       setRejectModal(null); setRejectReason('')
       load()
     } catch (ex) {
-      alert(ex?.detail || 'Rejection failed')
+      alert(ex?.detail || tr('Rejection failed'))
     }
   }
 
@@ -142,7 +150,7 @@ export default function WasteSales() {
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
     } catch (ex) {
-      setLoadErr(ex?.detail || "Couldn't load sales — check your connection and retry.")
+      setLoadErr(ex?.detail || tr("Couldn't load sales — check your connection and retry."))
       setRows([])
     } finally {
       setLoading(false)
@@ -154,10 +162,10 @@ export default function WasteSales() {
   useEffect(() => {
     VendorsAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setVendors(arr) })
-      .catch(() => toast('Failed to load vendors', 'error'))
+      .catch(() => toast(tr('Failed to load vendors'), 'error'))
     CommitteeAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setCommittee(arr.filter((c) => c.active)) })
-      .catch(() => toast('Failed to load committee members', 'error'))
+      .catch(() => toast(tr('Failed to load committee members'), 'error'))
   }, [])
 
   // Devotee search for registered devotees who can also buy waste materials (Item 33)
@@ -408,8 +416,23 @@ export default function WasteSales() {
                       <div>
                         <label className="label"><T>Mobile Number *</T></label>
                         <div className="flex">
-                          <CountryCodeSelect value={drawer.country_code || '+91'} onChange={(e) => setM({ country_code: e.target.value })} />
-                          <input required className={`input flex-1 !rounded-l-none ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("Mobile Number")} maxLength={getCountryDigits(drawer.country_code || '+91')} value={drawer.mobile} onChange={(e) => { setFieldErrors((p) => ({ ...p, mobile: null })); setM({ mobile: sanitizePhone(e.target.value) }) }} />
+                          <CountryCodeSelect value={drawer.country_code || '+91'} onChange={(e) => { setM({ country_code: e.target.value }); setFieldErrors((p) => ({ ...p, mobile: null })) }} />
+                          <input required className={`input flex-1 !rounded-l-none ${fieldErrors.mobile ? 'border-red-400' : ''}`} placeholder={tr("Mobile Number")} maxLength={getCountryDigits(drawer.country_code || '+91')} value={drawer.mobile} onChange={(e) => {
+                            const cleaned = sanitizePhone(e.target.value)
+                            setM({ mobile: cleaned })
+                            if ((drawer.country_code || '+91') === '+91') {
+                              if (cleaned.length === 10) {
+                                const validation = validatePhone(cleaned)
+                                setFieldErrors((p) => ({ ...p, mobile: validation.valid ? null : tr('Invalid Mobile Number') }))
+                              } else if (cleaned.length >= 1 && cleaned.length < 10) {
+                                setFieldErrors((p) => ({ ...p, mobile: tr('Please Enter 10 digits Mobile Number') }))
+                              } else {
+                                setFieldErrors((p) => ({ ...p, mobile: null }))
+                              }
+                            } else {
+                              setFieldErrors((p) => ({ ...p, mobile: null }))
+                            }
+                          }} />
                         </div>
                         {fieldErrors.mobile && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.mobile}</div>}
                       </div>

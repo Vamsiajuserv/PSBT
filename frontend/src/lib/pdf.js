@@ -23,7 +23,7 @@ export function exportReportToPdf(result) {
   doc.text(result.title || 'Report', 40, 42)
   if (result.subtitle) { doc.setFontSize(9); doc.setTextColor(120); doc.text(String(result.subtitle), 40, 58) }
   doc.setFontSize(8); doc.setTextColor(150)
-  doc.text(`Generated ${new Date().toLocaleString()}`, 40, result.subtitle ? 72 : 58)
+  doc.text(`Generated ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`, 40, result.subtitle ? 72 : 58)
 
   autoTable(doc, {
     head, body, foot,
