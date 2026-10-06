@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (User, Booking, Donation, HundiCollection, Auction, Annadanam,
-                      WasteSale, Devotee, AuditLog, Festival)
+                      WasteSale, AuditLog, Festival)
 from ..schemas import AuditOut
 from ..security import get_current_user, RequireModule
-from ..helpers import fmt_ist_time
+from ..helpers import fmt_ist_time, sort_expr, apply_column_filters
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -249,9 +249,20 @@ def audit_stats(db: Session = Depends(get_db), user=Depends(RequireModule("Audit
     return {"total": total, "today": today_c, "logins": logins, "users": users}
 
 
+# Column mapping for server-side sorting / column filters (Audit Trail)
+AUDIT_SORT_COLUMNS = {
+    "ts": AuditLog.ts,
+    "username": AuditLog.username,
+    "action": AuditLog.action,
+    "entity": AuditLog.entity,
+    "status": AuditLog.status,
+}
+
+
 @router.get("/audit/search")
 def audit_search(q: str = "", action: str = "", entity: str = "", username: str = "",
                  start: date | None = None, end: date | None = None,
+                 sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
                  page: int = 1, size: int = 20,
                  db: Session = Depends(get_db), user=Depends(RequireModule("Audit"))):
     query = db.query(AuditLog)
@@ -268,8 +279,14 @@ def audit_search(q: str = "", action: str = "", entity: str = "", username: str 
         query = query.filter(func.date(AuditLog.ts) >= start)
     if end:
         query = query.filter(func.date(AuditLog.ts) <= end)
+    query = apply_column_filters(query, col_filters, AUDIT_SORT_COLUMNS)
     total = query.count()
-    rows = query.order_by(AuditLog.id.desc()).offset((page - 1) * size).limit(size).all()
+    if sort_by in AUDIT_SORT_COLUMNS:
+        col = sort_expr(AUDIT_SORT_COLUMNS[sort_by])
+        query = query.order_by(col.asc(), AuditLog.id) if sort_dir == "asc" else query.order_by(col.desc(), AuditLog.id.desc())
+    else:
+        query = query.order_by(AuditLog.id.desc())
+    rows = query.offset((page - 1) * size).limit(size).all()
     entities = [e[0] for e in db.query(AuditLog.entity).distinct().all() if e[0]]
     # Attach the actor's display name so the trail can be read in either
     # language. `username` is still the authoritative identity and is returned

@@ -37,20 +37,25 @@ export default function Notifications() {
   const [msg, setMsg] = useState(null)
 
   // Sorting
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'ts', direction: 'desc' }])
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [], { manualSort: true })
 
   const loadConfig = useCallback(() => {
     NotificationsAPI.config().then((c) => setChannels(c.channels)).catch(() => toast(tr('Failed to load notification config'), 'error'))
     NotificationsAPI.stats().then(setStats).catch(() => toast(tr('Failed to load notification stats'), 'error'))
   }, [])
+  // Sorting runs on the server so it covers every log entry, not just the visible page.
+  // Responses from superseded requests are ignored so a slow page can't overwrite a newer one.
   const loadLogs = useCallback(() => {
-    NotificationsAPI.logs({ channel, status, page, size: SIZE })
-      .then((d) => { setRows(d.items); setTotal(d.total) }).catch(() => toast(tr('Failed to load notification logs'), 'error'))
-  }, [channel, status, page])
+    let stale = false
+    NotificationsAPI.logs({ channel, status, page, size: SIZE, sort_by: sorts[0]?.key || '', sort_dir: sorts[0]?.direction || 'desc' })
+      .then((d) => { if (!stale) { setRows(d.items); setTotal(d.total) } })
+      .catch(() => { if (!stale) toast(tr('Failed to load notification logs'), 'error') })
+    return () => { stale = true }
+  }, [channel, status, page, sorts])
 
   useEffect(() => { loadConfig() }, [loadConfig])
-  useEffect(() => { loadLogs() }, [loadLogs])
-  useEffect(() => { setPage(1) }, [channel, status])
+  useEffect(() => loadLogs(), [loadLogs])
+  useEffect(() => { setPage(1) }, [channel, status, sorts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggle(ch, enabled) {
     setBusy(ch)

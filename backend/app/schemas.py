@@ -126,7 +126,7 @@ class UserOut(ORM):
     username: str
     name: str
     name_te: Optional[str] = None
-    email: str
+    email: Optional[str] = None
     mobile: Optional[str] = None
     role: str
     modules: str
@@ -141,7 +141,7 @@ class UserCreate(BaseModel):
     name: str = Field(..., min_length=1)
     name_te: Optional[str] = None
     username: Optional[str] = None
-    email: EmailStr
+    email: Optional[EmailStr] = None
     mobile: Optional[str] = None
     employee_id: Optional[str] = None
     role: str
@@ -149,6 +149,7 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=6)
     is_active: bool = True
     twofa_enabled: bool = False
+    poojari_id: Optional[int] = None   # Poojari role: link to the Poojari Master ("My Poojas")
 
     @field_validator('password')
     @classmethod
@@ -165,6 +166,7 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    poojari_id: Optional[int] = None
     name: Optional[str] = None
     name_te: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -670,6 +672,8 @@ class QuickCreateBookingIn(BaseModel):
     participants: Optional[str] = None  # JSON array
     special_notes: Optional[str] = Field(default=None, max_length=500)
     vehicle_no: Optional[str] = Field(default=None, max_length=20)
+    poojari_id: Optional[int] = None
+    source: Optional[str] = Field(default=None, max_length=20)   # Counter | Advance
 
     # Payment
     payment_method: str = Field(default="Cash", max_length=30)

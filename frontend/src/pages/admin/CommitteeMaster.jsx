@@ -84,7 +84,18 @@ function MembersTab() {
   const load = useCallback(() => {
     setLoading(true); setLoadErr('')
     return Promise.all([CommitteeAPI.list({ q, status }), CommitteeAPI.stats().catch(() => null)])
-      .then(([d, s]) => { setItems(d.items || d); if (s) setStats(s) })
+      .then(([d, s]) => {
+        // Deduplicate items by ID to prevent duplicate rows
+        const rawItems = d.items || d
+        const seen = new Set()
+        const uniqueItems = rawItems.filter(item => {
+          if (seen.has(item.id)) return false
+          seen.add(item.id)
+          return true
+        })
+        setItems(uniqueItems)
+        if (s) setStats(s)
+      })
       .catch((ex) => { setLoadErr(ex?.detail || LOAD_ERROR); setItems([]) })
       .finally(() => setLoading(false))
   }, [q, status])
@@ -324,7 +335,15 @@ function FestivalPricingTab() {
     setLoading(true); setLoadErr('')
     try {
       const res = await PoojasAPI.allPlans()
-      setPlans(res.items || [])
+      // Deduplicate items by ID to prevent duplicate rows
+      const rawItems = res.items || []
+      const seen = new Set()
+      const uniqueItems = rawItems.filter(item => {
+        if (seen.has(item.id)) return false
+        seen.add(item.id)
+        return true
+      })
+      setPlans(uniqueItems)
     } catch (ex) {
       setLoadErr(ex?.detail || LOAD_ERROR)
       setPlans([])

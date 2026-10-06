@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Plus, X, Eye, Search, RotateCcw, Calendar, Info, ChevronDown, Trash2, Upload,
   HandCoins, IndianRupee, Landmark, CalendarClock, FileText, Calculator, Users, ShieldCheck, Building2,
   Package, CheckCircle2, Gem, Lock,
 } from 'lucide-react'
-import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { HundiAPI, HundiItemsAPI, DevoteesAPI, CommitteeAPI, SettingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -39,9 +39,12 @@ export default function Hundi() {
   const { lang } = useLang()
   const canWrite = user?.role !== 'Accountant'
   const canVerify = ['Committee', 'Administrator', 'Admin'].includes(user?.role)
+  // Only Admin, Committee, Accountant can see amounts in reports
+  const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   const SIZE = 15
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [reloadTrigger, setReloadTrigger] = useState(0)
   const [loadErr, setLoadErr] = useState('')
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState(null)
@@ -54,11 +57,15 @@ export default function Hundi() {
   // filters - persisted in URL for state preservation across navigation
   const {
     q, setQ, verification, setVerification, deposit, setDeposit,
-    start, setStart, end, setEnd, page, setPage,
+    start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
     q: '', verification: '', deposit: '', start: '', end: '', page: 1,
   })
   const [saving, setSaving] = useState(false)
+
+  // State for all filtered records (for export when date filter applied)
+  const [allFilteredData, setAllFilteredData] = useState([])
+  const [loadingExport, setLoadingExport] = useState(false)
 
   // Sortable table columns with filtering support
   const sortColumns = [
@@ -74,13 +81,73 @@ export default function Hundi() {
     filteredSortedRows,
     sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
     filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
-  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'collected_on', direction: 'desc' }])
+  } = useFilterableSortableTable(rows, sortColumns, [], {}, { manualSort: true, manualFilter: true })
+
+  // Sorting and column filters run on the server so they cover every record, not just the
+  // visible page; changing either reloads from page 1. With no column chosen the date
+  // column is used — oldest first when a date filter is applied, newest first otherwise.
+  const [listTrigger, setListTrigger] = useState(0)
+  const prevSortsRef = useRef(sorts)
+  const prevFiltersRef = useRef(filters)
+  useEffect(() => {
+    const filtersChanged = prevFiltersRef.current !== filters
+    if (prevSortsRef.current === sorts && !filtersChanged) return
+    prevSortsRef.current = sorts
+    prevFiltersRef.current = filters
+    setPage(1)
+    // A filter change also refreshes the export data; a sort change only reloads the list
+    if (filtersChanged) setReloadTrigger((t) => t + 1)
+    else setListTrigger((t) => t + 1)
+  }, [sorts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
+  const displayRows = filteredSortedRows
+
+  // Fetch ALL filtered records for export when date filter is applied
+  const fetchAllFiltered = useCallback(async () => {
+    if (!start && !end) {
+      setAllFilteredData([])
+      return
+    }
+    setLoadingExport(true)
+    try {
+      const d = await HundiAPI.list({ q, verification, deposit, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+      const items = d.items || []
+      // Sort by date ascending (oldest first)
+      items.sort((a, b) => (a.collected_on || '').localeCompare(b.collected_on || ''))
+      setAllFilteredData(items)
+    } catch (err) {
+      toast(tr('Failed to fetch all records'), 'error')
+      setAllFilteredData([])
+    } finally {
+      setLoadingExport(false)
+    }
+  }, [q, verification, deposit, start, end])
+
+  // Fetch all data for export ONLY when Apply button is clicked (reloadTrigger changes)
+  // User must click Apply to filter - no auto-fetch on date change
+  useEffect(() => {
+    if (start || end) {
+      setLoadingExport(true)
+      HundiAPI.list({ q, verification, deposit, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+        .then((d) => {
+          const items = d.items || []
+          items.sort((a, b) => (a.collected_on || '').localeCompare(b.collected_on || ''))
+          setAllFilteredData(items)
+        })
+        .catch(() => {
+          toast(tr('Failed to fetch all records'), 'error')
+          setAllFilteredData([])
+        })
+        .finally(() => setLoadingExport(false))
+    } else {
+      setAllFilteredData([])
+    }
+  }, [reloadTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        HundiAPI.list({ q, verification, deposit, start, end, page, size: SIZE }),
+        HundiAPI.list({ q, verification, deposit, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'collected_on', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
         HundiAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -90,9 +157,9 @@ export default function Hundi() {
     } finally {
       setLoading(false)
     }
-  }, [q, verification, deposit, start, end, page])
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
-  useEffect(() => { setPage(1) }, [q, verification, deposit, start, end])
+  }, [q, verification, deposit, start, end, page, sorts, filters])
+  // Load on initial mount, page changes, or reload trigger
+  useEffect(() => { load() }, [page, reloadTrigger, listTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     CommitteeAPI.list()
@@ -231,7 +298,7 @@ export default function Hundi() {
   }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
 
-  const EXPORT_COLS = [
+  const ALL_EXPORT_COLS = [
     { key: 'code', label: tr('Hundi ID') },
     { key: 'collected_on', label: tr('Collection Date') },
     { key: 'cash_amount', label: tr('Cash (₹)'), type: 'money' },
@@ -242,53 +309,61 @@ export default function Hundi() {
     { key: 'valuables_status', label: tr('Valuables Status') },
     { key: 'store_location', label: tr('Store Location') },
   ]
-  const exportRows = rows
-  const exportTotal = {
+  // Hide money columns for non-finance roles
+  const EXPORT_COLS = canSeeAmounts ? ALL_EXPORT_COLS : ALL_EXPORT_COLS.filter(c => c.type !== 'money')
+  // Use allFilteredData when date filter applied (ALL records), otherwise use current page
+  const dataForExport = (start || end) ? allFilteredData : displayRows
+  const exportRows = canSeeAmounts ? dataForExport : dataForExport.map(r => ({ ...r, cash_amount: null, valuables_amount: null }))
+  const exportTotal = canSeeAmounts ? {
     code: 'Total',
-    cash_amount: rows.reduce((s, h) => s + Number(h.cash_amount || 0), 0),
-    valuables_amount: rows.reduce((s, h) => s + Number(h.valuables_amount || 0), 0),
-  }
+    cash_amount: dataForExport.reduce((s, h) => s + Number(h.cash_amount || 0), 0),
+    valuables_amount: dataForExport.reduce((s, h) => s + Number(h.valuables_amount || 0), 0),
+  } : null
   return (
     <div>
       <PageTitle title={tr("Hundi Management")} subtitle={tr("Manage physical hundi collections from the temple, counting, verification and bank deposits.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Hundi Collection Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record New Collection</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <StatTile icon={HandCoins} color="#059669" bg="bg-emerald-50" title={tr("This Month Total")}
-          value={stats ? inr(stats.month_amount) : '—'} sub={stats ? `${num(stats.month_count)} ${tr("Collections")}` : ''} />
-        <StatTile icon={IndianRupee} color="#2563eb" bg="bg-blue-50" title={tr("Cash (This Month)")}
-          value={stats ? inr(stats.month_cash) : '—'} sub={stats?.pending_deposit_count ? `${num(stats.pending_deposit_count)} ${tr("Pending Deposit")}` : tr("For bank deposit")} />
-        <StatTile icon={Gem} color="#7c3aed" bg="bg-violet-50" title={tr("Valuables (This Month)")}
-          value={stats ? inr(stats.month_valuables) : '—'} sub={stats?.pending_custody_count ? `${num(stats.pending_custody_count)} ${tr("Pending Custody")}` : tr("Gold, Silver, Jewellery")} />
-        <StatTile icon={Landmark} color="#d97706" bg="bg-amber-50" title={tr("Cash Deposited")}
-          value={stats ? inr(stats.deposited_month_amount) : '—'} sub={stats ? `${num(stats.deposited_month_count)} ${tr("Bank Deposits")}` : ''} />
-        <StatTile icon={Lock} color="#059669" bg="bg-emerald-50" title={tr("Valuables In Store")}
-          value={stats ? `${num(stats.stored_month_count)}` : '—'} sub={tr("Collections in custody")} />
-      </div>
+      {user?.role !== 'Counter Staff' && (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <StatTile icon={HandCoins} color="#059669" bg="bg-emerald-50" title={tr("This Month Total")}
+            value={stats ? inr(stats.month_amount) : '—'} sub={stats ? `${num(stats.month_count)} ${tr("Collections")}` : ''} />
+          <StatTile icon={IndianRupee} color="#2563eb" bg="bg-blue-50" title={tr("Cash (This Month)")}
+            value={stats ? inr(stats.month_cash) : '—'} sub={stats?.pending_deposit_count ? `${num(stats.pending_deposit_count)} ${tr("Pending Deposit")}` : tr("For bank deposit")} />
+          <StatTile icon={Gem} color="#7c3aed" bg="bg-violet-50" title={tr("Valuables (This Month)")}
+            value={stats ? inr(stats.month_valuables) : '—'} sub={stats?.pending_custody_count ? `${num(stats.pending_custody_count)} ${tr("Pending Custody")}` : tr("Gold, Silver, Jewellery")} />
+          <StatTile icon={Landmark} color="#d97706" bg="bg-amber-50" title={tr("Cash Deposited")}
+            value={stats ? inr(stats.deposited_month_amount) : '—'} sub={stats ? `${num(stats.deposited_month_count)} ${tr("Bank Deposits")}` : ''} />
+          <StatTile icon={Lock} color="#059669" bg="bg-emerald-50" title={tr("Valuables In Store")}
+            value={stats ? `${num(stats.stored_month_count)}` : '—'} sub={tr("Collections in custody")} />
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
-          <div className="min-w-[8rem]">
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
-          </div>
-          <div className="min-w-[8rem]">
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
-          </div>
-          <div className="min-w-[10rem]">
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Verification Status</T></label>
-            <Select value={verification} onChange={(e) => setVerification(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Verified">{tr("Verified")}</option><option value="Pending Verification">{tr("Pending Verification")}</option></Select>
-          </div>
-          <div className="min-w-[10rem]">
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Deposit Status</T></label>
-            <Select value={deposit} onChange={(e) => setDeposit(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Deposited">{tr("Deposited")}</option><option value="Pending Deposit">{tr("Pending Deposit")}</option></Select>
-          </div>
-          <div className="flex-1 min-w-[12rem]">
+        <div className="px-5 py-5 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Reference No.</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search reference number…")} className="input !pl-9" /></div>
           </div>
+          <div className="w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
+          </div>
+          <div className="w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
+          </div>
+          <div className="w-[10rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Verification Status</T></label>
+            <Select value={verification} onChange={(e) => setVerification(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Verified">{tr("Verified")}</option><option value="Pending Verification">{tr("Pending Verification")}</option></Select>
+          </div>
+          <div className="w-[10rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Deposit Status</T></label>
+            <Select value={deposit} onChange={(e) => setDeposit(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Deposited">{tr("Deposited")}</option><option value="Pending Deposit">{tr("Pending Deposit")}</option></Select>
+          </div>
+          <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
+          <button onClick={() => { setFilters({ q: '', verification: '', deposit: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
 
         <SortFilterPanel
@@ -324,12 +399,12 @@ export default function Hundi() {
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredSortedRows.map((h) => (
+              {displayRows.map((h) => (
                 <tr key={h.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{h.code}</td>
                   <td className="px-4 py-3 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDate(h.collected_on)}</td>
-                  <td className="px-4 py-3 font-semibold text-blue-700">{h.cash_amount > 0 ? inr(h.cash_amount) : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-3 font-semibold text-violet-700">{h.valuables_amount > 0 ? inr(h.valuables_amount) : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3 font-semibold text-blue-700">{canSeeAmounts ? (h.cash_amount > 0 ? inr(h.cash_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
+                  <td className="px-4 py-3 font-semibold text-violet-700">{canSeeAmounts ? (h.valuables_amount > 0 ? inr(h.valuables_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
                   <td className="px-4 py-3"><Pill tone={VER_TONE[h.verification_status] || 'gray'}>{tr(h.verification_status)}</Pill></td>
                   <td className="px-4 py-3">{h.deposit_status && h.deposit_status !== 'N/A' ? <Pill tone={DEP_TONE[h.deposit_status] || 'gray'}>{tr(h.deposit_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3">{h.valuables_status ? <Pill tone={VAL_TONE[h.valuables_status] || 'gray'}>{tr(h.valuables_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
@@ -475,7 +550,7 @@ export default function Hundi() {
               <DSection n="1" icon={FileText} title={tr("Collection Details")}>
                 <VField label={tr("Collection Date")} value={fmtDate(view.collected_on)} />
                 <VField label={tr("Counting Completed")} value={fmtStamp(view.counting_completed_on)} />
-                <VField label={tr("Total Amount Counted")} value={inr(view.counted_amount)} />
+                <VField label={tr("Total Amount Counted")} value={canSeeAmounts ? inr(view.counted_amount) : '—'} />
                 <VField label={tr("Committee Members")} value={`${memberCount(view.committee_members)} ${tr("Members")}`} />
                 <VField label={tr("Members")} value={view.committee_members ? view.committee_members.split(',').map((n) => personName({ name: n.trim() }, lang)).join(', ') : '—'} wide />
               </DSection>
@@ -495,12 +570,12 @@ export default function Hundi() {
                             {it.quantity != null && ` · ${num(it.quantity)}${it.unit ? ` ${it.unit}` : ''}`}
                           </div>
                         </div>
-                        <div className="text-[0.8125rem] font-semibold text-gray-800 tabular-nums shrink-0">{inr(it.value)}</div>
+                        <div className="text-[0.8125rem] font-semibold text-gray-800 tabular-nums shrink-0">{canSeeAmounts ? inr(it.value) : '—'}</div>
                       </div>
                     ))}
                     <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50/70">
                       <span className="text-[0.75rem] font-semibold text-gray-500"><T>Total</T></span>
-                      <span className="text-[0.8125rem] font-extrabold text-maroon-800 tabular-nums">{inr(view.counted_amount)}</span>
+                      <span className="text-[0.8125rem] font-extrabold text-maroon-800 tabular-nums">{canSeeAmounts ? inr(view.counted_amount) : '—'}</span>
                     </div>
                   </div>
                 </div>
@@ -513,7 +588,7 @@ export default function Hundi() {
               {/* Cash → Bank Deposit Section */}
               {view.cash_amount > 0 && (
                 <DSection n="3" icon={Landmark} title={tr("Cash → Bank Deposit")}>
-                  <VField label={tr("Cash Amount")} value={inr(view.cash_amount)} />
+                  <VField label={tr("Cash Amount")} value={canSeeAmounts ? inr(view.cash_amount) : '—'} />
                   <VField label={tr("Status")} value={<Pill tone={DEP_TONE[view.deposit_status]}>{tr(view.deposit_status)}</Pill>} />
                   <VField label={tr("Deposit Date")} value={view.deposited_on ? fmtDate(view.deposited_on) : '—'} />
                   <VField label={tr("Bank Name")} value={view.bank_name ? tr(view.bank_name) : '—'} />
@@ -523,7 +598,7 @@ export default function Hundi() {
               {/* Valuables → Store Custody Section */}
               {view.valuables_amount > 0 && (
                 <DSection n={view.cash_amount > 0 ? "4" : "3"} icon={Lock} title={tr("Valuables → Store Custody")}>
-                  <VField label={tr("Valuables Amount")} value={inr(view.valuables_amount)} />
+                  <VField label={tr("Valuables Amount")} value={canSeeAmounts ? inr(view.valuables_amount) : '—'} />
                   <VField label={tr("Status")} value={view.valuables_status ? <Pill tone={VAL_TONE[view.valuables_status]}>{tr(view.valuables_status)}</Pill> : '—'} />
                   <VField label={tr("Custody Date")} value={view.valuables_stored_on ? fmtDate(view.valuables_stored_on) : '—'} />
                   <VField label={tr("Store Location")} value={view.store_location || '—'} />

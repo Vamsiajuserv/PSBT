@@ -1,15 +1,15 @@
 """Waste Material Sales — vendor register, weighing, sale, payment."""
-from datetime import date, timedelta
+from datetime import date
 import decimal
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import WasteVendor, WasteSale
+from ..models import WasteVendor, WasteSale, WasteMaterial
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
-from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open, validate_pagination
+from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open, validate_pagination, sort_expr, apply_column_filters
 
 router = APIRouter(prefix="/api/waste", tags=["waste"])
 # Waste sales is Admin/authorised only — gated behind the "Counter" write capability.
@@ -43,6 +43,43 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
         "today_transactions": today_txns, "total_records": total_records,
         "pending": pending, "verified": verified, "rejected": rejected, "voided": voided,
     }
+
+
+def _split_materials(value) -> list[str]:
+    """Accept a list or a comma-separated string; trim and de-duplicate (case-insensitive)."""
+    parts = value if isinstance(value, list) else str(value or "").split(",")
+    out, seen = [], set()
+    for p in parts:
+        name = str(p or "").strip()
+        if name and name.lower() not in seen:
+            seen.add(name.lower()); out.append(name)
+    return out
+
+
+def _vendor_materials(db: Session, value, existing: str | None = None) -> str | None:
+    """Vendor material types must come from the Waste Material Master (active entries).
+    Names already on the vendor are kept even if not in the master (legacy free-text
+    values), so editing a vendor never silently drops them. Stored comma-separated."""
+    rows = db.query(WasteMaterial.name, WasteMaterial.active).all()
+    master = {n.lower(): n for n, active in rows if active}
+    inactive = {n.lower() for n, active in rows if not active}
+    kept = {n.lower(): n for n in _split_materials(existing)}
+    out, unknown, off = [], [], []
+    for name in _split_materials(value):
+        key = name.lower()
+        if key in master:
+            out.append(master[key])        # canonical spelling from the master
+        elif key in kept:
+            out.append(kept[key])
+        elif key in inactive:
+            off.append(name)
+        else:
+            unknown.append(name)
+    if off:
+        raise HTTPException(400, f"Inactive material(s): {', '.join(off)}. Activate them in Waste Material Master first.")
+    if unknown:
+        raise HTTPException(400, f"Unknown material(s): {', '.join(unknown)}. Add them in Waste Material Master first.")
+    return ", ".join(out) or None
 
 
 def _vendor(v: WasteVendor) -> dict:
@@ -102,7 +139,7 @@ def create_vendor(body: dict, request: Request, db: Session = Depends(get_db), u
     max_id = db.query(func.max(WasteVendor.id)).scalar() or 0
     seq = next_code_seq(db, "waste_vendor", max_id)
     v = WasteVendor(code=gen_code("WV", seq, 2), name=name, phone=body.get("phone"),
-                    material_types=body.get("material_types"), active=body.get("active", True))
+                    material_types=_vendor_materials(db, body.get("material_types")), active=body.get("active", True))
     db.add(v); db.commit(); db.refresh(v)
     log_action(db, username=user.username, action="CREATE", entity="WasteVendor", detail=v.name, ip=client_ip(request))
     return _vendor(v)
@@ -113,9 +150,11 @@ def update_vendor(vid: int, body: dict, request: Request, db: Session = Depends(
     v = db.get(WasteVendor, vid)
     if not v:
         raise HTTPException(404, "Vendor not found")
-    for k in ("name", "phone", "material_types", "active"):
+    for k in ("name", "phone", "active"):
         if k in body:
             setattr(v, k, body[k])
+    if "material_types" in body:
+        v.material_types = _vendor_materials(db, body["material_types"], existing=v.material_types)
     db.commit(); db.refresh(v)
     log_action(db, username=user.username, action="UPDATE", entity="WasteVendor", detail=v.name, ip=client_ip(request))
     return _vendor(v)
@@ -126,15 +165,39 @@ def delete_vendor(vid: int, request: Request, db: Session = Depends(get_db), use
     v = db.get(WasteVendor, vid)
     if not v:
         raise HTTPException(404, "Vendor not found")
-    v.active = False
-    db.commit()
+    # Deleting a vendor with recorded sales would orphan that history — keep it, ask to deactivate.
+    if db.query(WasteSale).filter(WasteSale.vendor_id == vid).first():
+        raise HTTPException(409, "This vendor has recorded sales and cannot be deleted. Mark it Inactive instead.")
     log_action(db, username=user.username, action="DELETE", entity="WasteVendor", detail=v.name, ip=client_ip(request))
+    db.delete(v)
+    db.commit()
+
+
+# Column mapping for server-side sorting (Waste Sales)
+WASTE_SORT_COLUMNS = {
+    "code": WasteSale.code,
+    "paid_at": WasteSale.paid_at,
+    "buyer_name": WasteSale.vendor_name,
+    "vendor_name": WasteSale.vendor_name,
+    "material": WasteSale.material,
+    "weight_kg": WasteSale.weight_kg,
+    "amount": WasteSale.amount,
+    "mode": WasteSale.mode,
+    "verification_status": WasteSale.verification_status,
+}
+
+
+def _waste_verification_filter(values):
+    """The list shows a missing verification status as "Pending"."""
+    cond = WasteSale.verification_status.in_(values)
+    return or_(cond, WasteSale.verification_status.is_(None)) if "Pending" in values else cond
 
 
 # ── Sales ────────────────────────────────────────────────────────────────────
 @router.get("/sales")
 def list_sales(q: str = "", material: str = "", mode: str = "",
                start: date | None = None, end: date | None = None,
+               sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
                page: int = 1, size: int = 50,
                db: Session = Depends(get_db), user=Depends(read)):
     # Validate pagination parameters (DoS prevention)
@@ -152,9 +215,22 @@ def list_sales(q: str = "", material: str = "", mode: str = "",
         query = query.filter(stamp >= start)
     if end:
         query = query.filter(stamp <= end)
+    # Column-filter dropdowns apply to the whole result set, not just the visible page
+    query = apply_column_filters(query, col_filters, WASTE_SORT_COLUMNS, special={"verification_status": _waste_verification_filter})
     total = query.count()
-    # Order by paid_at descending (present to old), then by id desc for same-day
-    rows = query.order_by(WasteSale.paid_at.desc().nullslast(), WasteSale.id.desc()).offset((page - 1) * size).limit(size).all()
+
+    # Apply server-side sorting
+    if sort_by and sort_by in WASTE_SORT_COLUMNS:
+        col = sort_expr(WASTE_SORT_COLUMNS[sort_by])
+        if sort_dir == "asc":
+            query = query.order_by(col.asc().nullslast(), WasteSale.id)
+        else:
+            query = query.order_by(col.desc().nullslast(), WasteSale.id.desc())
+    else:
+        # Default: Order by paid_at descending (present to old), then by id desc for same-day
+        query = query.order_by(WasteSale.paid_at.desc().nullslast(), WasteSale.id.desc())
+
+    rows = query.offset((page - 1) * size).limit(size).all()
     total_amount = float(db.query(func.coalesce(func.sum(WasteSale.amount), 0)).scalar() or 0)
     return {"total": total, "total_amount": total_amount, "items": [_sale(s) for s in rows]}
 

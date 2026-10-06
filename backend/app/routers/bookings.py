@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db, SessionLocal
 from ..models import Booking, Devotee, PoojaPlan, Seva, Pooja, Festival, Poojari
-from ..schemas import BookingCreate, BookingOut, QuickCreateBookingIn, BulkQuickCreateBookingIn, BookingRescheduleIn, BookingCancelIn
+from ..schemas import BookingCreate, BookingOut, QuickCreateBookingIn, BulkQuickCreateBookingIn
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination, enforce_rate_limit
+from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination, enforce_rate_limit, ist_today, ist_now, parse_time_slot, sort_expr, apply_column_filters
+from .settings import time_slots, max_advance_days
 from .refunds import record_refund
 from .. import notifications as notif
 
@@ -98,10 +99,144 @@ def _check_lifetime_duplicate(db: Session, devotee_id: int | None, mobile: str |
         )
 
 
+def _is_entitlement(plan, start) -> bool:
+    """Monthly / yearly / lifetime plans: one devotee may hold only one at a time."""
+    allowed, end = plan_terms(plan, start)
+    return allowed is None or (end is not None and (end - start).days >= 27)
+
+
+def _find_overlapping_plan(db: Session, devotee_id, mobile, pooja_id, plan, start, lock=False):
+    """An active booking of the same pooja + plan whose validity overlaps a new one
+    starting on `start`. A plan that ends before `start` does not block a renewal."""
+    if not plan or not pooja_id or not _is_entitlement(plan, start):
+        return None
+    mobile = (mobile or "").strip()
+    if not devotee_id and not mobile:
+        return None
+    if devotee_id and lock:
+        # Serialise concurrent bookings for the same devotee
+        db.query(Devotee).filter(Devotee.id == devotee_id).with_for_update().first()
+    _, end = plan_terms(plan, start)
+    who = [Booking.devotee_id == devotee_id] if devotee_id else []
+    if mobile:
+        who.append(Booking.mobile == mobile)
+    q = db.query(Booking).filter(
+        Booking.pooja_id == pooja_id,
+        Booking.plan_id == plan.id,
+        Booking.status.notin_(["Cancelled", "Completed"]),
+        or_(*who),
+        or_(Booking.valid_until.is_(None), Booking.valid_until >= start),
+    )
+    if end is not None:
+        q = q.filter(or_(Booking.scheduled_date.is_(None), Booking.scheduled_date <= end))
+    return q.first()
+
+
+def _check_date_and_slot(db: Session, start: date, slot: str | None, *, slot_from_settings=True) -> str | None:
+    """Booking date must be today or later and within the admin's days-ahead limit;
+    a slot must be one of the configured slots and, for today, not already over."""
+    today = ist_today()
+    if start < today:
+        raise HTTPException(422, "The scheduled date cannot be in the past — bookings start from today.")
+    max_days = max_advance_days(db)
+    if max_days is not None and start > today + timedelta(days=max_days):
+        raise HTTPException(422, f"Poojas can be booked at most {max_days} days ahead.")
+    slot = (slot or "").strip()
+    if not slot:
+        return None
+    if slot_from_settings and slot not in time_slots(db):
+        raise HTTPException(422, "Select a time slot from the list configured in Settings.")
+    parsed = parse_time_slot(slot)
+    if start == today and parsed and ist_now().time() >= parsed[1]:
+        raise HTTPException(422, "This time slot is already over for today. Choose a later slot or another date.")
+    return slot
+
+
+def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_long_term=False) -> None:
+    """Server-side booking rules shared by Advance Booking and Counter Billing.
+    Mutates `data`: normalised date/slot, authoritative amount, festival link,
+    validity and performance quota. Raises HTTPException on any violation."""
+    today = ist_today()
+    start = data.get("scheduled_date") or today
+    if isinstance(start, str):
+        start = date.fromisoformat(start)
+    data["scheduled_date"] = start
+    data["time_slot"] = _check_date_and_slot(db, start, data.get("time_slot"))
+
+    # Festival poojas must fall inside their festival window; the committee's
+    # per-festival price, when configured, is authoritative.
+    fest_fee = None
+    pj = db.get(Pooja, data["pooja_id"]) if data.get("pooja_id") else None
+    if pj and pj.category == "Festival":
+        fests = (db.query(Festival)
+                 .filter(Festival.status == "Active",
+                         Festival.start_date.isnot(None), Festival.end_date.isnot(None)).all())
+        linked = [f for f in fests if str(pj.id) in [x.strip() for x in (f.pooja_ids or "").split(",")]]
+        if linked:
+            match = next((f for f in linked if f.start_date <= start <= f.end_date), None)
+            if match is None:
+                windows = "; ".join(f"{f.name}: {f.start_date} to {f.end_date}" for f in linked)
+                raise HTTPException(422, f"This festival pooja must be scheduled within its festival window ({windows}).")
+            data["festival_id"] = match.id
+            if plan and plan.committee_decided and match.plan_fees:
+                try:
+                    fees = json.loads(match.plan_fees)
+                except (TypeError, ValueError):
+                    fees = {}
+                fee = fees.get(str(plan.id))
+                if fee is not None and float(fee) > 0:
+                    fest_fee = float(fee)
+
+    # Amount integrity — never trust the client's amount for a priced plan
+    if plan:
+        if plan.committee_decided:
+            if fest_fee is not None:
+                data["amount"] = fest_fee
+        elif plan.fee is not None:
+            data["amount"] = plan.fee
+    assert_positive(data.get("amount"), "Amount")
+
+    assert_txn_date_open(db, start, allow_future=True, label="scheduled date")
+    assert_txn_date_open(db, today, label="today")
+
+    # Validity window + performance quota (server-authoritative)
+    allowed, valid_until = plan_terms(plan, start)
+    data["performances_allowed"] = allowed
+    data["performances_done"] = 0
+    if plan or data.get("valid_until") is None:
+        data["valid_until"] = valid_until
+
+    if data.get("pooja_id") and plan:
+        _check_lifetime_duplicate(db, data.get("devotee_id"), data.get("mobile"), data["pooja_id"], plan)
+
+    long_term = allowed is None or (valid_until and (valid_until - start).days >= 300)
+    if plan and long_term and require_devotee_for_long_term and not data.get("devotee_id"):
+        raise HTTPException(422, "Long-term poojas (Life Long / Yearly) require a registered devotee — link or add the devotee first.")
+
+    dup = _find_overlapping_plan(db, data.get("devotee_id"), data.get("mobile"),
+                                 data.get("pooja_id"), plan, start, lock=True)
+    if dup:
+        until = f", valid until {dup.valid_until}" if dup.valid_until else ""
+        raise HTTPException(409, f"This devotee already holds an active {plan.plan_name} booking for this pooja ({dup.booking_code}{until}).")
+
+
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 
 read = RequireModule("Bookings")
 bill = RequireModule("Counter", write=True)   # billing counter
+
+# Column mapping for server-side sorting
+SORT_COLUMNS = {
+    "booking_code": Booking.booking_code,
+    "seva_name": Booking.seva_name,
+    "devotee_name": Booking.devotee_name,
+    "plan_name": Booking.plan_name,
+    "scheduled_date": Booking.scheduled_date,
+    "amount": Booking.amount,
+    "status": Booking.status,
+    "ticket_no": Booking.ticket_no,
+    "created_at": Booking.created_at,
+}
 
 
 @router.get("/stats")
@@ -150,12 +285,13 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
 @router.get("", response_model=dict)
 def list_bookings(q: str = "", status: str = "", payment: str = "",
                   pooja: str = "", plan: str = "", start: date | None = None, end: date | None = None,
+                  sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
                   page: int = 1, size: int = 50,
                   db: Session = Depends(get_db), user=Depends(read)):
     # Validate pagination parameters (DoS prevention)
     page, size = validate_pagination(page, size)
     query = db.query(Booking)
-    order = [Booking.id.desc()]
+    use_relevance_sort = False
     if q:
         like = f"%{q}%"
         pre = f"{q}%"
@@ -164,15 +300,7 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
                                  Booking.ticket_no.ilike(like),
                                  Booking.seva_name.ilike(like),
                                  Booking.mobile.ilike(like)))
-        # Relevance: exact-ish identifier/devotee matches first, then pooja-name
-        # matches, then the rest — so the two match kinds don't interleave (DEF-005).
-        rank = case(
-            (or_(Booking.booking_code.ilike(pre), Booking.ticket_no.ilike(pre),
-                 Booking.devotee_name.ilike(pre), Booking.mobile.ilike(pre)), 0),
-            (Booking.seva_name.ilike(pre), 1),
-            else_=2,
-        )
-        order = [rank, Booking.id.desc()]
+        use_relevance_sort = True
     if status:
         query = query.filter(Booking.status == status)
     if payment:
@@ -182,11 +310,36 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
     if plan:
         query = query.filter(Booking.plan_name == plan)
     if start:
-        query = query.filter(func.date(Booking.created_at) >= start)
+        query = query.filter(func.date(Booking.scheduled_date) >= start)
     if end:
-        query = query.filter(func.date(Booking.created_at) <= end)
+        query = query.filter(func.date(Booking.scheduled_date) <= end)
+    # Column-filter dropdowns apply to the whole result set, not just the visible page
+    query = apply_column_filters(query, col_filters, SORT_COLUMNS)
     total = query.count()
-    rows = query.order_by(*order).offset((page - 1) * size).limit(size).all()
+
+    # Apply server-side sorting
+    if use_relevance_sort and q:
+        # Relevance: exact-ish identifier/devotee matches first, then pooja-name
+        # matches, then the rest — so the two match kinds don't interleave (DEF-005).
+        pre = f"{q}%"
+        rank = case(
+            (or_(Booking.booking_code.ilike(pre), Booking.ticket_no.ilike(pre),
+                 Booking.devotee_name.ilike(pre), Booking.mobile.ilike(pre)), 0),
+            (Booking.seva_name.ilike(pre), 1),
+            else_=2,
+        )
+        query = query.order_by(rank, Booking.id.desc())
+    elif sort_by and sort_by in SORT_COLUMNS:
+        col = sort_expr(SORT_COLUMNS[sort_by])
+        # id tie-breaker keeps page boundaries stable when many rows share a date
+        if sort_dir == "asc":
+            query = query.order_by(col.asc().nullslast(), Booking.id)
+        else:
+            query = query.order_by(col.desc().nullslast(), Booking.id.desc())
+    else:
+        query = query.order_by(Booking.id.desc())
+
+    rows = query.offset((page - 1) * size).limit(size).all()
     # The booking stores the devotee's name as text at booking time; the Telugu
     # spelling lives on the devotee record, so attach it for display.
     te = {d.id: d.name_te for d in db.query(Devotee)
@@ -222,114 +375,12 @@ def create_booking(body: BookingCreate, request: Request,
         if not pl:
             raise HTTPException(404, "Pooja plan not found")
 
-    start = data.get("scheduled_date") or date.today()
     plan = db.get(PoojaPlan, data["plan_id"]) if data.get("plan_id") else None
-
-    # BLOCK: Lifetime plan duplicates are not allowed
-    if data.get("pooja_id") and plan:
-        _check_lifetime_duplicate(db, data.get("devotee_id"), data.get("mobile"), data["pooja_id"], plan)
-
-    # Festival resolution — a Festival pooja must fall inside its configured window;
-    # the matched festival is linked on the booking (exact festival-wise reporting),
-    # and the committee's per-festival fee, when configured, is authoritative.
-    fest_fee = None
-    if data.get("pooja_id"):
-        pj = db.get(Pooja, data["pooja_id"])
-        if pj and pj.category == "Festival":
-            fests = (db.query(Festival)
-                     .filter(Festival.status == "Active",
-                             Festival.start_date.isnot(None), Festival.end_date.isnot(None)).all())
-            linked = [f for f in fests
-                      if str(pj.id) in [x.strip() for x in (f.pooja_ids or "").split(",")]]
-            if linked:
-                sd = data.get("scheduled_date") or start
-                match = next((f for f in linked if f.start_date <= sd <= f.end_date), None)
-                if match is None:
-                    windows = "; ".join(f"{f.name}: {f.start_date} to {f.end_date}" for f in linked)
-                    raise HTTPException(422, f"This festival pooja must be scheduled within its festival window ({windows}).")
-                data["festival_id"] = match.id
-                if plan and plan.committee_decided and match.plan_fees:
-                    try:
-                        fees = json.loads(match.plan_fees)
-                    except (TypeError, ValueError):
-                        fees = {}
-                    fee = fees.get(str(plan.id))
-                    if fee is not None and float(fee) > 0:
-                        fest_fee = float(fee)
-
-    # Amount integrity — never trust the client's amount:
-    #  • fixed-fee plan       → the plan's fee is authoritative
-    #  • committee plan       → the festival's committee fee when set, else an
-    #                           operator-entered positive amount
-    #  • seva (counter)       → must be at least one unit of the service's fee
-    if plan:
-        if plan.committee_decided:
-            if fest_fee is not None:
-                data["amount"] = fest_fee   # committee price, set once per festival
-            else:
-                assert_positive(data.get("amount"), "Committee-decided amount")
-        elif plan.fee is not None:
-            data["amount"] = plan.fee
-    elif data.get("seva_id"):
+    if not plan and data.get("seva_id"):
         sv = db.get(Seva, data["seva_id"])
         if sv and sv.amount and float(data.get("amount") or 0) < float(sv.amount):
             raise HTTPException(422, f"Amount is below this service's fee (₹{sv.amount}).")
-    assert_positive(data.get("amount"), "Amount")
-    # A booking may be scheduled for a future day, but not back-dated onto a day
-    # that Daily Closing has already finalised. The money is collected today, so
-    # today itself must also be open (daily closing buckets bookings by created_at).
-    sd_guard = data.get("scheduled_date")
-    if sd_guard and sd_guard < date.today():
-        raise HTTPException(422, "The scheduled date cannot be in the past — bookings start from today.")
-    # DEF-010: Validate that the selected time slot has not expired for today's bookings
-    if sd_guard == date.today() and data.get("time_slot"):
-        import re
-        from datetime import datetime as dt
-        slot_str = data["time_slot"]
-        m = re.match(r'(\d{1,2}):(\d{2})\s*(AM|PM)', slot_str, re.I)
-        if m:
-            h, mi, period = int(m.group(1)), int(m.group(2)), m.group(3).upper()
-            if period == 'PM' and h != 12:
-                h += 12
-            if period == 'AM' and h == 12:
-                h = 0
-            slot_time = dt.now().replace(hour=h, minute=mi, second=0, microsecond=0)
-            if slot_time < dt.now():
-                raise HTTPException(422, "The selected time slot has already passed. Please choose a future time slot or a different date.")
-    assert_txn_date_open(db, data.get("scheduled_date"), allow_future=True, label="scheduled date")
-    assert_txn_date_open(db, date.today(), label="today")
-
-    # Validity window + performance quota derived from the plan (server-authoritative).
-    allowed, valid_until = plan_terms(plan, start)
-    data["performances_allowed"] = allowed
-    data["performances_done"] = 0
-    if data.get("valid_until") is None:
-        data["valid_until"] = valid_until
-
-    # Long-term entitlements (Life Long / yearly) are registrations — the devotee's
-    # gothram/nakshatram matter and the entitlement spans months, so a walk-in
-    # booking with no devotee record is meaningless.
-    long_term = allowed is None or (valid_until and (valid_until - start).days >= 300)
-    if plan and long_term and not data.get("devotee_id"):
-        raise HTTPException(422, "Long-term poojas (Life Long / Yearly) require a registered devotee — link or add the devotee first.")
-
-    # Long-term and Monthly must also not be double-sold to the same devotee while an active,
-    # unexpired booking for the same pooja+plan exists.
-    # Use SELECT FOR UPDATE on the devotee row to serialize concurrent bookings for same devotee
-    # and prevent race conditions where two requests pass the duplicate check simultaneously.
-    is_monthly = plan and plan.plan_name == "Monthly"
-    if plan and data.get("devotee_id") and (long_term or is_monthly):
-        # Lock the devotee row to serialize concurrent booking attempts
-        db.query(Devotee).filter(Devotee.id == data["devotee_id"]).with_for_update().first()
-        dup = (db.query(Booking).filter(
-            Booking.devotee_id == data["devotee_id"],
-            Booking.pooja_id == data.get("pooja_id"),
-            Booking.plan_id == data["plan_id"],
-            Booking.status.notin_(["Cancelled", "Completed"]),   # exhausted/void entitlements don't block a new one
-            or_(Booking.valid_until.is_(None), Booking.valid_until >= date.today()),
-        ).first())
-        if dup:
-            raise HTTPException(409, f"This devotee already holds an active {plan.plan_name} booking for this pooja ({dup.booking_code}).")
+    _apply_booking_rules(db, data, plan, require_devotee_for_long_term=True)
 
     seq = next_code_seq(db, "booking", db.query(func.max(Booking.id)).scalar() or 0)
     code = booking_code(seq)
@@ -363,52 +414,24 @@ def create_booking(body: BookingCreate, request: Request,
 @router.get("/check-duplicate")
 def check_duplicate(pooja_id: int, plan_id: int,
                     devotee_id: int | None = None, mobile: str | None = None,
+                    scheduled_date: date | None = None,
                     db: Session = Depends(get_db), user=Depends(read)):
-    """Check if devotee already has an active Monthly/long-term booking for this pooja.
-    Can check by devotee_id OR by mobile number."""
-    if not devotee_id and not mobile:
-        return {"has_duplicate": False}
-
+    """Does the devotee (by id, or mobile) already hold a monthly / yearly / lifetime
+    plan for this pooja that overlaps a new one starting on `scheduled_date`?"""
     plan = db.get(PoojaPlan, plan_id)
-    if not plan:
+    start = scheduled_date or ist_today()
+    dup = _find_overlapping_plan(db, devotee_id, mobile, pooja_id, plan, start)
+    if not dup:
         return {"has_duplicate": False}
-
-    # Check for Monthly plans and long-term plans
-    start = date.today()
-    allowed, valid_until = plan_terms(plan, start)
-    long_term = allowed is None or (valid_until and (valid_until - start).days >= 300)
-    is_monthly = plan.plan_name == "Monthly"
-
-    if not (long_term or is_monthly):
-        return {"has_duplicate": False}
-
-    # Build filter based on what's provided
-    filters = [
-        Booking.pooja_id == pooja_id,
-        Booking.plan_id == plan_id,
-        Booking.status.notin_(["Cancelled", "Completed"]),
-        or_(Booking.valid_until.is_(None), Booking.valid_until >= date.today()),
-    ]
-
-    if devotee_id:
-        filters.append(Booking.devotee_id == devotee_id)
-    elif mobile:
-        # Check by mobile number if no devotee_id
-        filters.append(Booking.mobile == mobile.strip())
-
-    dup = db.query(Booking).filter(*filters).first()
-
-    if dup:
-        return {
-            "has_duplicate": True,
-            "existing_booking": dup.booking_code,
-            "ticket_no": dup.ticket_no,
-            "plan_name": plan.plan_name,
-            "booked_on": str(dup.scheduled_date) if dup.scheduled_date else (str(dup.created_at.date()) if dup.created_at else None),
-            "valid_until": str(dup.valid_until) if dup.valid_until else None,
-            "message": f"This devotee already has an active {plan.plan_name} booking for this pooja ({dup.booking_code})."
-        }
-    return {"has_duplicate": False}
+    return {
+        "has_duplicate": True,
+        "existing_booking": dup.booking_code,
+        "ticket_no": dup.ticket_no,
+        "plan_name": plan.plan_name,
+        "booked_on": str(dup.scheduled_date) if dup.scheduled_date else (str(dup.created_at.date()) if dup.created_at else None),
+        "valid_until": str(dup.valid_until) if dup.valid_until else None,
+        "message": f"This devotee already has an active {plan.plan_name} booking for this pooja ({dup.booking_code}).",
+    }
 
 
 @router.get("/lookup")
@@ -531,21 +554,19 @@ def reschedule_booking(bid: int, body: dict, request: Request,
     b = db.get(Booking, bid)
     if not b:
         raise HTTPException(404, "Booking not found")
-    nd_guard = body.get("scheduled_date")
-    try:
-        from datetime import date as _d
-        nd_parsed = _d.fromisoformat(nd_guard) if isinstance(nd_guard, str) else nd_guard
-    except ValueError:
-        nd_parsed = None
-    if nd_parsed and nd_parsed < date.today():
-        raise HTTPException(422, "The new date cannot be in the past.")
     if b.status != "Confirmed" or b.payment_status != "Paid":
         raise HTTPException(409, "Only a paid, confirmed booking can be rescheduled")
     if (b.performances_done or 0) > 0:
         raise HTTPException(409, "This pooja is already in progress — cancel and rebook instead")
     if not body.get("scheduled_date"):
         raise HTTPException(422, "Provide the new scheduled date")
-    nd = date.fromisoformat(body["scheduled_date"])
+    try:
+        nd = date.fromisoformat(body["scheduled_date"])
+    except ValueError:
+        raise HTTPException(422, "Invalid scheduled date")
+    new_slot = (body.get("time_slot") or "").strip()
+    # A newly chosen slot must come from Settings; the booking's existing slot is kept as-is
+    slot = _check_date_and_slot(db, nd, new_slot or b.time_slot, slot_from_settings=bool(new_slot))
     assert_txn_date_open(db, nd, allow_future=True, label="scheduled date")
     # Festival poojas: the new date must still fall in the festival window.
     if b.pooja_id:
@@ -566,8 +587,7 @@ def reschedule_booking(bid: int, body: dict, request: Request,
     plan = db.get(PoojaPlan, b.plan_id) if b.plan_id else None
     b.scheduled_date = nd
     b.performances_allowed, b.valid_until = plan_terms(plan, nd)
-    if body.get("time_slot"):
-        b.time_slot = body["time_slot"]
+    b.time_slot = slot
     if body.get("poojari_id") not in (None, ""):
         try:
             poojari_id = int(body["poojari_id"])
@@ -792,12 +812,6 @@ def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Dep
     data = body.model_dump(exclude_unset=True)
     payment_method = data.pop("payment_method", "Cash")
 
-    # ── Standard booking creation (from create() logic) ──
-    start = data.get("scheduled_date") or date.today()
-    if isinstance(start, str):
-        start = date.fromisoformat(start)
-    data["scheduled_date"] = start
-
     # Validate devotee_id if provided
     if data.get("devotee_id"):
         try:
@@ -805,82 +819,34 @@ def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Dep
             data["devotee_id"] = devotee_id
         except (ValueError, TypeError):
             raise HTTPException(400, "Invalid devotee_id - must be an integer")
-        devotee = db.get(Devotee, devotee_id)
-        if not devotee:
+        if not db.get(Devotee, devotee_id):
             raise HTTPException(404, f"Devotee with ID {devotee_id} not found")
 
-    # Plan lookup
     plan = None
     if data.get("plan_id"):
-        try:
-            plan_id = int(data["plan_id"])
-            data["plan_id"] = plan_id
-        except (ValueError, TypeError):
-            raise HTTPException(400, "Invalid plan_id - must be an integer")
-        plan = db.get(PoojaPlan, plan_id)
+        plan = db.get(PoojaPlan, data["plan_id"])
         if not plan:
             raise HTTPException(404, "Plan not found")
-        if plan.fee:
-            data.setdefault("amount", float(plan.fee))
         if not data.get("plan_name"):
             data["plan_name"] = plan.plan_name
 
-    # Pooja lookup and validation
     if data.get("pooja_id"):
-        try:
-            pooja_id = int(data["pooja_id"])
-            data["pooja_id"] = pooja_id
-        except (ValueError, TypeError):
-            raise HTTPException(400, "Invalid pooja_id - must be an integer")
-        pj = db.get(Pooja, pooja_id)
+        pj = db.get(Pooja, data["pooja_id"])
         if not pj:
-            raise HTTPException(404, f"Pooja with ID {pooja_id} not found")
+            raise HTTPException(404, f"Pooja with ID {data['pooja_id']} not found")
         if not data.get("seva_name"):
             data["seva_name"] = pj.name
-    elif not data.get("seva_name"):
-        # Either pooja_id or seva_name must be provided
-        pass  # seva_name may come from other source
 
-    # BLOCK: Lifetime plan duplicates are not allowed
-    if data.get("pooja_id") and plan:
-        _check_lifetime_duplicate(db, data.get("devotee_id"), data.get("mobile"), data["pooja_id"], plan)
+    poojari_id = data.pop("poojari_id", None)
+    if poojari_id:
+        pr = db.get(Poojari, poojari_id)
+        if not pr or pr.deleted or not pr.active:
+            raise HTTPException(422, "The selected poojari is not available.")
+        data["poojari_id"], data["poojari_name"] = pr.id, pr.name
+    txn_ref = (data.pop("txn_ref", None) or "").strip()
+    data["source"] = data.get("source") if data.get("source") in ("Counter", "Advance") else "Counter"
 
-    # Fee validation: use plan fee (not legacy Seva table)
-    # The plan.fee is already set above from PoojaPlan lookup
-
-    assert_positive(data.get("amount"), "Amount")
-
-    # Date validations
-    sd_guard = data.get("scheduled_date")
-    if sd_guard and sd_guard < date.today():
-        raise HTTPException(422, "The scheduled date cannot be in the past.")
-    assert_txn_date_open(db, data.get("scheduled_date"), allow_future=True, label="scheduled date")
-    assert_txn_date_open(db, date.today(), label="today")
-
-    # Plan terms
-    allowed, valid_until = plan_terms(plan, start)
-    data["performances_allowed"] = allowed
-    data["performances_done"] = 0
-    if data.get("valid_until") is None:
-        data["valid_until"] = valid_until
-
-    # Long-term flag (for duplicate check)
-    long_term = allowed is None or (valid_until and (valid_until - start).days >= 300)
-
-    # Duplicate check for long-term/monthly with row locking to prevent race conditions
-    is_monthly = plan and plan.plan_name == "Monthly"
-    if plan and data.get("devotee_id") and (long_term or is_monthly):
-        # Lock the devotee row to serialize concurrent booking attempts
-        db.query(Devotee).filter(Devotee.id == data["devotee_id"]).with_for_update().first()
-        dup = (db.query(Booking).filter(
-            Booking.devotee_id == data["devotee_id"],
-            Booking.pooja_id == data.get("pooja_id"),
-            Booking.plan_id == data["plan_id"],
-            Booking.status.notin_(["Cancelled", "Completed"]),
-            or_(Booking.valid_until.is_(None), Booking.valid_until >= date.today()),
-        ).first())
-        if dup:
-            raise HTTPException(409, f"This devotee already holds an active {plan.plan_name} booking for this pooja ({dup.booking_code}).")
+    _apply_booking_rules(db, data, plan)
 
     # Create booking with Pending payment (will be updated below)
     seq = next_code_seq(db, "booking", db.query(func.max(Booking.id)).scalar() or 0)
@@ -912,6 +878,8 @@ def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Dep
 
     # Auto-verify for Counter payments (Cash/UPI - no real gateway needed)
     po = pay.verify_and_confirm(db, po=po, method=payment_method)
+    if txn_ref:
+        b.payment_ref = txn_ref
 
     # Commit and refresh to get the final state (ticket_no set by _confirm_entity)
     db.commit()
@@ -938,6 +906,10 @@ def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Dep
         "status": b.status,
         "payment_status": b.payment_status,
         "payment_method": b.payment_method,
+        "payment_ref": b.payment_ref,
+        "time_slot": b.time_slot,
+        "poojari_name": b.poojari_name,
+        "source": b.source,
         # Sankalpam details
         "gothram": b.gothram,
         "nakshatram": b.nakshatram,
@@ -971,39 +943,23 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
     for idx, item in enumerate(items):
         try:
             data = dict(item)
-            start = data.get("scheduled_date") or date.today()
-            if isinstance(start, str):
-                start = date.fromisoformat(start)
-            data["scheduled_date"] = start
+            data.pop("txn_ref", None)
+            data.pop("poojari_id", None)
 
-            # Plan lookup
             plan = None
             if data.get("plan_id"):
                 plan = db.get(PoojaPlan, data["plan_id"])
-                if plan and plan.fee:
-                    data.setdefault("amount", float(plan.fee))
-                if plan and not data.get("plan_name"):
+                if not plan:
+                    raise HTTPException(404, "Plan not found")
+                if not data.get("plan_name"):
                     data["plan_name"] = plan.plan_name
 
-            # Pooja name lookup (for seva_name field if not provided)
             if data.get("pooja_id") and not data.get("seva_name"):
                 pj = db.get(Pooja, data["pooja_id"])
                 if pj:
                     data["seva_name"] = pj.name
 
-            # BLOCK: Lifetime plan duplicates are not allowed
-            if data.get("pooja_id") and plan:
-                _check_lifetime_duplicate(db, data.get("devotee_id"), data.get("mobile"), data["pooja_id"], plan)
-
-            if not data.get("amount") or float(data.get("amount", 0)) <= 0:
-                raise ValueError("Invalid amount")
-
-            # Plan terms
-            allowed, valid_until = plan_terms(plan, start)
-            data["performances_allowed"] = allowed
-            data["performances_done"] = 0
-            if data.get("valid_until") is None:
-                data["valid_until"] = valid_until
+            _apply_booking_rules(db, data, plan)
 
             # Create booking
             seq = next_code_seq(db, "booking", db.query(func.max(Booking.id)).scalar() or 0)
@@ -1011,7 +967,7 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
             data["payment_status"] = "Pending"
             data["status"] = "Confirmed"
             data["payment_method"] = payment_method
-            data["source"] = data.get("source", "Counter")
+            data["source"] = "Counter"
 
             b = Booking(booking_code=code, created_by=user.username, **data)
             db.add(b)
@@ -1066,7 +1022,7 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
             failed.append({
                 "index": idx,
                 "seva_name": item.get("seva_name", "Unknown"),
-                "error": str(e)[:200],
+                "error": str(e.detail if isinstance(e, HTTPException) else e)[:200],
             })
 
     # Log the bulk action

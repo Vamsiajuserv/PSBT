@@ -3,7 +3,7 @@ import json
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func, and_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db

@@ -6,6 +6,7 @@ import { fmtDate } from '../../components/admin/ui.jsx'
 import { Select } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
 
 // ── Month-only calendar view ────────────────────────────────────────────────
 // The Day/Week toggle was removed: a Month-only calendar is preferred over a
@@ -43,6 +44,8 @@ const isSameDay = (a, b) =>
 
 export default function Calendar() {
   const { lang } = useLang()
+  const { user } = useAuth()
+  const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   const today = useMemo(() => new Date(), [])
   const [current, setCurrent] = useState(() => new Date())
   const [bookings, setBookings] = useState([])
@@ -386,8 +389,8 @@ export default function Calendar() {
                   {events.length > (showPanchangam ? 1 : 2) && <div className="text-[0.625rem] text-gray-400 px-1">+{events.length - (showPanchangam ? 1 : 2)} {tr('more')}</div>}
                 </div>
 
-                {/* Day stats (revenue) */}
-                {stats && stats.revenue > 0 && (
+                {/* Day stats (revenue) - hidden for Poojari */}
+                {canSeeAmounts && stats && stats.revenue > 0 && (
                   <div className="absolute bottom-1 right-1 text-[0.5rem] text-emerald-600 font-semibold bg-emerald-50 px-1 rounded">
                     ₹{stats.revenue >= 1000 ? Math.round(stats.revenue / 1000) + 'K' : Math.round(stats.revenue)}
                   </div>
@@ -559,15 +562,17 @@ export default function Calendar() {
                 {dayBookings.length > 0 && (
                   <div className="mb-5">
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2"><T>Day Summary</T></h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className={`grid ${canSeeAmounts ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
                       <div className="bg-gradient-to-br from-maroon-50 to-maroon-100 rounded-lg p-3">
                         <div className="text-2xl font-bold text-maroon-700">{dayBookings.length}</div>
                         <div className="text-xs text-maroon-600">{tr('Total Bookings')}</div>
                       </div>
-                      <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3">
-                        <div className="text-2xl font-bold text-emerald-700">₹{Math.round(stats?.revenue || 0).toLocaleString('en-IN')}</div>
-                        <div className="text-xs text-emerald-600">{tr('Total Revenue')}</div>
-                      </div>
+                      {canSeeAmounts && (
+                        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3">
+                          <div className="text-2xl font-bold text-emerald-700">₹{Math.round(stats?.revenue || 0).toLocaleString('en-IN')}</div>
+                          <div className="text-xs text-emerald-600">{tr('Total Revenue')}</div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Status breakdown */}
@@ -599,7 +604,7 @@ export default function Calendar() {
                             <span className="font-medium text-gray-800">{tr(name)}</span>
                             <span className="text-gray-400 ml-2">×{data.count}</span>
                           </div>
-                          <span className="font-semibold text-emerald-600">₹{Math.round(data.revenue).toLocaleString('en-IN')}</span>
+                          {canSeeAmounts && <span className="font-semibold text-emerald-600">₹{Math.round(data.revenue).toLocaleString('en-IN')}</span>}
                         </div>
                       ))}
                       {poojaList.length > 5 && (
@@ -630,7 +635,7 @@ export default function Calendar() {
                               <span>{e.devotee ? personName({ name: e.devotee }, lang) : '—'}</span>
                               {e.time && <span>{e.time.replace(/\b(AM|PM)\b/, (w) => tr(w))}</span>}
                             </div>
-                            {e.amount > 0 && <span className="font-semibold">₹{Math.round(e.amount).toLocaleString('en-IN')}</span>}
+                            {canSeeAmounts && e.amount > 0 && <span className="font-semibold">₹{Math.round(e.amount).toLocaleString('en-IN')}</span>}
                           </div>
                         </li>
                       ))}

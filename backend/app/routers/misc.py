@@ -1,8 +1,8 @@
 """Hundi, Auction and Annadanam routers (grouped)."""
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -10,9 +10,9 @@ from ..models import HundiCollection, HundiCollectionItem, Auction, Annadanam
 from ..schemas import (HundiCreate, HundiOut, HundiRejectIn, HundiDepositIn, HundiStoreIn,
                        AuctionCreate, AuctionOut, AuctionUpdateIn, AuctionRejectIn, AuctionPaymentIn,
                        AnnadanamCreate, AnnadanamOut)
-from ..helpers import validate_pagination
+from ..helpers import validate_pagination, sort_expr, apply_column_filters
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
-from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open
+from ..helpers import next_code_seq, assert_positive, assert_txn_date_open
 
 # ── Hundi ────────────────────────────────────────────────────────────────────
 hundi_router = APIRouter(prefix="/api/hundi", tags=["hundi"])
@@ -96,10 +96,22 @@ def hundi_stats(db: Session = Depends(get_db), user=Depends(h_read)):
     }
 
 
+# Column mapping for server-side sorting (Hundi)
+HUNDI_SORT_COLUMNS = {
+    "code": HundiCollection.code,
+    "collected_on": HundiCollection.collected_on,
+    "counted_amount": HundiCollection.counted_amount,
+    "verification_status": HundiCollection.verification_status,
+    "deposit_status": HundiCollection.deposit_status,
+    "valuables_status": HundiCollection.valuables_status,
+}
+
+
 @hundi_router.get("", response_model=dict)
 def list_hundi(q: str = "", verification: str = "", deposit: str = "",
                valuables: str = "",  # filter by valuables_status
                start: date | None = None, end: date | None = None,
+               sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
                page: int = 1, size: int = 50,
                db: Session = Depends(get_db), user=Depends(h_read)):
     """List hundi collections with pagination and filtering.
@@ -120,9 +132,34 @@ def list_hundi(q: str = "", verification: str = "", deposit: str = "",
         query = query.filter(func.date(HundiCollection.collected_on) >= start)
     if end:
         query = query.filter(func.date(HundiCollection.collected_on) <= end)
+    # Column-filter dropdowns apply to the whole result set, not just the visible page
+    query = apply_column_filters(query, col_filters, HUNDI_SORT_COLUMNS)
     total = query.count()
-    # Order by collected_on descending (latest to old), then by id desc for same-day
-    rows = query.order_by(HundiCollection.collected_on.desc().nullslast(), HundiCollection.id.desc()).offset((page - 1) * size).limit(size).all()
+
+    # Apply server-side sorting. Cash / valuables totals are derived from the item
+    # lines (unknown types count as cash, matching _calc_cash_valuables).
+    if sort_by in ("cash_amount", "valuables_amount"):
+        is_val = HundiCollectionItem.item_type.in_(VALUABLES_TYPES)
+        line = case((is_val, HundiCollectionItem.value), else_=0) if sort_by == "valuables_amount" \
+            else case((is_val, 0), else_=HundiCollectionItem.value)
+        total_sq = (db.query(func.coalesce(func.sum(line), 0))
+                    .filter(HundiCollectionItem.collection_id == HundiCollection.id)
+                    .scalar_subquery())
+        if sort_dir == "asc":
+            query = query.order_by(total_sq.asc(), HundiCollection.id)
+        else:
+            query = query.order_by(total_sq.desc(), HundiCollection.id.desc())
+    elif sort_by and sort_by in HUNDI_SORT_COLUMNS:
+        col = sort_expr(HUNDI_SORT_COLUMNS[sort_by])
+        if sort_dir == "asc":
+            query = query.order_by(col.asc().nullslast(), HundiCollection.id)
+        else:
+            query = query.order_by(col.desc().nullslast(), HundiCollection.id.desc())
+    else:
+        # Default: Order by collected_on descending (latest to old), then by id desc for same-day
+        query = query.order_by(HundiCollection.collected_on.desc().nullslast(), HundiCollection.id.desc())
+
+    rows = query.offset((page - 1) * size).limit(size).all()
     # Enrich each row with cash_amount and valuables_amount calculated from items
     items = []
     for r in rows:
@@ -326,10 +363,25 @@ def auction_stats(db: Session = Depends(get_db), user=Depends(a_read)):
     }
 
 
+# Column mapping for server-side sorting (Auction)
+AUCTION_SORT_COLUMNS = {
+    "code": Auction.code,
+    "item": Auction.item,
+    "auction_date": Auction.auction_date,
+    "base_amount": Auction.base_amount,
+    "current_amount": Auction.current_amount,
+    "winner": Auction.winner,
+    "status": Auction.status,
+    "verification_status": Auction.verification_status,
+    "payment_status": Auction.payment_status,
+}
+
+
 @auction_router.get("", response_model=dict)
 def list_auctions(q: str = "", status: str = "",
                   verification: str = "", payment: str = "",
                   start: date | None = None, end: date | None = None,
+                  sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
                   page: int = 1, size: int = 50,
                   db: Session = Depends(get_db), user=Depends(a_read)):
     """List auctions with pagination and filtering.
@@ -351,9 +403,22 @@ def list_auctions(q: str = "", status: str = "",
         query = query.filter(func.date(Auction.auction_date) >= start)
     if end:
         query = query.filter(func.date(Auction.auction_date) <= end)
+    # Column-filter dropdowns apply to the whole result set, not just the visible page
+    query = apply_column_filters(query, col_filters, AUCTION_SORT_COLUMNS)
     total = query.count()
-    # Order by auction_date descending (present to old), then by id desc for same-day
-    rows = query.order_by(Auction.auction_date.desc().nullslast(), Auction.id.desc()).offset((page - 1) * size).limit(size).all()
+
+    # Apply server-side sorting
+    if sort_by and sort_by in AUCTION_SORT_COLUMNS:
+        col = sort_expr(AUCTION_SORT_COLUMNS[sort_by])
+        if sort_dir == "asc":
+            query = query.order_by(col.asc().nullslast(), Auction.id)
+        else:
+            query = query.order_by(col.desc().nullslast(), Auction.id.desc())
+    else:
+        # Default: Order by auction_date descending (present to old), then by id desc for same-day
+        query = query.order_by(Auction.auction_date.desc().nullslast(), Auction.id.desc())
+
+    rows = query.offset((page - 1) * size).limit(size).all()
     return {"total": total, "page": page, "size": size,
             "items": [AuctionOut.model_validate(r).model_dump() for r in rows]}
 
@@ -524,7 +589,7 @@ def collect_auction_payment(aid: int, body: AuctionPaymentIn, request: Request,
     au.paid_by = user.username
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
-               detail=f"Payment {au.receipt_no} ₹{au.current_amount} {mode}", ip=client_ip(request))
+               detail=f"Payment {au.receipt_no} ₹{au.current_amount} {au.payment_mode}", ip=client_ip(request))
     return au
 
 
@@ -552,9 +617,23 @@ def annadanam_stats(db: Session = Depends(get_db), user=Depends(an_read)):
     }
 
 
+# Column mapping for server-side sorting (Annadanam)
+ANNADANAM_SORT_COLUMNS = {
+    "code": Annadanam.code,
+    "paid_at": Annadanam.paid_at,
+    "donor": Annadanam.donor,
+    "mobile": Annadanam.mobile,
+    "plates": Annadanam.plates,
+    "amount": Annadanam.amount,
+    "mode": Annadanam.mode,
+    "occasion": Annadanam.occasion,
+}
+
+
 @annadanam_router.get("", response_model=dict)
 def list_annadanam(q: str = "", mode: str = "",
                    start: date | None = None, end: date | None = None,
+                   sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
                    page: int = 1, size: int = 50,
                    db: Session = Depends(get_db), user=Depends(an_read)):
     query = db.query(Annadanam)
@@ -568,8 +647,21 @@ def list_annadanam(q: str = "", mode: str = "",
         query = query.filter(stamp >= start)
     if end:
         query = query.filter(stamp <= end)
+    # Column-filter dropdowns apply to the whole result set, not just the visible page
+    query = apply_column_filters(query, col_filters, ANNADANAM_SORT_COLUMNS)
     total = query.count()
-    rows = query.order_by(Annadanam.id.desc()).offset((page - 1) * size).limit(size).all()
+
+    # Apply server-side sorting
+    if sort_by and sort_by in ANNADANAM_SORT_COLUMNS:
+        col = sort_expr(ANNADANAM_SORT_COLUMNS[sort_by])
+        if sort_dir == "asc":
+            query = query.order_by(col.asc().nullslast(), Annadanam.id)
+        else:
+            query = query.order_by(col.desc().nullslast(), Annadanam.id.desc())
+    else:
+        query = query.order_by(Annadanam.id.desc())
+
+    rows = query.offset((page - 1) * size).limit(size).all()
     return {"total": total, "page": page, "size": size,
             "items": [AnnadanamOut.model_validate(r).model_dump() for r in rows]}
 

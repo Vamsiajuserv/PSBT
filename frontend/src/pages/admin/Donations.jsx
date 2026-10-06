@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import {
   Plus, X, Printer, Eye, Search, RotateCcw, Calendar, Info, ChevronDown,
   Sprout, CalendarDays, Package, HandHeart, User,
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
-import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
@@ -40,6 +40,8 @@ export default function Donations() {
   const { lang } = useLang()
   const { user } = useAuth()
   const canWrite = user?.role !== 'Accountant'
+  // Only Admin, Committee, Accountant can see amounts in reports/exports
+  const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
 
   const SIZE = 15
   const [rows, setRows] = useState([])
@@ -50,7 +52,12 @@ export default function Donations() {
   const [printDoc, setPrintDoc] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
+  const [reloadTrigger, setReloadTrigger] = useState(0)
   const [saving, setSaving] = useState(false)
+
+  // State for all filtered records (for export when date filter applied)
+  const [allFilteredData, setAllFilteredData] = useState([])
+  const [loadingExport, setLoadingExport] = useState(false)
 
   // devotee type-ahead search inside the drawer
   const [dq, setDq] = useState('')
@@ -61,7 +68,7 @@ export default function Donations() {
   // filters - persisted in URL for state preservation across navigation
   const {
     q, setQ, type, setType, category, setCategory, mode, setMode,
-    start, setStart, end, setEnd, page, setPage,
+    start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
     q: '', type: '', category: '', mode: '', start: '', end: '', page: 1,
   })
@@ -81,22 +88,82 @@ export default function Donations() {
     filteredSortedRows,
     sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
     filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
-  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'donated_on', direction: 'desc' }])
+  } = useFilterableSortableTable(rows, sortColumns, [], {}, { manualSort: true, manualFilter: true })
+
+  // Sorting and column filters run on the server so they cover every record, not just the
+  // visible page; changing either reloads from page 1. With no column chosen the date
+  // column is used — oldest first when a date filter is applied, newest first otherwise.
+  const [listTrigger, setListTrigger] = useState(0)
+  const prevSortsRef = useRef(sorts)
+  const prevFiltersRef = useRef(filters)
+  useEffect(() => {
+    const filtersChanged = prevFiltersRef.current !== filters
+    if (prevSortsRef.current === sorts && !filtersChanged) return
+    prevSortsRef.current = sorts
+    prevFiltersRef.current = filters
+    setPage(1)
+    // A filter change also refreshes the export data; a sort change only reloads the list
+    if (filtersChanged) setReloadTrigger((t) => t + 1)
+    else setListTrigger((t) => t + 1)
+  }, [sorts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
+  const displayRows = filteredSortedRows
+
+  // Fetch ALL filtered records for export when date filter is applied
+  const fetchAllFiltered = useCallback(async () => {
+    if (!start && !end) {
+      setAllFilteredData([])
+      return
+    }
+    setLoadingExport(true)
+    try {
+      const d = await DonationsAPI.list({ q, type, category, mode, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+      const items = d.items || []
+      // Sort by date ascending (oldest first)
+      items.sort((a, b) => (a.donated_on || '').localeCompare(b.donated_on || ''))
+      setAllFilteredData(items)
+    } catch (err) {
+      toast(tr('Failed to fetch all records'), 'error')
+      setAllFilteredData([])
+    } finally {
+      setLoadingExport(false)
+    }
+  }, [q, type, category, mode, start, end])
+
+  // Fetch all data for export ONLY when Apply button is clicked (reloadTrigger changes)
+  // User must click Apply to filter - no auto-fetch on date change
+  useEffect(() => {
+    if (start || end) {
+      setLoadingExport(true)
+      DonationsAPI.list({ q, type, category, mode, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+        .then((d) => {
+          const items = d.items || []
+          items.sort((a, b) => (a.donated_on || '').localeCompare(b.donated_on || ''))
+          setAllFilteredData(items)
+        })
+        .catch(() => {
+          toast(tr('Failed to fetch all records'), 'error')
+          setAllFilteredData([])
+        })
+        .finally(() => setLoadingExport(false))
+    } else {
+      setAllFilteredData([])
+    }
+  }, [reloadTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        DonationsAPI.list({ q, type, category, mode, start, end, page, size: SIZE }),
+        DonationsAPI.list({ q, type, category, mode, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'donated_on', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
         DonationsAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
     } catch (ex) {
       setLoadErr(getErrorMessage(ex, LOAD_ERROR)); setRows([]); setTotal(0)
     } finally { setLoading(false) }
-  }, [q, type, category, mode, start, end, page])
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
-  useEffect(() => { setPage(1) }, [q, type, category, mode, start, end])
+  }, [q, type, category, mode, start, end, page, sorts, filters])
+  // Load on initial mount, page changes, or reload trigger
+  useEffect(() => { load() }, [page, reloadTrigger, listTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     DonationCategoriesAPI.list().then((r) => setCats(r.items.filter((c) => c.active))).catch(() => toast(tr('Failed to load donation categories'), 'error'))
@@ -106,7 +173,7 @@ export default function Donations() {
   useEffect(() => {
     if (!drawer || drawer.devotee_id || dq.trim().length < 1) { setDevResults([]); return }
     const t = setTimeout(
-      () => DevoteesAPI.list({ q: dq, size: 6 }).then((r) => setDevResults(r.items || [])).catch(() => setDevResults([])),
+      () => DevoteesAPI.lookup({ q: dq, size: 6 }).then((r) => setDevResults(r.items || [])).catch(() => setDevResults([])),
       250,
     )
     return () => clearTimeout(t)
@@ -121,16 +188,14 @@ export default function Donations() {
     const first = (cats || []).find((c) => c.type === t)
     setDrawer((m) => ({
       ...m, donation_type: t, fund: first?.name || '',
-      unit: t === 'Material' ? (first?.unit || '') : '', quantity: '', amount: t === 'Material' ? '' : m.amount,
+      unit: '', quantity: '', amount: t === 'Material' ? '' : m.amount,
       g80: t === 'Cash' ? m.g80 : false,
     }))
   }
   function setFund(name) {
-    const c = (cats || []).find((x) => x.name === name)
     // Auto-enable 80G for Medical donations (case-insensitive check)
     const isMedical = (name || '').toLowerCase().includes('medical')
-    setDrawer((m) => ({ ...m, fund: name, unit: m.donation_type === 'Material' ? (c?.unit || '') : m.unit,
-      g80: isMedical ? true : m.g80 }))
+    setDrawer((m) => ({ ...m, fund: name, g80: isMedical ? true : m.g80 }))
   }
   function pickDevotee(dv) {
     setDrawer((m) => ({ ...m, devotee_id: dv.id, donor_name: dv.name, mobile: dv.mobile || '' }))
@@ -221,60 +286,68 @@ export default function Donations() {
     ? (d.quantity ? `${num(d.quantity)} ${tr(d.unit || '')}`.trim() : (Number(d.amount) > 0 ? inr(d.amount) : '—'))
     : inr(d.amount)
 
-  const EXPORT_COLS = [{ key: 'receipt_no', label: tr('Receipt No.') }, { key: 'donated_on', label: tr('Date') },
+  const ALL_EXPORT_COLS = [{ key: 'receipt_no', label: tr('Receipt No.') }, { key: 'donated_on', label: tr('Date') },
     { key: 'donor_name', label: tr('Donor') }, { key: 'donation_type', label: tr('Type') },
     { key: 'fund', label: tr('Category') }, { key: 'amount', label: tr('Amount (₹)'), type: 'money' },
     { key: 'mode', label: tr('Mode') }, { key: 'txn_ref', label: tr('UTR') }, { key: 'g80x', label: tr('80G') }]
+  // Hide money columns for non-finance roles
+  const EXPORT_COLS = canSeeAmounts ? ALL_EXPORT_COLS : ALL_EXPORT_COLS.filter(c => c.type !== 'money')
   // Material donations are goods: qty+unit instead of ₹0, and no payment mode.
-  const exportRows = rows.map((d) => ({
+  // Use allFilteredData when date filter applied (ALL records), otherwise use current page
+  const dataForExport = (start || end) ? allFilteredData : displayRows
+  const exportRows = dataForExport.map((d) => ({
     ...d, g80x: d.g80 ? 'Yes' : 'No',
-    amount: d.donation_type === 'Material' ? (Number(d.amount) > 0 ? d.amount : null) : d.amount,
+    amount: canSeeAmounts ? (d.donation_type === 'Material' ? (Number(d.amount) > 0 ? d.amount : null) : d.amount) : null,
     mode: d.donation_type === 'Material' ? '—' : d.mode,
   }))
-  const exportTotal = { receipt_no: 'Total', amount: rows.reduce((s, d) => s + Number(d.amount || 0), 0) }
+  const exportTotal = canSeeAmounts ? { receipt_no: 'Total', amount: dataForExport.reduce((s, d) => s + Number(d.amount || 0), 0) } : null
   return (
     <div>
       <PageTitle title={tr("Donation Management")} subtitle={tr("Record, manage and view all donations.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Donation Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(newDonation()); setDq(''); setDevResults([]); setPanErr(''); setMobileError('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Donation</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatTile icon={Sprout} color="#059669" bg="bg-emerald-50" title={tr("Today's Donations")}
-          value={stats ? inr(stats.today.amount) : '—'} sub={stats ? `${num(stats.today.count)} Transactions` : ''} />
-        <StatTile icon={CalendarDays} color="#7c3aed" bg="bg-violet-50" title={tr("This Month Donations")}
-          value={stats ? inr(stats.month.amount) : '—'} sub={stats ? `${num(stats.month.count)} Transactions` : ''} />
-        <StatTile icon={Package} color="#d97706" bg="bg-amber-50" title={tr("Material Donations")}
-          value={stats ? num(stats.material) : '—'} sub={tr("Material Donations")} />
-        <StatTile icon={HandHeart} color="#2563eb" bg="bg-blue-50" title={tr("Sponsorships")}
-          value={stats ? num(stats.sponsorship) : '—'} sub={tr("Recorded Sponsorships")} />
-      </div>
+      {user?.role !== 'Counter Staff' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatTile icon={Sprout} color="#059669" bg="bg-emerald-50" title={tr("Today's Donations")}
+            value={stats ? inr(stats.today.amount) : '—'} sub={stats ? `${num(stats.today.count)} Transactions` : ''} />
+          <StatTile icon={CalendarDays} color="#7c3aed" bg="bg-violet-50" title={tr("This Month Donations")}
+            value={stats ? inr(stats.month.amount) : '—'} sub={stats ? `${num(stats.month.count)} Transactions` : ''} />
+          <StatTile icon={Package} color="#d97706" bg="bg-amber-50" title={tr("Material Donations")}
+            value={stats ? num(stats.material) : '—'} sub={tr("Material Donations")} />
+          <StatTile icon={HandHeart} color="#2563eb" bg="bg-blue-50" title={tr("Sponsorships")}
+            value={stats ? num(stats.sponsorship) : '—'} sub={tr("Recorded Sponsorships")} />
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[12rem]">
+        <div className="px-5 py-5 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee Name / Mobile</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search name or mobile number…")} className="input !pl-9" /></div>
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
             <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
             <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
-          <div className="min-w-[9rem]">
+          <div className="w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Donation Type</T></label>
             <Select value={type} onChange={(e) => setType(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash Donation")}</option><option value="Material">{tr("Material Donation")}</option><option value="Sponsorship">{tr("Sponsorship")}</option></Select>
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Category</T></label>
-            <Select value={category} onChange={(e) => setCategory(e.target.value)} className="input"><option value="">{tr("All")}</option>{cats.map((c) => <option key={c.id}>{c.name}</option>)}</Select>
+            <Select value={category} onChange={(e) => setCategory(e.target.value)} className="input"><option value="">{tr("All")}</option>{[...new Map(cats.map((c) => [c.name, c])).values()].map((c) => <option key={c.id}>{c.name}</option>)}</Select>
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
             <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option>{MODES.map((m) => <option key={m}>{m}</option>)}</Select>
           </div>
+          <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
+          <button onClick={() => { setFilters({ q: '', type: '', category: '', mode: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
 
         <SortFilterPanel
@@ -310,13 +383,13 @@ export default function Donations() {
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredSortedRows.map((d) => (
+              {displayRows.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-maroon-600">{d.donation_code || d.receipt_no}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: d.donor_name, name_te: d.donor_name_te }, lang)}</td>
                   <td className="px-4 py-3 text-gray-600">{tr(TYPE_LABEL[d.donation_type] || d.donation_type)}</td>
                   <td className="px-4 py-3 text-gray-600">{tr(d.fund)}{d.g80 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-bold bg-emerald-50 text-emerald-700 align-middle">80G</span>}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{amountCell(d)}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? amountCell(d) : '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{d.donation_type !== 'Material' && d.mode && d.mode !== '-' ? tr(d.mode) : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(d.donated_on)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(d.created_at)}</div></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{d.receipt_no}</td>
@@ -413,7 +486,7 @@ export default function Donations() {
                 <Combobox
                   value={drawer.fund}
                   onChange={(e) => setFund(e.target.value)}
-                  options={drawerCats.map((c) => c.name)}
+                  options={[...new Set(drawerCats.map((c) => c.name))]}
                   placeholder={tr("Select or type category")}
                   className="input"
                 /></div>
@@ -421,7 +494,7 @@ export default function Donations() {
               {drawer.donation_type === 'Material' ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="label"><T>Quantity *</T></label><NumberField required step="1" min="1" max="999999" allowDecimal={false} value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
-                  <div><label className="label"><T>Unit</T></label><input className="input" placeholder={tr("e.g. bags, kg")} value={drawer.unit || ''} onChange={(e) => setDrawer({ ...drawer, unit: e.target.value })} /></div>
+                  <div><label className="label"><T>Unit</T></label><input className="input" placeholder={(() => { const cat = (cats || []).find((c) => c.name === drawer.fund); return cat?.unit ? tr(cat.unit) : tr("e.g. Bags, Kg, Litres...") })()} value={drawer.unit || ''} onChange={(e) => setDrawer({ ...drawer, unit: e.target.value.replace(/[^a-zA-Z\s]/g, '') })} maxLength={20} /></div>
                 </div>
               ) : (
                 <div><label className="label"><T>Amount (₹) *</T></label><NumberField required min="1" max="99999999" step="1" allowDecimal={false} prefix="₹" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>

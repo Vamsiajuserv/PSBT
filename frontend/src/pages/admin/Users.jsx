@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import {
   Plus, Pencil, MoreVertical, X, Search, RotateCcw, Eye, EyeOff, Save, Info, Trash2,
   Users as UsersIcon, UserCheck, UserX, ShieldCheck,
@@ -6,7 +6,7 @@ import {
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
-import { UsersAPI, RolesAPI } from '../../api/client.js'
+import { UsersAPI, RolesAPI, PoojarisAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Checkbox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { alertDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
@@ -17,7 +17,7 @@ import { useFilterParams } from '../../hooks/useUrlState.js'
 const AVATAR_TONES = ['bg-maroon-700', 'bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600']
 const initials = (n) => (n || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
 const tone = (n) => AVATAR_TONES[(n || '').length % AVATAR_TONES.length]
-const emptyUser = () => ({ name: '', email: '', mobile: '', role: '', is_active: true, password: '', confirm: '', modules: [] })
+const emptyUser = () => ({ name: '', email: '', mobile: '', role: '', is_active: true, password: '', confirm: '', modules: [], poojari_id: '' })
 
 export default function Users() {
   const { lang } = useLang()
@@ -43,19 +43,39 @@ export default function Users() {
     q: '', role: '', status: '', page: 1,
   })
   const [perPage, setPerPage] = useState(10)
+  // Poojari Master records — a Poojari login is linked to one so "My Poojas" can show its bookings.
+  const [poojariList, setPoojariList] = useState([])
+  useEffect(() => {
+    PoojarisAPI.master().then((r) => setPoojariList(r.items || [])).catch(() => setPoojariList([]))
+  }, [])
 
   const load = () => {
     setLoading(true); setLoadErr('')
     return Promise.all([
       UsersAPI.list(), UsersAPI.stats().catch(() => null), UsersAPI.meta().catch(() => null), RolesAPI.catalog().catch(() => null),
-    ]).then(([list, s, meta, cat]) => { setRows(list); if (s) setStats(s); if (meta) setRoles(meta.roles); if (cat) setCatalog(cat.modules) })
+    ]).then(([list, s, meta, cat]) => {
+      // Deduplicate items by ID to prevent duplicate rows
+      const rawItems = list || []
+      const seen = new Set()
+      const uniqueItems = rawItems.filter(item => {
+        if (seen.has(item.id)) return false
+        seen.add(item.id)
+        return true
+      })
+      setRows(uniqueItems)
+      if (s) setStats(s); if (meta) setRoles(meta.roles); if (cat) setCatalog(cat.modules)
+    })
       .catch((ex) => { setLoadErr(ex?.detail || LOAD_ERROR); setRows([]) })
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 
-  const roleModules = useMemo(() => {
-    const map = {}; return map // filled from roles list below
+  // Default modules per role (from Role Management) — ticked automatically when a role is chosen.
+  const [roleModules, setRoleModules] = useState({})
+  useEffect(() => {
+    RolesAPI.list()
+      .then((r) => setRoleModules(Object.fromEntries((r.items || []).map((x) => [x.name, x.modules || []]))))
+      .catch(() => setRoleModules({}))
   }, [])
 
   const filtered = useMemo(() => rows.filter((u) => {
@@ -65,32 +85,46 @@ export default function Users() {
     if (status === 'Inactive' && u.is_active) return false
     return true
   }), [rows, q, role, status])
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
-  const pageNum = Math.min(page, totalPages)
-  const paged = filtered.slice((pageNum - 1) * perPage, pageNum * perPage)
-  const from = filtered.length ? (pageNum - 1) * perPage + 1 : 0
-  const to = Math.min(pageNum * perPage, filtered.length)
+
+  // Status as text so the Status column filter can match 'Active' / 'Inactive'
+  const tableRows = useMemo(() => filtered.map((u) => ({ ...u, status: u.is_active ? 'Active' : 'Inactive' })), [filtered])
 
   // Sortable table columns with filtering support
   const sortColumns = useMemo(() => [
     { key: 'name', label: 'User Name', type: 'text' },
     { key: 'email', label: 'Email / Mobile', type: 'text' },
     { key: 'role', label: 'Role', type: 'text', filterable: true, filterOptions: roles },
-    { key: 'is_active', label: 'Status', type: 'text', filterable: true, filterOptions: ['Active', 'Inactive'] },
+    { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['Active', 'Inactive'] },
     { key: 'last_login', label: 'Last Login', type: 'date' },
   ], [roles])
   const {
     filteredSortedRows,
     sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
     filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
-  } = useFilterableSortableTable(paged, sortColumns, [{ key: 'last_login', direction: 'desc' }])
+  } = useFilterableSortableTable(tableRows, sortColumns, [{ key: 'last_login', direction: 'desc' }])
+
+  // Sort and column-filter the whole list first, then cut the page out of it, so sorting and
+  // the Role / Status column filters cover every user, not just the visible page.
+  const totalPages = Math.max(1, Math.ceil(filteredSortedRows.length / perPage))
+  const pageNum = Math.min(page, totalPages)
+  const paged = filteredSortedRows.slice((pageNum - 1) * perPage, pageNum * perPage)
+  const from = filteredSortedRows.length ? (pageNum - 1) * perPage + 1 : 0
+  const to = Math.min(pageNum * perPage, filteredSortedRows.length)
+  const prevSortsRef = useRef(sorts)
+  const prevFiltersRef = useRef(filters)
+  useEffect(() => {
+    if (prevSortsRef.current === sorts && prevFiltersRef.current === filters) return
+    prevSortsRef.current = sorts
+    prevFiltersRef.current = filters
+    setPage(1)
+  }, [sorts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openCreate() {
     setTab('details'); setErr(''); setDrawer({ mode: 'create', data: emptyUser() })
   }
   function openEdit(u) {
     setTab('details'); setErr('')
-    setDrawer({ mode: 'edit', data: { id: u.id, name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, is_active: u.is_active, password: '', confirm: '', modules: (u.modules || '').split(',').filter(Boolean) } })
+    setDrawer({ mode: 'edit', data: { id: u.id, name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, is_active: u.is_active, password: '', confirm: '', modules: (u.modules || '').split(',').filter(Boolean), poojari_id: u.poojari_id || '' } })
     setMenu(null)
   }
   const setD = (patch) => setDrawer((d) => ({ ...d, data: { ...d.data, ...patch } }))
@@ -108,8 +142,11 @@ export default function Users() {
     const phoneResult = validatePhone(d.mobile)
     if (!phoneResult.valid) errors.mobile = phoneResult.error
 
-    const emailResult = validateEmail(d.email)
-    if (!emailResult.valid) errors.email = emailResult.error
+    // Email is optional - only validate format if entered
+    if (d.email && d.email.trim()) {
+      const emailResult = validateEmail(d.email)
+      if (!emailResult.valid) errors.email = emailResult.error
+    }
 
     // Password validation (DEF-011: must have letters AND numbers)
     if (drawer.mode === 'create' || d.password) {
@@ -126,11 +163,23 @@ export default function Users() {
 
     if ((drawer.mode === 'create' || d.password) && d.password !== d.confirm) { setErr(tr('Passwords do not match.')); return }
     try {
-      const payload = { name: d.name, email: d.email, mobile: d.mobile, role: d.role, is_active: d.is_active, modules: d.modules }
+      const payload = { name: d.name, email: d.email?.trim() || null, mobile: d.mobile?.trim() || null, role: d.role, is_active: d.is_active, modules: d.modules,
+        poojari_id: d.role === 'Poojari' && d.poojari_id ? Number(d.poojari_id) : null }
       if (drawer.mode === 'create') await UsersAPI.create({ ...payload, password: d.password })
       else await UsersAPI.update(d.id, { ...payload, ...(d.password ? { password: d.password } : {}) })
       setDrawer(null); load()
-    } catch (ex) { setErr(ex.detail || ex.message || tr('Failed to save user.')) }
+    } catch (ex) {
+      // Handle Pydantic validation errors (array of objects) or string errors
+      let errMsg = tr('Failed to save user.')
+      if (typeof ex.detail === 'string') {
+        errMsg = ex.detail
+      } else if (Array.isArray(ex.detail) && ex.detail.length > 0) {
+        errMsg = ex.detail.map(e => e.msg || e.message).join(', ')
+      } else if (ex.message) {
+        errMsg = ex.message
+      }
+      setErr(errMsg)
+    }
   }
   async function remove(u) { setMenu(null); if (await confirmDialog({ title: tr('Delete user') + ` "${personName(u, lang)}"?`, message: tr('They will no longer be able to sign in.'), tone: 'danger', confirmLabel: tr('Delete') })) { try { await UsersAPI.remove(u.id); toast(tr('User deleted.')); load() } catch (ex) { toast(ex.detail || tr('Failed'), 'error') } } }
 
@@ -190,7 +239,7 @@ export default function Users() {
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredSortedRows.map((u, i) => (
+              {paged.map((u, i) => (
                 <tr key={u.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 text-gray-400">{(pageNum - 1) * perPage + i + 1}</td>
                   <td className="px-4 py-3">
@@ -228,12 +277,12 @@ export default function Users() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No users found.")} />}
+              {filteredSortedRows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No users found.")} />}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-[0.8125rem] text-gray-500">{tr('Showing')} {from} {tr('to')} {to} {tr('of')} {num(filtered.length)} {tr('users')}</span>
+          <span className="text-[0.8125rem] text-gray-500">{tr('Showing')} {from} {tr('to')} {to} {tr('of')} {num(filteredSortedRows.length)} {tr('users')}</span>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
               <button onClick={() => setPage(Math.max(1, pageNum - 1))} disabled={pageNum <= 1} className="px-2.5 h-8 rounded-lg border border-gray-200 text-[0.8125rem] text-gray-500 disabled:opacity-40">‹</button>
@@ -273,8 +322,8 @@ export default function Users() {
                   </div>
                   <div><label className="label"><T>Full Name (Telugu)</T></label><input className="input font-telugu" placeholder={tr("Full Name (Telugu)")} value={drawer.data.name_te || ''} onChange={(e) => setD({ name_te: sanitizeName(e.target.value) })} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Shown when the user selects తెలుగు. Leave blank to keep the English spelling.</T></div></div>
                   <div>
-                    <label className="label"><T>Email ID *</T></label>
-                    <input required type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} placeholder={tr("Enter email address")} value={drawer.data.email} onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setD({ email: e.target.value }) }} />
+                    <label className="label"><T>Email ID</T></label>
+                    <input type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} placeholder={tr("Enter email address (optional)")} value={drawer.data.email} onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setD({ email: e.target.value }) }} />
                     {fieldErrors.email && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.email}</div>}
                   </div>
                   <div>
@@ -297,8 +346,17 @@ export default function Users() {
                     }} /></div>
                     {fieldErrors.mobile && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.mobile}</div>}
                   </div>
-                  <div><label className="label"><T>Role *</T></label><Select required className="input" value={drawer.data.role} onChange={(e) => setD({ role: e.target.value })}><option value="">{tr("Select Role")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>
-                  <div><label className="label"><T>Status *</T></label><Select className="input" value={drawer.data.is_active ? tr('Active') : tr('Inactive')} onChange={(e) => setD({ is_active: e.target.value === 'Active' })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
+                  <div><label className="label"><T>Role *</T></label><Select required className="input" value={drawer.data.role} onChange={(e) => setD({ role: e.target.value, modules: roleModules[e.target.value] || [] })}><option value="">{tr("Select Role")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>
+                  {drawer.data.role === 'Poojari' && (
+                    <div><label className="label"><T>Linked Poojari</T></label>
+                      <Select className="input" value={drawer.data.poojari_id} onChange={(e) => setD({ poojari_id: e.target.value })}>
+                        <option value="">{tr('Not linked')}</option>
+                        {poojariList.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)} ({p.code}){p.active ? '' : ` · ${tr('Inactive')}`}</option>)}
+                      </Select>
+                      <div className="text-[0.7rem] text-gray-400 mt-0.5"><T>Bookings assigned to this poojari appear in this user's "My Poojas".</T></div>
+                    </div>
+                  )}
+                  <div><label className="label"><T>Status *</T></label><Select className="input" value={drawer.data.is_active ? 'Active' : 'Inactive'} onChange={(e) => setD({ is_active: e.target.value === 'Active' })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
                   <div><label className="label">{tr("Password")} {drawer.mode === 'create' && '*'}</label>
                     <div className="relative"><input required={drawer.mode === 'create'} type={showPw ? 'text' : 'password'} className={`input pr-9 ${fieldErrors.password ? 'border-red-400' : ''}`} placeholder={drawer.mode === 'edit' ? tr('Leave blank to keep unchanged') : tr('Enter password')} value={drawer.data.password} onChange={(e) => { setFieldErrors((p) => ({ ...p, password: null })); setD({ password: e.target.value }) }} />
                       <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPw ? <EyeOff size={15} /> : <Eye size={15} />}</button></div>

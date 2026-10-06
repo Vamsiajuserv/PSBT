@@ -37,14 +37,24 @@ export default function RoleAccess() {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
 
+  // Deduplicate helper
+  const dedup = (arr) => {
+    const seen = new Set()
+    return (arr || []).filter(item => {
+      if (seen.has(item.id)) return false
+      seen.add(item.id)
+      return true
+    })
+  }
+
   const reloadRoles = (selectId) =>
     Promise.all([RolesAPI.list(), RolesAPI.stats().catch(() => null)])
-      .then(([l, s]) => { setRoles(l.items); if (s) setStats(s); if (selectId) pick(selectId) })
+      .then(([l, s]) => { setRoles(dedup(l.items)); if (s) setStats(s); if (selectId) pick(selectId) })
 
   const loadAll = useCallback(() => {
     setLoading(true); setLoadErr('')
     Promise.all([RolesAPI.list(), RolesAPI.stats().catch(() => null), RolesAPI.catalog().catch(() => null)])
-      .then(([l, s, c]) => { setRoles(l.items); if (s) setStats(s); if (c) setCatalog(c.modules); if (l.items[0]) pick(l.items[0].id) })
+      .then(([l, s, c]) => { const items = dedup(l.items); setRoles(items); if (s) setStats(s); if (c) setCatalog(c.modules); if (items[0]) pick(items[0].id) })
       .catch((ex) => { setLoadErr(ex?.detail || LOAD_ERROR); setRoles([]) })
       .finally(() => setLoading(false))
   }, [])

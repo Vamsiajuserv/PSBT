@@ -1,4 +1,4 @@
-"""Configurable masters — Auction Item, Hundi Item, Committee Member, Festival."""
+"""Configurable masters — Auction Item, Hundi Item, Waste Material, Committee Member, Festival."""
 import json
 from datetime import date
 from decimal import Decimal
@@ -7,7 +7,7 @@ from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AuctionItem, HundiItem, CommitteeMember, Festival, Pooja
+from ..models import AuctionItem, HundiItem, CommitteeMember, Festival, Pooja, WasteMaterial, WasteSale, WasteVendor
 from ..security import RequireModule, require_admin, log_action, client_ip
 
 
@@ -227,6 +227,137 @@ def cm_delete(iid: int, request: Request, db: Session = Depends(get_db), user=De
     if not x:
         raise HTTPException(404, "Member not found")
     log_action(db, username=user.username, action="DELETE", entity="CommitteeMember", detail=x.name, ip=client_ip(request))
+    db.delete(x); db.commit()
+
+
+# ── Waste Material Master ────────────────────────────────────────────────────
+waste_materials_router = APIRouter(prefix="/api/waste-materials", tags=["waste-materials"])
+wm_read = RequireModule("Counter")   # same gate as Waste Sales; edits are Administrator-only (require_admin)
+
+
+def _wm(x: WasteMaterial):
+    return {"id": x.id, "code": x.code, "name": x.name, "name_te": x.name_te, "unit": x.unit,
+            "default_rate": float(x.default_rate) if x.default_rate is not None else None,
+            "description": x.description, "active": x.active}
+
+
+def _wm_rate(body: dict):
+    v = body.get("default_rate")
+    if v in (None, ""):
+        return None
+    try:
+        rate = Decimal(str(v))
+    except Exception:
+        raise HTTPException(400, "Invalid default rate")
+    if not rate.is_finite():
+        raise HTTPException(400, "Invalid default rate")
+    if rate < 0:
+        raise HTTPException(400, "Default rate cannot be negative")
+    if rate >= Decimal("10000000000"):   # Numeric(12, 2) limit
+        raise HTTPException(400, "Default rate is too large")
+    return rate
+
+
+def _wm_unique(db, name: str, exclude_id: int | None = None):
+    q = db.query(WasteMaterial).filter(func.lower(WasteMaterial.name) == name.lower())
+    if exclude_id:
+        q = q.filter(WasteMaterial.id != exclude_id)
+    if q.first():
+        raise HTTPException(409, f"Material '{name}' already exists")
+
+
+def _wm_has_sales(db, name: str) -> bool:
+    return db.query(WasteSale.id).filter(func.lower(func.trim(WasteSale.material)) == name.strip().lower()).first() is not None
+
+
+def _wm_sync_vendors(db, old: str, new: str | None):
+    """Keep vendor material lists in step with the master: rename (new) or drop (None)."""
+    for v in db.query(WasteVendor).filter(WasteVendor.material_types.ilike(f"%{old}%")):
+        names = [n.strip() for n in (v.material_types or "").split(",") if n.strip()]
+        if not any(n.lower() == old.lower() for n in names):
+            continue
+        out = []
+        for n in names:
+            n = (new if n.lower() == old.lower() else n)
+            if n and n.lower() not in {x.lower() for x in out}:
+                out.append(n)
+        v.material_types = ", ".join(out) or None
+
+
+@waste_materials_router.get("/stats")
+def wm_stats(db: Session = Depends(get_db), user=Depends(wm_read)):
+    return _base_stats(db, WasteMaterial)
+
+
+@waste_materials_router.get("")
+def wm_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=Depends(wm_read)):
+    query = db.query(WasteMaterial)
+    if q:
+        query = query.filter(or_(WasteMaterial.name.ilike(f"%{q}%"), WasteMaterial.code.ilike(f"%{q}%"),
+                                 WasteMaterial.name_te.ilike(f"%{q}%")))
+    if status == "Active":
+        query = query.filter(WasteMaterial.active.is_(True))
+    elif status == "Inactive":
+        query = query.filter(WasteMaterial.active.is_(False))
+    return {"items": [_wm(x) for x in query.order_by(WasteMaterial.id.desc()).all()]}
+
+
+@waste_materials_router.post("")
+def wm_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    name = _require_field(body, "name", 120)
+    _wm_unique(db, name)
+    x = WasteMaterial(code=_next_code(db, WasteMaterial, "WMAT-"), name=name,
+                      name_te=_optional_field(body, "name_te", 160),
+                      unit=_optional_field(body, "unit", 20) or "Kilogram (kg)",
+                      default_rate=_wm_rate(body), description=_optional_field(body, "description"),
+                      active=body.get("active", True))
+    db.add(x); db.commit(); db.refresh(x)
+    log_action(db, username=user.username, action="CREATE", entity="WasteMaterial", detail=x.name, ip=client_ip(request))
+    return _wm(x)
+
+
+@waste_materials_router.put("/{iid}")
+def wm_update(iid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    x = db.get(WasteMaterial, iid)
+    if not x:
+        raise HTTPException(404, "Material not found")
+    if "name" in body:
+        name = _require_field(body, "name", 120)
+        _wm_unique(db, name, exclude_id=x.id)
+        # Sales store the material name, so renaming one with sales would detach that
+        # history (filter + delete guard). Case-only fixes are still allowed.
+        if name.lower() != x.name.lower() and _wm_has_sales(db, x.name):
+            raise HTTPException(409, "This material has recorded sales and cannot be renamed. "
+                                     "Add a new material and mark this one Inactive instead.")
+        if name != x.name:
+            _wm_sync_vendors(db, x.name, name)
+        x.name = name
+    if "name_te" in body:
+        x.name_te = _optional_field(body, "name_te", 160)
+    if "unit" in body:
+        x.unit = _optional_field(body, "unit", 20) or "Kilogram (kg)"
+    if "default_rate" in body:
+        x.default_rate = _wm_rate(body)
+    if "description" in body:
+        x.description = _optional_field(body, "description")
+    if "active" in body:
+        x.active = bool(body["active"])
+    db.commit(); db.refresh(x)
+    log_action(db, username=user.username, action="UPDATE", entity="WasteMaterial", detail=x.name, ip=client_ip(request))
+    return _wm(x)
+
+
+@waste_materials_router.delete("/{iid}", status_code=204)
+def wm_delete(iid: int, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    x = db.get(WasteMaterial, iid)
+    if not x:
+        raise HTTPException(404, "Material not found")
+    # Sales store the material name; deleting a material that has sales would orphan
+    # them from the filter. Deactivate it instead so history stays consistent.
+    if _wm_has_sales(db, x.name):
+        raise HTTPException(409, "This material has recorded sales and cannot be deleted. Mark it Inactive instead.")
+    log_action(db, username=user.username, action="DELETE", entity="WasteMaterial", detail=x.name, ip=client_ip(request))
+    _wm_sync_vendors(db, x.name, None)
     db.delete(x); db.commit()
 
 

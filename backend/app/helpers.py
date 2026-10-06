@@ -1,8 +1,9 @@
 """Small helpers shared across routers."""
+import json
 import re
 from datetime import datetime, date as _date, timedelta, timezone
 from fastapi import HTTPException
-from sqlalchemy import func, text
+from sqlalchemy import String, func, or_, text
 from sqlalchemy.orm import Session
 
 # ── IST Timezone Conversion (UTC → Asia/Kolkata) ──────────────────────────────
@@ -39,6 +40,31 @@ def fmt_ist_datetime(dt: datetime | None, fmt: str = "%d %b %Y %I:%M %p") -> str
         return "-"
     ist_dt = to_ist(dt)
     return ist_dt.strftime(fmt)
+
+
+def ist_now() -> datetime:
+    """Current wall-clock time in India (naive), whatever timezone the server runs in."""
+    return datetime.now(IST_OFFSET).replace(tzinfo=None)
+
+
+def ist_today() -> _date:
+    return ist_now().date()
+
+
+_SLOT_RE = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*-\s*(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*$")
+
+
+def parse_time_slot(slot: str | None):
+    """'06:00 AM - 07:00 AM' -> (start_time, end_time); None if malformed or end <= start."""
+    m = _SLOT_RE.match(slot or "")
+    if not m:
+        return None
+    try:
+        start = datetime.strptime(f"{m.group(1)}:{m.group(2)} {m.group(3).upper()}", "%I:%M %p").time()
+        end = datetime.strptime(f"{m.group(4)}:{m.group(5)} {m.group(6).upper()}", "%I:%M %p").time()
+    except ValueError:
+        return None
+    return (start, end) if end > start else None
 
 
 def fmt_ist_time(dt: datetime | None, fmt: str = "%I:%M %p") -> str:
@@ -218,6 +244,46 @@ def is_valid_pan(pan: str | None) -> bool:
 # ── Pagination Validation ─────────────────────────────────────────────────────
 MAX_PAGE_SIZE = 200  # Maximum items per page (DoS prevention)
 MAX_PAGE_NUMBER = 10000  # Maximum page number (prevents absurd offset values)
+
+
+def sort_expr(col):
+    """Order text columns case-insensitively so 'yash' sorts next to 'Yash'."""
+    return func.lower(col) if isinstance(getattr(col, "type", None), String) else col
+
+
+def apply_column_filters(query, raw: str, columns: dict, special: dict | None = None):
+    """Apply a table's column-filter dropdowns on the server so they cover every page.
+
+    `raw` is JSON such as {"mode": ["Cash"], "status": ["(Empty)", "Paid"]}. Keys map to
+    columns through `columns`; `special` maps a key to a function(values) -> condition for
+    columns whose displayed value differs from the stored one. Unknown keys are ignored.
+    """
+    if not raw:
+        return query
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise HTTPException(422, "Invalid column filters.")
+    if not isinstance(data, dict):
+        raise HTTPException(422, "Invalid column filters.")
+    for key, values in data.items():
+        if not isinstance(values, list) or not values:
+            continue
+        values = [str(v) for v in values[:50]]
+        if special and key in special:
+            query = query.filter(special[key](values))
+            continue
+        col = columns.get(key)
+        if col is None:
+            continue
+        real = [v for v in values if v != "(Empty)"]
+        conds = [col.in_(real)] if real else []
+        if len(real) != len(values):   # "(Empty)" selected
+            conds.append(col.is_(None))
+            if isinstance(getattr(col, "type", None), String):
+                conds.append(col == "")
+        query = query.filter(or_(*conds))
+    return query
 
 
 def validate_pagination(page: int, size: int, max_size: int | None = None) -> tuple[int, int]:

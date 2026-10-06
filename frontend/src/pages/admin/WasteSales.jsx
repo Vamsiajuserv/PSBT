@@ -1,15 +1,15 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
-  Plus, X, Eye, Printer, Search, Minus, Check, User,
+  Plus, X, Eye, Printer, Search, Minus, Check, User, RotateCcw,
   IndianRupee, CalendarDays, ShoppingCart, FileText, Calculator,
   CheckCircle, XCircle, Clock, Ban,
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
-import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
-import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI } from '../../api/client.js'
+import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI, WasteMaterialsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
@@ -18,6 +18,7 @@ import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.
 import { sanitizeName, sanitizePhone, validateName, validatePhone } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
+// Fallback only — the material list comes from the Waste Material Master.
 const DEFAULT_MATERIALS = ['Coconut Shells', 'Flowers', 'Banana Leaves', 'Cardboard', 'Plastic', 'Waste Oil', 'Metal Scrap', 'Old Cloth', 'Waste Papers']
 const UNITS = ['Kilogram (kg)', 'Tonne', 'Piece', 'Bundle']
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
@@ -50,15 +51,19 @@ function toWords(n) {
   return out.trim() + ' ' + tr('Rupees Only')
 }
 
-const emptyForm = () => ({ vendor_id: '', vendor_name: '', devotee_id: null, buyer_name: '', mobile: '', material: DEFAULT_MATERIALS[0], materialCustom: false, unit: 'Kilogram (kg)', quantity: 1, rate: '', mode: 'Cash', txn_ref: '', paid_at: nowLocal(), verified_by: '' })
+const emptyForm = (mat) => ({ vendor_id: '', vendor_name: '', devotee_id: null, buyer_name: '', mobile: '', material: mat?.name || DEFAULT_MATERIALS[0], materialCustom: false, unit: mat?.unit || 'Kilogram (kg)', quantity: 1, rate: mat?.default_rate ? String(mat.default_rate) : '', mode: 'Cash', txn_ref: '', paid_at: nowLocal(), verified_by: '' })
 
 export default function WasteSales() {
   const { lang } = useLang()
   const { user } = useAuth()
-  const canWrite = user?.role !== 'Accountant'
+  // Committee only verifies sales; the backend rejects their writes
+  const canWrite = !['Accountant', 'Committee'].includes(user?.role)
+  // Only Admin, Committee, Accountant can see amounts in reports
+  const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   const SIZE = 15
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [reloadTrigger, setReloadTrigger] = useState(0)
   const [loadErr, setLoadErr] = useState('')
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState(null)
@@ -66,11 +71,16 @@ export default function WasteSales() {
   const [printDoc, setPrintDoc] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
   const [vendors, setVendors] = useState([])
+  const [materials, setMaterials] = useState([])   // Waste Material Master (active + inactive)
   const [committee, setCommittee] = useState([])
   const [verifyModal, setVerifyModal] = useState(null)
   const [rejectModal, setRejectModal] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // State for all filtered records (for export when date filter applied)
+  const [allFilteredData, setAllFilteredData] = useState([])
+  const [loadingExport, setLoadingExport] = useState(false)
 
   // Committee role check for verification
   const isCommittee = user?.role === 'Committee' || user?.role === 'Admin'
@@ -78,7 +88,7 @@ export default function WasteSales() {
   // filters - persisted in URL for state preservation across navigation
   const {
     q, setQ, material, setMaterial, mode, setMode,
-    start, setStart, end, setEnd, page, setPage,
+    start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
     q: '', material: '', mode: '', start: '', end: '', page: 1,
   })
@@ -139,13 +149,73 @@ export default function WasteSales() {
     filteredSortedRows,
     sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
     filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
-  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'paid_at', direction: 'desc' }])
+  } = useFilterableSortableTable(rows, sortColumns, [], {}, { manualSort: true, manualFilter: true })
+
+  // Sorting and column filters run on the server so they cover every record, not just the
+  // visible page; changing either reloads from page 1. With no column chosen the date
+  // column is used — oldest first when a date filter is applied, newest first otherwise.
+  const [listTrigger, setListTrigger] = useState(0)
+  const prevSortsRef = useRef(sorts)
+  const prevFiltersRef = useRef(filters)
+  useEffect(() => {
+    const filtersChanged = prevFiltersRef.current !== filters
+    if (prevSortsRef.current === sorts && !filtersChanged) return
+    prevSortsRef.current = sorts
+    prevFiltersRef.current = filters
+    setPage(1)
+    // A filter change also refreshes the export data; a sort change only reloads the list
+    if (filtersChanged) setReloadTrigger((t) => t + 1)
+    else setListTrigger((t) => t + 1)
+  }, [sorts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
+  const displayRows = filteredSortedRows
+
+  // Fetch ALL filtered records for export when date filter is applied
+  const fetchAllFiltered = useCallback(async () => {
+    if (!start && !end) {
+      setAllFilteredData([])
+      return
+    }
+    setLoadingExport(true)
+    try {
+      const d = await WasteAPI.sales({ q, material, mode, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+      const items = d.items || []
+      // Sort by date ascending (oldest first)
+      items.sort((a, b) => (a.paid_at || '').localeCompare(b.paid_at || ''))
+      setAllFilteredData(items)
+    } catch (err) {
+      toast(tr('Failed to fetch all records'), 'error')
+      setAllFilteredData([])
+    } finally {
+      setLoadingExport(false)
+    }
+  }, [q, material, mode, start, end])
+
+  // Fetch all data for export ONLY when Apply button is clicked (reloadTrigger changes)
+  // User must click Apply to filter - no auto-fetch on date change
+  useEffect(() => {
+    if (start || end) {
+      setLoadingExport(true)
+      WasteAPI.sales({ q, material, mode, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+        .then((d) => {
+          const items = d.items || []
+          items.sort((a, b) => (a.sale_date || '').localeCompare(b.sale_date || ''))
+          setAllFilteredData(items)
+        })
+        .catch(() => {
+          toast(tr('Failed to fetch all records'), 'error')
+          setAllFilteredData([])
+        })
+        .finally(() => setLoadingExport(false))
+    } else {
+      setAllFilteredData([])
+    }
+  }, [reloadTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        WasteAPI.sales({ q, material, mode, start, end, page, size: SIZE }),
+        WasteAPI.sales({ q, material, mode, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'paid_at', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
         WasteAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -155,14 +225,17 @@ export default function WasteSales() {
     } finally {
       setLoading(false)
     }
-  }, [q, material, mode, start, end, page])
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
-  useEffect(() => { setPage(1) }, [q, material, mode, start, end])
+  }, [q, material, mode, start, end, page, sorts, filters])
+  // Load on initial mount, page changes, or reload trigger
+  useEffect(() => { load() }, [page, reloadTrigger, listTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     VendorsAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setVendors(arr) })
       .catch(() => toast(tr('Failed to load vendors'), 'error'))
+    WasteMaterialsAPI.list()
+      .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setMaterials(arr) })
+      .catch(() => toast(tr('Failed to load waste materials'), 'error'))
     CommitteeAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setCommittee(arr.filter((c) => c.active)) })
       .catch(() => toast(tr('Failed to load committee members'), 'error'))
@@ -172,12 +245,13 @@ export default function WasteSales() {
   const [devQ, setDevQ] = useState('')
   const [devResults, setDevResults] = useState([])
   useEffect(() => {
-    if (!drawer || drawer.devotee_id || devQ.trim().length < 2) { setDevResults([]); return }
+    if (!drawer || drawer.devotee_id || devQ.trim().length < 1) { setDevResults([]); return }
     const t = setTimeout(() => {
-      DevoteesAPI.list({ q: devQ.trim(), size: 8 })
-        .then((r) => setDevResults(Array.isArray(r) ? r : (r.items || [])))
+      // Use lookup endpoint - available to all authenticated users (no module restriction)
+      DevoteesAPI.lookup({ q: devQ.trim(), size: 8 })
+        .then((r) => setDevResults(r.items || []))
         .catch(() => setDevResults([]))
-    }, 200)
+    }, 250)
     return () => clearTimeout(t)
   }, [devQ, drawer])
   const onPickDevotee = (d) => {
@@ -193,15 +267,31 @@ export default function WasteSales() {
   // DEF-009: Use language-aware names for committee members
   const committeeNames = committee.map((c) => personName(c, lang))
   const selectedVendor = drawer && drawer.vendor_id ? vendors.find((v) => String(v.id) === String(drawer.vendor_id)) : null
-  const materialOptions = selectedVendor && selectedVendor.material_types
+  // Active master materials feed the sale form; the filter lists every master
+  // material (incl. inactive) so older sales can still be filtered.
+  const activeMaterials = materials.filter((x) => x.active).sort((a, b) => a.id - b.id)  // master order (WMAT-0001 first)
+  const masterNames = activeMaterials.length ? activeMaterials.map((x) => x.name) : DEFAULT_MATERIALS
+  const filterNames = materials.length ? [...new Set(materials.map((x) => x.name))].sort((a, b) => a.localeCompare(b)) : DEFAULT_MATERIALS
+  const findMaterial = (name) => materials.find((x) => x.name.toLowerCase() === String(name || '').trim().toLowerCase())
+  // Display name: the master's Telugu spelling when set, else the glossary/English.
+  const matLabel = (name) => (lang === 'te' && findMaterial(name)?.name_te) || tr(name)
+  const materialOptions = (selectedVendor && selectedVendor.material_types
     ? selectedVendor.material_types.split(',').map((s) => s.trim()).filter(Boolean)
-    : DEFAULT_MATERIALS
+    : masterNames).map((n) => ({ value: n, label: matLabel(n) }))
+  // Picking a master material pre-fills its unit and default rate (both stay editable).
+  const materialDefaults = (name) => {
+    const mm = findMaterial(name)
+    if (!mm) return {}
+    return { unit: mm.unit || 'Kilogram (kg)', ...(mm.default_rate ? { rate: String(mm.default_rate) } : {}) }
+  }
+  const openNewSale = () => setDrawer(emptyForm(activeMaterials[0]))
   const onVendor = (id) => {
     if (!id) { setM({ vendor_id: '', vendor_name: '', devotee_id: null }); return }
     const v = vendors.find((x) => String(x.id) === String(id))
     if (!v) return
     const mats = (v.material_types || '').split(',').map((s) => s.trim()).filter(Boolean)
-    setM({ vendor_id: v.id, vendor_name: v.name, buyer_name: v.name, mobile: v.phone || '', material: mats[0] || DEFAULT_MATERIALS[0], materialCustom: false, devotee_id: null })
+    const mat = mats[0] || masterNames[0]
+    setM({ vendor_id: v.id, vendor_name: v.name, buyer_name: v.name, mobile: v.phone || '', material: mat, ...materialDefaults(mat), materialCustom: false, devotee_id: null })
   }
 
   async function save(e) {
@@ -242,47 +332,55 @@ export default function WasteSales() {
     } finally { setSaving(false) }
   }
 
-  const EXPORT_COLS = [{ key: 'code', label: tr('Sale ID') }, { key: 'vendor_name', label: tr('Buyer / Vendor') }, { key: 'material', label: tr('Material') },
+  const ALL_EXPORT_COLS = [{ key: 'code', label: tr('Sale ID') }, { key: 'vendor_name', label: tr('Buyer / Vendor') }, { key: 'material', label: tr('Material') },
     { key: 'weight_kg', label: tr('Weight (kg)') }, { key: 'rate', label: tr('Rate (₹)'), type: 'money' },
     { key: 'amount', label: tr('Amount (₹)'), type: 'money' }, { key: 'mode', label: tr('Mode') }]
-  const exportRows = rows
-  const exportTotal = { code: 'Total', amount: rows.reduce((s, r) => s + Number(r.amount || 0), 0) }
+  // Hide money columns for non-finance roles
+  const EXPORT_COLS = canSeeAmounts ? ALL_EXPORT_COLS : ALL_EXPORT_COLS.filter(c => c.type !== 'money')
+  // Use allFilteredData when date filter applied (ALL records), otherwise use current page
+  const dataForExport = (start || end) ? allFilteredData : displayRows
+  const exportRows = canSeeAmounts ? dataForExport : dataForExport.map(r => ({ ...r, rate: null, amount: null }))
+  const exportTotal = canSeeAmounts ? { code: 'Total', amount: dataForExport.reduce((s, r) => s + Number(r.amount || 0), 0) } : null
   return (
     <div>
       <PageTitle title={tr("Waste Material Sales Management")} subtitle={tr("Record waste material sales, accept payments and generate receipt.")}
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Waste Material Sales Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => setDrawer(emptyForm())} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Waste Material Sale</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Waste Material Sales Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openNewSale} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Waste Material Sale</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <StatTile icon={IndianRupee} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Sales Amount")} value={stats ? inr(stats.total_amount) : '—'} sub={tr("All Time")} />
-        <StatTile icon={CalendarDays} color="#059669" bg="bg-emerald-50" title={tr("Today's Sales Amount")} value={stats ? inr(stats.today_amount) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
-        <StatTile icon={Clock} color="#d97706" bg="bg-amber-50" title={tr("Pending Verification")} value={stats ? num(stats.pending) : '—'} sub={tr("Awaiting committee review")} />
-        <StatTile icon={CheckCircle} color="#059669" bg="bg-emerald-50" title={tr("Verified")} value={stats ? num(stats.verified) : '—'} sub={tr("Committee approved")} />
-        <StatTile icon={Ban} color="#6b7280" bg="bg-gray-50" title={tr("Voided / Rejected")} value={stats ? num((stats.voided || 0) + (stats.rejected || 0)) : '—'} sub={tr("Cancelled records")} />
-      </div>
+      {user?.role !== 'Counter Staff' && (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <StatTile icon={IndianRupee} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Sales Amount")} value={stats ? inr(stats.total_amount) : '—'} sub={tr("All Time")} />
+          <StatTile icon={CalendarDays} color="#059669" bg="bg-emerald-50" title={tr("Today's Sales Amount")} value={stats ? inr(stats.today_amount) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
+          <StatTile icon={Clock} color="#d97706" bg="bg-amber-50" title={tr("Pending Verification")} value={stats ? num(stats.pending) : '—'} sub={tr("Awaiting committee review")} />
+          <StatTile icon={CheckCircle} color="#059669" bg="bg-emerald-50" title={tr("Verified")} value={stats ? num(stats.verified) : '—'} sub={tr("Committee approved")} />
+          <StatTile icon={Ban} color="#6b7280" bg="bg-gray-50" title={tr("Voided / Rejected")} value={stats ? num((stats.voided || 0) + (stats.rejected || 0)) : '—'} sub={tr("Cancelled records")} />
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[12rem]">
+        <div className="px-5 py-5 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Buyer Name / Mobile / Receipt No.</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search here…")} className="input !pl-9" /></div>
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
             <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
             <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
-          <div className="min-w-[9rem]">
+          <div className="w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Material Type</T></label>
-            <Select value={material} onChange={(e) => setMaterial(e.target.value)} className="input"><option value="">{tr("All")}</option>{DEFAULT_MATERIALS.map((m) => <option key={m}>{m}</option>)}</Select>
+            <Select value={material} onChange={(e) => setMaterial(e.target.value)} className="input"><option value="">{tr("All")}</option>{filterNames.map((m) => <option key={m} value={m}>{matLabel(m)}</option>)}</Select>
           </div>
-          <div className="min-w-[9rem]">
+          <div className="w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
             <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("UPI / QR Code")}</option></Select>
           </div>
+          <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
+          <button onClick={() => { setFilters({ q: '', material: '', mode: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
 
         <SortFilterPanel
@@ -318,14 +416,14 @@ export default function WasteSales() {
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredSortedRows.map((s) => (
+              {displayRows.map((s) => (
                 <tr key={s.id} className={`hover:bg-gray-50/60 ${s.status === 'Void' ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{s.code}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(s.paid_at || s.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(s.paid_at || s.created_at)}</div></td>
                   <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(s.buyer_name)}</div><div className="text-[0.6875rem] text-gray-400">{s.mobile || ''}</div></td>
-                  <td className="px-4 py-3 text-gray-600">{tr(s.material)}</td>
+                  <td className="px-4 py-3 text-gray-600">{matLabel(s.material)}</td>
                   <td className="px-4 py-3 text-gray-700">{money2(s.weight_kg)} {tr(unitShort(s.unit))}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">₹{money2(s.amount)}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? `₹${money2(s.amount)}` : '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{modeLabel(s.mode)}</td>
                   <td className="px-4 py-3">{s.status === 'Void' ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold bg-gray-100 text-gray-500"><Ban size={12} /> {tr('Voided')}</span> : statusBadge(s.verification_status)}</td>
                   <td className="px-4 py-3">
@@ -448,7 +546,7 @@ export default function WasteSales() {
                   <div><label className="label"><T>Material Type *</T></label>
                     <Combobox
                       value={drawer.material}
-                      onChange={(e) => setM({ material: e.target.value, materialCustom: false })}
+                      onChange={(e) => setM({ material: e.target.value, materialCustom: false, ...materialDefaults(e.target.value) })}
                       options={materialOptions}
                       placeholder={tr("Select or type material")}
                       className="input"
@@ -530,7 +628,7 @@ export default function WasteSales() {
                 rows={[
                   { en: 'Buyer', value: printDoc.buyer_name },
                   { en: 'Mobile', value: printDoc.mobile || '—' },
-                  { en: 'Material', value: printDoc.material, valueTe: te(printDoc.material) },
+                  { en: 'Material', value: printDoc.material, valueTe: findMaterial(printDoc.material)?.name_te || te(printDoc.material) },
                   { en: 'Quantity', value: `${money2(printDoc.weight_kg)} ${unitShort(printDoc.unit)}` },
                   { en: 'Rate', value: `₹${money2(printDoc.rate)} / ${unitShort(printDoc.unit)}` },
                   { en: 'Payment Mode', value: modeLabel(printDoc.mode) },
@@ -563,7 +661,7 @@ export default function WasteSales() {
             <div className="px-6 py-5">
               <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-[0.8125rem]">
                 <div className="flex justify-between"><span className="text-gray-500"><T>Buyer</T>:</span><span className="font-semibold text-gray-800">{verifyModal.buyer_name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{verifyModal.material} — {money2(verifyModal.weight_kg)} {unitShort(verifyModal.unit)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{matLabel(verifyModal.material)} — {money2(verifyModal.weight_kg)} {unitShort(verifyModal.unit)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500"><T>Amount</T>:</span><span className="font-semibold text-gray-800">₹{money2(verifyModal.amount)} ({verifyModal.mode})</span></div>
                 <div className="flex justify-between"><span className="text-gray-500"><T>Recorded by</T>:</span><span className="text-gray-700">{verifyModal.created_by || '—'}</span></div>
               </div>
@@ -591,7 +689,7 @@ export default function WasteSales() {
             <div className="px-6 py-5">
               <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-[0.8125rem] mb-4">
                 <div className="flex justify-between"><span className="text-gray-500"><T>Buyer</T>:</span><span className="font-semibold text-gray-800">{rejectModal.buyer_name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{rejectModal.material} — {money2(rejectModal.weight_kg)} {unitShort(rejectModal.unit)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{matLabel(rejectModal.material)} — {money2(rejectModal.weight_kg)} {unitShort(rejectModal.unit)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500"><T>Amount</T>:</span><span className="font-semibold text-gray-800">₹{money2(rejectModal.amount)}</span></div>
               </div>
               <label className="label"><T>Rejection Reason *</T></label>

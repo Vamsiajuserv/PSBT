@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import {
   Plus, X, Eye, MoreVertical, Search, RotateCcw, Info, Trash2,
   Gavel, CalendarClock, Users, CheckCircle2, User, ShieldCheck,
@@ -8,7 +8,7 @@ import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '.
 import { AuctionAPI, AuctionItemsAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
-import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, TimeField, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
@@ -42,10 +42,14 @@ export default function Auction() {
   const { user } = useAuth()
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const isCommittee = user?.role === 'Committee'
-  const canWrite = user?.role !== 'Accountant'
+  // Matches the backend: only Administrator and Committee may create/edit auctions
+  const canWrite = ['Admin', 'Administrator', 'Committee'].includes(user?.role)
+  // Only Admin, Committee, Accountant can see amounts in reports
+  const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   const SIZE = 15
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [reloadTrigger, setReloadTrigger] = useState(0)
   const [loadErr, setLoadErr] = useState('')
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState(null)
@@ -71,18 +75,82 @@ export default function Auction() {
   // filters - persisted in URL for state preservation across navigation
   const {
     q, setQ, status, setStatus, verification, setVerification,
-    payment, setPayment, start, setStart, end, setEnd, page, setPage,
+    payment, setPayment, start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
     q: '', status: '', verification: '', payment: '', start: '', end: '', page: 1,
   })
   const [saving, setSaving] = useState(false)
+
+  // State for all filtered records (for export when date filter applied)
+  const [allFilteredData, setAllFilteredData] = useState([])
+  const [loadingExport, setLoadingExport] = useState(false)
 
   // Sorting with filtering
   const {
     filteredSortedRows,
     sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
     filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
-  } = useFilterableSortableTable(rows, SORT_COLUMNS, [{ key: 'auction_date', direction: 'desc' }])
+  } = useFilterableSortableTable(rows, SORT_COLUMNS, [], {}, { manualSort: true, manualFilter: true })
+
+  // Sorting and column filters run on the server so they cover every record, not just the
+  // visible page; changing either reloads from page 1. With no column chosen the date
+  // column is used — oldest first when a date filter is applied, newest first otherwise.
+  const [listTrigger, setListTrigger] = useState(0)
+  const prevSortsRef = useRef(sorts)
+  const prevFiltersRef = useRef(filters)
+  useEffect(() => {
+    const filtersChanged = prevFiltersRef.current !== filters
+    if (prevSortsRef.current === sorts && !filtersChanged) return
+    prevSortsRef.current = sorts
+    prevFiltersRef.current = filters
+    setPage(1)
+    // A filter change also refreshes the export data; a sort change only reloads the list
+    if (filtersChanged) setReloadTrigger((t) => t + 1)
+    else setListTrigger((t) => t + 1)
+  }, [sorts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
+  const displayRows = filteredSortedRows
+
+  // Fetch ALL filtered records for export when date filter is applied
+  const fetchAllFiltered = useCallback(async () => {
+    if (!start && !end) {
+      setAllFilteredData([])
+      return
+    }
+    setLoadingExport(true)
+    try {
+      const d = await AuctionAPI.list({ q, status, verification, payment, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+      const items = d.items || []
+      // Sort by date ascending (oldest first)
+      items.sort((a, b) => (a.auction_date || '').localeCompare(b.auction_date || ''))
+      setAllFilteredData(items)
+    } catch (err) {
+      toast(tr('Failed to fetch all records'), 'error')
+      setAllFilteredData([])
+    } finally {
+      setLoadingExport(false)
+    }
+  }, [q, status, verification, payment, start, end])
+
+  // Fetch all data for export ONLY when Apply button is clicked (reloadTrigger changes)
+  // User must click Apply to filter - no auto-fetch on date change
+  useEffect(() => {
+    if (start || end) {
+      setLoadingExport(true)
+      AuctionAPI.list({ q, status, verification, payment, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+        .then((d) => {
+          const items = d.items || []
+          items.sort((a, b) => (a.auction_date || '').localeCompare(b.auction_date || ''))
+          setAllFilteredData(items)
+        })
+        .catch(() => {
+          toast(tr('Failed to fetch all records'), 'error')
+          setAllFilteredData([])
+        })
+        .finally(() => setLoadingExport(false))
+    } else {
+      setAllFilteredData([])
+    }
+  }, [reloadTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // master auction items for the item dropdown
   const [items, setItems] = useState([])
@@ -97,13 +165,14 @@ export default function Auction() {
   const [results, setResults] = useState([])
   const picked = drawer?.devotee
   useEffect(() => {
-    // Require at least 2 characters for search (consistent with other forms)
-    if (!drawer || picked || dq.trim().length < 2) { setResults([]); return }
+    // Require at least 1 character for search (consistent with Annadanam/Donations)
+    if (!drawer || picked || dq.trim().length < 1) { setResults([]); return }
     const t = setTimeout(() => {
-      DevoteesAPI.list({ q: dq.trim(), size: 8 })
-        .then((r) => setResults(Array.isArray(r) ? r : (r.items || [])))
+      // Use lookup endpoint - available to all authenticated users (no module restriction)
+      DevoteesAPI.lookup({ q: dq.trim(), size: 8 })
+        .then((r) => setResults(r.items || []))
         .catch(() => setResults([]))
-    }, 200)
+    }, 250)
     return () => clearTimeout(t)
   }, [dq, picked, drawer])
 
@@ -111,7 +180,7 @@ export default function Auction() {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        AuctionAPI.list({ q, status, verification, payment, start, end, page, size: SIZE }),
+        AuctionAPI.list({ q, status, verification, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'auction_date', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
         AuctionAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -121,9 +190,10 @@ export default function Auction() {
     } finally {
       setLoading(false)
     }
-  }, [q, status, verification, payment, start, end, page])
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
-  useEffect(() => { setPage(1); setMenu(null) }, [q, status, verification, payment, start, end])
+  }, [q, status, verification, payment, start, end, page, sorts, filters])
+  // Load on initial mount, page changes, or reload trigger
+  useEffect(() => { load() }, [page, reloadTrigger, listTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setMenu(null) }, [q, status, verification, payment, start, end])
 
   async function save(e) {
     e.preventDefault()
@@ -253,54 +323,62 @@ export default function Auction() {
     else setM({ itemChoice: '__custom__', item: val })
   }
 
-  const EXPORT_COLS = [{ key: 'code', label: tr('Auction ID') }, { key: 'item', label: tr('Item') }, { key: 'auction_date', label: tr('Date') },
+  const ALL_EXPORT_COLS = [{ key: 'code', label: tr('Auction ID') }, { key: 'item', label: tr('Item') }, { key: 'auction_date', label: tr('Date') },
     { key: 'base_amount', label: tr('Base (₹)'), type: 'money' }, { key: 'current_amount', label: tr('Highest Bid (₹)'), type: 'money' },
     { key: 'winner', label: tr('Winner') }, { key: 'status', label: tr('Status') },
     { key: 'verification_status', label: tr('Verification') }, { key: 'verified_by', label: tr('Verified By') },
     { key: 'payment_status', label: tr('Payment') }, { key: 'receipt_no', label: tr('Receipt No') }]
-  const exportRows = rows
-  const exportTotal = { code: 'Total', current_amount: rows.reduce((s, a) => s + Number(a.current_amount || 0), 0) }
+  // Hide money columns for non-finance roles
+  const EXPORT_COLS = canSeeAmounts ? ALL_EXPORT_COLS : ALL_EXPORT_COLS.filter(c => c.type !== 'money')
+  // Use allFilteredData when date filter applied (ALL records), otherwise use current page
+  const dataForExport = (start || end) ? allFilteredData : displayRows
+  const exportRows = canSeeAmounts ? dataForExport : dataForExport.map(r => ({ ...r, base_amount: null, current_amount: null }))
+  const exportTotal = canSeeAmounts ? { code: 'Total', current_amount: dataForExport.reduce((s, a) => s + Number(a.current_amount || 0), 0) } : null
   return (
     <div>
       <PageTitle title={tr("Auction Management")} subtitle={tr("Record temple auctions and their winning devotees.")}
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Auction Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(emptyForm()); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Create New Auction</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
-        <StatTile icon={Gavel} color="#d97706" bg="bg-amber-50" title={tr("Total Auctions")} value={stats ? num(stats.total) : '—'} sub={tr("All Time")} />
-        <StatTile icon={CalendarClock} color="#ea580c" bg="bg-orange-50" title={tr("Scheduled")} value={stats ? num(stats.scheduled) : '—'} sub={tr("Yet to Start")} />
-        <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("In Progress")} value={stats ? num(stats.in_progress) : '—'} sub={tr("Active Now")} />
-        <StatTile icon={CheckCircle2} color="#3b82f6" bg="bg-blue-50" title={tr("Completed")} value={stats ? num(stats.completed) : '—'} sub={tr("Result Recorded")} />
-        <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Verified")} value={stats ? num(stats.verified) : '—'} sub={tr("Committee Approved")} />
-        <StatTile icon={Banknote} color="#16a34a" bg="bg-green-50" title={tr("Payment Collected")} value={stats ? num(stats.paid) : '—'} sub={tr("Receipts Issued")} />
-      </div>
+      {user?.role !== 'Counter Staff' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
+          <StatTile icon={Gavel} color="#d97706" bg="bg-amber-50" title={tr("Total Auctions")} value={stats ? num(stats.total) : '—'} sub={tr("All Time")} />
+          <StatTile icon={CalendarClock} color="#ea580c" bg="bg-orange-50" title={tr("Scheduled")} value={stats ? num(stats.scheduled) : '—'} sub={tr("Yet to Start")} />
+          <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("In Progress")} value={stats ? num(stats.in_progress) : '—'} sub={tr("Active Now")} />
+          <StatTile icon={CheckCircle2} color="#3b82f6" bg="bg-blue-50" title={tr("Completed")} value={stats ? num(stats.completed) : '—'} sub={tr("Result Recorded")} />
+          <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Verified")} value={stats ? num(stats.verified) : '—'} sub={tr("Committee Approved")} />
+          <StatTile icon={Banknote} color="#16a34a" bg="bg-green-50" title={tr("Payment Collected")} value={stats ? num(stats.paid) : '—'} sub={tr("Receipts Issued")} />
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[12rem]">
+        <div className="px-5 py-5 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Auction ID / Item / Winner</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search auction ID, item or winner…")} className="input !pl-9" /></div>
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
             <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
             <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Scheduled">{tr("Scheduled")}</option><option value="In Progress">{tr("In Progress")}</option><option value="Completed">{tr("Completed")}</option></Select>
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Verification</T></label>
             <Select value={verification} onChange={(e) => setVerification(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Pending">{tr("Pending")}</option><option value="Verified">{tr("Verified")}</option><option value="Rejected">{tr("Rejected")}</option></Select>
           </div>
-          <div className="min-w-[8rem]">
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment</T></label>
             <Select value={payment} onChange={(e) => setPayment(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Pending">{tr("Pending")}</option><option value="Paid">{tr("Paid")}</option></Select>
           </div>
+          <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
+          <button onClick={() => { setFilters({ q: '', status: '', verification: '', payment: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
         <SortFilterPanel
           sorts={sorts}
@@ -397,12 +475,12 @@ export default function Auction() {
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredSortedRows.map((a) => (
+              {displayRows.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{a.code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{tr(a.item)}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.auction_date)}</div><div className="text-[0.6875rem] text-gray-400">{a.start_time || ''}</div></td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{Number(a.current_amount) > 0 ? inr(a.current_amount) : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? (Number(a.current_amount) > 0 ? inr(a.current_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{a.winner ? personName({ name: a.winner }, lang) : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3"><Pill tone={STATUS_TONE[a.status] || 'gray'}>{tr(a.status)}</Pill></td>
                   <td className="px-4 py-3">
@@ -449,7 +527,7 @@ export default function Auction() {
                   </td>
                 </tr>
               ))}
-              {filteredSortedRows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty={tr("No auctions found.")} />}
+              {displayRows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty={tr("No auctions found.")} />}
             </tbody>
           </table>
         </div>
@@ -557,7 +635,7 @@ export default function Auction() {
                 <VField label={tr("Start Time")} value={view.start_time || '—'} />
                 <VField label={tr("No. of Bidders")} value={view.bids} />
                 <VField label={tr("Status")} value={<Pill tone={STATUS_TONE[view.status] || 'gray'}>{tr(view.status)}</Pill>} />
-                <VField label={tr("Highest Bid")} value={Number(view.current_amount) > 0 ? inr(view.current_amount) : '—'} />
+                <VField label={tr("Highest Bid")} value={canSeeAmounts ? (Number(view.current_amount) > 0 ? inr(view.current_amount) : '—') : '—'} />
                 <VField label={tr("Winner")} value={view.winner ? personName({ name: view.winner }, lang) : '—'} />
                 <VField label={tr("Notes")} value={view.notes || '—'} wide />
               </div>

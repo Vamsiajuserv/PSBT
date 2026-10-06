@@ -13,9 +13,10 @@ import { T, tr } from '../../i18n/LanguageContext.jsx'
  * @param {Array} rows - Array of row data
  * @param {Array} columns - Array of {key, type, label} where type is 'text'|'money'|'num'|'date'
  * @param {Array} initialSorts - Optional initial sort state [{key, direction: 'asc'|'desc'}]
+ * @param {Object} options - { manualSort: true } keeps row order as given (server-side sorting)
  * @returns {Object} { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection }
  */
-export function useSortableTable(rows, columns = [], initialSorts = []) {
+export function useSortableTable(rows, columns = [], initialSorts = [], { manualSort = false } = {}) {
   const [sorts, setSorts] = useState(initialSorts) // [{key, direction: 'asc'|'desc'}]
 
   const handleColumnClick = useCallback((colKey, e) => {
@@ -59,7 +60,15 @@ export function useSortableTable(rows, columns = [], initialSorts = []) {
   const parseValue = useCallback((val, colType) => {
     if (val == null || val === '' || val === '—' || val === '-') return null
 
-    if (colType === 'money' || colType === 'num') {
+    if (colType === 'time') {
+      // "06:00 AM - 07:00 AM" → minutes since midnight of the start time, so 6 AM sorts before 4 PM
+      const t = String(val).match(/(\d{1,2}):(\d{2})\s*([AaPp][Mm])?/)
+      if (!t) return String(val).toLowerCase()
+      const h = t[3] ? (Number(t[1]) % 12) + (/p/i.test(t[3]) ? 12 : 0) : Number(t[1])
+      return h * 60 + Number(t[2])
+    }
+
+    if (colType === 'money' || colType === 'num' || colType === 'number') {
       const n = typeof val === 'string' ? parseFloat(val.replace(/[₹,\s]/g, '')) : Number(val)
       return isNaN(n) ? null : n
     }
@@ -85,7 +94,7 @@ export function useSortableTable(rows, columns = [], initialSorts = []) {
   }, [])
 
   const sortedRows = useMemo(() => {
-    if (!rows || rows.length === 0 || sorts.length === 0) return rows || []
+    if (!rows || rows.length === 0 || sorts.length === 0 || manualSort) return rows || []
 
     const colMap = {}
     columns.forEach((c) => {
@@ -109,6 +118,8 @@ export function useSortableTable(rows, columns = [], initialSorts = []) {
         let cmp = 0
         if (typeof aVal === 'number' && typeof bVal === 'number') {
           cmp = aVal - bVal
+        } else if (typeof aVal !== typeof bVal) {
+          cmp = typeof aVal === 'number' ? -1 : 1   // numbers / dates before text (e.g. dates before "Lifetime")
         } else {
           cmp = String(aVal).localeCompare(String(bVal))
         }
@@ -116,7 +127,7 @@ export function useSortableTable(rows, columns = [], initialSorts = []) {
       }
       return 0
     })
-  }, [rows, columns, sorts, parseValue])
+  }, [rows, columns, sorts, parseValue, manualSort])
 
   return {
     sortedRows,
@@ -271,7 +282,16 @@ export function SortableTableHeader({ columns, sorts, onSort, getSortIndex, getS
  *   filterOptions: ['Confirmed', 'Pending', 'Completed', 'Cancelled']
  * }
  */
-export function useFilterableSortableTable(rows, columns = [], initialSorts = [], initialFilters = {}) {
+/**
+ * Serialise column-filter selections for a server-side list endpoint (`col_filters` param).
+ * Returns '' when nothing is selected so the param is omitted.
+ */
+export function filtersToParam(filters) {
+  const active = Object.fromEntries(Object.entries(filters || {}).filter(([, v]) => Array.isArray(v) && v.length))
+  return Object.keys(active).length ? JSON.stringify(active) : ''
+}
+
+export function useFilterableSortableTable(rows, columns = [], initialSorts = [], initialFilters = {}, { manualSort = false, manualFilter = false } = {}) {
   const [sorts, setSorts] = useState(initialSorts)
   const [filters, setFilters] = useState(initialFilters) // { columnKey: [selectedValues] }
 
@@ -341,7 +361,15 @@ export function useFilterableSortableTable(rows, columns = [], initialSorts = []
   // Smart parsing for sorting (same as before)
   const parseValue = useCallback((val, colType) => {
     if (val == null || val === '' || val === '—' || val === '-') return null
-    if (colType === 'money' || colType === 'num') {
+    if (colType === 'time') {
+      // "06:00 AM - 07:00 AM" → minutes since midnight of the start time, so 6 AM sorts before 4 PM
+      const t = String(val).match(/(\d{1,2}):(\d{2})\s*([AaPp][Mm])?/)
+      if (!t) return String(val).toLowerCase()
+      const h = t[3] ? (Number(t[1]) % 12) + (/p/i.test(t[3]) ? 12 : 0) : Number(t[1])
+      return h * 60 + Number(t[2])
+    }
+
+    if (colType === 'money' || colType === 'num' || colType === 'number') {
       const n = typeof val === 'string' ? parseFloat(val.replace(/[₹,\s]/g, '')) : Number(val)
       return isNaN(n) ? null : n
     }
@@ -377,7 +405,7 @@ export function useFilterableSortableTable(rows, columns = [], initialSorts = []
     // Filter
     let result = rows
     const filterKeys = Object.keys(filters)
-    if (filterKeys.length > 0) {
+    if (filterKeys.length > 0 && !manualFilter) {
       result = rows.filter((row) => {
         return filterKeys.every((colKey) => {
           const filterVals = filters[colKey]
@@ -392,8 +420,8 @@ export function useFilterableSortableTable(rows, columns = [], initialSorts = []
       })
     }
 
-    // Sort
-    if (sorts.length === 0) return result
+    // Sort (skipped when the server already returned rows in order)
+    if (sorts.length === 0 || manualSort) return result
 
     return [...result].sort((a, b) => {
       for (const { key, direction } of sorts) {
@@ -409,6 +437,8 @@ export function useFilterableSortableTable(rows, columns = [], initialSorts = []
         let cmp = 0
         if (typeof aVal === 'number' && typeof bVal === 'number') {
           cmp = aVal - bVal
+        } else if (typeof aVal !== typeof bVal) {
+          cmp = typeof aVal === 'number' ? -1 : 1   // numbers / dates before text (e.g. dates before "Lifetime")
         } else {
           cmp = String(aVal).localeCompare(String(bVal))
         }
@@ -416,7 +446,7 @@ export function useFilterableSortableTable(rows, columns = [], initialSorts = []
       }
       return 0
     })
-  }, [rows, columns, filters, sorts, parseValue])
+  }, [rows, columns, filters, sorts, parseValue, manualSort, manualFilter])
 
   return {
     // Sorted & filtered data

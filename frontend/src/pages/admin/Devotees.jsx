@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Plus, X, Eye, Pencil, Search, RotateCcw, Phone, Mail, Printer, ChevronRight,
@@ -70,9 +70,9 @@ const escapeHtml = (str) => {
 }
 
 // Print devotee data based on selected section
-function printDevoteeSection(dev, stats, temple, tab, data) {
+function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true) {
   const fmtDatePrint = (s) => s ? new Date(s).toLocaleDateString('en-GB', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric'}) : '—'
-  const inrPrint = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
+  const inrPrint = (n) => canSeeAmounts ? ('₹' + Number(n || 0).toLocaleString('en-IN')) : '—'
 
   const baseStyles = `
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -282,6 +282,8 @@ export default function Devotees() {
   const { user } = useAuth()
   const isAdmin = isAdminRole(user)
   const canWrite = isAdmin // Only Admin can add/edit devotees
+  // Only Admin, Committee, Accountant can see amounts in reports
+  const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState(null)
@@ -291,7 +293,7 @@ export default function Devotees() {
 
   // filters - persisted in URL for state preservation across navigation
   const {
-    q, setQ, city, setCity, status, setStatus, page, setPage,
+    q, setQ, city, setCity, status, setStatus, page, setPage, setFilters,
   } = useFilterParams({
     q: '', city: '', status: '', page: 1,
   })
@@ -300,6 +302,41 @@ export default function Devotees() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
+  const [reloadTrigger, setReloadTrigger] = useState(0)
+
+  // Autocomplete search state
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const searchRef = useRef(null)
+
+  // Autocomplete: search when user types 2+ characters
+  useEffect(() => {
+    if (q.trim().length < 2) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+    const timer = setTimeout(() => {
+      DevoteesAPI.lookup({ q: q.trim(), size: 8 })
+        .then((r) => {
+          setSuggestions(r.items || [])
+          setShowSuggestions(true)
+        })
+        .catch(() => setSuggestions([]))
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [q])
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Sortable table columns
   const sortColumns = [
@@ -310,14 +347,24 @@ export default function Devotees() {
     { key: 'registered_on', label: 'Registered On', type: 'date' },
     { key: 'status', label: 'Status', type: 'text' },
   ]
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [{ key: 'registered_on', direction: 'desc' }])
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, sortColumns, [], { manualSort: true })
+
+  // Server-side sorting: the first entry in `sorts` becomes sort_by/sort_dir so the whole
+  // result set is ordered before pagination (no column chosen → search relevance / newest first).
+  const prevSortsRef = useRef(sorts)
+  useEffect(() => {
+    if (prevSortsRef.current === sorts) return
+    prevSortsRef.current = sorts
+    if (page !== 1) setPage(1)
+    else setReloadTrigger((t) => t + 1)
+  }, [sorts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
       const [s, list] = await Promise.all([
         DevoteesAPI.stats().catch(() => null),
-        DevoteesAPI.list({ q, city, status, page, size: PAGE_SIZE }),
+        DevoteesAPI.list({ q, city, status, page, size: PAGE_SIZE, sort_by: sorts[0]?.key || '', sort_dir: sorts[0]?.direction || 'desc' }),
       ])
       if (s) setStats(s)
       setRows(Array.isArray(list?.items) ? list.items : [])
@@ -325,11 +372,9 @@ export default function Devotees() {
     } catch (ex) {
       setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
     } finally { setLoading(false) }
-  }, [q, city, status, page])
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
-
-  // Reset to the first page whenever the search / filters change.
-  useEffect(() => { setPage(1) }, [q, city, status])
+  }, [q, city, status, page, sorts])
+  // Load on initial mount, page changes, or reload trigger
+  useEffect(() => { load() }, [page, reloadTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [allCities, setAllCities] = useState([])
   useEffect(() => { DevoteesAPI.list({ size: 500 }).then((r) => setAllCities([...new Set((r?.items || []).map((d) => d.city).filter(Boolean))].sort())).catch(() => toast(tr('Failed to load cities'), 'error')) }, [])
@@ -395,32 +440,68 @@ export default function Devotees() {
       <PageTitle title={tr("Devotee Management")} subtitle={tr("Maintain devotee master and view their activity history across temple services.")}
         actions={canWrite && <button onClick={() => { setSaveErr(''); setModal({ mode: 'create', data: { ...EMPTY } }) }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Devotee</T></button>} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6" role="region" aria-label={tr("Devotee statistics")}>
-        <StatTile icon={Users} color="#ea580c" bg="bg-orange-50" title={tr("Total Devotees")}
-          value={stats ? num(stats.total) : '—'} sub={tr("All registered devotees")} />
-        <StatTile icon={CalendarPlus} color="#059669" bg="bg-emerald-50" title={tr("Recent Registrations")}
-          value={stats ? num(stats.recent_registrations) : '—'} sub={tr("Registered in last 30 days")} />
-        <StatTile icon={HeartHandshake} color="#7c3aed" bg="bg-violet-50" title={tr("Devotees with Donations")}
-          value={stats ? num(stats.with_donations) : '—'} sub={tr("Devotees who donated")} />
-        <StatTile icon={HandHeart} color="#2563eb" bg="bg-blue-50" title={tr("Total Annadanam Beneficiaries")}
-          value={stats ? num(stats.annadanam_beneficiaries) : '—'} sub={tr("Through devotee sponsorships")} />
-      </div>
+      {user?.role !== 'Counter Staff' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6" role="region" aria-label={tr("Devotee statistics")}>
+          <StatTile icon={Users} color="#ea580c" bg="bg-orange-50" title={tr("Total Devotees")}
+            value={stats ? num(stats.total) : '—'} sub={tr("All registered devotees")} />
+          <StatTile icon={CalendarPlus} color="#059669" bg="bg-emerald-50" title={tr("Recent Registrations")}
+            value={stats ? num(stats.recent_registrations) : '—'} sub={tr("Registered in last 30 days")} />
+          <StatTile icon={HeartHandshake} color="#7c3aed" bg="bg-violet-50" title={tr("Devotees with Donations")}
+            value={stats ? num(stats.with_donations) : '—'} sub={tr("Devotees who donated")} />
+          <StatTile icon={HandHeart} color="#2563eb" bg="bg-blue-50" title={tr("Total Annadanam Beneficiaries")}
+            value={stats ? num(stats.annadanam_beneficiaries) : '—'} sub={tr("Through devotee sponsorships")} />
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-4 sm:px-5 py-4 sm:py-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 items-end">
-          <div className="sm:col-span-2 md:col-span-1">
+        <div className="px-4 sm:px-5 py-4 sm:py-5 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[12rem]" ref={searchRef}>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee Name / Mobile Number</T></label>
-            <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search name or mobile number…")} aria-label={tr("Search devotees")} className="input !pl-9 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent" /></div>
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onFocus={() => q.trim().length >= 2 && suggestions.length > 0 && setShowSuggestions(true)}
+                placeholder={tr("Search name or mobile number…")}
+                aria-label={tr("Search devotees")}
+                className="input !pl-9 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent"
+              />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-64 overflow-y-auto">
+                  {suggestions.map((d) => (
+                    <button
+                      type="button"
+                      key={d.id}
+                      onClick={() => {
+                        setShowSuggestions(false)
+                        openDetail(d.id)
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <span className="w-8 h-8 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold shrink-0">
+                        {(d.name || '?')[0].toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="font-semibold text-gray-800 text-[0.8125rem] block truncate">{personName(d, lang)}</span>
+                        <span className="text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div>
+          <div className="w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>City / Location</T></label>
             <Select value={city} onChange={(e) => setCity(e.target.value)} className="input" aria-label={tr("Filter by city")}><option value="">{tr("All Cities")}</option>{allCities.map((c) => <option key={c} value={c}>{tr(c)}</option>)}</Select>
           </div>
-          <div>
+          <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input" aria-label={tr("Filter by status")}><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select>
           </div>
+          <button onClick={load} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
+          <button onClick={() => { setFilters({ q: '', city: '', status: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
 
         <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
@@ -479,7 +560,7 @@ export default function Devotees() {
         </div>
       </div>
 
-      {detail && <DevoteeDrawer d={detail} tab={tab} setTab={setTab} onClose={() => setDetail(null)} />}
+      {detail && <DevoteeDrawer d={detail} tab={tab} setTab={setTab} onClose={() => setDetail(null)} canSeeAmounts={canSeeAmounts} />}
 
       {modal && (
         <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center p-3 sm:p-4" onClick={() => setModal(null)} role="dialog" aria-modal="true" aria-labelledby="devotee-modal-title">
@@ -577,7 +658,7 @@ export default function Devotees() {
   )
 }
 
-function DevoteeDrawer({ d, tab, setTab, onClose }) {
+function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
   const { lang } = useLang()
   const temple = useTemple()
   const dev = d.devotee || {}
@@ -602,7 +683,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
 
   const SUMMARY = [
     { icon: Flame, tone: 'bg-orange-50 text-orange-600', label: tr('Pooja Bookings'), value: num(stats.bookings?.count || 0) },
-    { icon: HandHeart, tone: 'bg-emerald-50 text-emerald-600', label: tr('Donations'), value: inr(stats.donations?.amount || 0) },
+    { icon: HandHeart, tone: 'bg-emerald-50 text-emerald-600', label: tr('Donations'), value: canSeeAmounts ? inr(stats.donations?.amount || 0) : '—' },
     { icon: UtensilsCrossed, tone: 'bg-amber-50 text-amber-600', label: tr('Annadanam'), value: num(stats.annadanam?.persons || 0), sub: tr('Beneficiaries') },
     { icon: Gavel, tone: 'bg-violet-50 text-violet-600', label: tr('Auction Purchases'), value: num(stats.auction?.count || 0) },
   ]
@@ -682,7 +763,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
                     <div key={i} className="flex items-center gap-1.5 py-1.5">
                       <div className={`w-5 h-5 rounded-full grid place-items-center shrink-0 ${r.tone}`}><Icon size={10} /></div>
                       <div className="min-w-0 flex-1"><div className="text-[0.6875rem] font-semibold text-gray-800 leading-tight">{r.title}</div><div className="text-[0.625rem] text-gray-400 truncate">{r.sub}</div></div>
-                      <div className="text-right shrink-0"><div className="text-[0.625rem] text-gray-500 whitespace-nowrap">{fmtDate(r.date)}</div><div className="text-[0.6875rem] font-bold text-gray-700">{inr(r.amount)}</div></div>
+                      <div className="text-right shrink-0"><div className="text-[0.625rem] text-gray-500 whitespace-nowrap">{fmtDate(r.date)}</div><div className="text-[0.6875rem] font-bold text-gray-700">{canSeeAmounts ? inr(r.amount) : '—'}</div></div>
                       <ChevronRight size={11} className="text-gray-300 shrink-0" />
                     </div>
                   )
@@ -700,7 +781,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{b.pooja}</td>
                   <td className="px-3 py-2.5"><Pill tone={PLAN_TONE[b.plan] || 'gray'}>{b.plan || '—'}</Pill></td>
                   <td className="px-3 py-2.5 text-gray-500 text-[0.75rem]">{fmtDate(b.scheduled_date)}</td>
-                  <td className="px-3 py-2.5 font-semibold text-gray-800">{inr(b.amount)}</td>
+                  <td className="px-3 py-2.5 font-semibold text-gray-800">{canSeeAmounts ? inr(b.amount) : '—'}</td>
                   <td className="px-3 py-2.5"><Pill tone={STATUS_TONE[b.status] || 'gray'}>{b.status}</Pill></td>
                 </tr>
               ))}
@@ -714,7 +795,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
                   <td className="px-3 py-2.5 font-mono text-[0.71875rem] text-maroon-600">{x.receipt_no}</td>
                   <td className="px-3 py-2.5 text-gray-700">{x.fund}</td>
                   <td className="px-3 py-2.5 text-gray-500">{x.type}</td>
-                  <td className="px-3 py-2.5 font-semibold text-emerald-700">{inr(x.amount)}</td>
+                  <td className="px-3 py-2.5 font-semibold text-emerald-700">{canSeeAmounts ? inr(x.amount) : '—'}</td>
                   <td className="px-3 py-2.5 text-gray-500 text-[0.75rem]">{fmtDate(x.date)}</td>
                 </tr>
               ))}
@@ -728,7 +809,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
                 <tr key={r.k} className="hover:bg-gray-50/60">
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{r.type}</td>
                   <td className="px-3 py-2.5 text-gray-600">{r.detail}</td>
-                  <td className="px-3 py-2.5 font-semibold text-gray-800">{inr(r.amount)}</td>
+                  <td className="px-3 py-2.5 font-semibold text-gray-800">{canSeeAmounts ? inr(r.amount) : '—'}</td>
                   <td className="px-3 py-2.5 text-gray-500 text-[0.75rem]">{fmtDate(r.date)}</td>
                 </tr>
               ))}
@@ -737,7 +818,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose }) {
         </div>
 
         <div className="px-4 py-2 border-t border-gray-100 flex gap-2 sticky bottom-0 bg-white print:hidden">
-          <button type="button" onClick={() => printDevoteeSection(dev, stats, temple, tab, { bookings, donations, annadanam, auction })} className="btn-outline flex-1 justify-center text-xs py-1.5"><Printer size={12} />{' '}<T>Print</T></button>
+          <button type="button" onClick={() => printDevoteeSection(dev, stats, temple, tab, { bookings, donations, annadanam, auction }, canSeeAmounts)} className="btn-outline flex-1 justify-center text-xs py-1.5"><Printer size={12} />{' '}<T>Print</T></button>
           <button type="button" onClick={onClose} className="btn-maroon flex-1 justify-center text-xs py-1.5"><T>Close</T></button>
         </div>
 

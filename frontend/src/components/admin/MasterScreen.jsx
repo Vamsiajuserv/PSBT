@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Plus, Pencil, Trash2, X, Save, RotateCcw, Search, Info, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Save, Search, Info, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num } from './ui.jsx'
 import { useSortableTable, SortPanel, SortIndicator, UnsortedIndicator } from '../common/SortableTable.jsx'
 import { TableStates, LOAD_ERROR } from '../common/states.jsx'
@@ -38,10 +38,22 @@ export default function MasterScreen({ config }) {
     // error state (not the "no records" empty state) so staff don't think the
     // records were deleted. Stats stay best-effort.
     return Promise.all([api.list({ q, status }), api.stats().catch(() => null)])
-      .then(([d, s]) => { setItems(d.items || d); if (s) setStats(s) })
+      .then(([d, s]) => {
+        // Deduplicate items by ID to prevent duplicate rows
+        const rawItems = d.items || d
+        const seen = new Set()
+        const uniqueItems = rawItems.filter(item => {
+          if (seen.has(item.id)) return false
+          seen.add(item.id)
+          return true
+        })
+        setItems(uniqueItems)
+        if (s) setStats(s)
+      })
       .catch((ex) => { setLoadErr(ex?.detail || LOAD_ERROR); setItems([]) })
       .finally(() => setLoading(false))
   }
+  // Auto-search when filters change
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [q, status]) // eslint-disable-line
 
   const empty = useMemo(() => {
@@ -115,12 +127,11 @@ export default function MasterScreen({ config }) {
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 flex flex-col lg:flex-row lg:items-end gap-4">
-          <div className="flex-1 max-w-sm relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <div className="px-5 py-5 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[12rem] relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr(searchPlaceholder)} className="input !pl-9" /></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-40"><option value="">{tr("All")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
-          <button onClick={() => { setQ(''); setStatus('') }} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
         </div>
 
         {sortColumns.length > 0 && <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />}

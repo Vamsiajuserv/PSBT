@@ -6,13 +6,14 @@ A read-only view over bookings, presented through a completion-status lens:
   Ongoing    → anything else (Confirmed / Pending / Ongoing)
 """
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Booking, Devotee, PoojaPlan, Poojari
 from ..security import RequireModule
+from ..helpers import sort_expr, apply_column_filters
 
 router = APIRouter(prefix="/api/pooja-history", tags=["pooja-history"])
 
@@ -71,9 +72,30 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
             "devotees_served": devotees_served, "active_long_term": active_long_term}
 
 
+# Column mapping for server-side sorting
+SORT_COLUMNS = {
+    "booking_code": Booking.booking_code,
+    "devotee_name": Booking.devotee_name,
+    "pooja_name": Booking.seva_name,
+    "plan_name": Booking.plan_name,
+    "poojari_name": Booking.poojari_name,
+    "scheduled_date": Booking.scheduled_date,
+    "ticket_no": Booking.ticket_no,
+    "completion": Booking.status,  # maps to status for sorting
+}
+
+
+def _completion_filter(values):
+    conds = [Booking.status.in_([v for v in values if v in ("Completed", "Cancelled")])]
+    if "Ongoing" in values:
+        conds.append(Booking.status.notin_(("Completed", "Cancelled")))
+    return or_(*conds)
+
+
 @router.get("", response_model=dict)
 def list_history(q: str = "", pooja: str = "", plan: str = "", status: str = "",
                  start: date | None = None, end: date | None = None,
+                 sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
                  page: int = 1, size: int = 20,
                  db: Session = Depends(get_db), user=Depends(read)):
     query = db.query(Booking)
@@ -95,8 +117,22 @@ def list_history(q: str = "", pooja: str = "", plan: str = "", status: str = "",
         query = query.filter(func.date(Booking.scheduled_date) >= start)
     if end:
         query = query.filter(func.date(Booking.scheduled_date) <= end)
+    # Column-filter dropdowns apply to the whole result set, not just the visible page
+    query = apply_column_filters(query, col_filters, SORT_COLUMNS, special={"completion": _completion_filter})
     total = query.count()
-    rows = query.order_by(Booking.id.desc()).offset((page - 1) * size).limit(size).all()
+
+    # Apply server-side sorting
+    if sort_by and sort_by in SORT_COLUMNS:
+        col = sort_expr(SORT_COLUMNS[sort_by])
+        # id tie-breaker keeps page boundaries stable when many rows share a date
+        if sort_dir == "asc":
+            query = query.order_by(col.asc().nullslast(), Booking.id)
+        else:
+            query = query.order_by(col.desc().nullslast(), Booking.id.desc())
+    else:
+        query = query.order_by(Booking.id.desc())
+
+    rows = query.offset((page - 1) * size).limit(size).all()
     return {"total": total, "page": page, "size": size, "items": [_row(r) for r in rows]}
 
 

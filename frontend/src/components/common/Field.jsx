@@ -1268,7 +1268,7 @@ export function Combobox({
               const sel = val === value
               return (
                 <button
-                  key={val}
+                  key={`${val}-${i}`}
                   type="button"
                   onClick={() => pick(opt)}
                   onMouseEnter={() => setActive(i)}

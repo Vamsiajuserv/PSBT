@@ -25,7 +25,6 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 from ..lunar import (
     get_panchangam as get_local_panchangam,
-    get_panchangam_range as get_local_panchangam_range,
     SWE_AVAILABLE,
 )
 

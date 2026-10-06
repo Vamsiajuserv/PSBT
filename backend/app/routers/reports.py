@@ -1,6 +1,6 @@
 """Reports — generate tabular reports across all temple activities (doc §Reports)."""
-from datetime import date, datetime
 from collections import OrderedDict
+from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func

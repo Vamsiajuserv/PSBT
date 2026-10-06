@@ -31,7 +31,18 @@ export default function BackupRestore() {
   const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(items, SORT_COLUMNS, [{ key: 'created_at', direction: 'desc' }])
 
   const load = () => Promise.all([BackupAPI.list(), BackupAPI.stats().catch(() => null)])
-    .then(([d, s]) => { setItems(d.items); if (s) setStats(s) })
+    .then(([d, s]) => {
+      // Deduplicate items by ID to prevent duplicate rows
+      const rawItems = d.items || []
+      const seen = new Set()
+      const uniqueItems = rawItems.filter(item => {
+        if (seen.has(item.id)) return false
+        seen.add(item.id)
+        return true
+      })
+      setItems(uniqueItems)
+      if (s) setStats(s)
+    })
   useEffect(() => { if (isAdmin) load() }, [isAdmin])
 
   async function createBackup() {

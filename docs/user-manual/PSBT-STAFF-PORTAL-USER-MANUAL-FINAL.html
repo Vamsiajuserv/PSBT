@@ -1,0 +1,4390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Panjagutta Sai Baba Temple - PSBT User Manual</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Noto+Serif:wght@400;600;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { font-size: 10.5pt; }
+    body {
+      font-family: 'Noto Sans', 'Noto Sans Telugu', 'Segoe UI', Arial, sans-serif;
+      line-height: 1.55;
+      color: #333333;
+      background: #ffffff;
+    }
+    
+    /* Cover Page - exactly fills first page, no blank page after */
+    .cover-page {
+      height: 261mm; /* A4 height (297mm) minus top/bottom margins (18mm each) */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      background: linear-gradient(145deg, #7a1220 0%, #5a0d18 100%);
+      color: #faf8f3;
+      padding: 40px 60px;
+      page-break-after: always;
+      box-sizing: border-box;
+    }
+    .cover-page .temple-name {
+      font-family: 'Noto Serif', Georgia, serif;
+      font-size: 26pt;
+      font-weight: 700;
+      color: #f5e6c3;
+      margin-bottom: 25px;
+      letter-spacing: 1px;
+    }
+    .cover-page .doc-title {
+      font-family: 'Noto Serif', Georgia, serif;
+      font-size: 34pt;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+    .cover-page .doc-subtitle {
+      font-family: 'Noto Serif', Georgia, serif;
+      font-size: 16pt;
+      font-weight: 600;
+      color: #c99a2e;
+      margin-bottom: 35px;
+    }
+    .cover-page .divider {
+      width: 120px;
+      height: 2px;
+      background: #c99a2e;
+      margin: 18px 0;
+    }
+    .cover-page .app-name {
+      font-size: 13pt;
+      color: #faf8f3;
+      margin-bottom: 40px;
+    }
+    .cover-page .version-info {
+      font-size: 11pt;
+      color: #f5e6c3;
+      margin-top: 25px;
+    }
+    .cover-page .classification {
+      font-size: 9pt;
+      color: #faf8f3;
+      opacity: 0.85;
+      margin-top: 18px;
+      padding: 6px 16px;
+      border: 1px solid #c99a2e;
+      border-radius: 3px;
+    }
+
+    /* Document Control Page */
+    .doc-control-page {
+      padding: 40px 20px;
+      page-break-after: always;
+    }
+    .doc-control-page h2 {
+      font-family: 'Noto Serif', Georgia, serif;
+      font-size: 18pt;
+      color: #7a1220;
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #7a1220;
+    }
+
+    /* Main content */
+    .content { max-width: 100%; padding: 0 8px; }
+    
+    h1 {
+      font-family: 'Noto Serif', Georgia, serif;
+      font-size: 18pt;
+      font-weight: 700;
+      color: #7a1220;
+      margin-top: 28px;
+      margin-bottom: 14px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #7a1220;
+      page-break-after: avoid;
+    }
+    h1:first-child { margin-top: 0; }
+    
+    h2 {
+      font-family: 'Noto Serif', Georgia, serif;
+      font-size: 13pt;
+      font-weight: 600;
+      color: #7a1220;
+      margin-top: 22px;
+      margin-bottom: 10px;
+      page-break-after: avoid;
+    }
+    
+    h3 {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #333333;
+      margin-top: 16px;
+      margin-bottom: 8px;
+      page-break-after: avoid;
+    }
+    
+    h4 {
+      font-size: 10pt;
+      font-weight: 600;
+      color: #333333;
+      margin-top: 12px;
+      margin-bottom: 5px;
+    }
+    
+    p { margin-bottom: 8px; text-align: justify; orphans: 3; widows: 3; }
+    ul, ol { margin-left: 18px; margin-bottom: 10px; }
+    li { margin-bottom: 3px; }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 9pt;
+      page-break-inside: avoid;
+    }
+    th {
+      background: #7a1220;
+      color: #ffffff;
+      font-weight: 600;
+      text-align: left;
+      padding: 5px 7px;
+      border: 1px solid #5a0d18;
+    }
+    td {
+      padding: 4px 7px;
+      border: 1px solid #e5e5e5;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #faf8f3; }
+    
+    code {
+      font-family: Consolas, 'Courier New', monospace;
+      font-size: 9pt;
+      background: #faf8f3;
+      padding: 1px 3px;
+      border-radius: 2px;
+      color: #7a1220;
+    }
+    pre {
+      background: #faf8f3;
+      border: 1px solid #e5e5e5;
+      border-left: 3px solid #7a1220;
+      padding: 8px;
+      margin: 10px 0;
+      font-size: 8pt;
+      white-space: pre-wrap;
+    }
+    pre code { background: none; padding: 0; }
+    
+    figure.screenshot {
+      margin: 16px 0;
+      page-break-inside: avoid;
+      text-align: center;
+    }
+    figure.screenshot img {
+      max-width: 88%;
+      height: auto;
+      border: 1px solid #e5e5e5;
+      border-radius: 3px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    figure.screenshot figcaption {
+      font-size: 8pt;
+      color: #666666;
+      font-style: italic;
+      margin-top: 5px;
+      text-align: center;
+    }
+    
+    blockquote {
+      margin: 10px 0;
+      padding: 8px 10px 8px 25px;
+      background: #faf8f3;
+      border-left: 3px solid #c99a2e;
+      font-size: 9pt;
+      page-break-inside: avoid;
+    }
+    blockquote p { margin: 0; }
+    
+    hr { border: none; border-top: 1px solid #e5e5e5; margin: 18px 0; }
+    strong { font-weight: 600; color: #7a1220; }
+    a { color: #7a1220; text-decoration: none; }
+    
+    @media print {
+      body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="cover-page">
+    <div class="temple-name">Panjagutta Sai Baba Temple</div>
+    <div class="divider"></div>
+    <div class="doc-title">User Manual</div>
+    <div class="doc-subtitle">End-User Manual</div>
+    <div class="divider"></div>
+    <div class="app-name">Temple Management & Billing System</div>
+    <div class="version-info">Version 1.0<br>September 2026</div>
+    <div class="classification">Internal Use / Client Documentation</div>
+  </div>
+  <div class="content">
+    <h1>Panjagutta Sai Baba Temple</h1>
+<hr>
+<h1>END-USER MANUAL</h1>
+<hr>
+<h2>Temple Management &amp; Billing System</h2>
+<p><strong>Version 1.0</strong>
+<strong>September 2026</strong></p>
+<hr>
+<p><strong>Classification:</strong> Internal Use / Client Documentation</p>
+<hr>
+<h1>DOCUMENT CONTROL</h1>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Document Name</strong></td>
+<td>PSBT End-User Manual</td>
+</tr>
+<tr>
+<td><strong>Application Name</strong></td>
+<td>Panjagutta Sai Baba Temple PSBT</td>
+</tr>
+<tr>
+<td><strong>Version</strong></td>
+<td>1.0</td>
+</tr>
+<tr>
+<td><strong>Release Date</strong></td>
+<td>September 2026</td>
+</tr>
+<tr>
+<td><strong>Intended Audience</strong></td>
+<td>Temple Staff (All Roles)</td>
+</tr>
+<tr>
+<td><strong>Document Purpose</strong></td>
+<td>Operational guide for daily temple management tasks</td>
+</tr>
+</tbody></table>
+<hr>
+<h1>TABLE OF CONTENTS</h1>
+<ul>
+<li><a href="#part-1--getting-started">PART 1 — GETTING STARTED</a></li>
+<li><a href="#part-2--administrator">PART 2 — ADMINISTRATOR</a></li>
+<li><a href="#part-3--counter-staff">PART 3 — COUNTER STAFF</a></li>
+<li><a href="#part-4--accountant">PART 4 — ACCOUNTANT</a></li>
+<li><a href="#part-5--poojari">PART 5 — POOJARI</a></li>
+<li><a href="#part-6--committee-member">PART 6 — COMMITTEE MEMBER</a></li>
+<li><a href="#part-7--reports-calendar-and-analytics">PART 7 — REPORTS, CALENDAR AND ANALYTICS</a></li>
+<li><a href="#part-8--backup-restore-and-system-administration">PART 8 — BACKUP, RESTORE AND SYSTEM ADMINISTRATION</a></li>
+<li><a href="#part-9--troubleshooting">PART 9 — TROUBLESHOOTING</a></li>
+<li><a href="#part-10--quick-reference">PART 10 — QUICK REFERENCE</a></li>
+<li><a href="#appendix">APPENDIX</a></li>
+</ul>
+<hr>
+<h1>PART 1 — GETTING STARTED</h1>
+<h2>1.1 About the PSBT</h2>
+<p>The Panjagutta Sai Baba Temple PSBT is a comprehensive temple management and billing system designed to help temple employees perform their daily operational tasks efficiently. The system manages:</p>
+<ul>
+<li><strong>Pooja Bookings</strong> — Booking and tracking of all pooja services</li>
+<li><strong>Donations</strong> — Recording cash, material, and sponsorship donations</li>
+<li><strong>Hundi Collections</strong> — Managing sacred collection box counting and verification</li>
+<li><strong>Auction</strong> — Recording and verifying temple auction sales</li>
+<li><strong>Annadanam</strong> — Tracking meal sponsorship programs</li>
+<li><strong>Waste Sales</strong> — Recording temple waste material sales</li>
+<li><strong>Financial Reports</strong> — Generating daily, monthly, and yearly reports</li>
+<li><strong>Daily Reconciliation</strong> — End-of-day cash and transaction closing</li>
+</ul>
+<h3>Key Features</h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Multi-Role Access</td>
+<td>Different access levels for different staff roles</td>
+</tr>
+<tr>
+<td>Secure Login</td>
+<td>Password protection with optional Two-Factor Authentication</td>
+</tr>
+<tr>
+<td>Bilingual Support</td>
+<td>English and Telugu language options</td>
+</tr>
+<tr>
+<td>Receipt Generation</td>
+<td>Automatic ticket and receipt generation</td>
+</tr>
+<tr>
+<td>Audit Trail</td>
+<td>Complete logging of all system activities</td>
+</tr>
+<tr>
+<td>Backup &amp; Restore</td>
+<td>Regular data backup capability</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>1.2 Who Uses the Portal</h2>
+<p>The PSBT is used by temple employees based on their assigned roles:</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Primary Users</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Administrator</td>
+<td>Temple Manager, IT Staff</td>
+</tr>
+<tr>
+<td>Counter Staff</td>
+<td>Billing Counter Employees</td>
+</tr>
+<tr>
+<td>Accountant</td>
+<td>Finance/Accounts Staff</td>
+</tr>
+<tr>
+<td>Poojari</td>
+<td>Temple Priests</td>
+</tr>
+<tr>
+<td>Committee Member</td>
+<td>Temple Committee Members</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>1.3 Roles and Responsibilities</h2>
+<h3>Administrator</h3>
+<ul>
+<li>Full access to all system features</li>
+<li>Creates and manages user accounts</li>
+<li>Configures system settings</li>
+<li>Manages master data (poojas, festivals, etc.)</li>
+<li>Creates backups and performs restores</li>
+<li>Reviews audit logs</li>
+</ul>
+<h3>Counter Staff</h3>
+<ul>
+<li>Creates pooja bookings</li>
+<li>Records donations</li>
+<li>Records hundi collections</li>
+<li>Records auction entries</li>
+<li>Records annadanam sponsorships</li>
+<li>Records waste sales</li>
+<li>Prints receipts and tickets</li>
+</ul>
+<h3>Accountant</h3>
+<ul>
+<li>Views all transactions (read-only)</li>
+<li>Generates financial reports</li>
+<li>Performs daily closing</li>
+<li>Reviews analytics</li>
+</ul>
+<h3>Poojari</h3>
+<ul>
+<li>Views assigned pooja queue</li>
+<li>Verifies devotee tickets</li>
+<li>Marks poojas as performed</li>
+</ul>
+<h3>Committee Member</h3>
+<ul>
+<li>Verifies hundi collections</li>
+<li>Verifies auction entries</li>
+<li>Verifies waste sales</li>
+<li>Views reports</li>
+</ul>
+<hr>
+<h2>1.4 Logging In</h2>
+<h3>Accessing the Login Page</h3>
+<p>Open your web browser and navigate to the Staff Login page at:</p>
+<pre><code>/staff-login
+</code></pre>
+<blockquote>
+<p><strong>IMPORTANT:</strong> The login URL is <code>/staff-login</code> — use this exact path.</p>
+</blockquote>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/common/01_Login_Screen.png" alt="PSBT login page showing the login form with temple branding." />
+          <figcaption>Figure 01 — PSBT login page showing the login form with temple branding.</figcaption>
+        </figure><h3>Login Fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Label</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Username</td>
+<td>Username / Employee ID</td>
+<td>Enter your assigned username or employee ID</td>
+</tr>
+<tr>
+<td>Password</td>
+<td>Password</td>
+<td>Enter your password (case-sensitive)</td>
+</tr>
+</tbody></table>
+<h3>Step-by-Step Login</h3>
+<ol>
+<li>Enter your <strong>Username / Employee ID</strong> in the first field.</li>
+<li>Enter your <strong>Password</strong> in the second field.</li>
+<li>Click the <strong>Login</strong> button.</li>
+<li>If successful, you will be redirected to the Dashboard.</li>
+</ol>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/common/02_Login_Filled.png" alt="Login form with credentials entered, ready to submit." />
+          <figcaption>Figure 02 — Login form with credentials entered, ready to submit.</figcaption>
+        </figure><h3>Error Messages</h3>
+<table>
+<thead>
+<tr>
+<th>Error</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>&quot;Invalid username or password&quot;</td>
+<td>Your credentials are incorrect. Check and try again.</td>
+</tr>
+<tr>
+<td>&quot;Too many failed login attempts. Please try again later.&quot;</td>
+<td>Your account is temporarily locked. Wait 15 minutes or contact Administrator.</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>TIP:</strong> Passwords are case-sensitive. Make sure Caps Lock is not accidentally enabled.</p>
+</blockquote>
+<hr>
+<h2>1.5 2FA / Verification</h2>
+<p>If Two-Factor Authentication (2FA) is enabled for your account, you will see an additional verification step after entering your username and password.</p>
+<h3>2FA Verification Steps</h3>
+<ol>
+<li>After entering your username and password, a verification screen appears.</li>
+<li>You will see the message: <strong>&quot;Enter the 6-digit code from your authenticator app.&quot;</strong></li>
+<li>Open your authenticator app (Google Authenticator, Authy, or similar).</li>
+<li>Find the entry for the temple portal and note the 6-digit code displayed.</li>
+<li>Enter the 6-digit code in the verification field.</li>
+<li>Click <strong>Verify &amp; Continue</strong>.</li>
+</ol>
+<h3>If the Code is Invalid</h3>
+<p>If you enter an incorrect code, you will see: &quot;Invalid verification code. X attempt(s) remaining.&quot;</p>
+<p>After multiple failed attempts, contact your Administrator for assistance.</p>
+<blockquote>
+<p><strong>IMPORTANT:</strong> The 6-digit code changes every 30 seconds. Enter the current code displayed in your authenticator app.</p>
+</blockquote>
+<hr>
+<h2>1.6 Dashboard Overview</h2>
+<p>After successful login, you will see the Dashboard. The Dashboard provides an overview of temple operations relevant to your role.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/03_Admin_Dashboard.png" alt="Administrator Dashboard showing key performance indicators and recent activity." />
+          <figcaption>Figure 03 — Administrator Dashboard showing key performance indicators and recent activity.</figcaption>
+        </figure><h3>Dashboard Elements</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Statistics Tiles</td>
+<td>Key metrics such as Today&#39;s Bookings, Today&#39;s Revenue, Active Devotees</td>
+</tr>
+<tr>
+<td>Recent Activity</td>
+<td>List of recent transactions</td>
+</tr>
+<tr>
+<td>Quick Actions</td>
+<td>Shortcuts to common tasks (New Booking, Record Donation, etc.)</td>
+</tr>
+</tbody></table>
+<h3>What You See Depends on Your Role</h3>
+<ul>
+<li><strong>Administrators</strong> see all statistics and quick actions</li>
+<li><strong>Counter Staff</strong> see billing-related statistics</li>
+<li><strong>Accountants</strong> see financial statistics</li>
+<li><strong>Poojaris</strong> see their assigned poojas</li>
+<li><strong>Committee Members</strong> see pending verifications</li>
+</ul>
+<hr>
+<h2>1.7 Navigation</h2>
+<h3>Sidebar Menu</h3>
+<p>The left sidebar provides navigation to all modules available to your role.</p>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Temple Logo</td>
+<td>Click to return to Dashboard</td>
+</tr>
+<tr>
+<td>Menu Items</td>
+<td>Links to different modules</td>
+</tr>
+<tr>
+<td>Active Item</td>
+<td>Currently selected module (highlighted)</td>
+</tr>
+<tr>
+<td>User Area</td>
+<td>Your name and logout option at bottom</td>
+</tr>
+</tbody></table>
+<h3>Common Menu Items by Role</h3>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th align="center">Admin</th>
+<th align="center">Counter</th>
+<th align="center">Accountant</th>
+<th align="center">Poojari</th>
+<th align="center">Committee</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dashboard</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+</tr>
+<tr>
+<td>Counter</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">View</td>
+</tr>
+<tr>
+<td>Devotees</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Bookings</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Donations</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">View</td>
+</tr>
+<tr>
+<td>Hundi</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">Verify</td>
+</tr>
+<tr>
+<td>Auction</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">Verify</td>
+</tr>
+<tr>
+<td>Annadanam</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">View</td>
+</tr>
+<tr>
+<td>Waste Sales</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">Verify</td>
+</tr>
+<tr>
+<td>Reports</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">Yes</td>
+</tr>
+<tr>
+<td>Analytics</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">Yes</td>
+</tr>
+<tr>
+<td>Daily Closing</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">View</td>
+</tr>
+<tr>
+<td>Users</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Settings</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Poojari Queue</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Verify Ticket</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>1.8 Language / Telugu Support</h2>
+<p>The PSBT supports both English and Telugu languages.</p>
+<h3>Switching Language</h3>
+<ol>
+<li>Look for the language toggle button in the header area (EN/తెలుగు).</li>
+<li>Click to switch between English and Telugu.</li>
+<li>All labels, buttons, and data display will update to the selected language.</li>
+</ol>
+<blockquote>
+<p><strong>TIP:</strong> Telugu names for devotees, poojas, and other data are displayed when available and the language is set to Telugu.</p>
+</blockquote>
+<hr>
+<h2>1.9 Basic Working Guidelines</h2>
+<h3>Before Starting Work</h3>
+<ol>
+<li>Log in to the PSBT using your assigned credentials.</li>
+<li>Verify you are on the correct date (check the date displayed on the screen).</li>
+<li>For Counter Staff: Ensure you have enough printer paper for receipts.</li>
+</ol>
+<h3>During Your Shift</h3>
+<ol>
+<li>Complete all required fields before submitting forms.</li>
+<li>Double-check devotee details before confirming bookings.</li>
+<li>Always collect payment before clicking <strong>Complete Billing</strong> (Cart Mode) or <strong>Book &amp; Pay</strong> (Form Mode).</li>
+<li>Print and hand over receipts to devotees immediately after transactions.</li>
+</ol>
+<h3>End of Shift</h3>
+<ol>
+<li>Review any pending transactions.</li>
+<li>For Accountants: Complete the Daily Closing process.</li>
+<li>Log out when leaving your workstation.</li>
+</ol>
+<hr>
+<h2>1.10 Logging Out</h2>
+<h3>How to Log Out</h3>
+<ol>
+<li>Look at the bottom of the sidebar navigation.</li>
+<li>Click on your user profile area.</li>
+<li>Click <strong>Logout</strong>.</li>
+<li>You will be redirected to the login page.</li>
+</ol>
+<blockquote>
+<p><strong>IMPORTANT:</strong> Always log out when leaving your workstation to prevent unauthorized access.</p>
+</blockquote>
+<hr>
+<h1>PART 2 — ADMINISTRATOR</h1>
+<h2>2.1 Administrator Overview</h2>
+<p>As an Administrator, you have full access to all system features. Your responsibilities include:</p>
+<ul>
+<li>Managing user accounts and roles</li>
+<li>Configuring system settings</li>
+<li>Managing master data (poojas, festivals, poojaris, etc.)</li>
+<li>Reviewing audit logs</li>
+<li>Creating backups and performing restores</li>
+<li>All billing and reporting functions</li>
+</ul>
+<hr>
+<h2>2.2 Dashboard</h2>
+<p>The Administrator Dashboard provides a comprehensive overview of temple operations.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/03_Admin_Dashboard.png" alt="Administrator Dashboard with statistics tiles and quick actions." />
+          <figcaption>Figure 03 — Administrator Dashboard with statistics tiles and quick actions.</figcaption>
+        </figure><h3>Key Performance Indicators</h3>
+<table>
+<thead>
+<tr>
+<th>KPI</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Today&#39;s Bookings</td>
+<td>Number of pooja bookings today</td>
+</tr>
+<tr>
+<td>Today&#39;s Revenue</td>
+<td>Total revenue collected today</td>
+</tr>
+<tr>
+<td>Active Devotees</td>
+<td>Number of active devotee records</td>
+</tr>
+<tr>
+<td>Pending Verifications</td>
+<td>Items awaiting committee verification</td>
+</tr>
+</tbody></table>
+<h3>Quick Actions</h3>
+<p>Quick action buttons provide shortcuts to common tasks:</p>
+<ul>
+<li>New Booking</li>
+<li>Record Donation</li>
+<li>Counter Billing</li>
+</ul>
+<hr>
+<h2>2.3 User Management</h2>
+<p>Navigate to <strong>Users</strong> to manage staff accounts.</p>
+<h3>Viewing Users</h3>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/24_Users_List.png" alt="User list showing all staff accounts with their roles and status." />
+          <figcaption>Figure 24 — User list showing all staff accounts with their roles and status.</figcaption>
+        </figure><h3>Creating a New User</h3>
+<ol>
+<li>Click <strong>Add New</strong> or the add button.</li>
+<li>Fill in the user details.</li>
+</ol>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/25_User_Create_Form.png" alt="User creation form with required fields." />
+          <figcaption>Figure 25 — User creation form with required fields.</figcaption>
+        </figure><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Name</td>
+<td>Full name of the user</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Username</td>
+<td>Login username</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Email</td>
+<td>Email address</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Phone</td>
+<td>Mobile number</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Password</td>
+<td>Initial password</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Role</td>
+<td>Select role (Admin, Counter Staff, etc.)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Active or Inactive</td>
+<td>Yes</td>
+</tr>
+</tbody></table>
+<h3>Password Requirements</h3>
+<p>Passwords must:</p>
+<ul>
+<li>Be at least 6 characters long</li>
+<li>Contain both letters AND numbers</li>
+</ul>
+<p><strong>Example Valid Password:</strong> Temple123</p>
+<h3>Editing a User</h3>
+<ol>
+<li>Find the user in the list.</li>
+<li>Click the Edit icon (pencil).</li>
+<li>Modify the required fields.</li>
+<li>Click <strong>Save Changes</strong>.</li>
+</ol>
+<h3>Deactivating a User</h3>
+<ol>
+<li>Find the user in the list.</li>
+<li>Click Edit.</li>
+<li>Change Status to <strong>Inactive</strong>.</li>
+<li>Click <strong>Save Changes</strong>.</li>
+</ol>
+<blockquote>
+<p><strong>IMPORTANT:</strong> Deactivating a user prevents them from logging in but preserves their activity history.</p>
+</blockquote>
+<hr>
+<h2>2.4 Role Management / Access</h2>
+<p>Navigate to <strong>Role &amp; Access</strong> to configure module permissions for each role.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/35_Role_Access.png" alt="Role access configuration showing modules and permissions for each role." />
+          <figcaption>Figure 35 — Role access configuration showing modules and permissions for each role.</figcaption>
+        </figure><h3>Configuring Role Access</h3>
+<ol>
+<li>Select a role from the list.</li>
+<li>Check or uncheck modules to grant or revoke access.</li>
+<li>Click <strong>Save</strong> to apply changes.</li>
+</ol>
+<blockquote>
+<p><strong>WARNING:</strong> Be careful when modifying role permissions. Incorrect settings may prevent staff from performing their duties.</p>
+</blockquote>
+<hr>
+<h2>2.5 Settings</h2>
+<p>Navigate to <strong>Settings</strong> to configure application settings.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/22_Settings_Temple.png" alt="Settings page showing temple information configuration." />
+          <figcaption>Figure 22 — Settings page showing temple information configuration.</figcaption>
+        </figure><h3>Settings Categories</h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Settings</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Temple</td>
+<td>Name, Address, Contact, Bank Details, Timings</td>
+</tr>
+<tr>
+<td>General</td>
+<td>Application preferences</td>
+</tr>
+<tr>
+<td>User &amp; Role</td>
+<td>Default settings for users</td>
+</tr>
+<tr>
+<td>Receipt</td>
+<td>Receipt format and numbering</td>
+</tr>
+<tr>
+<td>Security</td>
+<td>Login attempts, session timeout</td>
+</tr>
+</tbody></table>
+<h3>Saving Settings</h3>
+<ol>
+<li>Make your changes in the relevant fields.</li>
+<li>Click <strong>Save Changes</strong>.</li>
+</ol>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/42_Settings_Save_Button.png" alt="Settings page with Save Changes button." />
+          <figcaption>Figure 42 — Settings page with Save Changes button.</figcaption>
+        </figure><h3>Settings Audit</h3>
+<p>The system records who created and last modified settings:</p>
+<ul>
+<li>Created By / Created On</li>
+<li>Updated By / Updated On</li>
+</ul>
+<hr>
+<h2>2.6 Masters</h2>
+<p>Master data configuration is essential for system operation. Only Administrators can modify master data.</p>
+<h3>Pooja Master</h3>
+<p>Configure poojas and their plans (pricing, validity, etc.).</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/29_Pooja_Master.png" alt="Pooja Master list showing configured poojas." />
+          <figcaption>Figure 29 — Pooja Master list showing configured poojas.</figcaption>
+        </figure><h3>Poojari Master</h3>
+<p>Configure poojari (priest) records.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/30_Poojari_Master.png" alt="Poojari Master list showing registered priests." />
+          <figcaption>Figure 30 — Poojari Master list showing registered priests.</figcaption>
+        </figure><h3>Festival Master</h3>
+<p>Configure festivals and their date windows.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/31_Festival_Master.png" alt="Festival Master showing festival configurations." />
+          <figcaption>Figure 31 — Festival Master showing festival configurations.</figcaption>
+        </figure><h3>Other Masters</h3>
+<table>
+<thead>
+<tr>
+<th>Master</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Donation Master</td>
+<td>Configure donation categories</td>
+</tr>
+<tr>
+<td>Committee Master</td>
+<td>Configure committee member records</td>
+</tr>
+<tr>
+<td>Vendor Master</td>
+<td>Configure vendor records</td>
+</tr>
+<tr>
+<td>Auction Items</td>
+<td>Configure auction item types</td>
+</tr>
+<tr>
+<td>Hundi Items</td>
+<td>Configure hundi item types</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>2.7 Audit Logs</h2>
+<p>Navigate to <strong>Audit Trail</strong> to view all system activity.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/32_Audit_Trail.png" alt="Audit Trail showing system activity log." />
+          <figcaption>Figure 32 — Audit Trail showing system activity log.</figcaption>
+        </figure><h3>Audit Log Information</h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Date/Time</td>
+<td>When the action occurred</td>
+</tr>
+<tr>
+<td>User</td>
+<td>Who performed the action</td>
+</tr>
+<tr>
+<td>Action</td>
+<td>Type of action (Create, Update, Delete, Login)</td>
+</tr>
+<tr>
+<td>Entity</td>
+<td>What was affected</td>
+</tr>
+<tr>
+<td>Details</td>
+<td>Additional information</td>
+</tr>
+</tbody></table>
+<h3>Using Audit Logs</h3>
+<ol>
+<li>Use filters to narrow down the results (date range, user, action type).</li>
+<li>Review entries to track changes or investigate issues.</li>
+</ol>
+<blockquote>
+<p><strong>TIP:</strong> Audit logs cannot be modified or deleted. They provide a permanent record of all system activity.</p>
+</blockquote>
+<hr>
+<h2>2.8 Backup</h2>
+<p>Navigate to <strong>Backup / Restore</strong> to manage database backups.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/23_Backup_Restore.png" alt="Backup and Restore screen." />
+          <figcaption>Figure 23 — Backup and Restore screen.</figcaption>
+        </figure><h3>Creating a Backup</h3>
+<ol>
+<li>Navigate to Backup / Restore.</li>
+<li>Click <strong>Create Backup</strong>.</li>
+<li>Wait for the backup to complete.</li>
+<li>Click <strong>Download</strong> to save the backup file to your computer.</li>
+</ol>
+<blockquote>
+<p><strong>IMPORTANT:</strong> Store backup files in a secure location. They contain all temple data.</p>
+</blockquote>
+<hr>
+<h2>2.9 Restore</h2>
+<h3>Restoring from Backup</h3>
+<ol>
+<li>Navigate to Backup / Restore.</li>
+<li>Click <strong>Upload Backup File</strong>.</li>
+<li>Select a previously downloaded backup file (.json format).</li>
+<li>The system will validate the backup file.</li>
+<li>Review the summary showing what will be restored.</li>
+<li>Confirm the restore operation.</li>
+</ol>
+<blockquote>
+<p><strong>WARNING:</strong> Restore performs a controlled insert/update — it never deletes existing data. However, you should still create a fresh backup before restoring.</p>
+</blockquote>
+<hr>
+<h2>2.10 Administrative Controls</h2>
+<h3>Day Reopen</h3>
+<p>If the Daily Closing has been completed but needs to be reopened:</p>
+<ol>
+<li>Navigate to Daily Closing.</li>
+<li>Only Administrators can reopen a closed day.</li>
+<li>Use with caution — reopening affects financial records.</li>
+</ol>
+<h3>Record Deletion</h3>
+<p>Certain records may be deleted by Administrators:</p>
+<ul>
+<li>Devotees (if no associated bookings)</li>
+<li>Users (deactivate instead of delete when possible)</li>
+</ul>
+<blockquote>
+<p><strong>WARNING:</strong> Deletion is permanent. Deactivate records instead when possible.</p>
+</blockquote>
+<hr>
+<h2>2.11 Important Administrator Rules</h2>
+<ol>
+<li><strong>User Accounts:</strong> Create individual accounts for each staff member. Do not share accounts.</li>
+<li><strong>Passwords:</strong> Require staff to use strong passwords. Reset passwords periodically.</li>
+<li><strong>Backups:</strong> Create backups regularly (recommended: daily).</li>
+<li><strong>Audit Review:</strong> Review audit logs periodically to detect unusual activity.</li>
+<li><strong>Role Permissions:</strong> Assign minimum required permissions to each role.</li>
+<li><strong>Settings Changes:</strong> Document any settings changes and notify affected staff.</li>
+</ol>
+<hr>
+<h1>PART 3 — COUNTER STAFF</h1>
+<p>This section provides detailed operational instructions for Counter Staff, the primary billing operators.</p>
+<h2>3.1 Counter Staff Overview</h2>
+<p>As Counter Staff, you are responsible for:</p>
+<ul>
+<li>Creating pooja bookings</li>
+<li>Recording donations</li>
+<li>Recording hundi collections</li>
+<li>Recording auction entries</li>
+<li>Recording annadanam sponsorships</li>
+<li>Recording waste sales</li>
+<li>Printing receipts and tickets for devotees</li>
+</ul>
+<h3>What You Cannot Do</h3>
+<ul>
+<li>Delete or cancel completed transactions</li>
+<li>Access user management or settings</li>
+<li>Access reports (unless specifically granted)</li>
+</ul>
+<hr>
+<h2>3.2 Opening the Counter</h2>
+<h3>Starting Your Shift</h3>
+<ol>
+<li>Log in to the PSBT with your credentials.</li>
+<li>Navigate to <strong>Counter / Quick Billing</strong> from the sidebar.</li>
+<li>Verify the current date is displayed correctly.</li>
+<li>Ensure your receipt printer is ready.</li>
+</ol>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/04_Counter_Empty.png" alt="Counter billing screen in empty state, ready for new transactions." />
+          <figcaption>Figure 04 — Counter billing screen in empty state, ready for new transactions.</figcaption>
+        </figure><hr>
+<h2>3.3 Finding / Selecting a Devotee</h2>
+<p>The Counter uses a <strong>phone-first workflow</strong>. You enter the devotee&#39;s mobile number first, then their name.</p>
+<h3>Step-by-Step: Finding a Devotee</h3>
+<ol>
+<li><p><strong>Enter Mobile Number:</strong></p>
+<ul>
+<li>The country code defaults to +91 (India).</li>
+<li>Enter the devotee&#39;s 10-digit mobile number.</li>
+<li>As you type (after 4+ digits), the system searches for existing devotees.</li>
+</ul>
+</li>
+<li><p><strong>If Devotee Exists:</strong></p>
+<ul>
+<li>A dropdown appears with matching devotees.</li>
+<li>Click on the correct devotee to auto-fill their details (name, gothram, nakshatram).</li>
+<li>A green box shows the selected devotee&#39;s name and gothram.</li>
+</ul>
+</li>
+<li><p><strong>If Devotee is New:</strong></p>
+<ul>
+<li>Enter the devotee&#39;s name in the Name field.</li>
+<li>The system will create a new devotee record when you complete the booking.</li>
+</ul>
+</li>
+</ol>
+<h3>Clearing the Selection</h3>
+<p>If you need to start over:</p>
+<ul>
+<li>Click the <strong>Clear</strong> button next to the selected devotee&#39;s information.</li>
+</ul>
+<blockquote>
+<p><strong>TIP:</strong> Always confirm the mobile number with the devotee to avoid creating duplicate records.</p>
+</blockquote>
+<hr>
+<h2>3.4 Creating a Pooja Booking</h2>
+<h3>Booking Workflow Summary</h3>
+<ol>
+<li>Enter or select the devotee.</li>
+<li>Select a pooja category.</li>
+<li>Select a specific pooja.</li>
+<li>For Daily/Vehicle poojas: Items are added to cart.</li>
+<li>For Monthly/Occasion/Festival poojas: A form opens.</li>
+<li>Select payment method (Cash or UPI).</li>
+<li>Complete the billing.</li>
+<li>Print the receipt/ticket.</li>
+</ol>
+<hr>
+<h2>3.5 Pooja Categories</h2>
+<p>The Counter displays poojas organized by category using tab buttons:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Description</th>
+<th>Mode</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>All</td>
+<td>Shows all poojas</td>
+<td>Mixed</td>
+</tr>
+<tr>
+<td>Daily</td>
+<td>Regular daily poojas</td>
+<td>Cart Mode</td>
+</tr>
+<tr>
+<td>Monthly</td>
+<td>Monthly poojas (e.g., Sai Vratam)</td>
+<td>Form Mode</td>
+</tr>
+<tr>
+<td>Long-Term</td>
+<td>Yearly or Lifetime plans</td>
+<td>Form Mode</td>
+</tr>
+<tr>
+<td>Occasion</td>
+<td>Ceremony poojas (Namakaran, Marriage, etc.)</td>
+<td>Form Mode</td>
+</tr>
+<tr>
+<td>Festival</td>
+<td>Festival-specific poojas</td>
+<td>Form Mode</td>
+</tr>
+<tr>
+<td>Vehicle</td>
+<td>Vehicle blessing poojas</td>
+<td>Cart Mode</td>
+</tr>
+</tbody></table>
+<h3>Category Hints</h3>
+<p>When you select certain categories, helpful information boxes appear:</p>
+<ul>
+<li><strong>Monthly:</strong> &quot;Monthly poojas like Sai Vratam are performed on Pournami days. Upcoming: [dates]&quot;</li>
+</ul>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/40_Monthly_Pournami_Dates.png" alt="Monthly tab showing Pournami (full moon) dates information." />
+          <figcaption>Figure 40 — Monthly tab showing Pournami (full moon) dates information.</figcaption>
+        </figure><ul>
+<li><strong>Festival:</strong> &quot;Festival poojas are scheduled within their festival window from Festival Master.&quot;</li>
+</ul>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/44_Festival_Tab.png" alt="Festival category showing available festival poojas." />
+          <figcaption>Figure 44 — Festival category showing available festival poojas.</figcaption>
+        </figure><hr>
+<h2>3.6 Booking using Cart Mode</h2>
+<p>Cart Mode is used for <strong>Daily</strong> and <strong>Vehicle</strong> poojas. Multiple items can be added to a cart before completing the billing.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/05_Counter_Cart_Mode.png" alt="Counter in Cart Mode with a pooja added to the cart." />
+          <figcaption>Figure 05 — Counter in Cart Mode with a pooja added to the cart.</figcaption>
+        </figure><h3>Step-by-Step: Cart Mode Booking</h3>
+<p><strong>Purpose:</strong> Book daily or vehicle poojas quickly.</p>
+<p><strong>Who Can Use It:</strong> Counter Staff, Administrator</p>
+<p><strong>When to Use It:</strong> For regular daily poojas or vehicle blessings.</p>
+<p><strong>Before You Start:</strong></p>
+<ul>
+<li>Devotee mobile number is entered.</li>
+<li>Devotee name is entered or selected.</li>
+</ul>
+<p><strong>Steps:</strong></p>
+<ol>
+<li><p><strong>Select Category:</strong> Click <strong>Daily</strong> or <strong>Vehicle</strong> tab.</p>
+</li>
+<li><p><strong>Select Pooja:</strong> Click on a pooja card from the grid.</p>
+<ul>
+<li>The pooja is added to the cart (right panel).</li>
+<li>The cart shows: Pooja name, Plan, Price.</li>
+</ul>
+</li>
+<li><p><strong>Add More (Optional):</strong> Click additional poojas to add them to the cart.</p>
+</li>
+<li><p><strong>Remove Item (Optional):</strong> Click the trash icon next to an item to remove it.</p>
+</li>
+<li><p><strong>Select Payment Method:</strong></p>
+<ul>
+<li>Click <strong>Cash</strong> OR</li>
+<li>Click <strong>UPI / QR Code</strong></li>
+</ul>
+</li>
+<li><p><strong>If UPI Selected:</strong></p>
+<ul>
+<li>Enter the <strong>UTR / Transaction ID</strong> received from the devotee&#39;s payment.</li>
+<li>UTR must be 12-22 characters, alphanumeric only.</li>
+</ul>
+</li>
+<li><p><strong>Click &quot;Complete Billing&quot;</strong> (green button at bottom).</p>
+</li>
+<li><p><strong>Receipt Modal Appears:</strong></p>
+<ul>
+<li>Click <strong>Print</strong> to print the receipt.</li>
+<li>Give the printed receipt to the devotee.</li>
+</ul>
+</li>
+</ol>
+<p><strong>Expected Result:</strong> Booking is created, receipt is printed, devotee receives ticket.</p>
+<p><strong>Important Rules:</strong></p>
+<ul>
+<li>Always collect payment BEFORE clicking Complete Billing.</li>
+<li>For UPI payments, always verify the UTR is correct.</li>
+<li>Print the receipt immediately and hand it to the devotee.</li>
+</ul>
+<hr>
+<h2>3.7 Booking using Form Mode</h2>
+<p>Form Mode is used for <strong>Monthly</strong>, <strong>Long-Term</strong>, <strong>Occasion</strong>, and <strong>Festival</strong> poojas. A detailed form opens for entering additional information.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/06_Counter_Form_Mode.png" alt="Counter in Form Mode showing booking form for detailed poojas." />
+          <figcaption>Figure 06 — Counter in Form Mode showing booking form for detailed poojas.</figcaption>
+        </figure><h3>Step-by-Step: Form Mode Booking</h3>
+<p><strong>Purpose:</strong> Book poojas that require additional details (sankalpam, date, time slot, poojari assignment).</p>
+<p><strong>Who Can Use It:</strong> Counter Staff, Administrator</p>
+<p><strong>When to Use It:</strong> For monthly poojas, ceremonies, festival poojas, or lifetime registrations.</p>
+<p><strong>Before You Start:</strong></p>
+<ul>
+<li>Devotee mobile number is entered.</li>
+<li>Devotee name is entered or selected.</li>
+</ul>
+<p><strong>Steps:</strong></p>
+<ol>
+<li><p><strong>Select Category:</strong> Click <strong>Monthly</strong>, <strong>Long-Term</strong>, <strong>Occasion</strong>, or <strong>Festival</strong> tab.</p>
+</li>
+<li><p><strong>Select Pooja:</strong> Click on a pooja card.</p>
+<ul>
+<li>A form opens in the right panel.</li>
+</ul>
+</li>
+<li><p><strong>Select Plan (if multiple plans available):</strong></p>
+<ul>
+<li>Radio buttons show available plans with validity and price.</li>
+<li>Select the appropriate plan.</li>
+</ul>
+</li>
+<li><p><strong>Enter Sankalpam Details (if required):</strong></p>
+<ul>
+<li>Click the &quot;Sankalpam Details&quot; card to open the modal.</li>
+<li><strong>Gothram:</strong> Select from dropdown (52 options).</li>
+<li><strong>Nakshatram:</strong> Select from dropdown (27 options).</li>
+<li><strong>Rasi:</strong> Select from dropdown (12 zodiac signs).</li>
+<li><strong>In the name of:</strong> Enter beneficiary name.</li>
+<li><strong>Additional Participants:</strong> Add family members if needed.</li>
+<li><strong>Special Instructions:</strong> Enter any special requests.</li>
+<li>Click <strong>Done</strong> to close the modal.</li>
+</ul>
+</li>
+<li><p><strong>Select Date:</strong></p>
+<ul>
+<li>Use the date picker.</li>
+<li>For Monthly poojas: Pournami dates are highlighted.</li>
+<li>Cannot select past dates.</li>
+</ul>
+</li>
+<li><p><strong>Select Time Slot:</strong></p>
+<ul>
+<li>Choose from available slots:<ul>
+<li>06:00 AM - 07:00 AM</li>
+<li>07:30 AM - 08:30 AM</li>
+<li>09:00 AM - 10:00 AM</li>
+<li>10:30 AM - 11:30 AM</li>
+<li>12:00 PM - 01:00 PM</li>
+<li>04:00 PM - 05:00 PM</li>
+</ul>
+</li>
+<li>Cannot select past time slots for today&#39;s date.</li>
+</ul>
+</li>
+<li><p><strong>Assign Poojari (Optional):</strong></p>
+<ul>
+<li>Select a poojari from the dropdown, or leave as &quot;Not assigned&quot;.</li>
+</ul>
+</li>
+<li><p><strong>Select Payment Method:</strong></p>
+<ul>
+<li>Click <strong>Cash</strong> OR</li>
+<li>Click <strong>UPI / QR Code</strong></li>
+</ul>
+</li>
+<li><p><strong>If UPI Selected:</strong></p>
+<ul>
+<li>Enter the <strong>UTR / Transaction ID</strong>.</li>
+</ul>
+</li>
+<li><p><strong>Click &quot;Book &amp; Pay&quot;</strong> (maroon button).</p>
+</li>
+<li><p><strong>Receipt Modal Appears:</strong></p>
+<ul>
+<li>Click <strong>Print</strong> to print the receipt/ticket.</li>
+<li>Give the printed ticket to the devotee.</li>
+</ul>
+</li>
+</ol>
+<p><strong>Expected Result:</strong> Booking is created with all details, ticket is printed.</p>
+<p><strong>Important Rules:</strong></p>
+<ul>
+<li>Sankalpam details (Gothram, Nakshatram) are important for proper pooja performance.</li>
+<li>Verify the date and time slot with the devotee before confirming.</li>
+<li>For Lifetime plans, ensure devotee is registered (has full profile).</li>
+</ul>
+<hr>
+<h2>3.8 Devotee Details</h2>
+<h3>Viewing Devotees</h3>
+<p>Navigate to <strong>Devotees</strong> to view the devotee list.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/28_Devotees_List.png" alt="Devotees list showing registered devotees." />
+          <figcaption>Figure 28 — Devotees list showing registered devotees.</figcaption>
+        </figure><h3>Devotee Information</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Name</td>
+<td>Full name (English)</td>
+</tr>
+<tr>
+<td>Name (Telugu)</td>
+<td>Full name in Telugu</td>
+</tr>
+<tr>
+<td>Mobile</td>
+<td>10-digit mobile number</td>
+</tr>
+<tr>
+<td>Email</td>
+<td>Email address</td>
+</tr>
+<tr>
+<td>City</td>
+<td>City/Location</td>
+</tr>
+<tr>
+<td>Gothram</td>
+<td>Family lineage</td>
+</tr>
+<tr>
+<td>Nakshatram</td>
+<td>Birth star</td>
+</tr>
+<tr>
+<td>PAN</td>
+<td>PAN number (for 80G receipts)</td>
+</tr>
+</tbody></table>
+<h3>Creating a New Devotee</h3>
+<p>Devotees are usually created automatically during the first booking. However, you can also create devotees manually:</p>
+<ol>
+<li>Navigate to Devotees.</li>
+<li>Click <strong>Add</strong> button.</li>
+<li>Fill in the required fields (Name, Mobile).</li>
+<li>Click <strong>Save</strong>.</li>
+</ol>
+<hr>
+<h2>3.9 Pooja Details</h2>
+<p>When viewing a booking, the following pooja details are displayed:</p>
+<table>
+<thead>
+<tr>
+<th>Detail</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pooja Name</td>
+<td>Name of the pooja</td>
+</tr>
+<tr>
+<td>Plan</td>
+<td>Selected plan (One-Time, Monthly, Yearly, Lifetime)</td>
+</tr>
+<tr>
+<td>Amount</td>
+<td>Price of the booking</td>
+</tr>
+<tr>
+<td>Scheduled Date</td>
+<td>When the pooja is scheduled</td>
+</tr>
+<tr>
+<td>Time Slot</td>
+<td>Selected time slot</td>
+</tr>
+<tr>
+<td>Validity</td>
+<td>How long the booking is valid</td>
+</tr>
+<tr>
+<td>Performances</td>
+<td>Number of times the pooja can be performed</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>3.10 Date and Time Slot</h2>
+<h3>Date Selection Rules</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Daily Poojas</td>
+<td>Usually today&#39;s date</td>
+</tr>
+<tr>
+<td>Monthly Poojas</td>
+<td>Pournami (full moon) dates highlighted</td>
+</tr>
+<tr>
+<td>Festival Poojas</td>
+<td>Only within festival window</td>
+</tr>
+<tr>
+<td>All Poojas</td>
+<td>Cannot select past dates</td>
+</tr>
+</tbody></table>
+<h3>Time Slot Rules</h3>
+<ul>
+<li>Six time slots are available throughout the day.</li>
+<li>Cannot select a time slot that has already passed (for today&#39;s date).</li>
+</ul>
+<hr>
+<h2>3.11 Payment — Cash</h2>
+<h3>Recording Cash Payment</h3>
+<ol>
+<li>After selecting pooja(s), click the <strong>Cash</strong> button.</li>
+<li>The payment method is set to Cash.</li>
+<li>Collect the cash amount from the devotee.</li>
+<li>Click <strong>Complete Billing</strong> (Cart Mode) or <strong>Book &amp; Pay</strong> (Form Mode).</li>
+</ol>
+<blockquote>
+<p><strong>IMPORTANT:</strong> Always collect cash BEFORE clicking the complete button. Once clicked, the transaction is recorded.</p>
+</blockquote>
+<hr>
+<h2>3.12 Payment — UPI</h2>
+<h3>Recording UPI Payment</h3>
+<ol>
+<li>After selecting pooja(s), click the <strong>UPI / QR Code</strong> button.</li>
+<li>If configured, a QR code is displayed for the devotee to scan.</li>
+<li>The devotee completes payment using their UPI app.</li>
+<li>The devotee receives a UTR (Transaction ID) on their phone.</li>
+<li>Ask the devotee for the UTR number.</li>
+<li>Enter the UTR in the <strong>UTR / Transaction ID</strong> field.</li>
+<li>Click <strong>Complete Billing</strong> or <strong>Book &amp; Pay</strong>.</li>
+</ol>
+<hr>
+<h2>3.13 UTR Entry</h2>
+<h3>UTR Validation Rules</h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Minimum Length</td>
+<td>12 characters</td>
+</tr>
+<tr>
+<td>Maximum Length</td>
+<td>22 characters</td>
+</tr>
+<tr>
+<td>Allowed Characters</td>
+<td>Alphanumeric only (letters and numbers)</td>
+</tr>
+</tbody></table>
+<h3>Common UTR Issues</h3>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/39_Missing_UTR_Validation.png" alt="Error message when UTR is missing for UPI payment." />
+          <figcaption>Figure 39 — Error message when UTR is missing for UPI payment.</figcaption>
+        </figure><table>
+<thead>
+<tr>
+<th>Error</th>
+<th>Cause</th>
+<th>Solution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>&quot;Enter the UTR / Transaction ID.&quot;</td>
+<td>UTR field is empty</td>
+<td>Ask devotee for the UTR from their payment confirmation</td>
+</tr>
+<tr>
+<td>UTR validation failed</td>
+<td>UTR too short, too long, or contains special characters</td>
+<td>Verify UTR with devotee and enter correctly</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>TIP:</strong> The UTR is usually displayed in the devotee&#39;s UPI app payment confirmation screen. Ask them to show you or read it out.</p>
+</blockquote>
+<hr>
+<h2>3.14 Confirming the Booking</h2>
+<h3>Final Confirmation</h3>
+<p>Before clicking Complete Billing or Book &amp; Pay:</p>
+<ol>
+<li><strong>Verify Devotee:</strong> Confirm the name and mobile number.</li>
+<li><strong>Verify Pooja:</strong> Confirm the correct pooja and plan.</li>
+<li><strong>Verify Amount:</strong> Confirm the total amount.</li>
+<li><strong>Verify Payment:</strong> Ensure payment has been collected (Cash) or UTR is entered (UPI).</li>
+</ol>
+<p>Once confirmed, the booking is created and cannot be easily undone.</p>
+<hr>
+<h2>3.15 Printing the Receipt / Ticket</h2>
+<p>After successful booking, a receipt modal appears.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/08_Booking_Receipt.png" alt="Booking receipt/ticket showing all booking details." />
+          <figcaption>Figure 08 — Booking receipt/ticket showing all booking details.</figcaption>
+        </figure><h3>Receipt Contents</h3>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Temple Logo</td>
+<td>Panjagutta Sai Baba Temple branding</td>
+</tr>
+<tr>
+<td>QR Code</td>
+<td>Scannable code for verification</td>
+</tr>
+<tr>
+<td>Ticket Number</td>
+<td>Unique ticket number</td>
+</tr>
+<tr>
+<td>Receipt Number</td>
+<td>Receipt reference number</td>
+</tr>
+<tr>
+<td>Devotee Name</td>
+<td>Name and mobile</td>
+</tr>
+<tr>
+<td>Pooja Details</td>
+<td>Pooja name, plan, date, time</td>
+</tr>
+<tr>
+<td>Amount</td>
+<td>Payment amount</td>
+</tr>
+<tr>
+<td>Payment Method</td>
+<td>Cash or UPI</td>
+</tr>
+<tr>
+<td>Validity</td>
+<td>Ticket validity period</td>
+</tr>
+</tbody></table>
+<h3>Printing</h3>
+<ol>
+<li>Click the <strong>Print</strong> button in the receipt modal.</li>
+<li>Your browser&#39;s print dialog opens.</li>
+<li>Select your receipt printer.</li>
+<li>Click Print.</li>
+<li>Hand the printed ticket to the devotee.</li>
+</ol>
+<blockquote>
+<p><strong>IF SOMETHING GOES WRONG:</strong> If the print dialog doesn&#39;t appear, check that pop-ups are allowed in your browser for this site. If printing fails, navigate to Bookings, find the booking, and print from there.</p>
+</blockquote>
+<hr>
+<h2>3.16 Monthly / Yearly Duplicate Warning</h2>
+<p>When booking a Monthly or Yearly plan for a devotee who already has an active plan for the same pooja, a warning appears.</p>
+<h3>What Happens</h3>
+<ol>
+<li>An amber warning box appears with header: <strong>&quot;Active Plan Exists&quot;</strong></li>
+<li>The existing booking details are shown (ticket number, dates, validity).</li>
+<li>A checkbox appears: <strong>&quot;I have informed the devotee about the existing active plan and they wish to proceed with a new booking.&quot;</strong></li>
+</ol>
+<h3>What You Must Do</h3>
+<ol>
+<li><strong>Inform the devotee</strong> that they already have an active plan.</li>
+<li><strong>Ask if they still want to proceed</strong> with a new booking.</li>
+<li>If YES: Check the acknowledgment checkbox and proceed with booking.</li>
+<li>If NO: Remove the item and select a different pooja or plan.</li>
+</ol>
+<blockquote>
+<p><strong>IMPORTANT:</strong> You MUST check the acknowledgment checkbox before the booking button becomes enabled.</p>
+</blockquote>
+<hr>
+<h2>3.17 Lifetime Duplicate Restriction</h2>
+<p>When booking a Lifetime plan for a devotee who already has a Lifetime plan for the same pooja, the booking is <strong>BLOCKED</strong>.</p>
+<h3>What Happens</h3>
+<ol>
+<li>A red warning box appears with header: <strong>&quot;Lifetime Plan Already Exists&quot;</strong></li>
+<li>The existing booking details are shown.</li>
+<li>A message states: <strong>&quot;Duplicate Lifetime bookings are not allowed. This devotee already has a Lifetime plan for this pooja.&quot;</strong></li>
+<li>The booking button remains <strong>DISABLED</strong>.</li>
+</ol>
+<h3>What You Must Do</h3>
+<ol>
+<li><strong>Inform the devotee</strong> that they already have a Lifetime plan.</li>
+<li><strong>Do not proceed</strong> with the booking — it is not allowed.</li>
+<li>The devotee can use their existing Lifetime ticket.</li>
+</ol>
+<blockquote>
+<p><strong>IMPORTANT:</strong> Unlike Monthly/Yearly duplicates, Lifetime duplicates are completely blocked and cannot be overridden.</p>
+</blockquote>
+<hr>
+<h2>3.18 Donation Entry</h2>
+<p>Navigate to <strong>Donations</strong> to record donations.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/09_Donations_List.png" alt="Donations list showing recorded donations." />
+          <figcaption>Figure 09 — Donations list showing recorded donations.</figcaption>
+        </figure><h3>Recording a New Donation</h3>
+<ol>
+<li>Click <strong>Record Donation</strong> button.</li>
+<li>Fill in the donation form.</li>
+</ol>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/10_Donation_New_Form.png" alt="New donation form with all fields." />
+          <figcaption>Figure 10 — New donation form with all fields.</figcaption>
+        </figure><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Donor Name</td>
+<td>Name of donor</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Mobile</td>
+<td>Contact number</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Email</td>
+<td>Email address</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Amount</td>
+<td>Donation amount</td>
+<td>Yes (must be &gt; 0)</td>
+</tr>
+<tr>
+<td>Donation Type</td>
+<td>Select from master list</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Payment Mode</td>
+<td>Cash or UPI</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Transaction ID (UTR)</td>
+<td>Required if UPI</td>
+<td>Conditional</td>
+</tr>
+<tr>
+<td>PAN Number</td>
+<td>Required for 80G</td>
+<td>Conditional</td>
+</tr>
+<tr>
+<td>Remarks</td>
+<td>Additional notes</td>
+<td>No</td>
+</tr>
+</tbody></table>
+<ol start="3">
+<li>Click <strong>Save</strong> or <strong>Save &amp; Generate Receipt</strong>.</li>
+</ol>
+<p><strong>Expected Result:</strong> Donation is recorded, receipt can be printed.</p>
+<hr>
+<h2>3.19 80G Donation</h2>
+<p>For donations eligible for 80G tax benefit (Indian Income Tax exemption):</p>
+<h3>Requirements</h3>
+<ol>
+<li><strong>PAN Number:</strong> The donor&#39;s PAN must be recorded.</li>
+<li><strong>Email:</strong> Recommended for sending 80G receipt.</li>
+<li><strong>Amount:</strong> Must meet minimum threshold (refer to temple&#39;s operational procedures).</li>
+</ol>
+<h3>Recording 80G Donation</h3>
+<ol>
+<li>Enter all standard donation fields.</li>
+<li>Enter the donor&#39;s <strong>PAN Number</strong> (format: AAAAA1234A).</li>
+<li>Check the <strong>80G Receipt</strong> option if available.</li>
+<li>Complete the donation.</li>
+</ol>
+<blockquote>
+<p><strong>TIP:</strong> Medical category donations may have 80G automatically enabled.</p>
+</blockquote>
+<hr>
+<h2>3.20 Material Donation</h2>
+<p>For non-cash donations (oil, rice, flowers, items):</p>
+<ol>
+<li>Select <strong>Donation Type</strong> as &quot;Material&quot;.</li>
+<li>Enter <strong>Quantity</strong> (must be &gt; 0).</li>
+<li>Select <strong>Unit</strong> (kg, liters, pieces, etc.).</li>
+<li>Enter estimated <strong>Value</strong> if applicable.</li>
+<li>Add remarks describing the materials.</li>
+</ol>
+<hr>
+<h2>3.21 Sponsorship Donation</h2>
+<p>For event or program sponsorships:</p>
+<ol>
+<li>Select <strong>Donation Type</strong> as &quot;Sponsorship&quot;.</li>
+<li>Enter the sponsorship amount.</li>
+<li>Add remarks describing what is being sponsored.</li>
+</ol>
+<hr>
+<h2>3.22 Hundi Entry</h2>
+<p>Navigate to <strong>Hundi</strong> to record hundi (sacred collection box) collections.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/11_Hundi_List.png" alt="Hundi collections list showing recorded collections." />
+          <figcaption>Figure 11 — Hundi collections list showing recorded collections.</figcaption>
+        </figure><h3>Recording a Hundi Collection</h3>
+<ol>
+<li>Click <strong>Record Hundi Collection</strong> button.</li>
+<li>Fill in the collection form.</li>
+</ol>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/12_Hundi_New_Form.png" alt="New hundi collection form." />
+          <figcaption>Figure 12 — New hundi collection form.</figcaption>
+        </figure><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Collection Date</td>
+<td>When hundi was opened</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Hundi Location</td>
+<td>Which hundi box</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Committee Members</td>
+<td>Witnesses/verifiers</td>
+<td>Yes (at least one)</td>
+</tr>
+<tr>
+<td>Item Lines</td>
+<td>Denomination/item breakdown</td>
+<td>Yes (at least one)</td>
+</tr>
+</tbody></table>
+<h3>Adding Item Lines</h3>
+<p>For each denomination or item type:</p>
+<ul>
+<li>Select item type (Notes, Coins, Foreign Currency, Jewellery, etc.)</li>
+<li>Enter quantity</li>
+<li>Enter value</li>
+<li>Add remarks if needed</li>
+</ul>
+<ol start="3">
+<li>Click <strong>Submit for Verification</strong>.</li>
+</ol>
+<p><strong>Expected Result:</strong> Hundi collection is recorded with status &quot;Pending Verification&quot;.</p>
+<hr>
+<h2>3.23 Hundi Verification / Related Workflow</h2>
+<p>After recording, hundi collections require Committee verification.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/13_Hundi_Verification.png" alt="Hundi collection showing verification status." />
+          <figcaption>Figure 13 — Hundi collection showing verification status.</figcaption>
+        </figure><h3>Verification Status</h3>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pending Verification</td>
+<td>Awaiting committee review</td>
+</tr>
+<tr>
+<td>Verified</td>
+<td>Approved by committee</td>
+</tr>
+<tr>
+<td>Rejected</td>
+<td>Rejected by committee (reason provided)</td>
+</tr>
+</tbody></table>
+<h3>After Verification</h3>
+<p>Once verified, additional actions become available:</p>
+<ul>
+<li><strong>Deposit:</strong> Record bank deposit (bank name, reference number)</li>
+<li><strong>Store Valuables:</strong> Record custody of non-cash items (storage location, custodian)</li>
+</ul>
+<blockquote>
+<p><strong>IMPORTANT:</strong> Counter Staff cannot verify their own hundi submissions. Verification must be done by a Committee member.</p>
+</blockquote>
+<hr>
+<h2>3.24 Auction</h2>
+<p>Navigate to <strong>Auction</strong> to record temple auction sales.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/14_Auction_List.png" alt="Auction list showing auction entries." />
+          <figcaption>Figure 14 — Auction list showing auction entries.</figcaption>
+        </figure><h3>Scheduling an Auction</h3>
+<ol>
+<li>Click <strong>Schedule Auction</strong> button.</li>
+</ol>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/15_Auction_New_Form.png" alt="Auction scheduling form." />
+          <figcaption>Figure 15 — Auction scheduling form.</figcaption>
+        </figure><ol start="2">
+<li><p>Fill in the auction details:</p>
+<ul>
+<li>Item (select from master)</li>
+<li>Auction Date (cannot be past date)</li>
+<li>Base Amount</li>
+<li>Description</li>
+</ul>
+</li>
+<li><p>Click <strong>Save</strong>.</p>
+</li>
+</ol>
+<h3>Recording Auction Result</h3>
+<p>After the auction is conducted:</p>
+<ol>
+<li>Find the auction in the list.</li>
+<li>Click <strong>Record Result</strong>.</li>
+<li>Enter:<ul>
+<li>Highest Bid amount</li>
+<li>Winner Name</li>
+<li>Check &quot;Close Auction&quot; if completed</li>
+</ul>
+</li>
+<li>Click <strong>Save</strong>.</li>
+</ol>
+<p><strong>Expected Result:</strong> Auction result recorded, awaits committee verification.</p>
+<blockquote>
+<p><strong>IMPORTANT:</strong> Cannot record results for future-dated auctions.</p>
+</blockquote>
+<hr>
+<h2>3.25 Annadanam</h2>
+<p>Navigate to <strong>Annadanam</strong> to record meal sponsorships.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/26_Annadanam_List.png" alt="Annadanam records showing meal sponsorships." />
+          <figcaption>Figure 26 — Annadanam records showing meal sponsorships.</figcaption>
+        </figure><h3>Recording Annadanam</h3>
+<ol>
+<li>Click <strong>Add</strong> or <strong>Record Annadanam</strong> button.</li>
+<li>Fill in the details:<ul>
+<li>Sponsor name (search existing devotees or enter new)</li>
+<li>Date</li>
+<li>Occasion (General, Birthday, Wedding Anniversary, etc.)</li>
+<li>Number of Persons</li>
+<li>Rate per plate (default from settings, typically Rs. 50)</li>
+<li>Amount (calculated automatically: persons x rate)</li>
+<li>Payment Method</li>
+</ul>
+</li>
+<li>Click <strong>Save</strong>.</li>
+</ol>
+<p><strong>Expected Result:</strong> Annadanam recorded, receipt can be printed.</p>
+<hr>
+<h2>3.26 Waste Sales</h2>
+<p>Navigate to <strong>Waste Sales</strong> to record temple waste material sales.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/27_Waste_Sales_List.png" alt="Waste sales records." />
+          <figcaption>Figure 27 — Waste sales records.</figcaption>
+        </figure><h3>Recording Waste Sale</h3>
+<ol>
+<li>Click <strong>Add</strong> or <strong>Record Sale</strong> button.</li>
+<li>Fill in the details:<ul>
+<li>Buyer (select existing devotee/vendor or enter name)</li>
+<li>Material Type (select from list: Paper, Plastic, Metal, etc.)</li>
+<li>Quantity</li>
+<li>Unit (kg, Tonne, Piece, Bundle)</li>
+<li>Rate per unit</li>
+<li>Amount (calculated automatically)</li>
+<li>Payment details</li>
+</ul>
+</li>
+<li>Click <strong>Save</strong> or <strong>Submit for Verification</strong>.</li>
+</ol>
+<p><strong>Expected Result:</strong> Waste sale recorded, awaits committee verification.</p>
+<hr>
+<h2>3.27 Correcting Common Entry Problems</h2>
+<h3>Mobile Number Validation Error</h3>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/36_Error_Mobile_Validation.png" alt="Mobile number validation error message." />
+          <figcaption>Figure 36 — Mobile number validation error message.</figcaption>
+        </figure><p><strong>Problem:</strong> &quot;Invalid Mobile Number. Please Enter Valid Mobile Number&quot;</p>
+<p><strong>Possible Reason:</strong></p>
+<ul>
+<li>Mobile number is not 10 digits</li>
+<li>Mobile number doesn&#39;t start with 6, 7, 8, or 9</li>
+</ul>
+<p><strong>What to Do:</strong></p>
+<ul>
+<li>Verify the correct mobile number with the devotee</li>
+<li>Ensure you enter exactly 10 digits</li>
+<li>Don&#39;t include country code in the mobile field</li>
+</ul>
+<h3>Name Missing Error</h3>
+<p><strong>Problem:</strong> &quot;Enter the devotee / payer name.&quot;</p>
+<p><strong>What to Do:</strong></p>
+<ul>
+<li>Enter the devotee&#39;s name in the Name field</li>
+<li>Name must be at least 2 characters</li>
+</ul>
+<h3>UTR Missing Error</h3>
+<p><strong>Problem:</strong> &quot;Enter the UTR / Transaction ID.&quot;</p>
+<p><strong>What to Do:</strong></p>
+<ul>
+<li>Ask the devotee for the UTR from their UPI payment confirmation</li>
+<li>Enter the UTR before completing the transaction</li>
+</ul>
+<h3>Empty Cart Error</h3>
+<p><strong>Problem:</strong> Complete Billing button is disabled (grayed out)</p>
+<p><strong>What to Do:</strong></p>
+<ul>
+<li>Add at least one pooja to the cart before attempting to complete billing</li>
+</ul>
+<hr>
+<h2>3.28 Counter Staff Restrictions</h2>
+<h3>What You CANNOT Do</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Restriction</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Delete Bookings</td>
+<td>Not allowed</td>
+</tr>
+<tr>
+<td>Cancel Completed Transactions</td>
+<td>Not allowed</td>
+</tr>
+<tr>
+<td>Access Reports</td>
+<td>Not available (unless specifically granted)</td>
+</tr>
+<tr>
+<td>Access Settings</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Create Users</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Verify Hundi/Auction/Waste Sales</td>
+<td>Not allowed (Committee only)</td>
+</tr>
+<tr>
+<td>Modify Master Data</td>
+<td>Not available</td>
+</tr>
+</tbody></table>
+<h3>If You Need to Correct a Transaction</h3>
+<p>Contact your Administrator. They can review the situation and make corrections if needed.</p>
+<hr>
+<h2>3.29 End-of-Day Counter Responsibilities</h2>
+<h3>Before Leaving Your Shift</h3>
+<ol>
+<li><p><strong>Complete All Pending Transactions:</strong></p>
+<ul>
+<li>Ensure all devotees have received their receipts/tickets.</li>
+<li>Do not leave transactions incomplete.</li>
+</ul>
+</li>
+<li><p><strong>Count Your Cash:</strong></p>
+<ul>
+<li>Count the cash collected during your shift.</li>
+<li>Note the total for handover to Accountant or next shift.</li>
+</ul>
+</li>
+<li><p><strong>Review Your Activity:</strong></p>
+<ul>
+<li>Navigate to Bookings and filter by today.</li>
+<li>Verify all your transactions are recorded correctly.</li>
+</ul>
+</li>
+<li><p><strong>Handover:</strong></p>
+<ul>
+<li>Hand over cash to the designated person.</li>
+<li>Report any issues or discrepancies.</li>
+</ul>
+</li>
+<li><p><strong>Log Out:</strong></p>
+<ul>
+<li>Click Logout in the sidebar.</li>
+<li>Do not leave your session open.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h1>PART 4 — ACCOUNTANT</h1>
+<h2>4.1 Accountant Overview</h2>
+<p>As an Accountant, your primary responsibilities are:</p>
+<ul>
+<li>Viewing financial transactions (read-only access)</li>
+<li>Generating reports</li>
+<li>Performing Daily Closing (cash reconciliation)</li>
+<li>Reviewing analytics</li>
+</ul>
+<h3>What You Cannot Do</h3>
+<ul>
+<li>Create bookings or transactions</li>
+<li>Modify any records</li>
+<li>Access user management or settings</li>
+</ul>
+<hr>
+<h2>4.2 Dashboard</h2>
+<p>The Accountant Dashboard shows financial metrics relevant to your role.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/accountant/37_Accountant_View_Only.png" alt="Accountant view showing view-only access indicators." />
+          <figcaption>Figure 37 — Accountant view showing view-only access indicators.</figcaption>
+        </figure><p>When you access transaction screens (like Counter or Bookings), you will see:</p>
+<ul>
+<li>Blue info bar: <strong>&quot;View-only access — the Accountant role cannot issue receipts.&quot;</strong></li>
+<li>Buttons show <strong>&quot;View Only&quot;</strong> instead of action buttons.</li>
+</ul>
+<hr>
+<h2>4.3 Daily Closing</h2>
+<p>Daily Closing is your primary end-of-day responsibility.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/20_Daily_Closing.png" alt="Daily Closing screen showing day summary and reconciliation." />
+          <figcaption>Figure 20 — Daily Closing screen showing day summary and reconciliation.</figcaption>
+        </figure><h3>Purpose of Daily Closing</h3>
+<p>Daily Closing ensures that:</p>
+<ul>
+<li>All transactions are properly recorded</li>
+<li>Cash collected matches expected amounts</li>
+<li>Any variances are documented</li>
+<li>The day is finalized for accounting purposes</li>
+</ul>
+<hr>
+<h2>4.4 Reviewing Daily Transactions</h2>
+<p>Before closing the day, review all transactions:</p>
+<h3>Transaction Summary</h3>
+<p>The Daily Closing screen shows:</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Cash</th>
+<th>UPI</th>
+<th>Total</th>
+<th>Count</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Bookings</td>
+<td>Amount</td>
+<td>Amount</td>
+<td>Amount</td>
+<td>Count</td>
+</tr>
+<tr>
+<td>Donations</td>
+<td>Amount</td>
+<td>Amount</td>
+<td>Amount</td>
+<td>Count</td>
+</tr>
+<tr>
+<td>Hundi</td>
+<td>Amount</td>
+<td>-</td>
+<td>Amount</td>
+<td>Count</td>
+</tr>
+<tr>
+<td>Annadanam</td>
+<td>Amount</td>
+<td>Amount</td>
+<td>Amount</td>
+<td>Count</td>
+</tr>
+<tr>
+<td>Other</td>
+<td>Amount</td>
+<td>Amount</td>
+<td>Amount</td>
+<td>Count</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>Sum</strong></td>
+<td><strong>Sum</strong></td>
+<td><strong>Sum</strong></td>
+<td><strong>Sum</strong></td>
+</tr>
+</tbody></table>
+<h3>Expected Cash</h3>
+<p>The system calculates the expected cash based on all cash transactions recorded during the day.</p>
+<hr>
+<h2>4.5 Closing the Day</h2>
+<h3>Step-by-Step Daily Closing</h3>
+<p><strong>Purpose:</strong> Reconcile and finalize the day&#39;s transactions.</p>
+<p><strong>Who Can Use It:</strong> Accountant, Administrator, Committee</p>
+<p><strong>When to Use It:</strong> At the end of each business day.</p>
+<p><strong>Steps:</strong></p>
+<ol>
+<li><p>Navigate to <strong>Daily Closing</strong>.</p>
+</li>
+<li><p><strong>Review Summary:</strong></p>
+<ul>
+<li>Check the transaction counts and amounts.</li>
+<li>Ensure all modules show correct totals.</li>
+</ul>
+</li>
+<li><p><strong>Enter Actual Cash:</strong></p>
+<ul>
+<li>Enter the physical cash count by denomination:<ul>
+<li>Rs. 2000 notes x [count]</li>
+<li>Rs. 500 notes x [count]</li>
+<li>Rs. 200 notes x [count]</li>
+<li>Rs. 100 notes x [count]</li>
+<li>Rs. 50 notes x [count]</li>
+<li>Rs. 20 notes x [count]</li>
+<li>Rs. 10 notes x [count]</li>
+<li>Coins</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p><strong>Check Variance:</strong></p>
+<ul>
+<li>System calculates: Variance = Actual Cash - Expected Cash</li>
+<li>If variance exists, document the reason.</li>
+</ul>
+</li>
+<li><p><strong>Click &quot;Close the Day&quot;</strong></p>
+</li>
+<li><p><strong>Confirm:</strong></p>
+<ul>
+<li>Read the confirmation message: &quot;Once finalised, no further transactions can be recorded&quot;</li>
+<li>Confirm to proceed.</li>
+</ul>
+</li>
+</ol>
+<p><strong>Expected Result:</strong> Day is closed, no further transactions can be recorded for that date.</p>
+<blockquote>
+<p><strong>WARNING:</strong> Once a day is closed, only an Administrator can reopen it. Ensure all transactions are complete before closing.</p>
+</blockquote>
+<hr>
+<h2>4.6 Financial Reports</h2>
+<p>Navigate to <strong>Reports</strong> to generate financial reports.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/21_Reports_Page.png" alt="Reports page showing report categories and options." />
+          <figcaption>Figure 21 — Reports page showing report categories and options.</figcaption>
+        </figure><h3>Report Categories</h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Reports Available</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Pooja Reports</strong></td>
+<td>Daily Booking Summary, Monthly Booking Report, Pooja-wise Collection, Plan-wise Analysis</td>
+</tr>
+<tr>
+<td><strong>Donation Reports</strong></td>
+<td>Daily Donation Summary, Donation Type Analysis, 80G Certificate Report</td>
+</tr>
+<tr>
+<td><strong>Collection Reports</strong></td>
+<td>Hundi Summary, Auction Summary, Waste Sales Report, Annadanam Report</td>
+</tr>
+<tr>
+<td><strong>General Reports</strong></td>
+<td>Daily Revenue Summary, Monthly Revenue, Payment Mode Report</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4.7 Report Filters</h2>
+<p>Each report can be filtered by various criteria:</p>
+<table>
+<thead>
+<tr>
+<th>Filter</th>
+<th>Options</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Date Range</td>
+<td>Custom dates or presets</td>
+</tr>
+<tr>
+<td>Category</td>
+<td>Filter by category</td>
+</tr>
+<tr>
+<td>Payment Mode</td>
+<td>Cash, UPI, or All</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Filter by status</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4.8 Date Presets</h2>
+<p>Quick date range selection is available:</p>
+<table>
+<thead>
+<tr>
+<th>Preset</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Today</td>
+<td>Current date only</td>
+</tr>
+<tr>
+<td>This Week</td>
+<td>Current week</td>
+</tr>
+<tr>
+<td>This Month</td>
+<td>Current month</td>
+</tr>
+<tr>
+<td>Last Month</td>
+<td>Previous month</td>
+</tr>
+<tr>
+<td>This Year</td>
+<td>Current year</td>
+</tr>
+<tr>
+<td>Custom Range</td>
+<td>Select specific dates</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4.9 Exporting Reports</h2>
+<p>Reports can be exported in multiple formats.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/43_Reports_Export_Options.png" alt="Report export options showing PDF and Excel buttons." />
+          <figcaption>Figure 43 — Report export options showing PDF and Excel buttons.</figcaption>
+        </figure><h3>Export Options</h3>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Excel</td>
+<td>Further analysis, data manipulation</td>
+</tr>
+<tr>
+<td>PDF</td>
+<td>Printing, official records</td>
+</tr>
+</tbody></table>
+<h3>How to Export</h3>
+<ol>
+<li>Generate the report with your filters.</li>
+<li>Click the <strong>Export</strong> button.</li>
+<li>Select format (Excel or PDF).</li>
+<li>The file downloads to your computer.</li>
+</ol>
+<hr>
+<h2>4.10 Reviewing Pooja / Donation / Hundi / Auction / Annadanam Data</h2>
+<p>You can view all transaction data in read-only mode.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/accountant/38_Accountant_Donations_View.png" alt="Accountant viewing donations in read-only mode." />
+          <figcaption>Figure 38 — Accountant viewing donations in read-only mode.</figcaption>
+        </figure><h3>Navigation</h3>
+<ul>
+<li>Navigate to any module (Bookings, Donations, Hundi, etc.)</li>
+<li>View all records</li>
+<li>Use filters to find specific transactions</li>
+<li>Cannot modify any data</li>
+</ul>
+<hr>
+<h2>4.11 View-Only Restrictions</h2>
+<h3>What You See</h3>
+<p>When accessing transaction modules:</p>
+<ul>
+<li>All records are visible</li>
+<li>Filter and search functions work normally</li>
+<li>Export functions are available</li>
+</ul>
+<h3>What You Cannot Do</h3>
+<ul>
+<li>Create new records</li>
+<li>Edit existing records</li>
+<li>Delete records</li>
+<li>Verify records</li>
+<li>Print new receipts (only view existing)</li>
+</ul>
+<hr>
+<h2>4.12 End-of-Day Responsibilities</h2>
+<h3>Accountant Checklist</h3>
+<ol>
+<li><p><strong>Review All Transactions:</strong></p>
+<ul>
+<li>Check Bookings for the day</li>
+<li>Check Donations for the day</li>
+<li>Check other modules</li>
+</ul>
+</li>
+<li><p><strong>Verify Totals:</strong></p>
+<ul>
+<li>Ensure transaction counts match counter staff reports</li>
+<li>Identify any discrepancies</li>
+</ul>
+</li>
+<li><p><strong>Perform Daily Closing:</strong></p>
+<ul>
+<li>Navigate to Daily Closing</li>
+<li>Enter physical cash count</li>
+<li>Document any variance</li>
+<li>Close the day</li>
+</ul>
+</li>
+<li><p><strong>Generate Reports:</strong></p>
+<ul>
+<li>Generate Daily Summary report</li>
+<li>Save/print for records</li>
+</ul>
+</li>
+<li><p><strong>Log Out:</strong></p>
+<ul>
+<li>Secure your session when complete</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h1>PART 5 — POOJARI</h1>
+<h2>5.1 Poojari Overview</h2>
+<p>As a Poojari (Priest), your responsibilities are:</p>
+<ul>
+<li>Viewing your assigned pooja queue</li>
+<li>Verifying devotee tickets</li>
+<li>Marking poojas as performed</li>
+</ul>
+<h3>What You Cannot Do</h3>
+<ul>
+<li>Access billing or financial modules</li>
+<li>Access reports</li>
+<li>Create or modify any records</li>
+<li>Access administration features</li>
+</ul>
+<hr>
+<h2>5.2 Pooja Queue</h2>
+<p>Navigate to <strong>My Poojas</strong> or <strong>Poojari Queue</strong> to see your assigned poojas.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/16_Poojari_Queue.png" alt="Poojari Queue showing assigned poojas for the day." />
+          <figcaption>Figure 16 — Poojari Queue showing assigned poojas for the day.</figcaption>
+        </figure><h3>Queue Display</h3>
+<p>The queue shows:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Time Slot</td>
+<td>Scheduled time</td>
+</tr>
+<tr>
+<td>Devotee</td>
+<td>Devotee name</td>
+</tr>
+<tr>
+<td>Pooja</td>
+<td>Pooja type</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Pending, Confirmed, Completed</td>
+</tr>
+</tbody></table>
+<h3>Status Colors</h3>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Color</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Completed</td>
+<td>Green (Emerald)</td>
+<td>Pooja performed</td>
+</tr>
+<tr>
+<td>Confirmed</td>
+<td>Amber</td>
+<td>Booking confirmed, awaiting performance</td>
+</tr>
+<tr>
+<td>Pending</td>
+<td>Gray</td>
+<td>Awaiting confirmation</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5.3 Date Filters</h2>
+<p>Filter your queue by date:</p>
+<table>
+<thead>
+<tr>
+<th>Filter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Today</td>
+<td>Show today&#39;s poojas only</td>
+</tr>
+<tr>
+<td>Yesterday</td>
+<td>Show yesterday&#39;s poojas</td>
+</tr>
+<tr>
+<td>This Week</td>
+<td>Show current week</td>
+</tr>
+<tr>
+<td>This Month</td>
+<td>Show current month</td>
+</tr>
+<tr>
+<td>Custom</td>
+<td>Select specific date range</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5.4 My Poojas</h2>
+<p>The &quot;My Poojas&quot; filter shows only poojas assigned to you specifically.</p>
+<h3>Enabling My Poojas Filter</h3>
+<ol>
+<li>Look for the filter options on the queue page.</li>
+<li>Enable &quot;My Poojas&quot; or &quot;Assigned to me&quot; filter.</li>
+<li>Queue updates to show only your assignments.</li>
+</ol>
+<hr>
+<h2>5.5 Checking a Ticket</h2>
+<p>Before performing a pooja, you should verify the devotee&#39;s ticket.</p>
+<h3>Navigate to Verify Ticket</h3>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/17_Verify_Ticket_Empty.png" alt="Verify Ticket screen ready for ticket entry." />
+          <figcaption>Figure 17 — Verify Ticket screen ready for ticket entry.</figcaption>
+        </figure><hr>
+<h2>5.6 Verify Ticket</h2>
+<h3>Step-by-Step Ticket Verification</h3>
+<p><strong>Purpose:</strong> Confirm a devotee&#39;s ticket is valid before performing their pooja.</p>
+<p><strong>Steps:</strong></p>
+<ol>
+<li><p>Navigate to <strong>Verify Ticket</strong>.</p>
+</li>
+<li><p><strong>Enter Ticket Number:</strong></p>
+<ul>
+<li>Field label: &quot;Ticket / Receipt Number&quot;</li>
+<li>Placeholder example: &quot;e.g. RCPT2607210001&quot;</li>
+<li>Scan the QR code OR enter the number manually.</li>
+</ul>
+</li>
+</ol>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/18_Verify_Ticket_Search.png" alt="Verify Ticket with ticket number entered." />
+          <figcaption>Figure 18 — Verify Ticket with ticket number entered.</figcaption>
+        </figure><ol start="3">
+<li><p><strong>Click &quot;Verify&quot;</strong> button.</p>
+</li>
+<li><p><strong>View Results:</strong></p>
+</li>
+</ol>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/19_Verify_Ticket_Result.png" alt="Verification result showing ticket validity and details." />
+          <figcaption>Figure 19 — Verification result showing ticket validity and details.</figcaption>
+        </figure><hr>
+<h2>5.7 Valid / Invalid Ticket</h2>
+<h3>Valid Ticket</h3>
+<p>A valid ticket shows:</p>
+<ul>
+<li><strong>Green banner:</strong> &quot;Valid — ready for pooja&quot;</li>
+<li>Devotee details (name, mobile)</li>
+<li>Pooja details (name, plan, date, time)</li>
+<li>Performances remaining (e.g., &quot;3 of 12 · 9 left&quot;)</li>
+<li>Validity period</li>
+</ul>
+<h3>Invalid Ticket</h3>
+<p>An invalid ticket shows:</p>
+<ul>
+<li><strong>Amber banner:</strong> With reason for invalidity</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Reason</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>&quot;Already performed today&quot;</td>
+<td>This pooja was already marked as performed today</td>
+</tr>
+<tr>
+<td>&quot;Expired — validity ended&quot;</td>
+<td>Ticket validity has expired</td>
+</tr>
+<tr>
+<td>&quot;Cancelled booking&quot;</td>
+<td>This booking was cancelled</td>
+</tr>
+<tr>
+<td>&quot;All performances completed&quot;</td>
+<td>All allowed performances have been used</td>
+</tr>
+<tr>
+<td>&quot;Booking not found&quot;</td>
+<td>Ticket number not recognized</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5.8 Viewing Pooja Details</h2>
+<p>When a ticket is verified, you can see:</p>
+<table>
+<thead>
+<tr>
+<th>Detail</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pooja Name</td>
+<td>The type of pooja</td>
+</tr>
+<tr>
+<td>Plan</td>
+<td>The booking plan</td>
+</tr>
+<tr>
+<td>Ticket Number</td>
+<td>Unique ticket ID</td>
+</tr>
+<tr>
+<td>Devotee</td>
+<td>Name and contact</td>
+</tr>
+<tr>
+<td>Scheduled Date</td>
+<td>When booked for</td>
+</tr>
+<tr>
+<td>Time Slot</td>
+<td>Scheduled time</td>
+</tr>
+<tr>
+<td>Gothram</td>
+<td>Family lineage (if provided)</td>
+</tr>
+<tr>
+<td>Nakshatram</td>
+<td>Birth star (if provided)</td>
+</tr>
+<tr>
+<td>Beneficiary</td>
+<td>In whose name (if specified)</td>
+</tr>
+<tr>
+<td>Performances</td>
+<td>X of Y performed, Z remaining</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5.9 Mark Pooja Performed</h2>
+<p>After verifying a valid ticket and performing the pooja:</p>
+<h3>Steps</h3>
+<ol>
+<li>On the verification result screen, click <strong>&quot;Mark Pooja Performed&quot;</strong> button.</li>
+<li>The system records the performance.</li>
+<li>The performance count is updated.</li>
+<li>Verdict changes to show the pooja was performed.</li>
+</ol>
+<h3>After Marking</h3>
+<ul>
+<li>&quot;Performances&quot; count updates (e.g., &quot;4 of 12 · 8 left&quot;)</li>
+<li>If all performances are complete: &quot;All performances completed&quot;</li>
+</ul>
+<hr>
+<h2>5.10 Mark All</h2>
+<p>For bulk marking of poojas:</p>
+<ol>
+<li>Navigate to Poojari Queue.</li>
+<li>Click <strong>&quot;Mark All&quot;</strong> button (if available).</li>
+<li>Confirm the bulk action when prompted.</li>
+<li>All due poojas are marked as performed.</li>
+</ol>
+<blockquote>
+<p><strong>WARNING:</strong> Use &quot;Mark All&quot; carefully. Ensure all poojas have actually been performed before marking them.</p>
+</blockquote>
+<hr>
+<h2>5.11 Handling Invalid / Already Used Tickets</h2>
+<h3>If Ticket is Invalid</h3>
+<ol>
+<li>Explain to the devotee why the ticket is invalid.</li>
+<li>Refer them to the Counter for assistance.</li>
+<li>Do NOT perform the pooja without a valid ticket.</li>
+</ol>
+<h3>Common Scenarios</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>What to Do</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Already performed today</td>
+<td>Inform devotee, they can return tomorrow</td>
+</tr>
+<tr>
+<td>Expired ticket</td>
+<td>Refer to Counter for rebooking</td>
+</tr>
+<tr>
+<td>Cancelled booking</td>
+<td>Refer to Counter</td>
+</tr>
+<tr>
+<td>Not found</td>
+<td>Verify ticket number, refer to Counter</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5.12 Poojari Restrictions</h2>
+<h3>What You Cannot Do</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Restriction</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Create bookings</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Access Counter</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Access Reports</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Access Admin functions</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Modify booking details</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Cancel bookings</td>
+<td>Not available</td>
+</tr>
+</tbody></table>
+<h3>If You Need Help</h3>
+<p>Contact the Counter Staff or Administrator for any issues with bookings or devotee records.</p>
+<hr>
+<h1>PART 6 — COMMITTEE MEMBER</h1>
+<h2>6.1 Committee Member Overview</h2>
+<p>As a Committee Member, your primary responsibility is <strong>verification</strong>. You verify and approve:</p>
+<ul>
+<li>Hundi collections</li>
+<li>Auction entries</li>
+<li>Waste sales</li>
+</ul>
+<p>You also have:</p>
+<ul>
+<li>Read access to reports and analytics</li>
+<li>View access to other modules</li>
+</ul>
+<hr>
+<h2>6.2 Verification Responsibilities</h2>
+<h3>Why Verification is Important</h3>
+<p>Verification ensures:</p>
+<ul>
+<li>Accuracy of recorded amounts</li>
+<li>Accountability for temple funds</li>
+<li>Proper documentation</li>
+<li>Prevention of errors or discrepancies</li>
+</ul>
+<h3>Two-Person Rule</h3>
+<ul>
+<li>The creator of a record cannot verify their own submission.</li>
+<li>Verification must be done by a different person.</li>
+</ul>
+<hr>
+<h2>6.3 Hundi Verification</h2>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/13_Hundi_Verification.png" alt="Hundi collection with verification options." />
+          <figcaption>Figure 13 — Hundi collection with verification options.</figcaption>
+        </figure><h3>Verification Steps</h3>
+<ol>
+<li>Navigate to <strong>Hundi</strong>.</li>
+<li>Filter by Status = &quot;Pending Verification&quot;.</li>
+<li>Click on a record to view details.</li>
+<li><strong>Review:</strong><ul>
+<li>Collection date and time</li>
+<li>Committee members present</li>
+<li>Item lines (denominations, quantities, values)</li>
+<li>Total amount</li>
+</ul>
+</li>
+<li><strong>Verify physical contents</strong> against recorded amounts.</li>
+<li><strong>Decision:</strong><ul>
+<li>Click <strong>&quot;Verify&quot;</strong> if everything is correct.</li>
+<li>Click <strong>&quot;Reject&quot;</strong> if there are issues.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2>6.4 Auction Verification</h2>
+<h3>Verification Steps</h3>
+<ol>
+<li>Navigate to <strong>Auction</strong>.</li>
+<li>Filter by Verification Status = &quot;Pending&quot;.</li>
+<li>Click on an auction to view details.</li>
+<li><strong>Review:</strong><ul>
+<li>Auction item</li>
+<li>Base amount</li>
+<li>Winning bid</li>
+<li>Winner name</li>
+</ul>
+</li>
+<li><strong>Decision:</strong><ul>
+<li>Click <strong>&quot;Verify&quot;</strong> if correct.</li>
+<li>Click <strong>&quot;Reject&quot;</strong> if issues exist.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2>6.5 Waste Sales Verification</h2>
+<h3>Verification Steps</h3>
+<ol>
+<li>Navigate to <strong>Waste Sales</strong>.</li>
+<li>Filter by Verification Status = &quot;Pending&quot;.</li>
+<li>Click on a sale to view details.</li>
+<li><strong>Review:</strong><ul>
+<li>Material type</li>
+<li>Quantity and unit</li>
+<li>Rate and amount</li>
+<li>Buyer information</li>
+</ul>
+</li>
+<li><strong>Decision:</strong><ul>
+<li>Click <strong>&quot;Verify&quot;</strong> if correct.</li>
+<li>Click <strong>&quot;Reject&quot;</strong> if issues exist.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2>6.6 Approving / Verifying</h2>
+<h3>Verification Confirmation</h3>
+<p>When you click <strong>&quot;Verify&quot;</strong>:</p>
+<ol>
+<li>A confirmation dialog appears.</li>
+<li>Confirm your verification.</li>
+<li>The record status changes to &quot;Verified&quot;.</li>
+<li>Your name and timestamp are recorded.</li>
+</ol>
+<hr>
+<h2>6.7 Rejecting an Entry</h2>
+<p>If a record has errors or discrepancies, you can reject it.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/41_Committee_Rejection_Dialog.png" alt="Rejection dialog requiring a reason for rejection." />
+          <figcaption>Figure 41 — Rejection dialog requiring a reason for rejection.</figcaption>
+        </figure><h3>Rejection Steps</h3>
+<ol>
+<li>Click <strong>&quot;Reject&quot;</strong> button.</li>
+<li>A dialog opens asking for the rejection reason.</li>
+<li>Enter a clear reason explaining why the record is being rejected.</li>
+<li>Click <strong>Confirm</strong> or <strong>Submit</strong>.</li>
+</ol>
+<hr>
+<h2>6.8 Rejection Reason</h2>
+<h3>Why Rejection Reasons are Required</h3>
+<ul>
+<li>Provides documentation of what was wrong</li>
+<li>Allows the creator to correct the issue</li>
+<li>Creates an audit trail</li>
+<li>Ensures accountability</li>
+</ul>
+<h3>Examples of Rejection Reasons</h3>
+<table>
+<thead>
+<tr>
+<th>Reason</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Amount mismatch</td>
+<td>&quot;Recorded Rs. 5000 but physical count shows Rs. 4800&quot;</td>
+</tr>
+<tr>
+<td>Missing items</td>
+<td>&quot;Jewellery item not included in recording&quot;</td>
+</tr>
+<tr>
+<td>Incorrect details</td>
+<td>&quot;Winner name does not match payment receipt&quot;</td>
+</tr>
+<tr>
+<td>Incomplete record</td>
+<td>&quot;Committee member signatures missing&quot;</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>6.9 Important Verification Rules</h2>
+<ol>
+<li><strong>Never verify your own submissions.</strong> This is blocked by the system.</li>
+<li><strong>Always verify physical items</strong> before approving.</li>
+<li><strong>Document all rejections</strong> with clear reasons.</li>
+<li><strong>Verify promptly</strong> to avoid delays in processing.</li>
+<li><strong>Review all details</strong> before making a decision.</li>
+</ol>
+<hr>
+<h2>6.10 Committee Member Restrictions</h2>
+<h3>What You Cannot Do</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Restriction</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Create transactions</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Edit records</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Delete records</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Access Settings</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Access User Management</td>
+<td>Not available</td>
+</tr>
+<tr>
+<td>Verify own submissions</td>
+<td>Blocked by system</td>
+</tr>
+</tbody></table>
+<hr>
+<h1>PART 7 — REPORTS, CALENDAR AND ANALYTICS</h1>
+<h2>7.1 Reports Overview</h2>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/21_Reports_Page.png" alt="Reports page showing available report categories." />
+          <figcaption>Figure 21 — Reports page showing available report categories.</figcaption>
+        </figure><p>Reports are available to:</p>
+<ul>
+<li>Administrators (Full access)</li>
+<li>Accountants (Full access)</li>
+<li>Committee Members (Full access)</li>
+</ul>
+<hr>
+<h2>7.2 Report Categories</h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Reports</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Pooja Reports</strong></td>
+<td>Daily Booking Summary, Monthly Booking Report, Pooja-wise Collection, Plan-wise Analysis</td>
+<td>Track booking activity and revenue</td>
+</tr>
+<tr>
+<td><strong>Donation Reports</strong></td>
+<td>Daily Donation Summary, Donation Type Analysis, 80G Certificate Report</td>
+<td>Track donations and compliance</td>
+</tr>
+<tr>
+<td><strong>Collection Reports</strong></td>
+<td>Hundi Summary, Auction Summary, Waste Sales Report, Annadanam Report</td>
+<td>Track other revenue sources</td>
+</tr>
+<tr>
+<td><strong>General Reports</strong></td>
+<td>Daily Revenue Summary, Monthly Revenue, Payment Mode Report</td>
+<td>Overall financial analysis</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>7.3 Filtering Reports</h2>
+<h3>Available Filters</h3>
+<table>
+<thead>
+<tr>
+<th>Filter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Date Range</td>
+<td>Select start and end dates</td>
+</tr>
+<tr>
+<td>Category</td>
+<td>Filter by category</td>
+</tr>
+<tr>
+<td>Payment Mode</td>
+<td>Cash, UPI, or All</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Active, Completed, etc.</td>
+</tr>
+</tbody></table>
+<h3>Sorting</h3>
+<ul>
+<li>Click any column header to sort by that column.</li>
+<li>Click again to reverse sort order.</li>
+</ul>
+<hr>
+<h2>7.4 Exporting PDF / Other Available Formats</h2>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/43_Reports_Export_Options.png" alt="Export options showing Excel and PDF buttons." />
+          <figcaption>Figure 43 — Export options showing Excel and PDF buttons.</figcaption>
+        </figure><h3>Export to Excel</h3>
+<ol>
+<li>Generate your report.</li>
+<li>Click the <strong>Export</strong> or <strong>Excel</strong> button.</li>
+<li>File downloads as .xlsx format.</li>
+<li>Open in Excel for further analysis.</li>
+</ol>
+<h3>Export to PDF</h3>
+<ol>
+<li>Generate your report.</li>
+<li>Click the <strong>PDF</strong> button.</li>
+<li>File downloads as .pdf format.</li>
+<li>Use for printing or sharing.</li>
+</ol>
+<hr>
+<h2>7.5 Calendar</h2>
+<p>Navigate to <strong>Calendar</strong> to view bookings in calendar format.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/33_Calendar.png" alt="Calendar view showing bookings by date." />
+          <figcaption>Figure 33 — Calendar view showing bookings by date.</figcaption>
+        </figure><h3>Calendar Features</h3>
+<ul>
+<li><strong>Month View:</strong> See bookings across the month.</li>
+<li><strong>Date Selection:</strong> Click a date to see that day&#39;s bookings.</li>
+<li><strong>Event Colors:</strong> Different colors for different pooja types.</li>
+</ul>
+<hr>
+<h2>7.6 Pournami / Monthly Calendar Information</h2>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/40_Monthly_Pournami_Dates.png" alt="Calendar showing Pournami (full moon) dates." />
+          <figcaption>Figure 40 — Calendar showing Pournami (full moon) dates.</figcaption>
+        </figure><h3>Pournami Dates</h3>
+<ul>
+<li>Pournami dates are automatically calculated.</li>
+<li>Monthly poojas (like Sai Vratam) are scheduled on Pournami days.</li>
+<li>The Counter screen shows upcoming Pournami dates when Monthly category is selected.</li>
+</ul>
+<hr>
+<h2>7.7 Analytics</h2>
+<p>Navigate to <strong>Analytics</strong> to view visual dashboards.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/34_Analytics.png" alt="Analytics dashboard showing charts and trends." />
+          <figcaption>Figure 34 — Analytics dashboard showing charts and trends.</figcaption>
+        </figure><h3>Analytics Features</h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Revenue Trends</td>
+<td>Line charts showing revenue over time</td>
+</tr>
+<tr>
+<td>Category Breakdown</td>
+<td>Pie charts showing revenue by category</td>
+</tr>
+<tr>
+<td>Payment Mode</td>
+<td>Distribution of Cash vs UPI</td>
+</tr>
+<tr>
+<td>Top Performers</td>
+<td>Highest revenue poojas or donation types</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>7.8 Notifications</h2>
+<p>Navigate to <strong>Notifications</strong> to view and configure notification settings.</p>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/45_Notifications_Config.png" alt="Notification configuration screen." />
+          <figcaption>Figure 45 — Notification configuration screen.</figcaption>
+        </figure><h3>Notification Channels</h3>
+<table>
+<thead>
+<tr>
+<th>Channel</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>In-App</td>
+<td>Built-in notification system</td>
+</tr>
+<tr>
+<td>SMS</td>
+<td>Requires external configuration</td>
+</tr>
+<tr>
+<td>WhatsApp</td>
+<td>Requires external configuration</td>
+</tr>
+<tr>
+<td>Email</td>
+<td>Requires external configuration</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>NOTE:</strong> SMS and WhatsApp notifications require external service integration. Contact your Administrator to verify if these are configured.</p>
+</blockquote>
+<hr>
+<h1>PART 8 — BACKUP, RESTORE AND SYSTEM ADMINISTRATION</h1>
+<h2>8.1 Backup</h2>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/23_Backup_Restore.png" alt="Backup and Restore screen." />
+          <figcaption>Figure 23 — Backup and Restore screen.</figcaption>
+        </figure><h3>Who Can Create Backups</h3>
+<p>Only <strong>Administrators</strong> can create and manage backups.</p>
+<hr>
+<h2>8.2 Creating a Backup</h2>
+<h3>Step-by-Step</h3>
+<ol>
+<li>Navigate to <strong>Backup / Restore</strong>.</li>
+<li>Click <strong>Create Backup</strong>.</li>
+<li>Wait for the backup to complete (may take a few moments).</li>
+<li>Click <strong>Download</strong> to save the backup file.</li>
+<li>Store the file in a secure location.</li>
+</ol>
+<h3>Backup File</h3>
+<ul>
+<li>Format: JSON (.json)</li>
+<li>Contains: All application data</li>
+<li>Security: Store securely, contains sensitive information</li>
+</ul>
+<hr>
+<h2>8.3 Restore</h2>
+<p>Restore allows you to recover data from a previous backup.</p>
+<hr>
+<h2>8.4 Uploading a Backup File</h2>
+<h3>Step-by-Step</h3>
+<ol>
+<li>Navigate to <strong>Backup / Restore</strong>.</li>
+<li>Click <strong>Upload Backup File</strong>.</li>
+<li>Select a backup file (.json) from your computer.</li>
+<li>Wait for validation to complete.</li>
+<li>Review the backup summary (what will be restored).</li>
+<li>Confirm the restore operation.</li>
+</ol>
+<hr>
+<h2>8.5 Restore Safety</h2>
+<h3>Important Information</h3>
+<ul>
+<li><strong>Restore performs a controlled insert/update — it never deletes existing data.</strong></li>
+<li>Before restoring, create a fresh backup of current data.</li>
+<li>Restore should only be performed when necessary.</li>
+</ul>
+<blockquote>
+<p><strong>WARNING:</strong> Only perform restores when absolutely necessary. Create a backup of current data first.</p>
+</blockquote>
+<hr>
+<h2>8.6 Audit Trail</h2>
+<figure class="screenshot">
+          <img src="file:///home/ajuservvm/Vamsi/PSBT-Portal/docs/user-manual/screenshots/admin/32_Audit_Trail.png" alt="Audit Trail showing system activity log." />
+          <figcaption>Figure 32 — Audit Trail showing system activity log.</figcaption>
+        </figure><h3>What is Logged</h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Recorded</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Login/Logout</td>
+<td>User, timestamp</td>
+</tr>
+<tr>
+<td>Record Creation</td>
+<td>User, entity, details</td>
+</tr>
+<tr>
+<td>Record Update</td>
+<td>User, entity, old/new values</td>
+</tr>
+<tr>
+<td>Record Deletion</td>
+<td>User, entity, details</td>
+</tr>
+<tr>
+<td>Settings Changes</td>
+<td>User, changes made</td>
+</tr>
+<tr>
+<td>Verification</td>
+<td>User, entity verified</td>
+</tr>
+</tbody></table>
+<h3>Audit Trail Rules</h3>
+<ul>
+<li>Cannot be modified or deleted</li>
+<li>Permanent record of all activity</li>
+<li>Use for accountability and investigation</li>
+</ul>
+<hr>
+<h2>8.7 Administrative Precautions</h2>
+<h3>Regular Maintenance</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Frequency</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Create Backup</td>
+<td>Daily (recommended)</td>
+</tr>
+<tr>
+<td>Review Audit Trail</td>
+<td>Weekly</td>
+</tr>
+<tr>
+<td>Review User Accounts</td>
+<td>Monthly</td>
+</tr>
+<tr>
+<td>Password Resets</td>
+<td>As needed</td>
+</tr>
+</tbody></table>
+<h3>Security Best Practices</h3>
+<ol>
+<li><strong>Individual Accounts:</strong> Each staff member should have their own account.</li>
+<li><strong>Strong Passwords:</strong> Require passwords with letters and numbers.</li>
+<li><strong>Logout When Leaving:</strong> Always log out when leaving workstation.</li>
+<li><strong>Minimum Access:</strong> Grant only necessary permissions.</li>
+<li><strong>Regular Review:</strong> Periodically review user accounts and access.</li>
+</ol>
+<hr>
+<h1>PART 9 — TROUBLESHOOTING</h1>
+<h2>Cannot Log In</h2>
+<h3>Problem</h3>
+<p>Cannot access the system — login fails.</p>
+<h3>Possible Reasons</h3>
+<ol>
+<li>Incorrect username or password</li>
+<li>Account is locked (too many failed attempts)</li>
+<li>Account is inactive</li>
+<li>Network/server issue</li>
+</ol>
+<h3>What to Do</h3>
+<ol>
+<li>Check that username and password are correct (case-sensitive).</li>
+<li>If you see &quot;Too many failed login attempts&quot;, wait 15 minutes.</li>
+<li>Contact Administrator to check account status.</li>
+<li>Check your network connection.</li>
+</ol>
+<hr>
+<h2>Invalid Credentials</h2>
+<h3>Problem</h3>
+<p>&quot;Invalid username or password&quot; error message.</p>
+<h3>Possible Reason</h3>
+<p>Username or password is incorrect.</p>
+<h3>What to Do</h3>
+<ol>
+<li>Verify you are entering the correct username.</li>
+<li>Check Caps Lock is not accidentally enabled.</li>
+<li>Passwords are case-sensitive — enter exactly as given.</li>
+<li>If forgotten, contact Administrator for password reset.</li>
+</ol>
+<hr>
+<h2>2FA Issue</h2>
+<h3>Problem</h3>
+<p>Cannot complete 2FA verification.</p>
+<h3>Possible Reasons</h3>
+<ol>
+<li>Code expired (codes change every 30 seconds)</li>
+<li>Authenticator app shows wrong code</li>
+<li>Time on your device is not synchronized</li>
+</ol>
+<h3>What to Do</h3>
+<ol>
+<li>Wait for a new code to appear in your authenticator app.</li>
+<li>Enter the new code quickly.</li>
+<li>Check that your device&#39;s time is correct.</li>
+<li>Contact Administrator if problem persists.</li>
+</ol>
+<hr>
+<h2>Missing UTR</h2>
+<h3>Problem</h3>
+<p>&quot;Enter the UTR / Transaction ID&quot; error when completing UPI payment.</p>
+<h3>Possible Reason</h3>
+<p>UTR field is empty but UPI payment method is selected.</p>
+<h3>What to Do</h3>
+<ol>
+<li>Ask the devotee to show their UPI payment confirmation.</li>
+<li>Find the UTR/Transaction ID on their screen.</li>
+<li>Enter the UTR in the field.</li>
+<li>Then complete the billing.</li>
+</ol>
+<hr>
+<h2>Invalid UTR</h2>
+<h3>Problem</h3>
+<p>UTR validation fails.</p>
+<h3>Possible Reasons</h3>
+<ol>
+<li>UTR is too short (less than 12 characters)</li>
+<li>UTR is too long (more than 22 characters)</li>
+<li>UTR contains special characters</li>
+</ol>
+<h3>What to Do</h3>
+<ol>
+<li>Verify the UTR with the devotee.</li>
+<li>Ensure you copy the complete UTR (12-22 characters).</li>
+<li>UTR should contain only letters and numbers.</li>
+</ol>
+<hr>
+<h2>Invalid Mobile Number</h2>
+<h3>Problem</h3>
+<p>&quot;Invalid Mobile Number. Please Enter Valid Mobile Number&quot;</p>
+<h3>Possible Reason</h3>
+<p>Mobile number is not in correct format.</p>
+<h3>What to Do</h3>
+<ol>
+<li>Enter exactly 10 digits.</li>
+<li>Number should start with 6, 7, 8, or 9.</li>
+<li>Do not include country code in the mobile field.</li>
+</ol>
+<hr>
+<h2>Required Field Missing</h2>
+<h3>Problem</h3>
+<p>Cannot submit form — required fields highlighted.</p>
+<h3>What to Do</h3>
+<ol>
+<li>Look for fields marked with asterisk (*).</li>
+<li>Fill in all required fields.</li>
+<li>Ensure values meet validation requirements (min length, format).</li>
+</ol>
+<hr>
+<h2>Payment Issue</h2>
+<h3>Problem</h3>
+<p>Transaction fails during payment processing.</p>
+<h3>What to Do</h3>
+<ol>
+<li>Check your network connection.</li>
+<li>Do not refresh or close the browser.</li>
+<li>Try again after a moment.</li>
+<li>If problem persists, contact Administrator.</li>
+</ol>
+<hr>
+<h2>Receipt Printing Issue</h2>
+<h3>Problem</h3>
+<p>Receipt doesn&#39;t print or print dialog doesn&#39;t appear.</p>
+<h3>Possible Reasons</h3>
+<ol>
+<li>Pop-up blocker preventing print dialog</li>
+<li>Printer not connected</li>
+<li>Browser issue</li>
+</ol>
+<h3>What to Do</h3>
+<ol>
+<li>Allow pop-ups for the application in your browser settings.</li>
+<li>Check printer connection and paper.</li>
+<li>Try a different browser if needed.</li>
+<li>Navigate to Bookings, find the booking, and print from there.</li>
+</ol>
+<hr>
+<h2>Network/Server Error</h2>
+<h3>Problem</h3>
+<p>&quot;Couldn&#39;t load records — check your connection and retry.&quot;</p>
+<h3>Possible Reasons</h3>
+<ol>
+<li>Internet connection lost</li>
+<li>Server temporarily unavailable</li>
+<li>Network timeout</li>
+</ol>
+<h3>What to Do</h3>
+<ol>
+<li>Check your internet connection.</li>
+<li>Click the <strong>Retry</strong> button.</li>
+<li>Wait a moment and try again.</li>
+<li>Contact Administrator if problem persists.</li>
+</ol>
+<hr>
+<h2>Invalid Ticket</h2>
+<h3>Problem</h3>
+<p>Ticket verification fails — ticket is invalid.</p>
+<h3>Possible Reasons</h3>
+<ol>
+<li>Already performed today</li>
+<li>Ticket expired</li>
+<li>Booking cancelled</li>
+<li>All performances used</li>
+<li>Ticket number incorrect</li>
+</ol>
+<h3>What to Do</h3>
+<ol>
+<li>Check the reason shown in the amber banner.</li>
+<li>Explain the reason to the devotee.</li>
+<li>Refer devotee to Counter for assistance.</li>
+</ol>
+<hr>
+<h2>Duplicate Booking Warning</h2>
+<h3>Problem</h3>
+<p>Warning appears about existing active plan.</p>
+<h3>What to Do</h3>
+<ol>
+<li>Inform the devotee about their existing plan.</li>
+<li>If they want to proceed: Check the acknowledgment box.</li>
+<li>If they don&#39;t want to proceed: Remove the item.</li>
+</ol>
+<hr>
+<h2>Booking Restriction (Lifetime Duplicate)</h2>
+<h3>Problem</h3>
+<p>Cannot book — Lifetime plan already exists.</p>
+<h3>What to Do</h3>
+<ol>
+<li>Inform devotee they have an existing Lifetime plan.</li>
+<li>They should use their existing ticket.</li>
+<li>Cannot proceed with new Lifetime booking.</li>
+</ol>
+<hr>
+<h2>Report Export Issue</h2>
+<h3>Problem</h3>
+<p>Cannot export report to Excel or PDF.</p>
+<h3>Possible Reasons</h3>
+<ol>
+<li>Downloads blocked in browser</li>
+<li>Disk space issue</li>
+<li>File in use</li>
+</ol>
+<h3>What to Do</h3>
+<ol>
+<li>Check browser settings — allow downloads.</li>
+<li>Check available disk space.</li>
+<li>Close any open files with same name.</li>
+<li>Try again.</li>
+</ol>
+<hr>
+<h2>Permission / Access Denied</h2>
+<h3>Problem</h3>
+<p>Cannot access a module or perform an action.</p>
+<h3>Possible Reason</h3>
+<p>Your role doesn&#39;t have permission for this action.</p>
+<h3>What to Do</h3>
+<ol>
+<li>Check with your Administrator about your role permissions.</li>
+<li>If you need access, request it through proper channels.</li>
+</ol>
+<hr>
+<h2>When to Contact Administrator</h2>
+<p>Contact your Administrator when:</p>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Account locked</td>
+<td>Administrator can unlock</td>
+</tr>
+<tr>
+<td>Password forgotten</td>
+<td>Administrator can reset</td>
+</tr>
+<tr>
+<td>Need additional access</td>
+<td>Administrator can adjust permissions</td>
+</tr>
+<tr>
+<td>Transaction correction needed</td>
+<td>Administrator can review</td>
+</tr>
+<tr>
+<td>System errors persist</td>
+<td>Administrator can investigate</td>
+</tr>
+</tbody></table>
+<hr>
+<h1>PART 10 — QUICK REFERENCE</h1>
+<h2>Roles Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Primary Functions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Administrator</td>
+<td>Full system access, user management, configuration</td>
+</tr>
+<tr>
+<td>Counter Staff</td>
+<td>Billing, bookings, donations, collections</td>
+</tr>
+<tr>
+<td>Accountant</td>
+<td>Reports, daily closing, view transactions</td>
+</tr>
+<tr>
+<td>Poojari</td>
+<td>Pooja queue, verify tickets, mark performed</td>
+</tr>
+<tr>
+<td>Committee</td>
+<td>Verify hundi, auction, waste sales</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Main Modules</h2>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dashboard</td>
+<td>Overview and quick actions</td>
+</tr>
+<tr>
+<td>Counter</td>
+<td>Quick billing interface</td>
+</tr>
+<tr>
+<td>Devotees</td>
+<td>Devotee records</td>
+</tr>
+<tr>
+<td>Bookings</td>
+<td>Pooja bookings</td>
+</tr>
+<tr>
+<td>Donations</td>
+<td>Donation records</td>
+</tr>
+<tr>
+<td>Hundi</td>
+<td>Hundi collections</td>
+</tr>
+<tr>
+<td>Auction</td>
+<td>Auction sales</td>
+</tr>
+<tr>
+<td>Annadanam</td>
+<td>Meal sponsorships</td>
+</tr>
+<tr>
+<td>Waste Sales</td>
+<td>Waste material sales</td>
+</tr>
+<tr>
+<td>Reports</td>
+<td>Financial reports</td>
+</tr>
+<tr>
+<td>Analytics</td>
+<td>Visual dashboards</td>
+</tr>
+<tr>
+<td>Daily Closing</td>
+<td>Day-end reconciliation</td>
+</tr>
+<tr>
+<td>Users</td>
+<td>User management</td>
+</tr>
+<tr>
+<td>Settings</td>
+<td>System configuration</td>
+</tr>
+<tr>
+<td>Verify Ticket</td>
+<td>Ticket verification</td>
+</tr>
+<tr>
+<td>Poojari Queue</td>
+<td>Priest&#39;s pooja list</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Common Buttons</h2>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Login</td>
+<td>Submit login credentials</td>
+</tr>
+<tr>
+<td>Verify &amp; Continue</td>
+<td>Submit 2FA code</td>
+</tr>
+<tr>
+<td>Add to Bill</td>
+<td>Add pooja to cart</td>
+</tr>
+<tr>
+<td>Complete Billing</td>
+<td>Finish cart transaction</td>
+</tr>
+<tr>
+<td>Book &amp; Pay</td>
+<td>Finish form booking</td>
+</tr>
+<tr>
+<td>Save</td>
+<td>Save changes</td>
+</tr>
+<tr>
+<td>Save Changes</td>
+<td>Save settings</td>
+</tr>
+<tr>
+<td>Cancel</td>
+<td>Cancel action</td>
+</tr>
+<tr>
+<td>Print</td>
+<td>Print receipt/report</td>
+</tr>
+<tr>
+<td>Export</td>
+<td>Download as Excel/PDF</td>
+</tr>
+<tr>
+<td>Verify</td>
+<td>Approve record (Committee)</td>
+</tr>
+<tr>
+<td>Reject</td>
+<td>Reject record (Committee)</td>
+</tr>
+<tr>
+<td>Mark Pooja Performed</td>
+<td>Mark pooja done (Poojari)</td>
+</tr>
+<tr>
+<td>Create Backup</td>
+<td>Create data backup</td>
+</tr>
+<tr>
+<td>Close the Day</td>
+<td>Complete daily closing</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Payment Methods</h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Cash</td>
+<td>Physical currency</td>
+</tr>
+<tr>
+<td>UPI / QR Code</td>
+<td>Digital payment (requires UTR)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Booking Statuses</h2>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pending</td>
+<td>Awaiting confirmation</td>
+</tr>
+<tr>
+<td>Confirmed</td>
+<td>Booking confirmed, awaiting performance</td>
+</tr>
+<tr>
+<td>Completed</td>
+<td>Pooja performed</td>
+</tr>
+<tr>
+<td>Cancelled</td>
+<td>Booking cancelled</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Verification Statuses</h2>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pending</td>
+<td>Awaiting verification</td>
+</tr>
+<tr>
+<td>Verified</td>
+<td>Approved by committee</td>
+</tr>
+<tr>
+<td>Rejected</td>
+<td>Rejected by committee</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Important Validations</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Mobile Number</td>
+<td>10 digits, starts with 6/7/8/9</td>
+</tr>
+<tr>
+<td>UTR</td>
+<td>12-22 characters, alphanumeric</td>
+</tr>
+<tr>
+<td>Name</td>
+<td>Minimum 2 characters</td>
+</tr>
+<tr>
+<td>Password</td>
+<td>Min 6 characters, letters + numbers</td>
+</tr>
+<tr>
+<td>PAN</td>
+<td>Format: AAAAA1234A</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Common Actions Quick Guide</h2>
+<h3>Book a Daily Pooja</h3>
+<ol>
+<li>Enter mobile → 2. Enter/select name → 3. Click Daily tab → 4. Click pooja → 5. Select payment → 6. Complete Billing → 7. Print</li>
+</ol>
+<h3>Record a Donation</h3>
+<ol>
+<li>Go to Donations → 2. Click Record Donation → 3. Fill form → 4. Save → 5. Print receipt</li>
+</ol>
+<h3>Verify a Ticket</h3>
+<ol>
+<li>Go to Verify Ticket → 2. Enter ticket number → 3. Click Verify → 4. Check validity → 5. Mark Performed</li>
+</ol>
+<h3>Close the Day</h3>
+<ol>
+<li>Go to Daily Closing → 2. Review transactions → 3. Enter cash count → 4. Check variance → 5. Close the Day</li>
+</ol>
+<hr>
+<h1>APPENDIX</h1>
+<h2>A. Role Access Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th align="center">Admin</th>
+<th align="center">Counter</th>
+<th align="center">Accountant</th>
+<th align="center">Poojari</th>
+<th align="center">Committee</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dashboard</td>
+<td align="center">Full</td>
+<td align="center">Full</td>
+<td align="center">Full</td>
+<td align="center">Limited</td>
+<td align="center">Full</td>
+</tr>
+<tr>
+<td>Counter</td>
+<td align="center">Full</td>
+<td align="center">Full</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">View</td>
+</tr>
+<tr>
+<td>Devotees</td>
+<td align="center">Full</td>
+<td align="center">Create</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Bookings</td>
+<td align="center">Full</td>
+<td align="center">Create</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Donations</td>
+<td align="center">Full</td>
+<td align="center">Create</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">View</td>
+</tr>
+<tr>
+<td>Hundi</td>
+<td align="center">Full</td>
+<td align="center">Create</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">Verify</td>
+</tr>
+<tr>
+<td>Auction</td>
+<td align="center">Full</td>
+<td align="center">Create</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">Verify</td>
+</tr>
+<tr>
+<td>Annadanam</td>
+<td align="center">Full</td>
+<td align="center">Create</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">View</td>
+</tr>
+<tr>
+<td>Waste Sales</td>
+<td align="center">Full</td>
+<td align="center">Create</td>
+<td align="center">View</td>
+<td align="center">No</td>
+<td align="center">Verify</td>
+</tr>
+<tr>
+<td>Reports</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">Full</td>
+</tr>
+<tr>
+<td>Analytics</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">Full</td>
+</tr>
+<tr>
+<td>Daily Closing</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">View</td>
+</tr>
+<tr>
+<td>Users</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Roles</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Settings</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Backup</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Audit Trail</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Verify Ticket</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Poojari Queue</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Calendar</td>
+<td align="center">Full</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+<tr>
+<td>Masters</td>
+<td align="center">Full</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+<td align="center">No</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>B. Important Terminology</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Annadanam</td>
+<td>Meal offerings/sponsorship program</td>
+</tr>
+<tr>
+<td>Archana</td>
+<td>Ritual worship with recitation of divine names</td>
+</tr>
+<tr>
+<td>Devotee</td>
+<td>Temple member or visitor</td>
+</tr>
+<tr>
+<td>Gothram</td>
+<td>Family lineage (ancestral sage name)</td>
+</tr>
+<tr>
+<td>Hundi</td>
+<td>Sacred collection box for offerings</td>
+</tr>
+<tr>
+<td>Nakshatram</td>
+<td>Birth star (constellation)</td>
+</tr>
+<tr>
+<td>Pooja</td>
+<td>Ritual worship ceremony</td>
+</tr>
+<tr>
+<td>Poojari</td>
+<td>Temple priest who performs poojas</td>
+</tr>
+<tr>
+<td>Pournami</td>
+<td>Full moon day</td>
+</tr>
+<tr>
+<td>Prasadam</td>
+<td>Sacred food offering</td>
+</tr>
+<tr>
+<td>Rasi</td>
+<td>Zodiac sign</td>
+</tr>
+<tr>
+<td>Sankalpam</td>
+<td>Sacred intention/resolution for pooja</td>
+</tr>
+<tr>
+<td>Seva</td>
+<td>Service/devotional service</td>
+</tr>
+<tr>
+<td>UTR</td>
+<td>Unique Transaction Reference (UPI payment ID)</td>
+</tr>
+<tr>
+<td>80G</td>
+<td>Tax exemption under Indian Income Tax Act</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>C. Support / Escalation Guidance</h2>
+<h3>Level 1: Self-Help</h3>
+<p>Refer to this manual for:</p>
+<ul>
+<li>How to perform common tasks</li>
+<li>Understanding error messages</li>
+<li>Basic troubleshooting</li>
+</ul>
+<h3>Level 2: Temple Administrator</h3>
+<p>Contact your Temple Administrator for:</p>
+<ul>
+<li>Password resets</li>
+<li>Account issues</li>
+<li>Permission requests</li>
+<li>Transaction corrections</li>
+<li>System configuration questions</li>
+</ul>
+<h3>Level 3: Technical Support</h3>
+<p>Contact Technical Support for:</p>
+<ul>
+<li>System errors that persist after Administrator review</li>
+<li>Feature requests</li>
+<li>Bug reports</li>
+<li>Technical training</li>
+</ul>
+<hr>
+<h2>D. Screenshot Index</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Screenshot</th>
+<th>Section Reference</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>01</td>
+<td>01_Login_Screen.png</td>
+<td>1.4 Logging In</td>
+</tr>
+<tr>
+<td>02</td>
+<td>02_Login_Filled.png</td>
+<td>1.4 Logging In</td>
+</tr>
+<tr>
+<td>03</td>
+<td>03_Admin_Dashboard.png</td>
+<td>1.6 Dashboard, 2.2 Dashboard</td>
+</tr>
+<tr>
+<td>04</td>
+<td>04_Counter_Empty.png</td>
+<td>3.2 Opening the Counter</td>
+</tr>
+<tr>
+<td>05</td>
+<td>05_Counter_Cart_Mode.png</td>
+<td>3.6 Cart Mode</td>
+</tr>
+<tr>
+<td>06</td>
+<td>06_Counter_Form_Mode.png</td>
+<td>3.7 Form Mode</td>
+</tr>
+<tr>
+<td>07</td>
+<td>07_Bookings_List.png</td>
+<td>(Bookings section)</td>
+</tr>
+<tr>
+<td>08</td>
+<td>08_Booking_Receipt.png</td>
+<td>3.15 Printing Receipt</td>
+</tr>
+<tr>
+<td>09</td>
+<td>09_Donations_List.png</td>
+<td>3.18 Donation Entry</td>
+</tr>
+<tr>
+<td>10</td>
+<td>10_Donation_New_Form.png</td>
+<td>3.18 Donation Entry</td>
+</tr>
+<tr>
+<td>11</td>
+<td>11_Hundi_List.png</td>
+<td>3.22 Hundi Entry</td>
+</tr>
+<tr>
+<td>12</td>
+<td>12_Hundi_New_Form.png</td>
+<td>3.22 Hundi Entry</td>
+</tr>
+<tr>
+<td>13</td>
+<td>13_Hundi_Verification.png</td>
+<td>3.23 Hundi Verification, 6.3</td>
+</tr>
+<tr>
+<td>14</td>
+<td>14_Auction_List.png</td>
+<td>3.24 Auction</td>
+</tr>
+<tr>
+<td>15</td>
+<td>15_Auction_New_Form.png</td>
+<td>3.24 Auction</td>
+</tr>
+<tr>
+<td>16</td>
+<td>16_Poojari_Queue.png</td>
+<td>5.2 Pooja Queue</td>
+</tr>
+<tr>
+<td>17</td>
+<td>17_Verify_Ticket_Empty.png</td>
+<td>5.5 Checking a Ticket</td>
+</tr>
+<tr>
+<td>18</td>
+<td>18_Verify_Ticket_Search.png</td>
+<td>5.6 Verify Ticket</td>
+</tr>
+<tr>
+<td>19</td>
+<td>19_Verify_Ticket_Result.png</td>
+<td>5.6, 5.7 Valid/Invalid Ticket</td>
+</tr>
+<tr>
+<td>20</td>
+<td>20_Daily_Closing.png</td>
+<td>4.3 Daily Closing</td>
+</tr>
+<tr>
+<td>21</td>
+<td>21_Reports_Page.png</td>
+<td>7.1 Reports Overview</td>
+</tr>
+<tr>
+<td>22</td>
+<td>22_Settings_Temple.png</td>
+<td>2.5 Settings</td>
+</tr>
+<tr>
+<td>23</td>
+<td>23_Backup_Restore.png</td>
+<td>8.1 Backup, 8.3 Restore</td>
+</tr>
+<tr>
+<td>24</td>
+<td>24_Users_List.png</td>
+<td>2.3 User Management</td>
+</tr>
+<tr>
+<td>25</td>
+<td>25_User_Create_Form.png</td>
+<td>2.3 User Management</td>
+</tr>
+<tr>
+<td>26</td>
+<td>26_Annadanam_List.png</td>
+<td>3.25 Annadanam</td>
+</tr>
+<tr>
+<td>27</td>
+<td>27_Waste_Sales_List.png</td>
+<td>3.26 Waste Sales</td>
+</tr>
+<tr>
+<td>28</td>
+<td>28_Devotees_List.png</td>
+<td>3.8 Devotee Details</td>
+</tr>
+<tr>
+<td>29</td>
+<td>29_Pooja_Master.png</td>
+<td>2.6 Masters</td>
+</tr>
+<tr>
+<td>30</td>
+<td>30_Poojari_Master.png</td>
+<td>2.6 Masters</td>
+</tr>
+<tr>
+<td>31</td>
+<td>31_Festival_Master.png</td>
+<td>2.6 Masters</td>
+</tr>
+<tr>
+<td>32</td>
+<td>32_Audit_Trail.png</td>
+<td>2.7 Audit Logs, 8.6</td>
+</tr>
+<tr>
+<td>33</td>
+<td>33_Calendar.png</td>
+<td>7.5 Calendar</td>
+</tr>
+<tr>
+<td>34</td>
+<td>34_Analytics.png</td>
+<td>7.7 Analytics</td>
+</tr>
+<tr>
+<td>35</td>
+<td>35_Role_Access.png</td>
+<td>2.4 Role Management</td>
+</tr>
+<tr>
+<td>36</td>
+<td>36_Error_Mobile_Validation.png</td>
+<td>3.27 Common Problems</td>
+</tr>
+<tr>
+<td>37</td>
+<td>37_Accountant_View_Only.png</td>
+<td>4.2 Dashboard, 4.11</td>
+</tr>
+<tr>
+<td>38</td>
+<td>38_Accountant_Donations_View.png</td>
+<td>4.10 Reviewing Data</td>
+</tr>
+<tr>
+<td>39</td>
+<td>39_Missing_UTR_Validation.png</td>
+<td>3.13 UTR Entry</td>
+</tr>
+<tr>
+<td>40</td>
+<td>40_Monthly_Pournami_Dates.png</td>
+<td>3.5 Pooja Categories, 7.6</td>
+</tr>
+<tr>
+<td>41</td>
+<td>41_Committee_Rejection_Dialog.png</td>
+<td>6.7 Rejecting an Entry</td>
+</tr>
+<tr>
+<td>42</td>
+<td>42_Settings_Save_Button.png</td>
+<td>2.5 Settings</td>
+</tr>
+<tr>
+<td>43</td>
+<td>43_Reports_Export_Options.png</td>
+<td>4.9, 7.4 Exporting Reports</td>
+</tr>
+<tr>
+<td>44</td>
+<td>44_Festival_Tab.png</td>
+<td>3.5 Pooja Categories</td>
+</tr>
+<tr>
+<td>45</td>
+<td>45_Notifications_Config.png</td>
+<td>7.8 Notifications</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>E. Features Not Implemented</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Bulk Devotee Upload</td>
+<td>Not implemented in current version</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>F. Features Requiring External Configuration</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SMS Notifications</td>
+<td>Requires external SMS service API configuration</td>
+</tr>
+<tr>
+<td>WhatsApp Notifications</td>
+<td>Requires external WhatsApp Business API configuration</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>NOTE:</strong> Contact your Administrator to verify if these services are configured.</p>
+</blockquote>
+<hr>
+<h1>Document Information</h1>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Document Title</td>
+<td>Panjagutta Sai Baba Temple - PSBT End-User Manual</td>
+</tr>
+<tr>
+<td>Version</td>
+<td>1.0</td>
+</tr>
+<tr>
+<td>Release Date</td>
+<td>September 2026</td>
+</tr>
+<tr>
+<td>Intended Audience</td>
+<td>Temple Staff (All Roles)</td>
+</tr>
+<tr>
+<td>Classification</td>
+<td>Internal Use / Client Documentation</td>
+</tr>
+</tbody></table>
+<hr>
+<p><em>Om Sai Ram</em></p>
+<p><em>End of User Manual</em></p>
+
+  </div>
+</body>
+</html>

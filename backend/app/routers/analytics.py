@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam,
-                      WasteSale, Devotee, DonationCategory, Pooja)
-from ..security import get_current_user, RequireModule
+                      WasteSale, Devotee)
+from ..security import RequireModule
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 read = RequireModule("Reports")  # Anyone with Reports access can view analytics

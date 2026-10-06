@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import User, Role, Setting
+from ..models import User, Role, Setting, Poojari
 from ..schemas import UserCreate, UserUpdate, UserOut
 from ..security import hash_password, require_admin, log_action, client_ip, MODULES
-from sqlalchemy import func, or_
+from sqlalchemy import func
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 ROLES = ["Admin", "Counter Staff", "Accountant"]
@@ -54,10 +54,18 @@ def totp_setup(uid: int, db: Session = Depends(get_db), admin=Depends(require_ad
 @router.post("", response_model=UserOut, status_code=201)
 def create_user(body: UserCreate, request: Request,
                 db: Session = Depends(get_db), admin=Depends(require_admin)):
-    username = body.username or body.email.split("@")[0]
-    if db.query(User).filter(User.username == username).first():
-        raise HTTPException(409, "Username already exists")
-    if db.query(User).filter(User.email == body.email).first():
+    # Username is always derived from the name: lowercase, no spaces ("Ravi Kumar" -> "ravikumar")
+    username = "".join(body.name.split()).lower() or "user"
+
+    # Ensure username is unique
+    base_username = username
+    counter = 1
+    while db.query(User).filter(User.username == username).first():
+        username = f"{base_username}{counter}"
+        counter += 1
+
+    # Check email uniqueness only if email is provided
+    if body.email and db.query(User).filter(User.email == body.email).first():
         raise HTTPException(409, "Email already exists")
     # Fall back to the configured Default New-User Role when none is chosen.
     role = body.role
@@ -70,10 +78,17 @@ def create_user(body: UserCreate, request: Request,
         while db.query(User).filter(User.employee_id == f"EMP{seq:03d}").first():
             seq += 1
         emp = f"EMP{seq:03d}"
+    poojari_id = _linked_poojari(db, role, body.poojari_id)
+    # No modules ticked → use the role's defaults, so the user never lands on an empty sidebar
+    modules = body.modules
+    if not modules:
+        r = db.query(Role).filter(Role.name == role).first()
+        modules = [m for m in ((r.modules if r else "") or "").split(",") if m]
     u = User(
+        poojari_id=poojari_id,
         name=body.name, name_te=body.name_te, username=username, email=body.email, mobile=body.mobile,
         employee_id=emp, role=role, is_active=body.is_active,
-        modules=",".join(body.modules), password_hash=hash_password(body.password),
+        modules=",".join(modules), password_hash=hash_password(body.password),
         twofa_enabled=body.twofa_enabled,
         totp_secret=pyotp.random_base32() if body.twofa_enabled else None,
         must_change_password=True,  # Force password change on first login
@@ -84,6 +99,16 @@ def create_user(body: UserCreate, request: Request,
     log_action(db, username=admin.username, action="CREATE", entity="User",
                detail=f"{u.username} ({u.role})", ip=client_ip(request))
     return u
+
+
+def _linked_poojari(db: Session, role: str | None, poojari_id: int | None) -> int | None:
+    """Only a Poojari login is linked to a Poojari Master record (drives "My Poojas")."""
+    if role != "Poojari" or not poojari_id:
+        return None
+    p = db.get(Poojari, poojari_id)
+    if not p or p.deleted:
+        raise HTTPException(404, "Linked poojari not found")
+    return p.id
 
 
 @router.put("/{uid}", response_model=UserOut)
@@ -101,6 +126,9 @@ def update_user(uid: int, body: UserUpdate, request: Request,
         data.pop("password", None)
     if "modules" in data and data["modules"] is not None:
         u.modules = ",".join(data.pop("modules"))
+    if "poojari_id" in data or "role" in data:
+        u.poojari_id = _linked_poojari(db, data.get("role") or u.role,
+                                       data.pop("poojari_id") if "poojari_id" in data else u.poojari_id)
     if data.get("twofa_enabled") and not u.totp_secret:
         u.totp_secret = pyotp.random_base32()
     for k, v in data.items():

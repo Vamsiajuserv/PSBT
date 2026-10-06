@@ -146,6 +146,12 @@ _FESTIVAL_POOJAS = (
 )
 
 
+DEFAULT_WASTE_MATERIALS = (
+    "Coconut Shells", "Flowers", "Banana Leaves", "Cardboard", "Plastic",
+    "Waste Oil", "Metal Scrap", "Old Cloth", "Waste Papers",
+)
+
+
 def run_migrations(engine) -> None:
     with engine.begin() as conn:
         for table, cols in COLUMN_MIGRATIONS.items():
@@ -224,6 +230,31 @@ def run_migrations(engine) -> None:
             "UPDATE users SET modules = modules || ',Counter' "
             "WHERE role = 'Committee' AND modules NOT LIKE '%Counter%'"
         ))
+        # Staff email is optional (login uses username), so allow NULL. No-op once done.
+        conn.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
+        # Vendor material types now hold a multi-select from the Waste Material Master,
+        # which can outgrow VARCHAR(200). Widening to TEXT is lossless and a no-op once done.
+        conn.execute(text(
+            "DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'waste_vendors' AND column_name = 'material_types' "
+            "AND data_type <> 'text') THEN "
+            "ALTER TABLE waste_vendors ALTER COLUMN material_types TYPE TEXT; END IF; END $$"
+        ))
+        # Waste Material Master: first run only (table empty) — seed the materials the
+        # sales screen used to hardcode, plus any other names already on past sales
+        # so existing records still match a master entry. Never re-seeds after that.
+        if not conn.execute(text("SELECT 1 FROM waste_materials LIMIT 1")).fetchone():
+            used = [r[0] for r in conn.execute(text(
+                "SELECT DISTINCT TRIM(material) FROM waste_sales "
+                "WHERE material IS NOT NULL AND TRIM(material) != '' ORDER BY 1"
+            ))]
+            names = list(DEFAULT_WASTE_MATERIALS)
+            names += [n for n in used if n.lower() not in {x.lower() for x in names}]
+            for i, n in enumerate(names, start=1):
+                conn.execute(text(
+                    "INSERT INTO waste_materials (code, name, unit, active, created_at) "
+                    "VALUES (:c, :n, 'Kilogram (kg)', TRUE, NOW())"
+                ), {"c": f"WMAT-{str(i).zfill(4)}", "n": n[:120]})
         # Fill in the devotional descriptions, but only where the row still has the
         # seeded placeholder — never clobber copy written through the admin screen.
         for _name, _desc in POOJA_DESCRIPTIONS.items():

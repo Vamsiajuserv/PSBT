@@ -62,6 +62,7 @@ const Users = lazy(() => import('./pages/admin/Users.jsx'))
 const RoleAccess = lazy(() => import('./pages/admin/RoleAccess.jsx'))
 const PoojariMaster = lazy(() => import('./pages/admin/PoojariMaster.jsx'))
 const VendorMaster = lazy(() => import('./pages/admin/VendorMaster.jsx'))
+const WasteMaterialMaster = lazy(() => import('./pages/admin/WasteMaterialMaster.jsx'))
 const AuctionItemMaster = lazy(() => import('./pages/admin/AuctionItemMaster.jsx'))
 const HundiItemMaster = lazy(() => import('./pages/admin/HundiItemMaster.jsx'))
 const CommitteeMaster = lazy(() => import('./pages/admin/CommitteeMaster.jsx'))
@@ -144,6 +145,7 @@ export default function App() {
         <Route path="pooja-history/:id" element={<Guard k="pooja-history"><PoojaHistoryDetails /></Guard>} />
         <Route path="waste-sales" element={<Guard k="waste-sales"><WasteSales /></Guard>} />
         <Route path="vendors" element={<Guard k="vendors"><VendorMaster /></Guard>} />
+        <Route path="waste-materials" element={<Guard k="waste-materials"><WasteMaterialMaster /></Guard>} />
         <Route path="auction-items" element={<Guard k="auction-items"><AuctionItemMaster /></Guard>} />
         <Route path="hundi-items" element={<Guard k="hundi-items"><HundiItemMaster /></Guard>} />
         <Route path="committee" element={<Guard k="committee"><CommitteeMaster /></Guard>} />

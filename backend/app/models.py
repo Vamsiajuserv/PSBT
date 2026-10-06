@@ -24,7 +24,7 @@ class User(Base):
     # Telugu spelling of the name, entered by staff. Never machine-generated —
     # only the person concerned knows how their name is written in Telugu.
     name_te = Column(String(160), nullable=True)
-    email = Column(String(160), unique=True, nullable=False)
+    email = Column(String(160), unique=True, nullable=True)  # optional; username falls back to mobile/name
     mobile = Column(String(20), nullable=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(40), nullable=False)              # role name (matches Role.name)
@@ -410,7 +410,21 @@ class WasteVendor(Base):
     name = Column(String(120), nullable=False)
     name_te = Column(String(160), nullable=True)   # Telugu spelling, staff-entered
     phone = Column(String(20), nullable=True)
-    material_types = Column(String(200), nullable=True)
+    material_types = Column(Text, nullable=True)   # comma-separated names from the Waste Material Master
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class WasteMaterial(Base):
+    __tablename__ = "waste_materials"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False)   # WMAT-0001
+    name = Column(String(120), nullable=False)
+    name_te = Column(String(160), nullable=True)             # Telugu spelling, staff-entered
+    unit = Column(String(20), default="Kilogram (kg)", nullable=True)  # default unit on a sale
+    default_rate = Column(Numeric(12, 2), nullable=True)     # suggested ₹ per unit (editable on sale)
+    description = Column(Text, nullable=True)
     active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
 

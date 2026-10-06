@@ -1,9 +1,12 @@
 """PSBT-Portal FastAPI application entry point."""
+import logging
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -121,9 +124,9 @@ def on_startup():
         try:
             refresh_mock_dates(quiet=True)
         except Exception as exc:  # never let a data refresh block API startup
-            print(f"[startup] mock date refresh skipped: {exc}")
+            logger.warning("mock date refresh skipped: %s", exc)
     else:
-        print(f"[startup] ENVIRONMENT={settings.ENVIRONMENT}: mock date refresh disabled (production-safe).")
+        logger.info("ENVIRONMENT=%s: mock date refresh disabled (production-safe).", settings.ENVIRONMENT)
 
 
 @app.get("/api/health")
@@ -154,6 +157,7 @@ app.include_router(settings_router.router)
 app.include_router(roles.router)
 app.include_router(masters.auction_items_router)
 app.include_router(masters.hundi_items_router)
+app.include_router(masters.waste_materials_router)
 app.include_router(masters.committee_router)
 app.include_router(masters.festivals_router)
 app.include_router(daily_closing.router)

@@ -4,7 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import or_, func
 
-from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, validate_pagination, encrypt_pan, enforce_rate_limit
+from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, validate_pagination, encrypt_pan, enforce_rate_limit, sort_expr, apply_column_filters
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -57,9 +57,24 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
     }
 
 
+# Column mapping for server-side sorting
+SORT_COLUMNS = {
+    "code": Donation.donation_code,
+    "donor_name": Donation.donor_name,
+    "donation_type": Donation.donation_type,
+    "category_name": Donation.fund,
+    "amount": Donation.amount,
+    "mode": Donation.mode,
+    "donated_on": func.coalesce(Donation.donated_on, func.date(Donation.created_at)),
+    "receipt_no": Donation.receipt_no,
+    "created_at": Donation.created_at,
+}
+
+
 @router.get("", response_model=dict)
 def list_donations(q: str = "", type: str = "", category: str = "", mode: str = "",
                    start: date | None = None, end: date | None = None,
+                   sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
                    page: int = 1, size: int = 50,
                    db: Session = Depends(get_db), user=Depends(read)):
     # Validate pagination parameters (DoS prevention)
@@ -75,12 +90,26 @@ def list_donations(q: str = "", type: str = "", category: str = "", mode: str = 
         query = query.filter(Donation.fund == category)
     if mode:
         query = query.filter(Donation.mode == mode)
+    donated = func.coalesce(Donation.donated_on, func.date(Donation.created_at))
     if start:
-        query = query.filter(func.date(Donation.created_at) >= start)
+        query = query.filter(donated >= start)
     if end:
-        query = query.filter(func.date(Donation.created_at) <= end)
+        query = query.filter(donated <= end)
+    # Column-filter dropdowns apply to the whole result set, not just the visible page
+    query = apply_column_filters(query, col_filters, SORT_COLUMNS)
     total = query.count()
-    rows = query.order_by(Donation.id.desc()).offset((page - 1) * size).limit(size).all()
+
+    # Apply server-side sorting
+    if sort_by and sort_by in SORT_COLUMNS:
+        col = sort_expr(SORT_COLUMNS[sort_by])
+        if sort_dir == "asc":
+            query = query.order_by(col.asc(), Donation.id)
+        else:
+            query = query.order_by(col.desc(), Donation.id.desc())
+    else:
+        query = query.order_by(Donation.id.desc())
+
+    rows = query.offset((page - 1) * size).limit(size).all()
     return {"total": total, "page": page, "size": size,
             "items": [DonationOut.model_validate(r).model_dump() for r in rows]}
 

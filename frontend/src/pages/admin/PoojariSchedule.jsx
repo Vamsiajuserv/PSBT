@@ -1,12 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Plus, Pencil, X, Save, RotateCcw, Search, Clock, Info, CalendarDays, List,
   CalendarCheck, UserCheck, CalendarClock, UserX, ArrowUp, ArrowDown, ChevronsUpDown,
+  Trash2, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { PageTitle, Pill, num } from '../../components/admin/ui.jsx'
-import { toast } from '../../components/common/Dialog.jsx'
+import { toast, confirmDialog } from '../../components/common/Dialog.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
-import { SchedulesAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
+import { SchedulesAPI, PoojasAPI, PoojarisAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, MultiSelect } from '../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
@@ -60,75 +61,154 @@ export default function PoojariSchedule() {
     q: '', pooja: '', poojari: '', status: '', start: '', end: '', page: 1,
   })
   const [drawer, setDrawer] = useState(null)
+  const [reloadTrigger, setReloadTrigger] = useState(0)
   const SIZE = 8
 
   // Sorting
-  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [{ key: 'schedule_date', direction: 'desc' }])
+  const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [], { manualSort: true })
+
+  // Sorting runs on the server so it covers every schedule, not just the visible page; a
+  // sort change reloads from page 1. With no column chosen the schedule date is used —
+  // oldest first when a date filter is applied, newest first otherwise.
+  const prevSortsRef = useRef(sorts)
+  useEffect(() => {
+    if (prevSortsRef.current === sorts) return
+    prevSortsRef.current = sorts
+    if (page !== 1) setPage(1)
+    else setReloadTrigger((t) => t + 1)
+  }, [sorts]) // eslint-disable-line react-hooks/exhaustive-deps
+  const displayRows = sortedRows
 
   const loadStats = useCallback(() => SchedulesAPI.stats().then(setStats).catch(() => toast(tr('Failed to load schedule stats'), 'error')), [])
   const loadList = useCallback(async () => {
-    const d = await SchedulesAPI.list({ q, pooja, poojari, status, start, end, page, size: SIZE })
-    setRows(d.items); setTotal(d.total)
-  }, [q, pooja, poojari, status, start, end, page])
+    try {
+      const d = await SchedulesAPI.list({ q, pooja, poojari, status, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'schedule_date', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc') })
+      setRows(d.items); setTotal(d.total)
+    } catch (ex) {
+      toast(getErrorMessage(ex, tr('Failed to load schedules')), 'error')
+    }
+  }, [q, pooja, poojari, status, start, end, page, sorts])
   useEffect(() => {
     loadStats()
     PoojasAPI.admin().then((d) => setPoojas(d.items)).catch(() => toast(tr('Failed to load poojas'), 'error'))
     PoojarisAPI.list().then(setPoojaris).catch(() => toast(tr('Failed to load poojaris'), 'error'))
   }, [loadStats])
-  useEffect(() => { loadList() }, [loadList])
+  // Load on initial mount, page changes, or reload trigger
+  useEffect(() => { loadList() }, [page, reloadTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const search = () => { if (page !== 1) setPage(1) }
-  const clear = () => setFilters({ q: '', pooja: '', poojari: '', status: '', start: '', end: '', page: 1 })
+  const search = () => { setReloadTrigger(t => t + 1) }
+  const clear = () => { setFilters({ q: '', pooja: '', poojari: '', status: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }
   const pageCount = Math.max(1, Math.ceil(total / SIZE))
 
   const [saveErr, setSaveErr] = useState('')
+  const [calendarReload, setCalendarReload] = useState(0)
 
+  // "07:30 AM" on `day` is already past? (only checked when a slot is set or moved)
+  const slotExpired = (day, startTime) => {
+    const today = new Date().toISOString().slice(0, 10)
+    if (!day || day > today) return false
+    if (day < today) return true
+    const m = (startTime || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+    if (!m) return false
+    let h = parseInt(m[1], 10)
+    const period = m[3].toUpperCase()
+    if (period === 'PM' && h !== 12) h += 12
+    if (period === 'AM' && h === 12) h = 0
+    const slot = new Date(); slot.setHours(h, parseInt(m[2], 10), 0, 0)
+    return slot < new Date()
+  }
+
+  const [saving, setSaving] = useState(false)
   async function save(e) {
     e.preventDefault()
+    if (saving) return
     setSaveErr('')
     const d = drawer.data
     const poojaIds = d.pooja_ids || []
+    const editing = !!drawer.id
 
-    // DEF-002: Validate that the selected time slot has not expired for today's date
-    const today = new Date().toISOString().slice(0, 10)
-    if (d.schedule_date === today && d.start_time) {
-      // Parse the start time (e.g., "07:30 AM")
-      const timeMatch = d.start_time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
-      if (timeMatch) {
-        let hours = parseInt(timeMatch[1], 10)
-        const minutes = parseInt(timeMatch[2], 10)
-        const period = timeMatch[3].toUpperCase()
-        if (period === 'PM' && hours !== 12) hours += 12
-        if (period === 'AM' && hours === 12) hours = 0
-        const slotTime = new Date()
-        slotTime.setHours(hours, minutes, 0, 0)
-        if (slotTime < new Date()) {
-          setSaveErr(tr('Cannot assign to an expired time slot. Please select a future time slot or date.'))
-          return
+    // DEF-002: no new (or moved) schedule in a time slot that has already passed.
+    // Editing notes/status/poojari of an existing past schedule stays allowed.
+    const moved = !editing || d.schedule_date !== drawer.orig?.schedule_date || d.start_time !== drawer.orig?.start_time
+    if (moved && slotExpired(d.schedule_date, d.start_time)) {
+      setSaveErr(tr('Cannot assign to an expired time slot. Please select a future time slot or date.'))
+      return
+    }
+
+    setSaving(true)
+    try {
+      if (editing) {
+        await SchedulesAPI.update(drawer.id, {
+          pooja_id: Number(poojaIds[0]),
+          plan_id: d.plan_id ? Number(d.plan_id) : null,
+          poojari_id: d.poojari_id ? Number(d.poojari_id) : null,
+          schedule_type: d.schedule_type,
+          schedule_date: d.schedule_date || null,
+          start_time: d.start_time,
+          end_time: d.end_time,
+          status: d.status,
+          notes: d.notes,
+        })
+        toast(tr('Schedule updated.'))
+      } else {
+        // Create a schedule for each selected pooja
+        for (const poojaId of poojaIds) {
+          const pooja = poojas.find((p) => String(p.id) === String(poojaId))
+          // Use selected plan if single pooja, otherwise use first plan of each pooja
+          const planId = poojaIds.length === 1 && d.plan_id
+            ? Number(d.plan_id)
+            : (pooja?.plans?.[0]?.id || null)
+
+          await SchedulesAPI.create({
+            pooja_id: Number(poojaId),
+            plan_id: planId,
+            poojari_id: d.poojari_id ? Number(d.poojari_id) : null,
+            schedule_type: d.schedule_type,
+            schedule_date: d.schedule_date || null,
+            start_time: d.start_time,
+            end_time: d.end_time,
+            notes: d.notes,
+          })
         }
+        toast(poojaIds.length > 1 ? tr('${n} schedules created.').replace('${n}', poojaIds.length) : tr('Schedule created.'))
       }
+      setDrawer(null)
+    } catch (ex) {
+      setSaveErr(getErrorMessage(ex, tr('Failed to save schedule.')))
+    } finally {
+      setSaving(false)
+      loadList(); loadStats(); setCalendarReload((n) => n + 1)
     }
+  }
 
-    // Create a schedule for each selected pooja
-    for (const poojaId of poojaIds) {
-      const pooja = poojas.find((p) => String(p.id) === String(poojaId))
-      // Use selected plan if single pooja, otherwise use first plan of each pooja
-      const planId = poojaIds.length === 1 && d.plan_id
-        ? Number(d.plan_id)
-        : (pooja?.plans?.[0]?.id || null)
-
-      await SchedulesAPI.create({
-        pooja_id: Number(poojaId),
-        plan_id: planId,
-        poojari_id: d.poojari_id ? Number(d.poojari_id) : null,
-        schedule_type: d.schedule_type,
-        schedule_date: d.schedule_date || null,
-        start_time: d.start_time,
-        end_time: d.end_time,
-        notes: d.notes,
-      })
+  async function remove(s) {
+    const ok = await confirmDialog({
+      title: tr('Delete this schedule?'),
+      message: `${s.code} · ${tr(s.pooja_name)} · ${fmtDate(s.schedule_date)}`,
+      tone: 'danger', confirmLabel: tr('Delete'),
+    })
+    if (!ok) return
+    try {
+      await SchedulesAPI.remove(s.id)
+      toast(tr('Schedule deleted.'))
+      // Step back a page when the last row of the last page was removed.
+      if (rows.length === 1 && page > 1) setPage(page - 1)
+      else loadList()
+      loadStats(); setCalendarReload((n) => n + 1)
+    } catch (ex) {
+      toast(getErrorMessage(ex, tr('Failed to delete schedule.')), 'error')
     }
-    setDrawer(null); loadList(applied, page); loadStats()
+  }
+
+  const openEdit = (s) => {
+    const data = {
+      ...emptyForm(), ...s,
+      pooja_ids: s.pooja_id ? [String(s.pooja_id)] : [],
+      plan_id: s.plan_id || '', poojari_id: s.poojari_id || '',
+      notes: s.notes || '', start_time: s.start_time || '', end_time: s.end_time || '',
+    }
+    setSaveErr('')
+    setDrawer({ id: s.id, data, orig: { schedule_date: s.schedule_date, start_time: s.start_time } })
   }
 
   // For single pooja selection, show plan options
@@ -141,7 +221,7 @@ export default function PoojariSchedule() {
   return (
     <div>
       <PageTitle title={tr("Poojari Schedule")} subtitle={tr("Manage and view poojari assignments for scheduled temple poojas.")}
-        actions={canWrite && <button onClick={() => setDrawer({ data: emptyForm() })} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Assign Schedule</T></button>} />
+        actions={canWrite && <button onClick={() => { setSaveErr(''); setDrawer({ data: emptyForm() }) }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Assign Schedule</T></button>} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile icon={CalendarCheck} color="#ea580c" bg="bg-orange-50" title={tr("Today's Schedules")} value={stats ? num(stats.today) : '—'} sub={tr("Poojas scheduled today")} />
@@ -164,20 +244,20 @@ export default function PoojariSchedule() {
             {/* Filters — one self-packing row: each control declares a flex basis
                 so they fill the width instead of leaving empty grid cells behind. */}
             <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3">
-              <div className="flex-[2_1_12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
+              <div className="flex-1 min-w-[12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
                 <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} placeholder={tr("Poojari or Pooja name")} className="input !pl-9" /></div></div>
-              <div className="flex-[1_1_8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+              <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
                 <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" /></div>
-              <div className="flex-[1_1_8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+              <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
                 <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" /></div>
-              <div className="flex-[1_1_9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
+              <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
                 <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">{tr("All Poojas")}</option>{uniquePoojaNames.map((n) => <option key={n}>{n}</option>)}</Select></div>
-              <div className="flex-[1_1_9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
+              <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
                 <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input"><option value="">{tr("All Poojaris")}</option>{poojaris.map((p) => <option key={p.id} value={p.name}>{personName(p, lang)}</option>)}</Select></div>
-              <div className="flex-[1_1_9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-                <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Scheduled">{tr("Scheduled")}</option><option value="In Progress">{tr("In Progress")}</option><option value="Completed">{tr("Completed")}</option></Select></div>
-              <div className="flex-[1_1_6rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5">&nbsp;</label>
-                <button onClick={clear} className="btn-outline !py-2.5 w-full justify-center"><RotateCcw size={14} />{' '}<T>Clear</T></button></div>
+              <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
+                <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Scheduled">{tr("Scheduled")}</option><option value="In Progress">{tr("In Progress")}</option><option value="Completed">{tr("Completed")}</option><option value="Cancelled">{tr("Cancelled")}</option></Select></div>
+              <button onClick={search} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
+              <button onClick={clear} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
             </div>
 
             <SortPanel sorts={sorts} columns={SORT_COLUMNS} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
@@ -266,7 +346,7 @@ export default function PoojariSchedule() {
                   <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100">
-                  {sortedRows.map((s) => (
+                  {displayRows.map((s) => (
                     <tr key={s.id} className="hover:bg-gray-50/60">
                       <td className="px-5 py-3.5 font-mono text-[0.75rem] text-gray-500">{s.code}</td>
                       <td className="px-5 py-3.5 font-semibold text-gray-800">{s.poojari_name ? personName({ name: s.poojari_name, name_te: s.poojari_name_te }, lang) : <span className="text-amber-600 font-normal"><T>Unassigned</T></span>}</td>
@@ -275,15 +355,16 @@ export default function PoojariSchedule() {
                       <td className="px-5 py-3.5 text-[0.8125rem] text-gray-600 whitespace-nowrap">{fmtDate(s.schedule_date)}<span className="block text-[0.6875rem] text-gray-400">{weekday(s.schedule_date)}</span></td>
                       <td className="px-5 py-3.5 text-[0.8125rem] text-gray-600 whitespace-nowrap">{clock12(s.start_time)} –<span className="block">{clock12(s.end_time)}</span></td>
                       <td className="px-5 py-3.5 text-gray-600 text-[0.8125rem]">{tr(s.execution_frequency)}</td>
-                      <td className="px-5 py-3.5"><Pill tone={STATUS_TONE[s.status] || 'gray'}>{s.status}</Pill></td>
+                      <td className="px-5 py-3.5"><Pill tone={STATUS_TONE[s.status] || 'gray'}>{tr(s.status)}</Pill></td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
-                          {canWrite && <button onClick={() => setDrawer({ data: { ...emptyForm(), ...s, pooja_ids: s.pooja_id ? [String(s.pooja_id)] : [], plan_id: s.plan_id || '', poojari_id: s.poojari_id || '' }, id: s.id })} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
+                          {canWrite && <button onClick={() => openEdit(s)} title={tr("Edit")} aria-label={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}
+                          {canWrite && <button onClick={() => remove(s)} title={tr("Delete")} aria-label={tr("Delete")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-red-500 hover:text-red-700 hover:border-red-300"><Trash2 size={15} /></button>}
                         </div>
                       </td>
                     </tr>
                   ))}
-                  {sortedRows.length === 0 && <tr><td colSpan={9} className="px-5 py-12 text-center text-gray-600"><T>No schedules found.</T></td></tr>}
+                  {displayRows.length === 0 && <tr><td colSpan={9} className="px-5 py-12 text-center text-gray-600"><T>No schedules found.</T></td></tr>}
                 </tbody>
               </table>
             </div>
@@ -300,7 +381,7 @@ export default function PoojariSchedule() {
             </div>
           </>
         ) : (
-          <CalendarView rows={rows} />
+          <CalendarView filters={{ q, pooja, poojari, status }} reload={reloadTrigger + calendarReload} lang={lang} />
         )}
       </div>
 
@@ -317,6 +398,13 @@ export default function PoojariSchedule() {
             <div className="px-6 py-5 space-y-5 flex-1">
               <div className="text-[0.8125rem] font-bold text-maroon-700"><T>1. Assignment Details</T></div>
               <div><label className="label"><T>Pooja(s) *</T></label>
+                {drawer.id ? (
+                  <Select required className="input" value={selectedPoojaIds[0] || ''}
+                    onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, pooja_ids: e.target.value ? [e.target.value] : [], plan_id: '' } })}>
+                    <option value="">{tr('Select Pooja')}</option>
+                    {poojas.map((p) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+                  </Select>
+                ) : (
                 <MultiSelect
                   value={drawer.data.pooja_ids || []}
                   onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, pooja_ids: e.target.value, plan_id: '' } })}
@@ -326,6 +414,7 @@ export default function PoojariSchedule() {
                 >
                   {poojas.map((p) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
                 </MultiSelect>
+                )}
                 {selectedPoojaIds.length > 1 && (
                   <div className="text-[0.75rem] text-amber-600 mt-1">{selectedPoojaIds.length} {tr('poojas selected')} — {tr('default plan will be used for each')}</div>
                 )}
@@ -344,11 +433,18 @@ export default function PoojariSchedule() {
                     <label key={t} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="stype" className="accent-maroon-700" checked={drawer.data.schedule_type === t} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, schedule_type: t } })} /> {tr(t)}</label>
                   ))}
                 </div></div>
-              <div><label className="label"><T>Schedule Date *</T></label><DateField required className="input" value={drawer.data.schedule_date} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, schedule_date: e.target.value } })} /></div>
+              <div><label className="label"><T>Schedule Date *</T></label><DateField required className="input" value={drawer.data.schedule_date} min={drawer.id ? undefined : new Date().toISOString().slice(0, 10)} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, schedule_date: e.target.value } })} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label"><T>Start Time *</T></label><div className="relative"><input required className="input !pr-8" value={drawer.data.start_time} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, start_time: e.target.value } })} /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
                 <div><label className="label"><T>End Time *</T></label><div className="relative"><input required className="input !pr-8" value={drawer.data.end_time} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, end_time: e.target.value } })} /><Clock size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div>
               </div>
+
+              {drawer.id && (
+                <div><label className="label"><T>Status *</T></label>
+                  <Select required className="input" value={drawer.data.status} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, status: e.target.value } })}>
+                    {['Scheduled', 'In Progress', 'Completed', 'Cancelled'].map((st) => <option key={st} value={st}>{tr(st)}</option>)}
+                  </Select></div>
+              )}
 
               <div className="text-[0.8125rem] font-bold text-maroon-700 pt-1"><T>2. Additional Information</T></div>
               <div><label className="label"><T>Notes (Optional)</T></label><textarea className="input min-h-[4.5rem]" placeholder={tr("Enter any notes or special instructions…")} value={drawer.data.notes} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, notes: e.target.value } })} /></div>
@@ -358,7 +454,7 @@ export default function PoojariSchedule() {
             {saveErr && <div className="px-6 py-2 text-[0.8125rem] text-red-600 bg-red-50 border-t border-red-100">{saveErr}</div>}
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => { setDrawer(null); setSaveErr('') }} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button disabled={selectedPoojaIds.length === 0} className="btn-maroon flex-1 justify-center disabled:opacity-50"><Save size={15} />{' '}{selectedPoojaIds.length > 1 ? tr('Save') + ` (${selectedPoojaIds.length})` : tr('Save Schedule')}</button>
+              <button disabled={selectedPoojaIds.length === 0 || saving} className="btn-maroon flex-1 justify-center disabled:opacity-50"><Save size={15} />{' '}{saving ? tr('Saving…') : selectedPoojaIds.length > 1 ? tr('Save') + ` (${selectedPoojaIds.length})` : tr('Save Schedule')}</button>
             </div>
           </form>
         </div>
@@ -367,12 +463,42 @@ export default function PoojariSchedule() {
   )
 }
 
-function CalendarView({ rows }) {
+// Month calendar — fetches the whole month on its own (the list view is paged, so
+// reusing its rows showed at most one page of schedules).
+function CalendarView({ filters, reload, lang }) {
+  const now = new Date()
+  const [month, setMonth] = useState({ y: now.getFullYear(), m: now.getMonth() })   // m: 0-11
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(false)
+  const pad = (n) => String(n).padStart(2, '0')
+  const first = `${month.y}-${pad(month.m + 1)}-01`
+  const last = `${month.y}-${pad(month.m + 1)}-${pad(new Date(month.y, month.m + 1, 0).getDate())}`
+  const label = new Date(month.y, month.m, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).replace(/[A-Za-z]+/g, (w) => tr(w))
+  const step = (d) => setMonth(({ y, m }) => { const t = new Date(y, m + d, 1); return { y: t.getFullYear(), m: t.getMonth() } })
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    SchedulesAPI.list({ ...filters, start: first, end: last, page: 1, size: 1000, sort_by: 'schedule_date', sort_dir: 'asc' })
+      .then((d) => { if (alive) setRows(d.items || []) })
+      .catch((ex) => { if (alive) { setRows([]); toast(getErrorMessage(ex, tr('Failed to load schedules')), 'error') } })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [first, last, reload]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const byDate = rows.reduce((acc, s) => { (acc[s.schedule_date] ||= []).push(s); return acc }, {})
   const dates = Object.keys(byDate).sort()
   return (
     <div className="p-5">
-      {dates.length === 0 && <div className="text-center text-gray-600 py-12"><T>No schedules for the current filter.</T></div>}
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => step(-1)} className="btn-outline !py-1.5 !px-2.5" title={tr('Previous month')} aria-label={tr('Previous month')}><ChevronLeft size={16} /></button>
+        <div className="text-center">
+          <div className="font-serif text-lg font-bold text-maroon-800">{label}</div>
+          <div className="text-[0.75rem] text-gray-500">{loading ? tr('Loading…') : `${rows.length} ${tr('schedules')}`}</div>
+        </div>
+        <button onClick={() => step(1)} className="btn-outline !py-1.5 !px-2.5" title={tr('Next month')} aria-label={tr('Next month')}><ChevronRight size={16} /></button>
+      </div>
+      {!loading && dates.length === 0 && <div className="text-center text-gray-600 py-12"><T>No schedules for the current filter.</T></div>}
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {dates.map((d) => (
           <div key={d} className="border border-gray-100 rounded-xl p-4">
@@ -380,9 +506,9 @@ function CalendarView({ rows }) {
             <div className="space-y-2">
               {byDate[d].map((s) => (
                 <div key={s.id} className="flex items-center gap-2 text-[0.8125rem] border-b border-dashed border-gray-100 pb-2">
-                  <span className="text-gray-400 text-[0.6875rem] w-16">{s.start_time}</span>
-                  <span className="flex-1"><span className="font-semibold text-gray-800">{tr(s.pooja_name)}</span><span className="block text-[0.6875rem] text-gray-400">{s.poojari_name || tr('Unassigned')}</span></span>
-                  <Pill tone={STATUS_TONE[s.status] || 'gray'}>{s.status}</Pill>
+                  <span className="text-gray-400 text-[0.6875rem] w-16">{clock12(s.start_time)}</span>
+                  <span className="flex-1"><span className="font-semibold text-gray-800">{tr(s.pooja_name)}</span><span className="block text-[0.6875rem] text-gray-400">{s.poojari_name ? personName({ name: s.poojari_name, name_te: s.poojari_name_te }, lang) : tr('Unassigned')}</span></span>
+                  <Pill tone={STATUS_TONE[s.status] || 'gray'}>{tr(s.status)}</Pill>
                 </div>
               ))}
             </div>

@@ -11,12 +11,11 @@ import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName } from '../../lib/validation.js'
-import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const CAT_OPTIONS = [
   { value: 'Daily', label: 'Daily Pooja' }, { value: 'Monthly', label: 'Monthly Pooja' },
   { value: 'Long-Term', label: 'Long-Term Pooja' }, { value: 'Occasion', label: 'Special Pooja' },
-  { value: 'Vehicle', label: 'Vehicle Pooja' },
+  { value: 'Festival', label: 'Festival' }, { value: 'Vehicle', label: 'Vehicle Pooja' },
 ]
 const CAT_LABEL = Object.fromEntries(CAT_OPTIONS.map((c) => [c.value, c.label]))
 const VALIDITY_TYPES = ['Days', 'Months', 'One-Time', 'Life Long', 'Years']
@@ -78,15 +77,27 @@ export default function PoojaMaster() {
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const [items, setItems] = useState([])
   const [stats, setStats] = useState(null)
-  // filters - persisted in URL for state preservation across navigation
-  const { q, setQ, cat, setCat, status, setStatus, page, setPage } = useFilterParams({
-    q: '', cat: '', status: '', page: 1,
-  })
+  // filters - using local state for instant filtering
+  const [q, setQ] = useState('')
+  const [cat, setCat] = useState('')
+  const [status, setStatus] = useState('')
+  const [page, setPage] = useState(1)
   const [drawer, setDrawer] = useState(null)
   const SIZE = 15
 
   const load = () => Promise.all([PoojasAPI.admin(), PoojasAPI.stats().catch(() => null)])
-    .then(([d, s]) => { setItems(d.items); if (s) setStats(s) })
+    .then(([d, s]) => {
+      // Deduplicate items by ID to prevent duplicate rows
+      const rawItems = d.items || []
+      const seen = new Set()
+      const uniqueItems = rawItems.filter(item => {
+        if (seen.has(item.id)) return false
+        seen.add(item.id)
+        return true
+      })
+      setItems(uniqueItems)
+      if (s) setStats(s)
+    })
   useEffect(() => { load() }, [])
 
   const filtered = useMemo(() => items.filter((p) => {

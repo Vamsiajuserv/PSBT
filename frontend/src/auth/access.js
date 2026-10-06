@@ -57,6 +57,7 @@ export const ACCESS = {
   'hundi-items': { adminOnly: true },
   'auction-items': { adminOnly: true },
   vendors: { adminOnly: true },
+  'waste-materials': { adminOnly: true },
   committee: { module: 'Hundi', roles: ['Committee'] },  // Committee role for Festival Pricing
   festivals: { adminOnly: true },
   settings: { adminOnly: true },

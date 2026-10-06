@@ -70,6 +70,9 @@ export default function DailyClosing() {
   const canClose = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   // Only Admin can reopen a closed day
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
+  // Only Admin, Committee, Accountant can see amounts in reports
+  const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
+  const hideAmount = (val) => canSeeAmounts ? val : '—'
   const [day, setDay] = useState(today())
   const [sum, setSum] = useState(null)
   const [actual, setActual] = useState('')
@@ -141,9 +144,9 @@ export default function DailyClosing() {
 
       {/* ── KPI row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <KpiCard icon={IndianRupee} title={tr("Total Collections (₹)")} value={inr(t.total)} sub={`${modules.length} ${tr('Modules')}`} valueClass="text-maroon-800" />
-        <KpiCard icon={Wallet} title={tr("Cash Collections (₹)")} value={inr(t.cash)} sub={`${sum.cash_pct}% ${tr('of Total')}`} />
-        <KpiCard icon={CreditCard} title={tr("UPI / QR Collections (₹)")} value={inr(t.upi)} sub={`${sum.upi_pct}% ${tr('of Total')}`} />
+        <KpiCard icon={IndianRupee} title={tr("Total Collections (₹)")} value={hideAmount(inr(t.total))} sub={`${modules.length} ${tr('Modules')}`} valueClass="text-maroon-800" />
+        <KpiCard icon={Wallet} title={tr("Cash Collections (₹)")} value={hideAmount(inr(t.cash))} sub={canSeeAmounts ? `${sum.cash_pct}% ${tr('of Total')}` : ''} />
+        <KpiCard icon={CreditCard} title={tr("UPI / QR Collections (₹)")} value={hideAmount(inr(t.upi))} sub={canSeeAmounts ? `${sum.upi_pct}% ${tr('of Total')}` : ''} />
         <KpiCard icon={ListChecks} title={tr("Total Transactions")} value={num(t.count)} sub={tr("All Payment Modes")} />
         <KpiCard icon={ClipboardCheck} title={tr("Closing Status")}
           value={closed ? tr('Closed') : tr('Open')} valueClass={closed ? 'text-rose-600' : 'text-emerald-600'}
@@ -173,17 +176,17 @@ export default function DailyClosing() {
                     <tr key={m.name} className="hover:bg-gray-50/50">
                       <td className="px-4 py-3 text-gray-400 tabular-nums">{i + 1}</td>
                       <td className="px-2 py-3 font-medium text-gray-800">{tr(m.name)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dash(m.cash)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{dash(m.upi)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{dash(m.total)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{canSeeAmounts ? dash(m.cash) : '—'}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{canSeeAmounts ? dash(m.upi) : '—'}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{canSeeAmounts ? dash(m.total) : '—'}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-600">{dashN(m.count)}</td>
                     </tr>
                   ))}
                   <tr className="bg-amber-50/70 font-bold text-maroon-800 text-[0.875rem]">
                     <td className="px-4 py-3.5" colSpan={2}><T>TOTAL</T></td>
-                    <td className="px-4 py-3.5 text-right tabular-nums">{inr(t.cash)}</td>
-                    <td className="px-4 py-3.5 text-right tabular-nums">{inr(t.upi)}</td>
-                    <td className="px-4 py-3.5 text-right tabular-nums">{inr(t.total)}</td>
+                    <td className="px-4 py-3.5 text-right tabular-nums">{hideAmount(inr(t.cash))}</td>
+                    <td className="px-4 py-3.5 text-right tabular-nums">{hideAmount(inr(t.upi))}</td>
+                    <td className="px-4 py-3.5 text-right tabular-nums">{hideAmount(inr(t.total))}</td>
                     <td className="px-4 py-3.5 text-right tabular-nums">{num(t.count)}</td>
                   </tr>
                 </tbody>
@@ -196,25 +199,25 @@ export default function DailyClosing() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <CardHead icon={CreditCard} title={tr("Payment Mode Summary")} />
               <div className="p-5 flex items-center gap-5">
-                <div className="shrink-0"><Donut cashPct={sum.cash_pct} upiPct={sum.upi_pct} /></div>
+                {canSeeAmounts && <div className="shrink-0"><Donut cashPct={sum.cash_pct} upiPct={sum.upi_pct} /></div>}
                 <div className="flex-1 min-w-0 text-[0.8125rem]">
                   <div className="flex text-[0.6875rem] uppercase tracking-wide text-gray-700 font-semibold pb-2 border-b border-gray-100">
                     <span className="flex-1 min-w-0"><T>Payment Mode</T></span><span className="w-20 shrink-0 text-right"><T>Amount (₹)</T></span><span className="w-12 shrink-0 text-right">%</span>
                   </div>
                   <div className="flex items-center py-2.5 border-b border-gray-50">
                     <span className="flex-1 min-w-0 flex items-center gap-2 text-gray-700"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: '#7a1220' }} />{' '}<T>Cash</T></span>
-                    <span className="w-20 shrink-0 text-right tabular-nums text-gray-700">{inr(t.cash)}</span>
-                    <span className="w-12 shrink-0 text-right tabular-nums text-gray-500">{sum.cash_pct}%</span>
+                    <span className="w-20 shrink-0 text-right tabular-nums text-gray-700">{hideAmount(inr(t.cash))}</span>
+                    <span className="w-12 shrink-0 text-right tabular-nums text-gray-500">{canSeeAmounts ? `${sum.cash_pct}%` : '—'}</span>
                   </div>
                   <div className="flex items-center py-2.5 border-b border-gray-50">
                     <span className="flex-1 min-w-0 flex items-center gap-2 text-gray-700"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: '#c99a2e' }} />{' '}<T>UPI / QR Code</T></span>
-                    <span className="w-20 shrink-0 text-right tabular-nums text-gray-700">{inr(t.upi)}</span>
-                    <span className="w-12 shrink-0 text-right tabular-nums text-gray-500">{sum.upi_pct}%</span>
+                    <span className="w-20 shrink-0 text-right tabular-nums text-gray-700">{hideAmount(inr(t.upi))}</span>
+                    <span className="w-12 shrink-0 text-right tabular-nums text-gray-500">{canSeeAmounts ? `${sum.upi_pct}%` : '—'}</span>
                   </div>
                   <div className="flex items-center pt-2.5 font-bold text-maroon-800">
                     <span className="flex-1 min-w-0"><T>Total</T></span>
-                    <span className="w-20 shrink-0 text-right tabular-nums">{inr(t.total)}</span>
-                    <span className="w-12 shrink-0 text-right tabular-nums">100%</span>
+                    <span className="w-20 shrink-0 text-right tabular-nums">{hideAmount(inr(t.total))}</span>
+                    <span className="w-12 shrink-0 text-right tabular-nums">{canSeeAmounts ? '100%' : '—'}</span>
                   </div>
                 </div>
               </div>
@@ -224,15 +227,15 @@ export default function DailyClosing() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <CardHead icon={Scale} title={tr("Cash Reconciliation")} />
               <div className="p-5 text-[0.84375rem] space-y-3">
-                <Row label={tr("Opening Cash (₹)")} value={inr(sum.opening_cash)} />
-                <Row label={tr("(+) Cash Collections (₹)")} value={inr(t.cash)} />
-                <Row label={tr("(-) Cash Refunds (₹)")} value={inr(sum.cash_refunds)} />
+                <Row label={tr("Opening Cash (₹)")} value={hideAmount(inr(sum.opening_cash))} />
+                <Row label={tr("(+) Cash Collections (₹)")} value={hideAmount(inr(t.cash))} />
+                <Row label={tr("(-) Cash Refunds (₹)")} value={hideAmount(inr(sum.cash_refunds))} />
                 <div className="border-t border-gray-100 pt-3 space-y-3">
-                  <Row label={tr("Expected Cash in Hand (₹)")} value={inr(sum.expected_cash)} bold />
-                  <Row label={tr("Actual Cash in Hand (₹)")} value={inr(actualNum)} />
+                  <Row label={tr("Expected Cash in Hand (₹)")} value={hideAmount(inr(sum.expected_cash))} bold />
+                  <Row label={tr("Actual Cash in Hand (₹)")} value={hideAmount(inr(actualNum))} />
                 </div>
                 <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 mt-1 font-bold ${closingDiff === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                  <span><T>Difference (₹)</T></span><span className="tabular-nums">{inr(closingDiff)}</span>
+                  <span><T>Difference (₹)</T></span><span className="tabular-nums">{hideAmount(inr(closingDiff))}</span>
                 </div>
               </div>
             </div>
@@ -244,26 +247,28 @@ export default function DailyClosing() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <CardHead icon={ClipboardCheck} title={tr("Closing Summary")} />
             <div className="p-5 text-[0.84375rem] space-y-3">
-              <Row label={tr("Total Collections (₹)")} value={inr(t.total)} valueClass="text-maroon-800 font-bold text-[0.9375rem]" />
-              <Row label={tr("(-) Refunds (₹)")} value={inr(sum.refunds)} />
-              <Row label={tr("Net Collections (₹)")} value={inr(sum.net_collections)} valueClass="text-emerald-600 font-bold text-[0.9375rem]" />
+              <Row label={tr("Total Collections (₹)")} value={hideAmount(inr(t.total))} valueClass="text-maroon-800 font-bold text-[0.9375rem]" />
+              <Row label={tr("(-) Refunds (₹)")} value={hideAmount(inr(sum.refunds))} />
+              <Row label={tr("Net Collections (₹)")} value={hideAmount(inr(sum.net_collections))} valueClass="text-emerald-600 font-bold text-[0.9375rem]" />
               <div className="border-t border-gray-100 pt-3 space-y-3">
                 <Row label={tr("Total Transactions")} value={num(t.count)} />
                 <Row label={tr("Cash Transactions")} value={num(sum.cash_txns)} />
                 <Row label={tr("UPI / QR Transactions")} value={num(sum.upi_txns)} />
               </div>
-              <div className="border-t border-gray-100 pt-3 space-y-3">
-                <Row label={tr("Cash in Hand (Expected) (₹)")} value={inr(sum.expected_cash)} />
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600"><T>Cash in Hand (Actual) (₹)</T></span>
-                  <NumberField prefix="₹" value={actual} disabled={closed || !canClose}
-                    title={!canClose ? tr('Only the closing role enters the counted cash') : undefined}
-                    onChange={(e) => setActual(e.target.value)}
-                    className="!w-36 !py-1.5" inputClass="text-right tabular-nums" />
+              {canSeeAmounts && (
+                <div className="border-t border-gray-100 pt-3 space-y-3">
+                  <Row label={tr("Cash in Hand (Expected) (₹)")} value={inr(sum.expected_cash)} />
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600"><T>Cash in Hand (Actual) (₹)</T></span>
+                    <NumberField prefix="₹" value={actual} disabled={closed || !canClose}
+                      title={!canClose ? tr('Only the closing role enters the counted cash') : undefined}
+                      onChange={(e) => setActual(e.target.value)}
+                      className="!w-36 !py-1.5" inputClass="text-right tabular-nums" />
+                  </div>
+                  <Row label={tr("Difference (₹)")} value={inr(closingDiff)}
+                    valueClass={`font-bold ${closingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`} />
                 </div>
-                <Row label={tr("Difference (₹)")} value={inr(closingDiff)}
-                  valueClass={`font-bold ${closingDiff === 0 ? 'text-emerald-600' : 'text-rose-600'}`} />
-              </div>
+              )}
             </div>
           </div>
 
@@ -274,7 +279,7 @@ export default function DailyClosing() {
               <div className="overflow-x-auto">
                 <table className="w-full text-[0.8125rem]">
                   <thead><tr className="text-left text-[0.6875rem] uppercase tracking-wide text-gray-700 bg-gray-50/70">
-                    {['Refund No.', 'Against', 'Reason', 'Mode', 'By', 'Amount (₹)'].map((c) => <th key={c} className="px-3 py-2 font-semibold whitespace-nowrap">{tr(c)}</th>)}
+                    {['Refund No.', 'Against', 'Reason', 'Mode', 'By', ...(canSeeAmounts ? ['Amount (₹)'] : [])].map((c) => <th key={c} className="px-3 py-2 font-semibold whitespace-nowrap">{tr(c)}</th>)}
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {refunds.map((r) => (
@@ -284,13 +289,15 @@ export default function DailyClosing() {
                         <td className="px-3 py-2 text-gray-500">{r.reason || '—'}</td>
                         <td className="px-3 py-2 text-gray-600">{tr(r.mode || 'Cash')}</td>
                         <td className="px-3 py-2 text-gray-500">{r.created_by ? personName({ name: r.created_by }, lang) : '—'}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-rose-700">{inr(r.amount)}</td>
+                        {canSeeAmounts && <td className="px-3 py-2 text-right font-semibold text-rose-700">{inr(r.amount)}</td>}
                       </tr>
                     ))}
-                    <tr className="bg-gray-50/60 font-bold">
-                      <td className="px-3 py-2" colSpan={5}><T>Total refunds</T></td>
-                      <td className="px-3 py-2 text-right text-rose-700">{inr(refunds.reduce((s, r) => s + Number(r.amount || 0), 0))}</td>
-                    </tr>
+                    {canSeeAmounts && (
+                      <tr className="bg-gray-50/60 font-bold">
+                        <td className="px-3 py-2" colSpan={5}><T>Total refunds</T></td>
+                        <td className="px-3 py-2 text-right text-rose-700">{inr(refunds.reduce((s, r) => s + Number(r.amount || 0), 0))}</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -57,6 +57,7 @@ const NAV = [
     children: [
       { to: '/admin/waste-sales', label: tr('Waste Sales') },
       { to: '/admin/vendors', label: tr('Vendor Master') },
+      { to: '/admin/waste-materials', label: tr('Waste Material Master') },
     ],
   },
   { to: '/admin/reports', label: tr('Reports'), icon: FileBarChart, chevron: true },
@@ -149,6 +150,15 @@ function SidebarNav({ onNavigate, collapsed }) {
                   if (!collapsed) {
                     e.preventDefault()
                     setOpen((o) => ({ ...o, [n.label]: !isOpen }))
+                    // Auto-scroll to show expanded menu items when opening
+                    if (!isOpen) {
+                      setTimeout(() => {
+                        const menuDiv = e.target.closest('div[class*="key"]') || e.target.closest('div')
+                        if (menuDiv) {
+                          menuDiv.scrollIntoView({ behavior: 'smooth', block: 'end' })
+                        }
+                      }, 350)
+                    }
                   } else {
                     onNavigate()
                   }

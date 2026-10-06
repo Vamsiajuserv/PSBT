@@ -1,10 +1,9 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import {
-  HeartHandshake, Gift, Star, Landmark, HeartPulse, Utensils, Building2,
-  PiggyBank, Sparkles, Flame, Sun, ClipboardList, CreditCard, Banknote,
+  HeartHandshake, Gift, Star, ClipboardList, CreditCard, Banknote,
   QrCode, Globe, Phone, IndianRupee, Users, ReceiptText, BadgeCheck,
-  ArrowRight, Gem, CircleDot, Box,
+  ArrowRight,
 } from 'lucide-react'
 import { CountUp, Flourish } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'

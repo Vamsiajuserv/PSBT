@@ -35,6 +35,8 @@ def list_sevas(category: str = "", active_only: bool = False,
 def create_seva(body: SevaIn, request: Request,
                 db: Session = Depends(get_db), user=Depends(write)):
     seq = (db.query(func.count(Seva.id)).scalar() or 0) + 1
+    while db.query(Seva).filter(Seva.code == gen_code("SV", seq, 2)).first():
+        seq += 1
     s = Seva(code=gen_code("SV", seq, 2), **body.model_dump())
     db.add(s)
     db.commit()

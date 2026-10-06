@@ -196,6 +196,7 @@ export const AuthAPI = {
 
 export const DevoteesAPI = {
   list: (params = {}) => api.get('/devotees' + qs(params)),
+  lookup: (params = {}) => api.get('/devotees/lookup' + qs(params)),
   stats: () => api.get('/devotees/stats'),
   get: (id) => api.get(`/devotees/${id}`),
   summary: (id) => api.get(`/devotees/${id}/summary`),
@@ -342,6 +343,7 @@ const crud = (base) => ({
 })
 export const AuctionItemsAPI = crud('/auction-items')
 export const HundiItemsAPI = crud('/hundi-items')
+export const WasteMaterialsAPI = crud('/waste-materials')
 export const CommitteeAPI = crud('/committee')
 export const FestivalsAPI = crud('/festivals')
 export const VendorsAPI = {

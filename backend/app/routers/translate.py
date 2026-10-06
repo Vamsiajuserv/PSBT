@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Translation
-from ..security import get_current_user, require_admin
+from ..security import require_admin
 from .. import translation as tr
 
 router = APIRouter(prefix="/api/translate", tags=["translate"])

@@ -4,7 +4,7 @@ For Pournami and Amavasya, dates are calculated dynamically using Swiss Ephemeri
 Uses proper Hindu Panchang Tithi system (not just astronomical full/new moon).
 Database entries are used for special named dates (like Guru Purnima) or manual overrides.
 """
-from datetime import date, timedelta
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session

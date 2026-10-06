@@ -678,7 +678,7 @@
 
   /* Position #print-history-area for Pooja History Report printing */
   #print-history-area {
-    position: fixed !important;
+    position: absolute !important;
     top: 0 !important;
     left: 0 !important;
     width: 210mm !important;
@@ -691,6 +691,7 @@
     box-sizing: border-box !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    overflow: visible !important;
   }
 
   #print-history-area .print-header {
@@ -716,6 +717,20 @@
     width: 100% !important;
     border-collapse: collapse !important;
     font-size: 8pt !important;
+    page-break-inside: auto !important;
+  }
+
+  #print-history-area .print-table thead {
+    display: table-header-group !important;
+  }
+
+  #print-history-area .print-table tbody {
+    display: table-row-group !important;
+  }
+
+  #print-history-area .print-table tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
   }
 
   #print-history-area .print-table th,
@@ -734,6 +749,7 @@
     margin-top: 5mm !important;
     padding-top: 3mm !important;
     border-top: 0.5pt solid #e5e7eb !important;
+    page-break-before: avoid !important;
   }
 
   /* Position #print-pooja-queue for My Poojas / Pooja Queue Report printing */
@@ -851,7 +867,15 @@
   }
   .print-modal > * {
     max-width: none !important;
+    max-height: none !important;
     width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+  .print-modal > * > * {
+    overflow: visible !important;
+    max-height: none !important;
   }
 
   /* ─── HEADER - Compact & Readable ─── */

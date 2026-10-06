@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   Landmark, Settings as SettingsIcon, Users as UsersIcon, FileText, Shield,
-  ChevronDown, ChevronRight, Save, Upload, CheckCircle2, Info, AlertTriangle,
+  ChevronDown, ChevronRight, Save, Upload, CheckCircle2, Info, AlertTriangle, CalendarClock, Plus, X,
 } from 'lucide-react'
 import { PageTitle } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
@@ -54,6 +54,17 @@ const CATS = [
       fields: [{ k: 'receipt_footer_note', label: tr('Footer Note'), type: 'textarea', full: true }] }],
   },
   {
+    key: 'booking', title: tr('Pooja Booking Settings'), desc: tr('Configure pooja time slots and how far ahead poojas can be booked.'),
+    icon: CalendarClock, color: '#be185d', bg: 'bg-pink-50',
+    subs: [{ key: 'rules', label: tr('Booking Rules'), subtitle: tr('Time slots offered in Advance Booking and the advance booking window.'),
+      fields: [
+        { k: 'pooja_time_slots', label: tr('Pooja Time Slots'), type: 'slots', full: true,
+          hint: tr("Offered in Advance Booking. Today's slots are hidden once they end.") },
+        { k: 'advance_booking_max_days', label: tr('Maximum Days Ahead'), type: 'number',
+          hint: tr('How many days ahead a pooja can be booked. Leave blank for no limit.') },
+      ] }],
+  },
+  {
     key: 'security', title: tr('Security Settings'), desc: tr('Manage login policy and security preferences.'),
     icon: Shield, color: '#2563eb', bg: 'bg-blue-50',
     subs: [{ key: 'login', label: tr('Login Policy'), subtitle: tr('Lock an account after too many failed sign-in attempts.'),
@@ -68,6 +79,46 @@ function roleOrName(value, lang) {
   if (!value) return '—'
   const asTerm = tr(value)
   return asTerm !== value ? asTerm : personName({ name: value }, lang)
+}
+
+// Slots are stored as "06:00 AM - 07:00 AM" lines; edited here with 24h time pickers.
+const to24 = (t) => {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec((t || '').trim())
+  if (!m) return ''
+  let h = Number(m[1]) % 12
+  if (m[3].toUpperCase() === 'PM') h += 12
+  return `${String(h).padStart(2, '0')}:${m[2]}`
+}
+const to12 = (t) => {
+  if (!t) return ''
+  const [h, m] = t.split(':').map(Number)
+  return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
+}
+
+function SlotsEditor({ value, onChange }) {
+  const rows = value.split('\n').filter((l) => l.trim()).map((l) => {
+    const [a = '', b = ''] = l.split(' - ')
+    return { start: to24(a), end: to24(b) }
+  })
+  const emit = (next) => onChange(next.map((r) => `${to12(r.start)} - ${to12(r.end)}`).join('\n'))
+  const update = (i, k, v) => emit(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)))
+  return (
+    <div className="space-y-2">
+      {rows.map((r, i) => {
+        const bad = !r.start || !r.end || r.end <= r.start
+        return (
+          <div key={i} className="flex items-center gap-2">
+            <input type="time" className={`input !w-36 ${bad ? 'border-red-400' : ''}`} value={r.start} onChange={(e) => update(i, 'start', e.target.value)} aria-label={tr('Start time')} />
+            <span className="text-gray-400">–</span>
+            <input type="time" className={`input !w-36 ${bad ? 'border-red-400' : ''}`} value={r.end} onChange={(e) => update(i, 'end', e.target.value)} aria-label={tr('End time')} />
+            <button type="button" onClick={() => emit(rows.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-600 p-1" aria-label={tr('Remove slot')}><X size={16} /></button>
+            {bad && <span className="text-[0.6875rem] text-red-600"><T>End time must be after start time</T></span>}
+          </div>
+        )
+      })}
+      <button type="button" onClick={() => emit([...rows, { start: '09:00', end: '10:00' }])} className="btn-outline !py-1.5 text-sm"><Plus size={14} /> <T>Add Slot</T></button>
+    </div>
+  )
 }
 
 export default function Settings() {
@@ -177,6 +228,10 @@ export default function Settings() {
                       <textarea className="input min-h-[5rem]" maxLength={f.max} value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)} />
                       {f.max && <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{(data[f.k] || '').length} / {f.max}</div>}
                     </>
+                  ) : f.type === 'slots' ? (
+                    <SlotsEditor value={data[f.k] || ''} onChange={(v) => set(f.k, v)} />
+                  ) : f.type === 'number' ? (
+                    <input className="input" inputMode="numeric" placeholder={tr('No limit')} value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value.replace(/\D/g, ''))} />
                   ) : f.type === 'select' ? (
                     <Select className="input" value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)}>{f.options.map((o) => <option key={o} value={o}>{tr(o)}</option>)}</Select>
                   ) : (

@@ -36,7 +36,7 @@ MODELS = [
     models.User, models.Role, models.Devotee, models.FamilyMember,
     models.Pooja, models.PoojaPlan, models.Seva, models.Booking, models.Donation,
     models.DonationCategory, models.HundiCollection, models.Auction, models.Annadanam,
-    models.Poojari, models.Schedule, models.WasteVendor, models.WasteSale,
+    models.Poojari, models.Schedule, models.WasteVendor, models.WasteSale, models.WasteMaterial,
     models.Setting, models.AuctionItem, models.HundiItem, models.CommitteeMember,
     models.Festival, models.DailyClosing, models.Backup, models.PaymentOrder,
     models.Translation, models.NotificationLog, models.AuditLog,

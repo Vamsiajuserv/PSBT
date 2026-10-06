@@ -1,12 +1,13 @@
 """Temple / system settings — key-value configuration (doc §Settings)."""
 from datetime import datetime
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Setting
 from ..schemas import SettingsUpdateIn
 from ..security import RequireModule, require_admin, log_action, client_ip, ADMIN_ROLES, get_current_user
+from ..helpers import parse_time_slot
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 read = RequireModule("Reports")   # any staff with a back-office module can view
@@ -66,6 +67,9 @@ DEFAULTS = {
     # UPI Payment Settings
     "upi_id": "ssst@sbi",
     "upi_payee_name": "Sri Shirdi Sai Premsamaj",
+    # Pooja Booking Settings — one slot per line; blank max days = no limit
+    "pooja_time_slots": "06:00 AM - 07:00 AM\n07:30 AM - 08:30 AM\n09:00 AM - 10:00 AM\n10:30 AM - 11:30 AM\n12:00 PM - 01:00 PM\n04:00 PM - 05:00 PM",
+    "advance_booking_max_days": "",
     # Backup Settings
     # Audit
     "created_by": "Administrator",
@@ -73,6 +77,40 @@ DEFAULTS = {
     "updated_by": "Administrator",
     "updated_at": "",
 }
+
+
+def _setting_value(db: Session, key: str) -> str:
+    row = db.query(Setting).filter(Setting.skey == key).first()
+    return row.svalue if row and row.svalue is not None else DEFAULTS.get(key, "")
+
+
+def time_slots(db: Session) -> list[str]:
+    """Bookable pooja time slots configured by the admin, in their saved order."""
+    return [s.strip() for s in _setting_value(db, "pooja_time_slots").splitlines() if s.strip()]
+
+
+def max_advance_days(db: Session) -> int | None:
+    """How many days ahead a pooja may be booked; None means no limit."""
+    raw = str(_setting_value(db, "advance_booking_max_days") or "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
+def _validate_booking_settings(body_dict: dict) -> None:
+    if "pooja_time_slots" in body_dict:
+        lines = [s.strip() for s in str(body_dict["pooja_time_slots"] or "").splitlines() if s.strip()]
+        if not lines:
+            raise HTTPException(422, "Add at least one pooja time slot.")
+        bad = [s for s in lines if not parse_time_slot(s)]
+        if bad:
+            raise HTTPException(422, f"Invalid time slot: {bad[0]}. Use the format 06:00 AM - 07:00 AM, with the end after the start.")
+        if len(set(lines)) != len(lines):
+            raise HTTPException(422, "Each time slot must be listed only once.")
+        body_dict["pooja_time_slots"] = "\n".join(lines)
+    if "advance_booking_max_days" in body_dict:
+        raw = str(body_dict["advance_booking_max_days"] or "").strip()
+        if raw and not raw.isdigit():
+            raise HTTPException(422, "Maximum days ahead must be a whole number, or blank for no limit.")
+        body_dict["advance_booking_max_days"] = raw
 
 
 @router.get("/config")
@@ -91,6 +129,8 @@ def operational_config(db: Session = Depends(get_db), user=Depends(get_current_u
         "currency": cfg.get("currency", "₹ INR"),
         "upi_id": cfg.get("upi_id", ""),
         "upi_payee_name": cfg.get("upi_payee_name", cfg.get("trust_name", "Temple")),
+        "time_slots": time_slots(db),
+        "advance_booking_max_days": max_advance_days(db),
     }
 
 
@@ -115,6 +155,7 @@ def update_settings(body: SettingsUpdateIn, request: Request,
     now = datetime.now().strftime("%d %b %Y %I:%M %p")
     # Convert Pydantic model to dict, excluding unset fields
     body_dict = body.model_dump(exclude_unset=True)
+    _validate_booking_settings(body_dict)
     body_dict["updated_by"] = getattr(user, "name", None) or user.username
     body_dict["updated_at"] = now
     for k, v in body_dict.items():

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import {
   Clock, User, Phone, CheckCircle2, RotateCcw, Repeat, Flame, Loader2, Download, Printer, X,
   ArrowUp, ArrowDown, ChevronsUpDown,
@@ -15,7 +15,7 @@ import { useFilterParams } from '../../hooks/useUrlState.js'
 
 // Sortable columns for the queue
 const SORT_COLUMNS = [
-  { key: 'time_slot', label: 'Time Slot', type: 'text' },
+  { key: 'time_slot', label: 'Time Slot', type: 'time' },
   { key: 'pooja', label: 'Pooja', type: 'text' },
   { key: 'devotee_name', label: 'Devotee', type: 'text' },
   { key: 'amount', label: 'Amount', type: 'money' },
@@ -77,6 +77,14 @@ export default function PoojariQueue() {
     [{ key: 'time_slot', direction: 'asc' }]
   )
 
+  // Track if user has interacted with sort
+  const userSortedRef = useRef(false)
+  const wrappedHandleColumnClick = (key, e) => {
+    userSortedRef.current = true
+    handleColumnClick(key, e)
+  }
+  useEffect(() => { userSortedRef.current = false }, [startDate, endDate])
+
   // Handle preset selection
   const selectPreset = (preset) => {
     setDatePreset(preset.key)
@@ -121,7 +129,7 @@ export default function PoojariQueue() {
   const downloadCSV = () => {
     const items = data?.items || []
     if (!items.length) return
-    const headers = ['Date', 'Time', 'Pooja', 'Plan', 'Devotee', 'Mobile', 'Ticket No', 'Amount', 'Status']
+    const headers = ['Date', 'Time', 'Pooja', 'Plan', 'Devotee', 'Mobile', 'Ticket No', 'Status']
     const csvRows = [headers.join(',')]
     for (const r of items) {
       const row = [
@@ -132,7 +140,6 @@ export default function PoojariQueue() {
         `"${(r.devotee_name || '').replace(/"/g, '""')}"`,
         r.mobile || '',
         r.ticket_no || r.booking_code || '',
-        r.amount || 0,
         r.done_today ? 'Performed' : r.status,
       ]
       csvRows.push(row.join(','))
@@ -174,7 +181,20 @@ export default function PoojariQueue() {
   }
 
   const items = data?.items || []
-  const displayItems = sortedRows // Use sorted rows for display
+
+  // Display rows - sorted ascending when date range is applied AND user hasn't manually sorted
+  const displayRows = useMemo(() => {
+    if (isRangeMode && startDate !== endDate && !userSortedRef.current) {
+      return [...sortedRows].sort((a, b) => {
+        const dateA = a.performed_on || startDate || ''
+        const dateB = b.performed_on || startDate || ''
+        return dateA.localeCompare(dateB)
+      })
+    }
+    return sortedRows
+  }, [sortedRows, isRangeMode, startDate, endDate, sorts])
+
+  const displayItems = displayRows // Use sorted rows for display
   const pending = items.filter((i) => !i.done_today && i.status === 'Confirmed' && (i.remaining === null || i.remaining > 0)).length
   const done = items.filter((i) => i.done_today || i.status === 'Completed').length
 
@@ -221,7 +241,7 @@ export default function PoojariQueue() {
             ))}
           </div>
         )}
-        <button onClick={load} className="btn-outline !py-2"><RotateCcw size={15} />{' '}<T>Refresh</T></button>
+        <button onClick={() => { setStartDate(todayISO()); setEndDate(todayISO()); setDatePreset('today'); setIsRangeMode(false); setMine('') }} className="btn-outline !py-2"><T>Clear</T></button>
         {!isRangeMode && startDate === todayISO() && pending > 0 && (
           <button onClick={markAllDue} className="btn-maroon !py-2"><CheckCircle2 size={15} /> {tr('Mark all due')} ({pending})</button>
         )}
@@ -256,7 +276,7 @@ export default function PoojariQueue() {
               return (
                 <button
                   key={col.key}
-                  onClick={(e) => handleColumnClick(col.key, e)}
+                  onClick={(e) => wrappedHandleColumnClick(col.key, e)}
                   className={`group inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[0.75rem] font-medium border transition ${
                     isSorted
                       ? 'bg-maroon-50 border-maroon-200 text-maroon-700'
@@ -417,7 +437,7 @@ export default function PoojariQueue() {
               </div>
 
               {/* Summary */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gray-50 rounded-lg p-3 text-center">
                   <div className="text-2xl font-bold text-gray-800">{items.length}</div>
                   <div className="text-xs text-gray-500"><T>Total Poojas</T></div>
@@ -425,10 +445,6 @@ export default function PoojariQueue() {
                 <div className="bg-emerald-50 rounded-lg p-3 text-center">
                   <div className="text-2xl font-bold text-emerald-700">{done}</div>
                   <div className="text-xs text-emerald-600"><T>Performed</T></div>
-                </div>
-                <div className="bg-blue-50 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-blue-700">₹{items.reduce((s, r) => s + (r.amount || 0), 0).toLocaleString('en-IN')}</div>
-                  <div className="text-xs text-blue-600"><T>Total Amount</T></div>
                 </div>
               </div>
 
@@ -442,7 +458,6 @@ export default function PoojariQueue() {
                     <th className="px-3 py-2 border-b font-semibold">{tr('Devotee')}</th>
                     <th className="px-3 py-2 border-b font-semibold">{tr('Mobile')}</th>
                     <th className="px-3 py-2 border-b font-semibold">{tr('Ticket')}</th>
-                    <th className="px-3 py-2 border-b font-semibold text-right">{tr('Amount')}</th>
                     <th className="px-3 py-2 border-b font-semibold">{tr('Status')}</th>
                   </tr>
                 </thead>
@@ -455,7 +470,6 @@ export default function PoojariQueue() {
                       <td className="px-3 py-2 text-gray-700">{personName({ name: r.devotee_name }, lang)}</td>
                       <td className="px-3 py-2 text-gray-600">{r.mobile || '—'}</td>
                       <td className="px-3 py-2 font-mono text-xs text-gray-600">{r.ticket_no || r.booking_code}</td>
-                      <td className="px-3 py-2 text-gray-800 font-semibold text-right">₹{(r.amount || 0).toLocaleString('en-IN')}</td>
                       <td className="px-3 py-2">
                         <span className={`text-xs font-medium ${r.done_today || r.performed_on ? 'text-emerald-700' : 'text-amber-600'}`}>
                           {r.done_today || r.performed_on ? tr('Performed') : tr('Pending')}
@@ -464,13 +478,6 @@ export default function PoojariQueue() {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot>
-                  <tr className="bg-gray-50 font-semibold">
-                    <td colSpan={6} className="px-3 py-2 text-right text-gray-700"><T>Total</T>:</td>
-                    <td className="px-3 py-2 text-right text-maroon-700">₹{items.reduce((s, r) => s + (r.amount || 0), 0).toLocaleString('en-IN')}</td>
-                    <td></td>
-                  </tr>
-                </tfoot>
               </table>
 
               {/* Footer */}

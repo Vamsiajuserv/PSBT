@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { ScrollText, Activity, LogIn, Users, Search, RotateCcw, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
 import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { AuditAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import { T, tr, auditDetail, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -15,8 +15,8 @@ const ACTIONS = ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'DENIED']
 const SORT_COLUMNS = [
   { key: 'ts', label: 'Timestamp', type: 'date' },
   { key: 'username', label: 'User', type: 'text' },
-  { key: 'action', label: 'Action', type: 'text', filterable: true, filterOptions: ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'DENIED', 'LOGOUT'] },
-  { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['SUCCESS', 'FAILED'] },
+  { key: 'action', label: 'Action', type: 'text', filterable: true, filterOptions: ['LOGIN', 'LOGOUT', 'CREATE', 'UPDATE', 'DELETE', 'VERIFY', 'REJECT', 'RESET', 'DENIED', 'RATE_LIMIT'] },
+  { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['SUCCESS', 'FAILURE', 'HIT'] },
 ]
 
 export default function AuditTrail() {
@@ -33,6 +33,7 @@ export default function AuditTrail() {
     q: '', action: '', entity: '', start: '', end: '', page: 1,
   })
   const [loading, setLoading] = useState(true)
+  const [reloadTrigger, setReloadTrigger] = useState(0)
   const [loadErr, setLoadErr] = useState('')
   const size = 20
 
@@ -41,22 +42,40 @@ export default function AuditTrail() {
     filteredSortedRows,
     sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
     filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
-  } = useFilterableSortableTable(rows, SORT_COLUMNS, [{ key: 'ts', direction: 'desc' }])
+  } = useFilterableSortableTable(rows, SORT_COLUMNS, [], {}, { manualSort: true, manualFilter: true })
+
+  // Sorting and column filters run on the server so they cover every record, not just the
+  // visible page; changing either reloads from page 1. With no column chosen the date
+  // column is used — oldest first when a date filter is applied, newest first otherwise.
+  const [listTrigger, setListTrigger] = useState(0)
+  const prevSortsRef = useRef(sorts)
+  const prevFiltersRef = useRef(filters)
+  useEffect(() => {
+    const filtersChanged = prevFiltersRef.current !== filters
+    if (prevSortsRef.current === sorts && !filtersChanged) return
+    prevSortsRef.current = sorts
+    prevFiltersRef.current = filters
+    setPage(1)
+    // A filter change also refreshes the export data; a sort change only reloads the list
+    if (filtersChanged) setReloadTrigger((t) => t + 1)
+    else setListTrigger((t) => t + 1)
+  }, [sorts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
+  const displayRows = filteredSortedRows
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        AuditAPI.search({ q, action, entity, start, end, page, size }),
+        AuditAPI.search({ q, action, entity, start, end, page, size, sort_by: sorts[0]?.key || 'ts', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
         AuditAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (d.entities) setEntities(d.entities); if (s) setStats(s)
     } catch (ex) {
       setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
     } finally { setLoading(false) }
-  }, [q, action, entity, start, end, page])
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
-  useEffect(() => { setPage(1) }, [q, action, entity, start, end])
+  }, [q, action, entity, start, end, page, sorts, filters])
+  // Load on initial mount, page changes, or reload trigger
+  useEffect(() => { load() }, [page, reloadTrigger, listTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const pages = Math.max(1, Math.ceil(total / size))
   const from = total ? (page - 1) * size + 1 : 0
@@ -74,21 +93,20 @@ export default function AuditTrail() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
-          <div>
+        <div className="px-5 py-5 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("User, entity or detail…")} className="input !pl-9" /></div>
           </div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Action</T></label>
+          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Action</T></label>
             <Select value={action} onChange={(e) => setAction(e.target.value)} className="input"><option value="">{tr("All")}</option>{ACTIONS.map((a) => <option key={a}>{a}</option>)}</Select></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Entity</T></label>
+          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Entity</T></label>
             <Select value={entity} onChange={(e) => setEntity(e.target.value)} className="input"><option value="">{tr("All")}</option>{entities.map((e) => <option key={e}>{e}</option>)}</Select></div>
-          <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label><DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" /></div>
-          <div className="flex gap-2 items-end">
-            <div className="flex-1"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label><DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" /></div>
-            <button type="button" onClick={() => setFilters({ q: '', action: '', entity: '', start: '', end: '', page: 1 })} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>
-          </div>
+          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label><DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" /></div>
+          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label><DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" /></div>
+          <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
+          <button type="button" onClick={() => { setFilters({ q: '', action: '', entity: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
         <SortFilterPanel
           sorts={sorts}
@@ -159,7 +177,7 @@ export default function AuditTrail() {
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('IP Address')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredSortedRows.map((r) => (
+              {displayRows.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(r.ts)}</td>
                   <td className="px-4 py-3">
@@ -177,7 +195,7 @@ export default function AuditTrail() {
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-400">{r.ip || '—'}</td>
                 </tr>
               ))}
-              {filteredSortedRows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No audit events found.")} />}
+              {displayRows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No audit events found.")} />}
             </tbody>
           </table>
         </div>

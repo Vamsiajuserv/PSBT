@@ -1,81 +1,24 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import {
-  Printer, Plus, Trash2, Receipt as ReceiptIcon, Search, User, X, IndianRupee, Loader2, Eye, AlertTriangle,
-  Check, Flame, CalendarDays, Moon, Car, ShieldCheck, FileText, Clock, RotateCcw, ChevronDown, ChevronUp, CheckCircle2,
+  Printer, Plus, Receipt as ReceiptIcon, Search, User, X, IndianRupee, Loader2, Eye, AlertTriangle,
+  Check, Flame, CalendarDays, Moon, Car, ShieldCheck, FileText, RotateCcw, CheckCircle2, ChevronDown, ChevronUp, UserPlus,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
-import { Select, DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
-import { PoojasAPI, DevoteesAPI, BookingsAPI, FestivalsAPI, PoojarisAPI, TithiAPI, SettingsAPI } from '../../api/client.js'
+import { DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
+import { PoojasAPI, DevoteesAPI, BookingsAPI, FestivalsAPI, TithiAPI, SettingsAPI } from '../../api/client.js'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from '../../components/common/Dialog.jsx'
-import { T, tr, useLang, personName, stamp, clock12 } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useLang, personName, stamp } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
+import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
+import { planValidUntil } from '../../lib/planTerms.js'
+import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
 
 // ── Constants ──
 const CATS = ['All', 'Daily', 'Monthly', 'Long-Term', 'Occasion', 'Festival', 'Vehicle']
-const SLOTS = [
-  '06:00 AM - 07:00 AM', '07:30 AM - 08:30 AM', '09:00 AM - 10:00 AM',
-  '10:30 AM - 11:30 AM', '12:00 PM - 01:00 PM', '04:00 PM - 05:00 PM',
-]
 
-// Filter out past time slots for today's bookings
-const getAvailableSlots = (date) => {
-  if (date !== todayISO()) return SLOTS
-
-  // Get current time in IST
-  const now = new Date()
-  const nowIST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
-
-  return SLOTS.filter(slot => {
-    const timeMatch = slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
-    if (!timeMatch) return true
-    let hours = parseInt(timeMatch[1], 10)
-    const minutes = parseInt(timeMatch[2], 10)
-    const period = timeMatch[3].toUpperCase()
-    if (period === 'PM' && hours !== 12) hours += 12
-    if (period === 'AM' && hours === 12) hours = 0
-
-    const slotDate = new Date(nowIST)
-    slotDate.setHours(hours, minutes, 0, 0)
-    return slotDate > nowIST
-  })
-}
-
-const GOTHRAMS = [
-  'Agastya', 'Alambayana', 'Angirasa', 'Atri', 'Babhravya', 'Bharadwaja', 'Bhargava',
-  'Bhrigu', 'Daksha', 'Dhananjaya', 'Garga', 'Gautama', 'Harita', 'Jamadagni',
-  'Jamadagnya', 'Kanva', 'Kapi', 'Kapisthala', 'Kashyapa', 'Katyayana', 'Kaundinya',
-  'Kaushika', 'Kousika', 'Kratu', 'Kutsa', 'Lohita', 'Mandavya', 'Marichi', 'Matanga',
-  'Moudgalya', 'Mudgala', 'Nidruva', 'Parashara', 'Pulaha', 'Pulastya', 'Rouhitya',
-  'Salihotra', 'Sandilya', 'Sankritya', 'Saunaka', 'Savarni', 'Shandilya', 'Srivatsa',
-  'Upamanyu', 'Vadula', 'Vashishtha', 'Vatsa', 'Vatsya', 'Vishnu', 'Vishnuvriddha',
-  'Vishwamitra', 'Yaska',
-]
-
-const NAKSHATRAMS = [
-  'Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu',
-  'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni', 'Hasta',
-  'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha', 'Moola', 'Purva Ashadha',
-  'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha', 'Purva Bhadrapada',
-  'Uttara Bhadrapada', 'Revati',
-]
-
-const RASHIS = [
-  { value: 'Mesha', label: 'Mesha (Aries)' },
-  { value: 'Vrishabha', label: 'Vrishabha (Taurus)' },
-  { value: 'Mithuna', label: 'Mithuna (Gemini)' },
-  { value: 'Karka', label: 'Karka (Cancer)' },
-  { value: 'Simha', label: 'Simha (Leo)' },
-  { value: 'Kanya', label: 'Kanya (Virgo)' },
-  { value: 'Tula', label: 'Tula (Libra)' },
-  { value: 'Vrishchika', label: 'Vrishchika (Scorpio)' },
-  { value: 'Dhanu', label: 'Dhanu (Sagittarius)' },
-  { value: 'Makara', label: 'Makara (Capricorn)' },
-  { value: 'Kumbha', label: 'Kumbha (Aquarius)' },
-  { value: 'Meena', label: 'Meena (Pisces)' },
-]
 
 // ── Utility Functions ──
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
@@ -87,7 +30,6 @@ const fmtDate = (d) => {
   if (isNaN(date.getTime())) return '—'
   return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })
 }
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 
 const buildUpiUrl = (upiId, payeeName, amount, note = 'Temple Booking') => {
   if (!upiId) return ''
@@ -95,30 +37,34 @@ const buildUpiUrl = (upiId, payeeName, amount, note = 'Temple Booking') => {
   return `upi://pay?${params.toString()}`
 }
 
-const durDays = (planName) => {
-  const n = (planName || '').toLowerCase()
-  if (n.includes('life')) return null
-  if (n.includes('daily') || n.includes('one')) return 1
-  if (n.includes('monthly') || n.includes('month')) return 30
-  if (n.includes('year')) return 365
-  return 1
+// Date and validity shown for a pooja in the live booking panel
+const cartLineWhen = (item) => {
+  const from = item.scheduled_date || todayISO()
+  const day = from === todayISO() ? tr('Today') : stamp(fmtDate(from))
+  const pournami = item.category === 'Monthly' ? ` (${tr('Pournami')})` : ''
+  const end = planValidUntil(item, from)
+  if (end === null) return `${day}${pournami} · ${tr('Lifetime')}`
+  if (end !== from) return `${day}${pournami} – ${stamp(fmtDate(end))}`
+  return `${day}${pournami}`
 }
 
-const validityShort = (planName) => {
-  const n = (planName || '').toLowerCase()
-  if (n.includes('daily')) return tr('1 Day')
-  if (n.includes('monthly') || n.includes('month')) return tr('1 Month')
-  if (n.includes('life')) return tr('Lifetime')
-  if (n.includes('one')) return tr('One-Time')
-  if (n.includes('year')) return tr('1 Year')
-  return tr('Selected Date')
+// Validity text for one billed line (lifetime / monthly / yearly plans only)
+const lineValidity = (l) => {
+  const b = l.booking || {}
+  const pn = (l.plan_name || b.plan_name || '').toLowerCase()
+  if (pn.includes('life')) return tr('Lifetime')
+  if (pn.includes('month') || pn.includes('year')) {
+    const from = stamp(fmtDate(b.scheduled_date || l.scheduled_date || todayISO()))
+    return `${from} → ${b.valid_until ? stamp(fmtDate(b.valid_until)) : tr('As per plan')}`
+  }
+  return null
 }
 
-const validityRange = (planName, fromDate) => {
-  const d = durDays(planName)
-  if (d === null) return tr('Lifetime')
-  const to = addDays(fromDate, d - 1)
-  return `${d} ${tr(d > 1 ? 'Days' : 'Day')} (${stamp(fmtDate(fromDate))} ${tr('to')} ${stamp(fmtDate(to))})`
+const validityRange = (plan, fromDate) => {
+  const from = fromDate || todayISO()
+  const end = planValidUntil(plan, from)
+  if (end === null) return tr('Lifetime')
+  return `${stamp(fmtDate(from))} ${tr('to')} ${stamp(fmtDate(end))}`
 }
 
 const calcExpiry = (bookedDate, planName) => {
@@ -140,13 +86,12 @@ const requiresBookingDetails = (category, planName) => {
   return false
 }
 
-const isLifetimePlan = (planName) => /life\s*long|life\s*time|lifetime/i.test(planName || '')
-
 // ── Main Component ──
 export default function Counter() {
   const { lang } = useLang()
   const { role } = useOutletContext()
-  const canBill = role !== 'Accountant'
+  // Committee holds Counter for viewing only; the backend rejects their billing
+  const canBill = !['Accountant', 'Committee'].includes(role)
 
   // ── UPI Config ──
   const [upiConfig, setUpiConfig] = useState({ upi_id: '', upi_payee_name: '' })
@@ -173,6 +118,7 @@ export default function Counter() {
               plan_id: pl.id, plan_name: pl.plan_name,
               committee: !!pl.committee_decided,
               fee: pl.fee == null ? null : Number(pl.fee),
+              duration_days: pl.duration_days, validity_type: pl.validity_type, validity_value: pl.validity_value,
               plans: p.plans,
             })
           }
@@ -199,12 +145,6 @@ export default function Counter() {
     if (upcoming) return { date: upcoming.start_date, name: upcoming.name, fest: upcoming }
     return { past: true, windows: linked.map((f) => `${f.name} (${f.start_date} – ${f.end_date})`).join(', ') }
   }
-
-  // ── Poojaris ──
-  const [poojaris, setPoojaris] = useState([])
-  useEffect(() => {
-    PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => {})
-  }, [])
 
   // ── Pournami Dates ──
   const [pournamiDates, setPournamiDates] = useState([])
@@ -238,6 +178,7 @@ export default function Counter() {
   const [mobileResults, setMobileResults] = useState(null)
   const [showMobileDropdown, setShowMobileDropdown] = useState(false)
   const [devotee, setDevotee] = useState(null)
+  const [lookedUpMobile, setLookedUpMobile] = useState('')
   const searchRef = useRef(0)
 
   useEffect(() => {
@@ -245,15 +186,20 @@ export default function Counter() {
     if (m.length < 4 || devotee) { setMobileResults(null); setShowMobileDropdown(false); return }
     const seq = ++searchRef.current
     const t = setTimeout(() => {
-      DevoteesAPI.list({ q: m, size: 8 })
+      // Use lookup endpoint - available to all authenticated users (no module restriction)
+      DevoteesAPI.lookup({ q: m, size: 8 })
         .then((r) => {
           if (seq === searchRef.current) {
             const matches = (r.items || []).filter(d => d.mobile && d.mobile.includes(m))
+            // One devotee per phone: a full number match links that devotee automatically
+            const exact = matches.find((d) => d.mobile === m)
+            if (exact) { pickDevotee(exact); return }
             setMobileResults(matches)
             setShowMobileDropdown(matches.length > 0)
+            setLookedUpMobile(m)
           }
         })
-        .catch(() => { if (seq === searchRef.current) { setMobileResults([]); setShowMobileDropdown(false) } })
+        .catch(() => { if (seq === searchRef.current) { setMobileResults([]); setShowMobileDropdown(false); setLookedUpMobile(m) } })
     }, 250)
     return () => clearTimeout(t)
   }, [mobile, devotee])
@@ -266,27 +212,8 @@ export default function Counter() {
   const [participants, setParticipants] = useState([])
   const [specialNotes, setSpecialNotes] = useState('')
   const [sankalpamExpanded, setSankalpamExpanded] = useState(false)
-  const [sankalpamSaveState, setSankalpamSaveState] = useState('idle') // 'idle' | 'saving' | 'saved'
-  const sankalpamDebounceRef = useRef(null)
-
-  // Debounced Sankalpam save indicator
+  // Check if Sankalpam data is filled
   const hasSankalpamData = gothram || nakshatram || rasi || beneficiary || participants.length > 0 || specialNotes
-  useEffect(() => {
-    if (!hasSankalpamData) {
-      setSankalpamSaveState('idle')
-      return
-    }
-    setSankalpamSaveState('saving')
-    if (sankalpamDebounceRef.current) clearTimeout(sankalpamDebounceRef.current)
-    sankalpamDebounceRef.current = setTimeout(() => {
-      setSankalpamSaveState('saved')
-    }, 400)
-    return () => { if (sankalpamDebounceRef.current) clearTimeout(sankalpamDebounceRef.current) }
-  }, [gothram, nakshatram, rasi, beneficiary, participants, specialNotes, hasSankalpamData])
-
-  // ── Section Collapse States ──
-  const [vehicleExpanded, setVehicleExpanded] = useState(true)
-  const [bookingExpanded, setBookingExpanded] = useState(true)
 
   // ── Existing Devotee "Use Details" State ──
   const [detailsApplied, setDetailsApplied] = useState(false)
@@ -303,6 +230,10 @@ export default function Counter() {
     setMobileResults(null)
     setShowMobileDropdown(false)
     setDetailsApplied(false)
+    // The lookup endpoint returns only id/name/mobile, so fetch the full record for saved Sankalpam
+    DevoteesAPI.get(d.id)
+      .then((full) => setDevotee((prev) => (prev?.id === d.id ? { ...prev, ...full } : prev)))
+      .catch(() => {})
   }
 
   const clearDevotee = () => {
@@ -328,10 +259,25 @@ export default function Counter() {
     if (devotee.nakshatram) setNakshatram(devotee.nakshatram)
     if (devotee.rasi) setRasi(devotee.rasi)
     setDetailsApplied(true)
+    setSankalpamExpanded(true)
   }
 
   // Check if devotee has any usable Sankalpam details
   const devoteeHasSankalpamDetails = devotee && (devotee.gothram || devotee.nakshatram || devotee.rasi)
+  // Left empty, the server copies these from the devotee's saved details onto the booking
+  const savedGothram = !gothram.trim() ? (devotee?.gothram || '') : ''
+  const savedNakshatram = !nakshatram.trim() ? (devotee?.nakshatram || '') : ''
+
+  // Mobile + name filled in and valid
+  const devoteeDetailsComplete = !!name.trim() && !mobileError &&
+    (countryCode === '+91' ? mobile.trim().length === 10 : !!mobile.trim())
+  // Only call it new once the lookup for this exact number has come back empty
+  const isNewDevotee = devoteeDetailsComplete && !devotee && lookedUpMobile === mobile.trim()
+
+  // Open Sankalpam once the devotee's mobile and name are entered
+  useEffect(() => {
+    if (devoteeDetailsComplete) setSankalpamExpanded(true)
+  }, [devoteeDetailsComplete])
 
   const handleMobileChange = (val) => {
     const cleaned = sanitizePhone(val)
@@ -356,48 +302,27 @@ export default function Counter() {
     const cleaned = sanitizeName(val)
     setName(cleaned)
     setError('')
-    if (devotee && cleaned !== devotee.name) setDevotee(null)
   }
 
-  const autoCreateOrUpdateDevotee = async (bookingMobile, bookingName, bookingGothram, bookingNakshatram, bookingRasi) => {
-    if (!bookingMobile || !bookingName || bookingMobile.length !== 10) return null
+  const saveDevoteeDetails = async (linkedId, bookingMobile, bookingName, bookingGothram, bookingNakshatram, bookingRasi) => {
+    if (!bookingMobile || !bookingName || bookingMobile.length !== 10) return
+    const updates = {}
+    if (bookingGothram) updates.gothram = bookingGothram
+    if (bookingNakshatram) updates.nakshatram = bookingNakshatram
+    if (bookingRasi) updates.rasi = bookingRasi
     try {
-      const existing = await DevoteesAPI.list({ q: bookingMobile, size: 10 })
-      const exact = (existing.items || []).find(d => d.mobile === bookingMobile && d.name.toLowerCase() === bookingName.toLowerCase())
-
-      if (exact) {
-        // Build updates object with all Sankalpam fields that have values
-        const updates = {}
-        if (bookingGothram) updates.gothram = bookingGothram
-        if (bookingNakshatram) updates.nakshatram = bookingNakshatram
-        if (bookingRasi) updates.rasi = bookingRasi
-
-        // Only update if there are Sankalpam details to save
-        if (Object.keys(updates).length > 0) {
-          try {
-            console.log('[Devotee Update] Saving Sankalpam for', exact.code, updates)
-            await DevoteesAPI.update(exact.id, updates)
-            console.log('[Devotee Update] Saved successfully')
-          } catch (err) {
-            console.error('[Devotee Update] Failed:', err)
-          }
-        }
-        return exact
+      let id = linkedId
+      if (!id) {
+        const existing = await DevoteesAPI.lookup({ q: bookingMobile, size: 10 })
+        id = (existing.items || []).find((d) => d.mobile === bookingMobile)?.id
       }
-
-      // Create new devotee with all Sankalpam details
-      const newDev = await DevoteesAPI.create({
-        name: bookingName,
-        mobile: bookingMobile,
-        gothram: bookingGothram || undefined,
-        nakshatram: bookingNakshatram || undefined,
-        rasi: bookingRasi || undefined
-      })
-      console.log('[Devotee Create] Created new devotee with Sankalpam:', newDev.code)
-      return newDev
-    } catch (err) {
-      console.error('[Devotee Create/Update] Error:', err)
-      return null
+      if (id) {
+        if (Object.keys(updates).length > 0) await DevoteesAPI.update(id, updates)
+        return
+      }
+      await DevoteesAPI.create({ name: bookingName, mobile: bookingMobile, ...updates })
+    } catch {
+      toast(tr('Billing completed, but devotee details could not be saved.'), 'error')
     }
   }
 
@@ -407,32 +332,33 @@ export default function Counter() {
 
   // ── Payment State ──
   const [mode, setMode] = useState('Cash')
-  const [utr, setUtr] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [bill, setBill] = useState(null)
 
-  // ── Duplicate Warnings ──
+  // ── Duplicate Warnings (ALL duplicates are blocked) ──
   const [dupWarnings, setDupWarnings] = useState([])
-  const [dupConfirmed, setDupConfirmed] = useState({})
+  const [dupChecking, setDupChecking] = useState(false)
 
-  const hasLifetimeDuplicate = dupWarnings.some(w => isLifetimePlan(w.plan_name))
-  const allDupConfirmed = dupWarnings.length === 0 || (!hasLifetimeDuplicate && dupWarnings.every(w => dupConfirmed[w.lineId]))
+  // All duplicates are now blocked - no confirmation/bypass allowed
+  const noDuplicates = dupWarnings.length === 0
 
-  const selectedKey = selected.map(c => `${c.pooja_id}-${c.plan_id}`).join(',')
+  const selectedKey = selected.map(c => `${c.pooja_id}-${c.plan_id}-${c.scheduled_date}`).join(',')
   const mobileFor10 = mobile.trim().length === 10 ? mobile.trim() : null
 
   // Check duplicates for long-term items
   useEffect(() => {
-    if ((!devotee?.id && !mobileFor10) || !selected.length) { setDupWarnings([]); return }
+    if ((!devotee?.id && !mobileFor10) || !selected.length) { setDupWarnings([]); setDupChecking(false); return }
     const longTermItems = selected.filter((x) => x.category === 'Monthly' || x.category === 'Long-Term' || /monthly|life|year/i.test(x.plan_name || ''))
-    if (!longTermItems.length) { setDupWarnings([]); return }
+    if (!longTermItems.length) { setDupWarnings([]); setDupChecking(false); return }
 
+    let cancelled = false
+    setDupChecking(true)
     const checkAll = async () => {
       const warnings = []
       for (const item of longTermItems) {
         try {
-          const res = await BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobileFor10, pooja_id: item.pooja_id, plan_id: item.plan_id })
+          const res = await BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobileFor10, pooja_id: item.pooja_id, plan_id: item.plan_id, scheduled_date: item.scheduled_date })
           if (res.has_duplicate) {
             warnings.push({
               lineId: item.lineId,
@@ -445,10 +371,12 @@ export default function Counter() {
           }
         } catch { /* ignore */ }
       }
+      if (cancelled) return
       setDupWarnings(warnings)
-      setDupConfirmed({})
+      setDupChecking(false)
     }
     checkAll()
+    return () => { cancelled = true }
   }, [devotee?.id, mobileFor10, selectedKey])
 
   // ── Toggle Selection ──
@@ -484,17 +412,11 @@ export default function Counter() {
         if (pournamiDates.length > 0) scheduled_date = pournamiDates[0]
       }
 
-      // Get first available time slot for the scheduled date
-      const availableSlots = getAvailableSlots(scheduled_date)
-      const defaultSlot = availableSlots.length > 0 ? availableSlots[0] : SLOTS[0]
-
       setSelected(prev => [...prev, {
         ...entry,
         amount,
         lineId: ++lineSeq.current,
         scheduled_date,
-        time_slot: defaultSlot,
-        poojari_id: '',
         vehicle_no: '',
       }])
       setError('')
@@ -519,18 +441,19 @@ export default function Counter() {
   // Check if there's meaningful data entered
   const hasMeaningfulData = selected.length > 0 || mobile.trim() || name.trim() ||
     gothram || nakshatram || rasi || beneficiary || participants.length > 0 ||
-    specialNotes || utr.trim() || vehicleItems.some(v => v.vehicle_no)
+    specialNotes || vehicleItems.some(v => v.vehicle_no)
 
   // ── Full Reset ──
   const fullReset = () => {
     clearDevotee()
+    setCountryCode('+91')
+    setSevaQ('')
+    setCat('All')
     setSelected([])
     setMode('Cash')
-    setUtr('')
     setError('')
     setSankalpamExpanded(false)
     setDupWarnings([])
-    setDupConfirmed({})
     setDetailsApplied(false)
     setShowResetConfirm(false)
   }
@@ -568,7 +491,8 @@ export default function Counter() {
       return
     }
     if (!selected.length) { setError(tr('Select at least one pooja.')); return }
-    if (mode === 'UPI/QR Code' && !utr.trim()) { setError(tr('Enter the UTR / Transaction ID.')); return }
+    if (!devotee && lookedUpMobile !== mobileTrimmed) { setError(tr('Checking devotee details, please try again.')); return }
+    if (dupChecking) { setError(tr('Checking existing plans, please wait.')); return }
 
     // Validate per-item requirements (Vehicle number is optional)
     for (const item of selected) {
@@ -578,37 +502,9 @@ export default function Counter() {
       }
     }
 
-    // Validate time slots for today's bookings
-    const today = todayISO()
-    for (const item of selected) {
-      const schedDate = item.scheduled_date || today
-      if (schedDate === today && item.time_slot) {
-        const now = new Date()
-        const nowIST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
-        const timeMatch = item.time_slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
-        if (timeMatch) {
-          let hours = parseInt(timeMatch[1], 10)
-          const minutes = parseInt(timeMatch[2], 10)
-          const period = timeMatch[3].toUpperCase()
-          if (period === 'PM' && hours !== 12) hours += 12
-          if (period === 'AM' && hours === 12) hours = 0
-          const slotTime = new Date(nowIST)
-          slotTime.setHours(hours, minutes, 0, 0)
-          if (slotTime <= nowIST) {
-            setError(tr('The selected time slot has already passed for') + ` ${item.pooja_name}. ` + tr('Please choose a future time slot or a different date.'))
-            return
-          }
-        }
-      }
-    }
-
-    // Check for unconfirmed duplicates
-    if (!allDupConfirmed) {
-      if (hasLifetimeDuplicate) {
-        setError(tr('Cannot proceed - Lifetime plan duplicate detected.'))
-        return
-      }
-      setError(tr('Please confirm duplicate plan acknowledgements.'))
+    // Check for duplicates - ALL duplicates are blocked
+    if (!noDuplicates) {
+      setError(tr('Cannot proceed - Active plan duplicate detected. Please remove duplicate items from cart.'))
       return
     }
 
@@ -627,7 +523,6 @@ export default function Counter() {
         category: item.category || undefined,
         amount: Number(item.amount),
         scheduled_date: item.scheduled_date || todayISO(),
-        time_slot: item.time_slot || undefined,
         vehicle_no: item.vehicle_no?.trim() || undefined,
         gothram: gothram.trim() || undefined,
         nakshatram: nakshatram.trim() || undefined,
@@ -661,12 +556,11 @@ export default function Counter() {
         name: name.trim(),
         mobile: mobile.trim(),
         mode,
-        utr: utr.trim(),
         ref: done[0]?.booking?.receipt_no || done[0]?.booking?.booking_code,
         paidAt: stampNow(),
         failed: failedCount,
-        _gothram: gothram,
-        _nakshatram: nakshatram,
+        _gothram: gothram || devotee?.gothram || '',
+        _nakshatram: nakshatram || devotee?.nakshatram || '',
         _rasi: rasi,
         _beneficiary: beneficiary,
         _participants: participants,
@@ -675,20 +569,20 @@ export default function Counter() {
 
       // Save/update devotee with Sankalpam details for future bookings
       if (done.length > 0) {
-        autoCreateOrUpdateDevotee(mobile.trim(), name.trim(), gothram.trim(), nakshatram.trim(), rasi.trim())
+        saveDevoteeDetails(devotee?.id, mobile.trim(), name.trim(), gothram.trim(), nakshatram.trim(), rasi.trim())
       }
 
       if (failedCount) {
         const firstError = result.failed?.[0]?.error || tr('Unknown error')
+        const failedIdx = new Set((result.failed || []).map((f) => f.index))
+        setSelected(originalItems.filter((_, i) => failedIdx.has(i)))
         setError(`${done.length} ${tr('item(s) billed')}; ${failedCount} ${tr('failed')}. ${firstError}`)
       } else {
         setSelected([])
         clearDevotee()
-        setUtr('')
         setSankalpamExpanded(false)
       }
     } catch (err) {
-      console.error('Billing error:', err)
       setError(err.detail || err.message || tr('Billing failed.'))
     }
 
@@ -709,217 +603,290 @@ export default function Counter() {
       {catalogErr && <div className="mx-4 mt-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2">{catalogErr}</div>}
       {!canBill && (
         <div className="mx-4 mt-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm px-4 py-2 flex items-center gap-2">
-          <Eye size={14} /> <T>View-only access — Accountant role cannot issue receipts.</T>
+          <Eye size={14} /> <T>View-only access — your role cannot issue receipts.</T>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[55fr_45fr] gap-2 px-4 pb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[65fr_35fr] gap-3 px-4 pb-4">
         {/* ══════════════════════════════════════════════════════════════════════════
-            LEFT PANEL: Devotee Details + Pooja Selection
+            LEFT PANEL: Combined Devotee Details + Pooja Selection (Single Scrollable Card)
         ══════════════════════════════════════════════════════════════════════════ */}
-        <div className="space-y-2 h-[calc(100vh-140px)] flex flex-col">
-          {/* Devotee Details */}
-          <div className="bg-white rounded-xl border border-amber-200/60 shadow-sm p-4">
-            <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-              <User size={14} className="text-amber-600" />
-              <T>Devotee Details</T>
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="relative">
-                <label className="text-xs font-medium text-gray-600 mb-1 block"><T>Mobile</T> *</label>
-                <div className="flex">
-                  <CountryCodeSelect value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="!rounded-r-none !text-xs !py-2" />
-                  <input
-                    value={mobile}
-                    onChange={(e) => handleMobileChange(e.target.value)}
-                    placeholder={tr("Enter Mobile Number")}
-                    maxLength={getCountryDigits(countryCode)}
-                    className={`input flex-1 !rounded-l-none !text-sm !py-2 ${mobileError ? 'border-red-400' : ''}`}
-                  />
+        <div className="bg-white rounded-xl border border-amber-200/60 shadow-sm flex flex-col h-[calc(100vh-140px)] overflow-hidden">
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* ── Devotee Details Section ── */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <User size={14} className="text-amber-600" />
+                <T>Devotee Details</T>
+              </h3>
+
+              {/* Mobile + Name */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="relative">
+                  <label className="text-xs font-medium text-gray-600 mb-1 block"><T>Mobile</T> *</label>
+                  <div className="flex">
+                    <CountryCodeSelect value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="!rounded-r-none !text-xs !py-2" />
+                    <input
+                      value={mobile}
+                      onChange={(e) => handleMobileChange(e.target.value)}
+                      placeholder={tr("Enter Mobile Number")}
+                      maxLength={getCountryDigits(countryCode)}
+                      className={`input flex-1 !rounded-l-none !text-sm !py-2 ${mobileError ? 'border-red-400' : ''}`}
+                    />
+                  </div>
+                  {mobileError && <p className="text-[10px] text-red-600 mt-0.5">{mobileError}</p>}
+                  {showMobileDropdown && mobileResults?.length > 0 && (
+                    <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                      <div className="px-3 py-1.5 bg-gray-50 border-b text-[10px] text-gray-600 font-medium"><T>Select to auto-fill</T></div>
+                      {mobileResults.map((d) => (
+                        <button key={d.id} onClick={() => pickDevotee(d)} className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 flex items-center justify-between border-b border-gray-50 last:border-0">
+                          <span className="font-medium text-gray-800">{personName(d, lang)}</span>
+                          <span className="text-gray-500 text-xs">{d.mobile}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {mobileError && <p className="text-[10px] text-red-600 mt-0.5">{mobileError}</p>}
-                {showMobileDropdown && mobileResults?.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                    <div className="px-3 py-1.5 bg-gray-50 border-b text-[10px] text-gray-600 font-medium"><T>Select to auto-fill</T></div>
-                    {mobileResults.map((d) => (
-                      <button key={d.id} onClick={() => pickDevotee(d)} className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 flex items-center justify-between border-b border-gray-50 last:border-0">
-                        <span className="font-medium text-gray-800">{personName(d, lang)}</span>
-                        <span className="text-gray-500 text-xs">{d.mobile}</span>
-                      </button>
-                    ))}
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block"><T>Name</T> *</label>
+                  <input value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder={tr("Devotee Name")} className="input !text-sm !py-2" />
+                </div>
+              </div>
+
+              {/* Existing Devotee Strip */}
+              {devotee && (
+                <div className="mt-2 border border-gray-200 bg-cream-50 rounded-lg px-3 py-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-700">
+                      <Check size={12} className="text-emerald-600 shrink-0" />
+                      <span className="font-medium"><T>Existing devotee</T></span>
+                      <span className="text-[10px] text-gray-600">· {personName(devotee, lang)}{devotee.code ? ` (${devotee.code})` : ''}</span>
+                      {devoteeHasSankalpamDetails && !detailsApplied && (
+                        <button onClick={applyDevoteeDetails} className="ml-2 text-[10px] px-2 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 font-medium hover:bg-amber-100">
+                          <T>Use Saved Details</T>
+                        </button>
+                      )}
+                      {detailsApplied && (
+                        <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                          <CheckCircle2 size={10} /> <T>Applied</T>
+                        </span>
+                      )}
+                    </div>
+                    <button onClick={clearDevotee} className="text-gray-400 hover:text-red-600"><X size={14} /></button>
+                  </div>
+                </div>
+              )}
+
+              {/* New Devotee Strip */}
+              {isNewDevotee && (
+                <div className="mt-2 border border-blue-200 bg-blue-50 rounded-lg px-3 py-1.5">
+                  <div className="flex items-center gap-1.5 text-xs text-blue-700">
+                    <UserPlus size={12} className="text-blue-600 shrink-0" />
+                    <span className="font-medium"><T>New devotee</T></span>
+                    <span className="text-[10px] text-blue-600"><T>will be registered on billing</T></span>
+                  </div>
+                </div>
+              )}
+
+              {/* Sankalpam - Collapsible */}
+              <div className={`mt-2 border rounded-lg overflow-hidden ${hasSankalpamData ? 'border-emerald-300 bg-emerald-50/20' : 'border-gray-200'}`}>
+                <button type="button" onClick={() => setSankalpamExpanded(!sankalpamExpanded)} className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50/50">
+                  <div className="flex items-center gap-2">
+                    <FileText size={12} className="text-amber-600" />
+                    <span className="text-xs font-medium text-gray-700"><T>Sankalpam</T></span>
+                    {hasSankalpamData ? (
+                      <span className="text-[10px] text-emerald-600 flex items-center gap-1"><CheckCircle2 size={10} /> <T>Added</T></span>
+                    ) : (
+                      <span className="text-[10px] text-gray-400">(<T>Optional</T>)</span>
+                    )}
+                  </div>
+                  {sankalpamExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                </button>
+                {sankalpamExpanded && (
+                  <div className="px-3 pb-3 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 mb-1 block"><T>Gothram</T></label>
+                        <Combobox value={gothram} onChange={(e) => setGothram(e.target.value)} options={GOTHRAMS} placeholder={tr("Select")} className="!py-1.5 !text-xs" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 mb-1 block"><T>Nakshatram</T></label>
+                        <Combobox value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} options={NAKSHATRAMS} placeholder={tr("Select")} className="!py-1.5 !text-xs" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 mb-1 block"><T>Rasi</T></label>
+                        <Combobox value={rasi} onChange={(e) => setRasi(e.target.value)} options={RASHIS} placeholder={tr("Select")} className="!py-1.5 !text-xs" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 mb-1 block"><T>Beneficiary</T></label>
+                        <input value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder={tr("For whom")} className="input !text-xs !py-1.5" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-medium text-gray-500 mb-1 block"><T>Participants</T></label>
+                        <ParticipantsInput participants={participants} setParticipants={setParticipants} devotee={devotee} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-medium text-gray-500 mb-1 block"><T>Special Notes</T></label>
+                      <input value={specialNotes} onChange={(e) => setSpecialNotes(e.target.value)} placeholder={tr("Any special instructions...")} className="input !text-xs !py-1.5" />
+                    </div>
                   </div>
                 )}
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block"><T>Name</T> *</label>
-                <input value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder={tr("Devotee Name")} className="input !text-sm !py-2" />
-              </div>
             </div>
-            {/* Existing Devotee Strip */}
-            {devotee && (
-              <div className="mt-3 border border-gray-200 bg-cream-50 rounded-lg px-3 py-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 text-xs text-emerald-700">
-                      <Check size={12} className="text-emerald-600 shrink-0" />
-                      <span className="font-medium"><T>Existing devotee found</T></span>
-                    </div>
-                    {devoteeHasSankalpamDetails ? (
-                      <div className="text-[11px] text-gray-600 mt-0.5 ml-4">
-                        {[
-                          devotee.gothram && `${tr('Gothram')}: ${devotee.gothram}`,
-                          devotee.nakshatram && `${tr('Nakshatram')}: ${devotee.nakshatram}`,
-                          devotee.rasi && `${tr('Rasi')}: ${devotee.rasi}`
-                        ].filter(Boolean).join(' · ')}
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-gray-400 mt-0.5 ml-4 italic">
-                        <T>No Sankalpam details available</T>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
-                    {devoteeHasSankalpamDetails && (
-                      detailsApplied ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
-                          <CheckCircle2 size={12} />
-                          <T>Applied</T>
-                        </span>
-                      ) : (
-                        <button
-                          onClick={applyDevoteeDetails}
-                          className="text-[10px] px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-700 font-medium hover:bg-amber-100 transition-colors"
-                        >
-                          <T>Use Details</T>
-                        </button>
-                      )
-                    )}
-                    <button onClick={clearDevotee} className="text-[10px] text-gray-500 hover:text-red-600 font-medium">
-                      <X size={14} />
-                    </button>
-                  </div>
+
+            {/* ── Divider ── */}
+            <div className="border-t border-gray-200" />
+
+            {/* ── Pooja Selection Section ── */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                  <Flame size={14} className="text-amber-600" />
+                  <T>Select Pooja</T>
+                  {selected.length > 0 && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-maroon-100 text-maroon-700 font-medium">{selected.length} {tr('selected')}</span>}
+                </h3>
+                <div className="relative w-44">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={sevaQ} onChange={(e) => setSevaQ(e.target.value)} placeholder={tr("Search...")} className="input !pl-8 !py-1.5 !text-xs" />
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Pooja Selection */}
-          <div className="bg-white rounded-xl border border-amber-200/60 shadow-sm p-4 flex-1 flex flex-col min-h-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                <Flame size={14} className="text-amber-600" />
-                <T>Select Pooja</T>
-                {selected.length > 0 && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-maroon-100 text-maroon-700 font-medium">{selected.length} {tr('selected')}</span>}
-              </h3>
-              <div className="relative w-48">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input value={sevaQ} onChange={(e) => setSevaQ(e.target.value)} placeholder={tr("Search...")} className="input !pl-8 !py-1.5 !text-xs" />
-              </div>
-            </div>
-
-            {/* Category Filters */}
-            <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-thin">
-              {CATS.map((c) => (
-                <button key={c} onClick={() => setCat(c)} className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 ${cat === c ? 'bg-maroon-700 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-maroon-50 hover:text-maroon-700'}`}>
-                  {tr(c)}
-                </button>
-              ))}
-            </div>
-
-            {/* Pooja Grid */}
-            {catalog.length === 0 && !catalogErr && (
-              <div className="flex items-center justify-center py-8 text-gray-500">
-                <Loader2 size={20} className="animate-spin mr-2" />
-                <span className="text-sm"><T>Loading poojas...</T></span>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pr-1 scrollbar-thin">
-              {filtered.map((s) => {
-                const isSelected = selected.some(sel => sel.key === s.key)
-                return (
-                  <button
-                    key={s.key}
-                    onClick={() => toggleSelect(s)}
-                    className={`relative flex items-start gap-2.5 border-2 rounded-lg px-3 py-2.5 text-left transition-all duration-150 ${isSelected ? 'border-maroon-500 bg-maroon-50/50 shadow-sm' : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50/30'}`}
-                  >
-                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all duration-150 ${isSelected ? 'border-maroon-600 bg-maroon-600' : 'border-gray-300'}`}>
-                      {isSelected && <Check size={10} className="text-white" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-gray-800 leading-tight truncate">{lang === 'te' && s.name_te ? s.name_te : s.pooja_name}</div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[10px] text-gray-500">{tr(s.plan_name)}</span>
-                        {s.category === 'Vehicle' && <Car size={10} className="text-gray-400" />}
-                        {s.category === 'Festival' && <CalendarDays size={10} className="text-gray-400" />}
-                        {s.category === 'Monthly' && <Moon size={10} className="text-gray-400" />}
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold text-amber-700 shrink-0">₹{Number(s.fee || 0).toLocaleString('en-IN')}</span>
+              {/* Category Filters */}
+              <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-thin">
+                {CATS.map((c) => (
+                  <button key={c} onClick={() => setCat(c)} className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all ${cat === c ? 'bg-maroon-700 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-maroon-50 hover:text-maroon-700'}`}>
+                    {tr(c)}
                   </button>
-                )
-              })}
-              {filtered.length === 0 && catalog.length > 0 && <p className="text-sm text-gray-500 col-span-2 text-center py-8"><T>No matching poojas.</T></p>}
+                ))}
+              </div>
+
+              {/* Pooja Grid */}
+              {catalog.length === 0 && !catalogErr && (
+                <div className="flex items-center justify-center py-8 text-gray-500">
+                  <Loader2 size={20} className="animate-spin mr-2" />
+                  <span className="text-sm"><T>Loading poojas...</T></span>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                {filtered.map((s) => {
+                  const isSelected = selected.some(sel => sel.key === s.key)
+                  return (
+                    <button
+                      key={s.key}
+                      onClick={() => toggleSelect(s)}
+                      className={`relative flex items-start gap-2 border-2 rounded-lg px-2.5 py-2 text-left transition-all ${isSelected ? 'border-maroon-500 bg-maroon-50/50 shadow-sm' : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50/30'}`}
+                    >
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? 'border-maroon-600 bg-maroon-600' : 'border-gray-300'}`}>
+                        {isSelected && <Check size={10} className="text-white" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-gray-800 leading-tight truncate">{lang === 'te' && s.name_te ? s.name_te : s.pooja_name}</div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[10px] text-gray-500">{tr(s.plan_name)}</span>
+                          {s.category === 'Vehicle' && <Car size={10} className="text-gray-400" />}
+                          {s.category === 'Festival' && <CalendarDays size={10} className="text-gray-400" />}
+                          {s.category === 'Monthly' && <Moon size={10} className="text-gray-400" />}
+                        </div>
+                      </div>
+                      <span className="text-sm font-semibold text-amber-700 shrink-0">₹{Number(s.fee || 0).toLocaleString('en-IN')}</span>
+                    </button>
+                  )
+                })}
+                {filtered.length === 0 && catalog.length > 0 && <p className="text-sm text-gray-500 col-span-2 text-center py-8"><T>No matching poojas.</T></p>}
+              </div>
             </div>
           </div>
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════════════
-            RIGHT PANEL: Bill Summary + Details + Payment
-            Structure: Fixed Header → Scrollable Body → Fixed Footer
+            RIGHT PANEL: Compact Bill Summary + Payment
         ══════════════════════════════════════════════════════════════════════════ */}
         <div className="bg-white rounded-xl border border-amber-200/60 shadow-sm flex flex-col h-[calc(100vh-140px)]">
-          {/* Fixed Header */}
-          <div className="flex-shrink-0 px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-maroon-700 to-maroon-800 rounded-t-xl">
+          {/* Compact Header */}
+          <div className="flex-shrink-0 px-3 py-2 border-b border-gray-100 bg-gradient-to-r from-maroon-700 to-maroon-800 rounded-t-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-white/20 grid place-items-center">
-                  <ReceiptIcon size={16} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-white font-semibold text-sm">{lang === 'te' ? 'బిల్ / రసీదు' : 'Bill / రసీదు'}</h3>
-                  <p className="text-white/70 text-[10px]"><T>Review selected poojas and complete billing</T></p>
-                </div>
+                <ReceiptIcon size={16} className="text-white" />
+                <h3 className="text-white font-semibold text-sm"><T>Current Booking</T></h3>
+                {selected.length > 0 && (
+                  <span className="text-white/80 text-xs">({selected.length})</span>
+                )}
               </div>
               <button
                 onClick={handleResetClick}
                 className="flex items-center gap-1 px-2 py-1 rounded border border-white/30 bg-white/10 text-white/90 text-[10px] font-medium hover:bg-white/20 transition-colors"
               >
-                <RotateCcw size={12} />
+                <RotateCcw size={10} />
                 <T>Reset</T>
               </button>
             </div>
           </div>
 
-          {/* Scrollable Body - min-h-0 prevents flex item from overflowing */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 pb-4">
-            {/* Selected Items */}
-            <div className="border border-gray-200 rounded-lg p-3">
-              <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center justify-between">
-                <span><T>Selected Items</T> ({selected.length})</span>
-                {selected.length > 0 && <span className="text-amber-700">{inr(total)}</span>}
+          {/* Scrollable Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
+            {/* Devotee */}
+            <div className="border border-gray-200 rounded-lg p-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide"><T>Devotee</T></span>
+                {devotee ? (
+                  <span className="text-[10px] text-emerald-700 font-medium flex items-center gap-1"><Check size={10} /><T>Existing devotee</T></span>
+                ) : isNewDevotee ? (
+                  <span className="text-[10px] text-blue-700 font-medium flex items-center gap-1"><UserPlus size={10} /><T>New devotee</T></span>
+                ) : null}
               </div>
-              {selected.length === 0 ? (
-                <div className="text-center py-5 border-2 border-dashed border-gray-200 rounded-lg" style={{ minHeight: '80px' }}>
-                  <ReceiptIcon size={24} className="mx-auto text-gray-300 mb-1.5" />
-                  <p className="text-sm text-gray-500"><T>No items selected</T></p>
-                  <p className="text-xs text-gray-400"><T>Select a pooja from the left</T></p>
+              {name.trim() || mobile.trim() ? (
+                <>
+                  <div className="text-xs font-semibold text-gray-800 truncate">
+                    {name.trim() ? personName({ name: name.trim() }, lang) : '—'}
+                    {devotee?.code && <span className="text-[10px] text-gray-500 font-normal"> ({devotee.code})</span>}
+                  </div>
+                  <div className="text-[10px] text-gray-500">{mobile.trim() ? `${countryCode} ${mobile.trim()}` : '—'}</div>
+                </>
+              ) : (
+                <div className="text-[10px] text-gray-400"><T>Enter mobile number and name</T></div>
+              )}
+            </div>
+
+            {/* Sankalpam */}
+            <div className="border border-gray-200 rounded-lg p-2">
+              <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1"><T>Sankalpam</T></div>
+              {hasSankalpamData || savedGothram || savedNakshatram ? (
+                <div className="space-y-0.5 text-[11px] text-gray-700">
+                  {(gothram || nakshatram || rasi) && <div className="font-medium">{[gothram, nakshatram, rasi].filter(Boolean).join(' · ')}</div>}
+                  {(savedGothram || savedNakshatram) && <div className="text-gray-500">{[savedGothram, savedNakshatram].filter(Boolean).join(' · ')} <span className="text-[10px]">(<T>saved</T>)</span></div>}
+                  {beneficiary.trim() && <div><span className="text-gray-500"><T>In the name of</T>:</span> {beneficiary.trim()}</div>}
+                  {participants.length > 0 && <div><span className="text-gray-500"><T>Participants</T>:</span> {participants.map((p) => personName({ name: p.name }, lang)).join(', ')}</div>}
+                  {specialNotes.trim() && <div className="text-gray-500 italic truncate">{specialNotes.trim()}</div>}
                 </div>
               ) : (
-                <div className="space-y-1.5">
-                  {selected.map((item, idx) => (
-                    <div key={item.lineId} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 group">
+                <div className="text-[10px] text-gray-400"><T>Not added</T></div>
+              )}
+            </div>
+
+            {/* Poojas */}
+            <div className="border border-gray-200 rounded-lg p-2">
+              <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1"><T>Poojas</T> ({selected.length})</div>
+              {selected.length === 0 ? (
+                <div className="text-[10px] text-gray-400"><T>Tick poojas on the left</T></div>
+              ) : (
+                <div className="space-y-1">
+                  {selected.map((item) => (
+                    <div key={item.lineId} className="flex items-center justify-between bg-gray-50 rounded-lg px-2 py-1.5">
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-gray-800 truncate">{lang === 'te' && item.name_te ? item.name_te : item.pooja_name}</div>
-                        <div className="text-[10px] text-gray-500 flex items-center gap-1.5">
-                          {tr(item.plan_name)}
+                        <div className="text-xs font-medium text-gray-800 truncate">{lang === 'te' && item.name_te ? item.name_te : item.pooja_name} <span className="text-[10px] text-gray-500 font-normal">· {tr(item.plan_name)}</span></div>
+                        <div className="text-[9px] text-gray-500 flex items-center gap-1">
+                          <CalendarDays size={9} className="shrink-0" />{cartLineWhen(item)}
                           {item.category === 'Vehicle' && item.vehicle_no && <span className="text-amber-600">· {item.vehicle_no}</span>}
-                          {item.scheduled_date && item.scheduled_date !== todayISO() && <span className="text-blue-600">· {stamp(fmtDate(item.scheduled_date))}</span>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-sm font-semibold text-gray-700">₹{Number(item.amount || 0).toLocaleString('en-IN')}</span>
-                        <button onClick={() => removeSelected(item.lineId)} className="w-6 h-6 rounded bg-white border border-gray-200 grid place-items-center text-gray-400 hover:text-red-500 hover:border-red-300">
-                          <Trash2 size={12} />
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xs font-semibold text-gray-700">₹{Number(item.amount || 0).toLocaleString('en-IN')}</span>
+                        <button onClick={() => removeSelected(item.lineId)} aria-label={tr('Remove')} className="w-5 h-5 rounded bg-white border border-gray-200 grid place-items-center text-gray-400 hover:text-red-500 hover:border-red-300">
+                          <X size={10} />
                         </button>
                       </div>
                     </div>
@@ -928,56 +895,56 @@ export default function Counter() {
               )}
             </div>
 
-            {/* Duplicate Warnings */}
+            {/* Duplicate Warnings - ALL duplicates are blocked */}
             {dupWarnings.length > 0 && (
-              <div className="space-y-2">
-                {dupWarnings.map((w) => {
-                  const isLifetime = isLifetimePlan(w.plan_name)
-                  return (
-                    <div key={w.lineId} className={`rounded-lg px-3 py-2 border-2 ${isLifetime ? 'bg-red-50 border-red-300' : dupConfirmed[w.lineId] ? 'bg-emerald-50 border-emerald-300' : 'bg-orange-50 border-orange-300'}`}>
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle size={14} className={`shrink-0 mt-0.5 ${isLifetime ? 'text-red-600' : 'text-orange-600'}`} />
-                        <div className="text-xs flex-1">
-                          <div className="font-semibold text-gray-800">{isLifetime ? tr('Lifetime Plan Exists') : tr('Active Plan Exists')}</div>
-                          <div className="text-gray-600 mt-0.5">{w.pooja_name} · {w.plan_name}</div>
-                          {!isLifetime && (
-                            <label className="mt-2 flex items-start gap-2 cursor-pointer">
-                              <input type="checkbox" checked={!!dupConfirmed[w.lineId]} onChange={(e) => setDupConfirmed(prev => ({ ...prev, [w.lineId]: e.target.checked }))} className="mt-0.5 w-3.5 h-3.5 rounded border-gray-300 text-emerald-600" />
-                              <span className="text-[10px] text-gray-600"><T>I confirm the devotee wants to proceed</T></span>
-                            </label>
-                          )}
-                        </div>
+              <div className="space-y-1">
+                {dupWarnings.map((w) => (
+                  <div key={w.lineId} className="rounded-lg px-2 py-1.5 border bg-red-50 border-red-300">
+                    <div className="flex items-start gap-1.5">
+                      <AlertTriangle size={12} className="shrink-0 mt-0.5 text-red-600" />
+                      <div className="text-[10px] flex-1">
+                        <div className="font-semibold text-red-800"><T>Active Plan Exists - Blocked</T></div>
+                        <div className="text-red-700">{w.pooja_name}</div>
+                        <div className="text-[9px] text-red-600 mt-0.5"><T>Remove this item from cart to proceed</T></div>
                       </div>
                     </div>
-                  )
-                })}
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Vehicle Details (Per-Item) - Vehicle number is optional */}
+            {/* Vehicle Details - Compact */}
             {vehicleItems.length > 0 && (
-              <CollapsibleSection title={tr("Vehicle Details")} subtitle={tr("Optional")} icon={<Car size={14} />} expanded={vehicleExpanded} onToggle={() => setVehicleExpanded(!vehicleExpanded)} hasData={vehicleItems.some(v => v.vehicle_no)}>
-                <div className="space-y-2">
+              <div className="border border-gray-200 rounded-lg p-2">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Car size={12} className="text-amber-600" />
+                  <span className="text-[10px] font-semibold text-gray-700"><T>Vehicle Details</T></span>
+                </div>
+                <div className="space-y-1.5">
                   {vehicleItems.map((item) => (
-                    <div key={item.lineId} className="bg-gray-50 rounded-lg px-3 py-2">
-                      <div className="text-xs font-medium text-gray-700 mb-1.5">{item.pooja_name}</div>
+                    <div key={item.lineId}>
+                      <div className="text-[9px] text-gray-500 mb-0.5">{item.pooja_name}</div>
                       <input
                         value={item.vehicle_no || ''}
                         onChange={(e) => updateItemMeta(item.lineId, 'vehicle_no', sanitizeVehicle(e.target.value))}
-                        placeholder={tr("Enter Vehicle Number (e.g., TS 09 AB 1234)")}
-                        className="input !text-sm !py-1.5 w-full"
+                        placeholder={tr("TS 09 AB 1234")}
+                        className="input !text-xs !py-1 w-full"
                         maxLength={12}
                       />
                     </div>
                   ))}
                 </div>
-              </CollapsibleSection>
+              </div>
             )}
 
-            {/* Booking Details (Per-Item for Monthly/Festival/Occasion/Long-Term) */}
+            {/* Booking Details - Compact */}
             {itemsNeedingBookingDetails.length > 0 && (
-              <CollapsibleSection title={tr("Booking Details")} subtitle={tr("Required")} icon={<CalendarDays size={14} />} expanded={bookingExpanded} onToggle={() => setBookingExpanded(!bookingExpanded)} hasData={true}>
-                <div className="space-y-3">
+              <div className="border border-amber-200 bg-amber-50/30 rounded-lg p-2">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <CalendarDays size={12} className="text-amber-600" />
+                  <span className="text-[10px] font-semibold text-gray-700"><T>Booking Schedule</T></span>
+                </div>
+                <div className="space-y-2">
                   {itemsNeedingBookingDetails.map((item) => (
                     <BookingItemDetails
                       key={item.lineId}
@@ -985,100 +952,62 @@ export default function Counter() {
                       updateMeta={(field, value) => updateItemMeta(item.lineId, field, value)}
                       pournamiDates={pournamiDates}
                       festivalFor={festivalFor}
-                      poojaris={poojaris}
                       lang={lang}
                     />
                   ))}
                 </div>
-              </CollapsibleSection>
+              </div>
             )}
 
-            {/* Sankalpam (Shared Transaction-Level) - Only show when poojas are selected */}
+            {/* Payment Method - Inline */}
             {selected.length > 0 && (
-              <SankalpamSection
-                expanded={sankalpamExpanded}
-                onToggle={() => setSankalpamExpanded(!sankalpamExpanded)}
-                saveState={sankalpamSaveState}
-                hasData={hasSankalpamData}
-              >
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Gothram</T></label>
-                      <Combobox value={gothram} onChange={(e) => setGothram(e.target.value)} options={GOTHRAMS} placeholder={tr("Select")} className="!py-1.5 !text-xs" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Nakshatram</T></label>
-                      <Combobox value={nakshatram} onChange={(e) => setNakshatram(e.target.value)} options={NAKSHATRAMS} placeholder={tr("Select")} className="!py-1.5 !text-xs" />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Rasi</T></label>
-                      <Combobox value={rasi} onChange={(e) => setRasi(e.target.value)} options={RASHIS} placeholder={tr("Select")} className="!py-1.5 !text-xs" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Beneficiary</T></label>
-                    <input value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder={tr("Person for whom pooja is performed")} className="input !text-xs !py-1.5" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Participants</T></label>
-                    <ParticipantsInput participants={participants} setParticipants={setParticipants} devotee={devotee} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Special Notes</T></label>
-                    <textarea value={specialNotes} onChange={(e) => setSpecialNotes(e.target.value)} placeholder={tr("Special instructions...")} rows={2} className="input !text-xs !py-1.5 resize-none" />
-                  </div>
+              <div className="border border-gray-200 rounded-lg p-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <IndianRupee size={12} className="text-amber-600" />
+                  <span className="text-[10px] font-semibold text-gray-700"><T>Payment</T></span>
                 </div>
-              </SankalpamSection>
-            )}
-
-            {/* Payment Method */}
-            {selected.length > 0 && (
-              <div className="border border-gray-200 rounded-lg p-3">
-                <div className="text-xs font-semibold text-gray-700 mb-2"><T>Payment Method</T></div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex gap-1.5">
                   {['Cash', 'UPI/QR Code'].map((m) => (
-                    <button key={m} onClick={() => { setMode(m); setError('') }} className={`flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-all duration-150 ${mode === m ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-600 hover:border-amber-300'}`}>
-                      <IndianRupee size={16} />
-                      {tr(m === 'UPI/QR Code' ? 'UPI / QR Code' : m)}
+                    <button
+                      key={m}
+                      onClick={() => { setMode(m); setError('') }}
+                      className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-1.5 text-xs font-medium transition-all ${mode === m ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-600 hover:border-amber-300'}`}
+                    >
+                      {tr(m === 'UPI/QR Code' ? 'UPI' : m)}
                     </button>
                   ))}
                 </div>
                 {mode === 'UPI/QR Code' && (
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-2 space-y-2">
                     {upiConfig.upi_id && total > 0 && (
-                      <div className="flex flex-col items-center bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <div className="bg-white p-2 rounded-lg border border-gray-100 shadow-sm">
-                          <QRCodeSVG value={buildUpiUrl(upiConfig.upi_id, upiConfig.upi_payee_name, total, 'Temple Seva')} size={120} level="M" />
-                        </div>
-                        <p className="text-[10px] text-gray-500 mt-2 text-center"><T>Scan to pay</T> · {upiConfig.upi_id}</p>
+                      <div className="flex flex-col items-center bg-white border border-gray-100 rounded-lg p-2">
+                        <QRCodeSVG value={buildUpiUrl(upiConfig.upi_id, upiConfig.upi_payee_name, total, 'Temple Seva')} size={100} level="M" />
+                        <p className="text-[9px] text-gray-500 mt-1">{upiConfig.upi_id}</p>
                       </div>
                     )}
-                    <div>
-                      <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>UTR / Transaction ID</T> *</label>
-                      <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder={tr("Enter UTR")} className="input !text-sm !py-2" />
-                    </div>
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* Fixed Footer - Total & Checkout */}
-          <div className="flex-shrink-0 px-4 py-3 border-t border-gray-200 bg-white rounded-b-xl shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-            {error && <div className="mb-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-medium text-center">{error}</div>}
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-gray-600"><T>Total Amount</T></span>
-              <span className="text-xl font-bold text-maroon-700">{inr(total)}</span>
+          {/* Fixed Footer - Compact Total & Checkout */}
+          <div className="flex-shrink-0 px-3 py-2 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white rounded-b-xl">
+            {error && <div className="mb-2 bg-red-50 border border-red-200 rounded px-2 py-1.5 text-[10px] text-red-700 font-medium text-center">{error}</div>}
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <div className="text-[10px] text-gray-500"><T>Total</T></div>
+                <div className="text-lg font-bold text-maroon-700">{inr(total)}</div>
+              </div>
+              <button onClick={checkout} disabled={busy || dupChecking || !selected.length || !canBill} className="flex-1 bg-gradient-to-r from-maroon-700 to-maroon-800 text-white rounded-lg py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 hover:from-maroon-800 hover:to-maroon-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm">
+                {busy ? <><Loader2 size={14} className="animate-spin" /> <T>Processing...</T></> : <><Check size={14} /> <T>Bill</T></>}
+              </button>
             </div>
-            <button onClick={checkout} disabled={busy || !selected.length || !canBill} className="w-full bg-gradient-to-r from-maroon-700 to-maroon-800 text-white rounded-lg py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:from-maroon-800 hover:to-maroon-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm">
-              {busy ? <><Loader2 size={16} className="animate-spin" /> <T>Processing...</T></> : <><ReceiptIcon size={16} /> <T>Complete Billing</T></>}
-            </button>
           </div>
         </div>
       </div>
 
-      {bill && <BillReceiptModal bill={bill} onClose={() => { setBill(null); setError('') }} lang={lang} />}
+      {bill && <BillReceiptModal bill={bill} onClose={() => { setBill(null); if (!selected.length) setError('') }} lang={lang} />}
 
       {/* Reset Confirmation Dialog */}
       {showResetConfirm && (
@@ -1118,53 +1047,7 @@ export default function Counter() {
 // SUBCOMPONENTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-function CollapsibleSection({ title, subtitle, icon, expanded, onToggle, hasData, children }) {
-  return (
-    <div className={`border rounded-lg overflow-hidden transition-all duration-200 ${hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}>
-      <button onClick={onToggle} className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50/50 transition-colors duration-150">
-        <div className="flex items-center gap-2">
-          <span className="text-amber-600">{icon}</span>
-          <span className="text-xs font-semibold text-gray-800">{title}</span>
-          {hasData && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
-          <span className="text-[10px] text-gray-500">· {subtitle}</span>
-        </div>
-        {expanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-      </button>
-      <div className={`transition-all duration-200 ease-in-out ${expanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-        <div className="px-3 pb-3">{children}</div>
-      </div>
-    </div>
-  )
-}
-
-// Sankalpam section with save state indicator
-function SankalpamSection({ expanded, onToggle, saveState, hasData, children }) {
-  const getSaveIndicator = () => {
-    if (saveState === 'saving') return { text: tr('Saving...'), color: 'text-amber-600', icon: null }
-    if (saveState === 'saved') return { text: tr('Saved'), color: 'text-emerald-600', icon: <CheckCircle2 size={12} className="text-emerald-600" /> }
-    return { text: tr('Optional'), color: 'text-gray-500', icon: null }
-  }
-  const indicator = getSaveIndicator()
-
-  return (
-    <div className={`border rounded-lg overflow-hidden transition-all duration-200 ${hasData ? 'border-emerald-300 bg-emerald-50/20' : 'border-gray-200'}`}>
-      <button onClick={onToggle} className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50/50 transition-colors duration-150">
-        <div className="flex items-center gap-2">
-          <FileText size={14} className="text-amber-600" />
-          <span className="text-xs font-semibold text-gray-800">{tr('Sankalpam Details')}</span>
-          {indicator.icon}
-          <span className={`text-[10px] ${indicator.color}`}>· {indicator.text}</span>
-        </div>
-        {expanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-      </button>
-      <div className={`transition-all duration-200 ease-in-out ${expanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-        <div className="px-3 pb-3">{children}</div>
-      </div>
-    </div>
-  )
-}
-
-function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, poojaris, lang }) {
+function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, lang }) {
   const fw = item.category === 'Festival' ? festivalFor(item) : null
 
   return (
@@ -1206,43 +1089,12 @@ function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, pooj
           </div>
         )}
 
-        {/* Occasion: Date + Time + Poojari */}
+        {/* Occasion: Date */}
         {item.category === 'Occasion' && (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Date</T></label>
-                <DateField value={item.scheduled_date} min={todayISO()} onChange={(e) => {
-                  updateMeta('scheduled_date', e.target.value)
-                  // Auto-select first available slot when date changes
-                  const available = getAvailableSlots(e.target.value)
-                  if (available.length > 0 && !available.includes(item.time_slot)) {
-                    updateMeta('time_slot', available[0])
-                  }
-                }} className="!py-1.5 !text-xs" />
-              </div>
-              <div>
-                <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Time Slot</T></label>
-                {(() => {
-                  const availableSlots = getAvailableSlots(item.scheduled_date)
-                  return availableSlots.length === 0 ? (
-                    <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5"><T>All slots passed. Select future date.</T></div>
-                  ) : (
-                    <Select value={item.time_slot} onChange={(e) => updateMeta('time_slot', e.target.value)} className="!py-1.5 !text-xs">
-                      {availableSlots.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}
-                    </Select>
-                  )
-                })()}
-              </div>
-            </div>
-            <div>
-              <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Poojari</T></label>
-              <Select value={item.poojari_id || ''} onChange={(e) => updateMeta('poojari_id', e.target.value)} className="!py-1.5 !text-xs">
-                <option value="">{tr("Not assigned")}</option>
-                {poojaris.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)}</option>)}
-              </Select>
-            </div>
-          </>
+          <div>
+            <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Date</T></label>
+            <DateField value={item.scheduled_date} min={todayISO()} onChange={(e) => updateMeta('scheduled_date', e.target.value)} className="!py-1.5 !text-xs" />
+          </div>
         )}
 
         {/* Long-Term: Show validity info */}
@@ -1250,60 +1102,10 @@ function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, pooj
           <div className="bg-emerald-50 border border-emerald-200 rounded px-2 py-1.5">
             <div className="text-[10px] text-emerald-700 flex items-center justify-between">
               <span><T>Validity</T>:</span>
-              <span className="font-medium">{validityRange(item.plan_name, item.scheduled_date)}</span>
+              <span className="font-medium">{validityRange(item, item.scheduled_date)}</span>
             </div>
           </div>
         )}
-      </div>
-    </div>
-  )
-}
-
-function ParticipantsInput({ participants, setParticipants, devotee }) {
-  const [newName, setNewName] = useState('')
-  const [familyMembers, setFamilyMembers] = useState([])
-
-  useEffect(() => {
-    if (devotee?.id) {
-      DevoteesAPI.get(devotee.id).then((d) => setFamilyMembers(d.family || [])).catch(() => setFamilyMembers([]))
-    } else {
-      setFamilyMembers([])
-    }
-  }, [devotee?.id])
-
-  const addParticipant = (name, relation = '') => {
-    if (!name.trim()) return
-    if (participants.some(p => p.name.toLowerCase() === name.trim().toLowerCase())) return
-    setParticipants([...participants, { name: name.trim(), relation }])
-  }
-
-  return (
-    <div className="space-y-2">
-      {participants.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {participants.map((p, i) => (
-            <span key={i} className="inline-flex items-center gap-1 bg-maroon-50 text-maroon-700 px-2 py-0.5 rounded-full text-[10px]">
-              {p.name}
-              <button onClick={() => setParticipants(participants.filter((_, j) => j !== i))} className="text-maroon-400 hover:text-red-600"><X size={10} /></button>
-            </span>
-          ))}
-        </div>
-      )}
-      {familyMembers.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {familyMembers.map((m, i) => {
-            const added = participants.some(p => p.name.toLowerCase() === m.name.toLowerCase())
-            return (
-              <button key={i} onClick={() => !added && addParticipant(m.name, m.relation)} disabled={added} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${added ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>
-                <Plus size={10} /> {m.name}
-              </button>
-            )
-          })}
-        </div>
-      )}
-      <div className="flex gap-1.5">
-        <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addParticipant(newName), setNewName(''))} placeholder={tr("Add participant")} className="input flex-1 !text-xs !py-1" />
-        <button onClick={() => { addParticipant(newName); setNewName('') }} disabled={!newName.trim()} className="btn-outline !py-1 !px-2 text-xs disabled:opacity-50"><Plus size={12} /></button>
       </div>
     </div>
   )
@@ -1348,6 +1150,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
               <>
                 <TF label={tr("Pooja")} value={lang === 'te' && line.name_te ? line.name_te : tr(line.pooja_name || booking?.seva_name || 'Seva')} />
                 <TF label={tr("Plan")} value={tr(line.plan_name || booking?.plan_name || 'Daily')} />
+                <TF label={tr("Pooja Date")} value={stamp(fmtDate(booking?.scheduled_date || line.scheduled_date || todayISO()))} />
                 {line.vehicle_no && <TF label={tr("Vehicle No")} value={line.vehicle_no} />}
               </>
             )}
@@ -1362,6 +1165,8 @@ function BillReceiptModal({ bill, onClose, lang }) {
                         {lang === 'te' && l.name_te ? l.name_te : tr(l.pooja_name || l.booking?.seva_name || 'Seva')}
                         <span className="text-gray-600 text-[0.6875rem] ml-1">· {tr(l.plan_name || l.booking?.plan_name || 'Daily')}</span>
                         {l.vehicle_no && <span className="text-gray-600 text-[0.6875rem] ml-1">· {l.vehicle_no}</span>}
+                        <span className="text-gray-600 text-[0.6875rem] ml-1">· {stamp(fmtDate(l.booking?.scheduled_date || l.scheduled_date || todayISO()))}</span>
+                        {lineValidity(l) && <span className="block text-blue-700 text-[0.6875rem]"><T>Validity</T>: {lineValidity(l)}</span>}
                       </span>
                       <span className="font-semibold text-gray-700">₹{Number(l.amount || l.booking?.amount || 0).toLocaleString('en-IN')}</span>
                     </div>
@@ -1377,7 +1182,6 @@ function BillReceiptModal({ bill, onClose, lang }) {
 
             <TF label={tr("Payment Mode")} value={tr(modeLabel)} />
             <TF label={tr("Payment Date & Time")} value={bill.paidAt} />
-            {bill.utr && <TF label={tr("UTR / Transaction ID")} value={bill.utr} mono wide />}
 
             {isMultiItem && (
               <div className="col-span-2 text-[0.6875rem] text-gray-700">
@@ -1387,6 +1191,13 @@ function BillReceiptModal({ bill, onClose, lang }) {
             )}
 
             {(() => {
+              if (isMultiItem) {
+                return isDailyOnly ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 col-span-2 text-center">
+                    <div className="text-[0.6875rem] font-semibold text-amber-700">⚠️ <T>Valid for Today only</T></div>
+                  </div>
+                ) : null
+              }
               const planName = (line.plan_name || booking?.plan_name || '').toLowerCase()
               const validUntil = booking?.valid_until || line.booking?.valid_until
               const schedDate = booking?.scheduled_date || line.booking?.scheduled_date
@@ -1423,8 +1234,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
             <div className="col-span-2 text-[0.5625rem] text-gray-700 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-1">
               <div className="font-semibold text-gray-600 mb-1"><T>Terms & Conditions</T>:</div>
               <ol className="list-decimal list-inside space-y-0.5 pl-1">
-                <li><T>Please arrive 15 minutes before the scheduled pooja time.</T></li>
-                <li><T>Ticket is valid only for the date mentioned.</T></li>
+                <li><T>Ticket is valid only for the pooja date or validity period mentioned.</T></li>
                 <li><T>Refunds are subject to temple policy.</T></li>
                 <li><T>Temple is not responsible for lost or damaged tickets.</T></li>
               </ol>

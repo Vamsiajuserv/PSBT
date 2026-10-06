@@ -13,6 +13,7 @@ import { exportReportToPdf } from '../../lib/pdf.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
 
 const firstOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
 const today = () => new Date().toISOString().slice(0, 10)
@@ -28,6 +29,9 @@ const CAT_ICON = {
 }
 
 export default function Reports() {
+  const { user } = useAuth()
+  // Only Admin, Committee, Accountant can see amounts in reports
+  const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   const [cats, setCats] = useState([])
   // filters - persisted in URL for state preservation across navigation
   const {
@@ -49,26 +53,33 @@ export default function Reports() {
 
   const getSortDirection = (colKey) => sorts.find((s) => s.key === colKey)?.direction
 
-  // Smart sorting based on column type
+  // Smart sorting based on column type. Only real date formats are treated as dates —
+  // Date.parse is far too lenient (it reads "RCPT-1952" or "70.7%" as dates).
   const parseValue = (val, colType) => {
-    if (val == null || val === '' || val === '—') return null
-    if (colType === 'money' || colType === 'num') {
+    if (val == null || val === '' || val === '—' || val === '-') return null
+    if (colType === 'money' || colType === 'num' || colType === 'number') {
       const n = typeof val === 'string' ? parseFloat(val.replace(/[₹,\s]/g, '')) : val
       return isNaN(n) ? null : n
     }
-    if (colType === 'text') {
-      // Try to parse as date (formats: "01 Sept 2026", "2026-09-01", etc.)
-      const dateMatch = String(val).match(/(\d{1,2})\s+(\w+)\s+(\d{4})/)
-      if (dateMatch) {
-        const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 }
-        const m = months[dateMatch[2].toLowerCase().slice(0, 3)]
-        if (m !== undefined) return new Date(dateMatch[3], m, dateMatch[1]).getTime()
+    const str = String(val).trim()
+    if (/^-?\d+(\.\d+)?%$/.test(str)) return parseFloat(str)          // percentages
+    const dateMatch = str.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/)    // "06 Oct 2026"
+    if (dateMatch) {
+      const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 }
+      const m = months[dateMatch[2].toLowerCase().slice(0, 3)]
+      if (m !== undefined) {
+        // Keep the time when present ("06 Oct 2026 04:43 PM") so same-day rows order by time
+        const t = str.slice(dateMatch[0].length).match(/(\d{1,2}):(\d{2})\s*([AaPp][Mm])?/)
+        let h = t ? Number(t[1]) : 0
+        if (t?.[3]) h = (h % 12) + (/p/i.test(t[3]) ? 12 : 0)
+        return new Date(dateMatch[3], m, dateMatch[1], h, t ? Number(t[2]) : 0).getTime()
       }
-      const d = Date.parse(val)
-      if (!isNaN(d)) return d
-      return String(val).toLowerCase()
     }
-    return String(val).toLowerCase()
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {                                // ISO dates
+      const d = Date.parse(str)
+      if (!isNaN(d)) return d
+    }
+    return str.toLowerCase()
   }
 
   const sortedRows = useMemo(() => {
@@ -87,6 +98,8 @@ export default function Reports() {
         let cmp = 0
         if (typeof aVal === 'number' && typeof bVal === 'number') {
           cmp = aVal - bVal
+        } else if (typeof aVal !== typeof bVal) {
+          cmp = typeof aVal === 'number' ? -1 : 1   // numbers / dates before text (e.g. dates before "Lifetime")
         } else {
           cmp = String(aVal).localeCompare(String(bVal))
         }
@@ -144,7 +157,7 @@ export default function Reports() {
   const cell = (col, row, isTotal) => {
     if (isTotal && row?.[col.key] === 'Total') return tr('Total')
     const v = row[col.key]
-    if (col.type === 'money') return (isTotal ? '₹ ' : '') + money2(v)
+    if (col.type === 'money') return canSeeAmounts ? ((isTotal ? '₹ ' : '') + money2(v)) : '—'
     if (col.type === 'text') return localiseDate(v)
     if (col.type === 'num') return v === '' || v == null ? '' : num(v)
     return v

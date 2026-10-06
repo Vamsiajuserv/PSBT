@@ -6,7 +6,7 @@ from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Devotee, Poojari, Booking
+from ..models import Poojari, Booking
 from ..schemas import PoojariCreate, PoojariUpdate
 from ..security import RequireModule, require_admin, log_action, client_ip
 from ..helpers import gen_code

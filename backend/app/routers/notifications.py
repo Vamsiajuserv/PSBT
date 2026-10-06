@@ -1,5 +1,5 @@
 """Notifications — channel config, delivery log, templates and test send (admin)."""
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -7,6 +7,7 @@ from ..database import get_db
 from ..models import NotificationLog
 from ..schemas import NotificationConfigUpdateIn, NotificationTestIn
 from ..security import require_admin, log_action, client_ip
+from ..helpers import sort_expr
 from .. import notifications as notif
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
@@ -54,6 +55,7 @@ def stats(db: Session = Depends(get_db), admin=Depends(require_admin)):
 
 @router.get("/logs")
 def logs(q: str = "", channel: str = "", status: str = "", event: str = "",
+         sort_by: str = "", sort_dir: str = "desc",
          page: int = 1, size: int = 15, db: Session = Depends(get_db), admin=Depends(require_admin)):
     query = db.query(NotificationLog)
     if q:
@@ -66,7 +68,14 @@ def logs(q: str = "", channel: str = "", status: str = "", event: str = "",
     if event:
         query = query.filter(NotificationLog.event == event)
     total = query.count()
-    rows = query.order_by(NotificationLog.id.desc()).offset((page - 1) * size).limit(size).all()
+    sort_cols = {"ts": NotificationLog.ts, "event_label": NotificationLog.event,
+                 "status": NotificationLog.status, "channel": NotificationLog.channel}
+    if sort_by in sort_cols:
+        col = sort_expr(sort_cols[sort_by])
+        query = query.order_by(col.asc(), NotificationLog.id) if sort_dir == "asc" else query.order_by(col.desc(), NotificationLog.id.desc())
+    else:
+        query = query.order_by(NotificationLog.id.desc())
+    rows = query.offset((page - 1) * size).limit(size).all()
     return {"total": total, "page": page, "size": size, "items": [{
         "id": r.id, "ts": r.ts.isoformat() if r.ts else None, "event": r.event,
         "event_label": notif.EVENTS.get(r.event, r.event), "channel": r.channel,

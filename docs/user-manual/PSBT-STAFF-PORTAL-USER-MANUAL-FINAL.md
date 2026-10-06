@@ -2,8 +2,7 @@
 
 ---
 
-# STAFF PORTAL
-# END-USER USER MANUAL
+# END-USER MANUAL
 
 ---
 
@@ -22,8 +21,8 @@
 
 | Property | Value |
 |----------|-------|
-| **Document Name** | Staff Portal End-User Manual |
-| **Application Name** | Panjagutta Sai Baba Temple Staff Portal |
+| **Document Name** | PSBT End-User Manual |
+| **Application Name** | Panjagutta Sai Baba Temple PSBT |
 | **Version** | 1.0 |
 | **Release Date** | September 2026 |
 | **Intended Audience** | Temple Staff (All Roles) |
@@ -49,9 +48,9 @@
 
 # PART 1 — GETTING STARTED
 
-## 1.1 About the Staff Portal
+## 1.1 About the PSBT
 
-The Panjagutta Sai Baba Temple Staff Portal is a comprehensive temple management and billing system designed to help temple employees perform their daily operational tasks efficiently. The system manages:
+The Panjagutta Sai Baba Temple PSBT is a comprehensive temple management and billing system designed to help temple employees perform their daily operational tasks efficiently. The system manages:
 
 - **Pooja Bookings** — Booking and tracking of all pooja services
 - **Donations** — Recording cash, material, and sponsorship donations
@@ -77,7 +76,7 @@ The Panjagutta Sai Baba Temple Staff Portal is a comprehensive temple management
 
 ## 1.2 Who Uses the Portal
 
-The Staff Portal is used by temple employees based on their assigned roles:
+The PSBT is used by temple employees based on their assigned roles:
 
 | Role | Primary Users |
 |------|---------------|
@@ -141,7 +140,7 @@ Open your web browser and navigate to the Staff Login page at:
 
 [SCREENSHOT]
 **Screenshot:** 01_Login_Screen.png
-**Caption:** Staff Portal login page showing the login form with temple branding.
+**Caption:** PSBT login page showing the login form with temple branding.
 
 ### Login Fields
 
@@ -259,7 +258,7 @@ The left sidebar provides navigation to all modules available to your role.
 
 ## 1.8 Language / Telugu Support
 
-The Staff Portal supports both English and Telugu languages.
+The PSBT supports both English and Telugu languages.
 
 ### Switching Language
 
@@ -275,7 +274,7 @@ The Staff Portal supports both English and Telugu languages.
 
 ### Before Starting Work
 
-1. Log in to the Staff Portal using your assigned credentials.
+1. Log in to the PSBT using your assigned credentials.
 2. Verify you are on the correct date (check the date displayed on the screen).
 3. For Counter Staff: Ensure you have enough printer paper for receipts.
 
@@ -616,7 +615,7 @@ As Counter Staff, you are responsible for:
 
 ### Starting Your Shift
 
-1. Log in to the Staff Portal with your credentials.
+1. Log in to the PSBT with your credentials.
 2. Navigate to **Counter / Quick Billing** from the sidebar.
 3. Verify the current date is displayed correctly.
 4. Ensure your receipt printer is ready.
@@ -2799,7 +2798,7 @@ Contact Technical Support for:
 
 | Property | Value |
 |----------|-------|
-| Document Title | Panjagutta Sai Baba Temple - Staff Portal End-User Manual |
+| Document Title | Panjagutta Sai Baba Temple - PSBT End-User Manual |
 | Version | 1.0 |
 | Release Date | September 2026 |
 | Intended Audience | Temple Staff (All Roles) |

@@ -1,14 +1,14 @@
 """Devotee master-record management."""
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import case, or_, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Devotee, FamilyMember, Booking, Donation, Annadanam, Auction
 from ..schemas import DevoteeCreate, DevoteeUpdate, DevoteeOut
-from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import next_seq, gen_code, validate_pagination, encrypt_pan
+from ..security import RequireModule, require_admin, log_action, client_ip, get_current_user
+from ..helpers import gen_code, validate_pagination, encrypt_pan, sort_expr
 
 router = APIRouter(prefix="/api/devotees", tags=["devotees"])
 
@@ -34,8 +34,45 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
             "annadanam_beneficiaries": int(annadanam_beneficiaries)}
 
 
+@router.get("/lookup")
+def lookup_devotees(q: str = "", size: int = 10,
+                    db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Lightweight devotee lookup for typeahead/linking purposes.
+
+    Available to any authenticated user (no module restriction).
+    Returns only basic devotee info: id, code, name, name_te, mobile.
+    Used by Auction, Hundi, Donations forms for linking devotees.
+    """
+    if not q or len(q.strip()) < 1:
+        return {"items": []}
+    # Limit size to prevent abuse
+    size = min(size, 15)
+    like = f"%{q}%"
+    query = db.query(Devotee).filter(
+        Devotee.status == "Active",
+        or_(Devotee.name.ilike(like), Devotee.mobile.ilike(like), Devotee.code.ilike(like))
+    )
+    # Relevance ordering: name starting with query first
+    rank = case((Devotee.name.ilike(f"{q}%"), 0), (Devotee.name.ilike(like), 1), else_=2)
+    rows = query.order_by(rank, Devotee.id.desc()).limit(size).all()
+    return {"items": [{"id": d.id, "code": d.code, "name": d.name, "name_te": d.name_te, "mobile": d.mobile} for d in rows]}
+
+
+# Column mapping for server-side sorting
+SORT_COLUMNS = {
+    "code": Devotee.code,
+    "name": Devotee.name,
+    "mobile": Devotee.mobile,
+    "city": Devotee.city,
+    "status": Devotee.status,
+    "registered_on": Devotee.registered_on,
+    "last_visit": Devotee.last_visit,
+}
+
+
 @router.get("", response_model=dict)
 def list_devotees(q: str = "", status: str = "", city: str = "",
+                  sort_by: str = "", sort_dir: str = "desc",
                   page: int = 1, size: int = 20,
                   db: Session = Depends(get_db), user=Depends(read)):
     # Validate pagination parameters (DoS prevention)
@@ -55,6 +92,15 @@ def list_devotees(q: str = "", status: str = "", city: str = "",
     if city:
         query = query.filter(Devotee.city == city)
     total = query.count()
+
+    # An explicitly chosen column sort overrides the search-relevance ordering
+    if sort_by and sort_by in SORT_COLUMNS:
+        col = sort_expr(SORT_COLUMNS[sort_by])
+        if sort_dir == "asc":
+            order = [col.asc(), Devotee.id]
+        else:
+            order = [col.desc(), Devotee.id.desc()]
+
     rows = query.order_by(*order).offset((page - 1) * size).limit(size).all()
     return {"total": total, "page": page, "size": size,
             "items": [DevoteeOut.model_validate(r).model_dump() for r in rows]}
@@ -160,6 +206,9 @@ def create_devotee(body: DevoteeCreate, request: Request,
     if existing:
         raise HTTPException(409, f"A devotee with mobile number {body.mobile} already exists (Code: {existing.code})")
     seq = 12458 + (db.query(func.count(Devotee.id)).scalar() or 0)
+    # Count drops after a delete, so skip codes already taken
+    while db.query(Devotee).filter(Devotee.code == gen_code("DEV-", seq, 8)).first():
+        seq += 1
     data = body.model_dump(exclude={"family"})
     # Phase 1 Security (PRIV-001): Encrypt PAN at rest
     if data.get("pan_number"):

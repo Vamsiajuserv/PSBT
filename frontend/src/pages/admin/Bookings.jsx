@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Search, Eye, Ticket, RotateCcw, SlidersHorizontal, Ban, CheckCircle2,
   ChevronLeft, ChevronRight, CalendarClock, CalendarPlus, Users, X,
 } from 'lucide-react'
-import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import { BookingsAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -66,6 +66,7 @@ export default function Bookings() {
   })
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
+  const [reloadTrigger, setReloadTrigger] = useState(0)
   // Multi-select for bulk poojari assignment
   const [selected, setSelected] = useState(new Set())
   const [poojaris, setPoojaris] = useState([])
@@ -129,23 +130,42 @@ export default function Bookings() {
     filteredSortedRows,
     sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
     filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues, hasFilter,
-  } = useFilterableSortableTable(rows, sortColumns, [{ key: 'scheduled_date', direction: 'desc' }])
+  } = useFilterableSortableTable(rows, sortColumns, [], {}, { manualSort: true, manualFilter: true })
+
+  // Sorting and column filters run on the server so they cover every record, not just the
+  // visible page; changing either reloads from page 1. With no column chosen the date
+  // column is used — oldest first when a date filter is applied, newest first otherwise.
+  const [listTrigger, setListTrigger] = useState(0)
+  const prevSortsRef = useRef(sorts)
+  const prevFiltersRef = useRef(filters)
+  useEffect(() => {
+    const filtersChanged = prevFiltersRef.current !== filters
+    if (prevSortsRef.current === sorts && !filtersChanged) return
+    prevSortsRef.current = sorts
+    prevFiltersRef.current = filters
+    setPage(1)
+    // A filter change also refreshes the export data; a sort change only reloads the list
+    if (filtersChanged) setReloadTrigger((t) => t + 1)
+    else setListTrigger((t) => t + 1)
+  }, [sorts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
+  const displayRows = filteredSortedRows
 
   const loadList = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
-      const d = await BookingsAPI.list({ q, pooja, plan, status, payment, start, end, page, size: SIZE })
+      const d = await BookingsAPI.list({ q, pooja, plan, status, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'scheduled_date', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) })
       setRows(d.items); setTotal(d.total)
     } catch (ex) {
       setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
     } finally { setLoading(false) }
-  }, [q, pooja, plan, status, payment, start, end, page])
+  }, [q, pooja, plan, status, payment, start, end, page, sorts, filters])
 
   useEffect(() => {
     PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => toast(tr('Failed to load poojas'), 'error'))
     PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast(tr('Failed to load poojaris'), 'error'))
   }, [])
-  useEffect(() => { loadList(); setSelected(new Set()) }, [loadList])
+  // Only reload on page change or when user clicks Search/Clear button
+  useEffect(() => { loadList(); setSelected(new Set()) }, [page, reloadTrigger, listTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Selection helpers
   const toggleSelect = (id) => setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
@@ -170,8 +190,8 @@ export default function Bookings() {
     }
   }
 
-  const search = () => { if (page !== 1) setPage(1) }
-  const clear = () => { resetFilters() }
+  const search = () => { if (page !== 1) setPage(1); else setReloadTrigger(t => t + 1) }
+  const clear = () => { resetFilters(); setReloadTrigger(t => t + 1) }
   async function cancel(b) {
     const paid = b.payment_status === 'Paid' && Number(b.amount) > 0
     // Suggest a prorated refund when part of a finite quota is already consumed.
@@ -372,7 +392,7 @@ export default function Bookings() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredSortedRows.map((b) => (
+              {displayRows.map((b) => (
                 <tr key={b.id} className={`hover:bg-gray-50/60 ${selected.has(b.id) ? 'bg-maroon-50/40' : ''}`}>
                   <td className="px-3 py-3.5">
                     <Checkbox checked={selected.has(b.id)} onChange={() => toggleSelect(b.id)} />
