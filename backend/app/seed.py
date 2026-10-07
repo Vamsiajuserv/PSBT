@@ -92,7 +92,7 @@ ROLES_SEED = [
      ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"], True),
     ("POOJARI", "Poojari", "View assigned pooja schedules and mark completion", ["Sevas", "Bookings"], True),
     ("ACCOUNTANT", "Accountant", "Financial oversight, reports and reconciliation",
-     ["Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"], True),
+     ["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"], True),
     ("COMMITTEE", "Committee", "Hundi verification, auction decisions and committee oversight",
      ["Hundi", "Auction", "Reports"], True),
 ]
@@ -305,7 +305,7 @@ USERS = [
          role="Counter Staff", modules=["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"],
          password="Counter@123"),
     dict(name="G. Meena", username="accounts", email="accounts@psbt.org", employee_id="EMP003",
-         role="Accountant", modules=["Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"],
+         role="Accountant", modules=["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"],
          password="Accounts@123"),
     dict(name="Sri Ramachandra Sastry", username="poojari1", email="poojari1@psbt.org", employee_id="EMP004",
          role="Poojari", modules=["Sevas", "Bookings"], password="Poojari@123"),
@@ -500,7 +500,7 @@ def run():
             poojas = db.query(Pooja).limit(8).all()
             slots = [("06:00 AM", "07:00 AM"), ("07:30 AM", "08:30 AM"), ("09:00 AM", "10:00 AM"),
                      ("10:30 AM", "11:30 AM"), ("12:00 PM", "01:00 PM"), ("04:00 PM", "05:00 PM")]
-            statuses = ["Scheduled", "In Progress", "Scheduled", "Scheduled", "Scheduled", "Scheduled", "Scheduled", "Completed"]
+            statuses = ["Scheduled", "Scheduled", "Scheduled", "Scheduled", "Scheduled", "Scheduled", "Scheduled", "Completed"]
             today = date.today()
             n = 0
             for i, pj in enumerate(poojas):

@@ -1099,3 +1099,61 @@ html[lang="te"] .font-display {
 html[lang="te"] .font-script {
   font-family: 'Ramaraja', 'Noto Serif Telugu', serif;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KPI CARDS — adaptive grid + values that always stay readable
+   ═══════════════════════════════════════════════════════════════════════════
+   .kpi-wrap / .kpi-grid (see KpiGrid in components/admin/ui.jsx): the column
+   count follows the width actually available to the cards (a container query,
+   so a collapsed sidebar or display scaling is accounted for), not the screen
+   width. Each card gets at least ~12rem before another column is added, and
+   rows split evenly (5 cards → 3+2, never 4+1; 4 cards → 2+2, never 3+1). */
+.kpi-wrap { container-type: inline-size; }
+.kpi-grid {
+  --kpi-cols: 1;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(var(--kpi-cols), minmax(0, 1fr));
+}
+@container (min-width: 20rem) {
+  .kpi-grid:not([data-n="1"]) { --kpi-cols: 2; }
+}
+@container (min-width: 38rem) {
+  .kpi-grid[data-n="3"], .kpi-grid[data-n="5"], .kpi-grid[data-n="6"] { --kpi-cols: 3; }
+}
+@container (min-width: 51rem) {
+  .kpi-grid[data-n="4"] { --kpi-cols: 4; }
+}
+@container (min-width: 64rem) {
+  .kpi-grid[data-n="5"] { --kpi-cols: 5; }
+}
+@container (min-width: 77rem) {
+  .kpi-grid[data-n="6"] { --kpi-cols: 6; }
+}
+/* Dashboard (.kpi-one-row): its six compact tiles go on one row from 60rem,
+   instead of 3+3 until 77rem like the other pages. */
+@container (min-width: 60rem) {
+  .kpi-one-row .kpi-grid[data-n="6"] { --kpi-cols: 6; gap: 0.75rem; }
+}
+
+/* FitText (components/common/FitText.jsx): shrink-to-fit first; only when the
+   value is still too wide at the minimum size does it slide left to reveal the
+   end, pause, and slide back. Hover pauses it; the tooltip has the full value. */
+.fit-box { min-width: 0; overflow: hidden; }
+.fit-text { display: inline-block; white-space: nowrap; }
+.fit-box[data-scroll] .fit-text {
+  animation: fit-pingpong var(--fit-duration, 8s) ease-in-out infinite;
+}
+.fit-box[data-scroll]:hover .fit-text { animation-play-state: paused; }
+@keyframes fit-pingpong {
+  0%, 20%   { transform: translateX(0); }
+  45%, 70%  { transform: translateX(calc(-1 * var(--fit-shift, 0px))); }
+  95%, 100% { transform: translateX(0); }
+}
+/* No motion wanted, or on paper: let the value wrap so it is still complete. */
+@media (prefers-reduced-motion: reduce) {
+  .fit-box[data-scroll] .fit-text { animation: none; white-space: normal; overflow-wrap: anywhere; }
+}
+@media print {
+  .fit-box .fit-text { animation: none !important; transform: none !important; white-space: normal; overflow-wrap: anywhere; }
+}

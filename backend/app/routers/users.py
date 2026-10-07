@@ -102,9 +102,12 @@ def create_user(body: UserCreate, request: Request,
 
 
 def _linked_poojari(db: Session, role: str | None, poojari_id: int | None) -> int | None:
-    """Only a Poojari login is linked to a Poojari Master record (drives "My Poojas")."""
-    if role != "Poojari" or not poojari_id:
+    """Only a Poojari login is linked to a Poojari Master record (drives "My Poojas"),
+    and it must be — an unlinked poojari has no queue of their own."""
+    if role != "Poojari":
         return None
+    if not poojari_id:
+        raise HTTPException(422, "Select the Poojari Master record this login belongs to (Linked Poojari).")
     p = db.get(Poojari, poojari_id)
     if not p or p.deleted:
         raise HTTPException(404, "Linked poojari not found")

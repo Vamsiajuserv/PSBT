@@ -8,6 +8,7 @@ import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filt
 import { BookingsAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { canAccessKey } from '../../auth/access.js'
 import { Select, DateField, Checkbox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
@@ -52,6 +53,8 @@ export default function Bookings() {
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   // Operational roles that run/perform poojas may mark them completed (backend enforces too).
   const canOperate = isAdmin || ['Counter Staff', 'Poojari'].includes(user?.role)
+  // View-only roles (e.g. Accountant) see the list without booking/assignment controls.
+  const canBook = canAccessKey(user, 'bookings/new')
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [poojas, setPoojas] = useState([])
@@ -248,7 +251,7 @@ export default function Bookings() {
           <h1 className="font-serif text-2xl font-bold text-maroon-700"><T>Pooja Management</T></h1>
           <p className="text-sm text-gray-500 mt-1"><T>Manage pooja bookings and related operations.</T></p>
         </div>
-        <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><CalendarPlus size={16} />{' '}<T>Advance Booking</T></Link>
+        {canBook && <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><CalendarPlus size={16} />{' '}<T>Advance Booking</T></Link>}
       </div>
 
       {/* Filters */}
@@ -310,7 +313,7 @@ export default function Bookings() {
       </div>
 
       {/* Bulk action bar */}
-      {selected.size > 0 && (
+      {canOperate && selected.size > 0 && (
         <div className="bg-maroon-50 border border-maroon-200 rounded-xl px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="text-[0.875rem] font-semibold text-maroon-700">
@@ -337,7 +340,7 @@ export default function Bookings() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Bookings List</T></h3>
-          {rows.length > 0 && (
+          {canOperate && rows.length > 0 && (
             <button onClick={allSelected ? deselectAll : selectAll} className="text-[0.8125rem] text-maroon-600 hover:text-maroon-800">
               {allSelected ? tr('Deselect All') : tr('Select All')}
             </button>
@@ -367,9 +370,9 @@ export default function Bookings() {
             <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
               <tr className="text-left text-[0.6875rem] uppercase tracking-wide text-gray-700 [&>th]:bg-gray-50">
-                <th className="px-3 py-3 w-10">
+                {canOperate && <th className="px-3 py-3 w-10">
                   <Checkbox checked={allSelected && rows.length > 0} onChange={allSelected ? deselectAll : selectAll} />
-                </th>
+                </th>}
                 {sortColumns.map((col) => (
                   <SortableFilterableTh
                     key={col.key}
@@ -394,9 +397,9 @@ export default function Bookings() {
             <tbody className="divide-y divide-gray-100">
               {displayRows.map((b) => (
                 <tr key={b.id} className={`hover:bg-gray-50/60 ${selected.has(b.id) ? 'bg-maroon-50/40' : ''}`}>
-                  <td className="px-3 py-3.5">
+                  {canOperate && <td className="px-3 py-3.5">
                     <Checkbox checked={selected.has(b.id)} onChange={() => toggleSelect(b.id)} />
-                  </td>
+                  </td>}
                   <td className="px-3 py-3.5 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
                   <td className="px-3 py-3.5 font-semibold text-gray-800">{tr(b.seva_name)}</td>
                   <td className="px-3 py-3.5 text-gray-700">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>
@@ -417,7 +420,7 @@ export default function Bookings() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={11} loading={loading} error={loadErr} onRetry={loadList} empty={tr("No bookings found.")} />}
+              {rows.length === 0 && <TableStates colSpan={canOperate ? 11 : 10} loading={loading} error={loadErr} onRetry={loadList} empty={tr("No bookings found.")} />}
             </tbody>
           </table>
           </div>

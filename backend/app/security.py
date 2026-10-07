@@ -164,7 +164,7 @@ ADMIN_ROLES = frozenset({"Admin", "Administrator"})
 WRITE_MATRIX = {
     "Counter Staff": {"Devotees", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"},
     "Poojari": {"Bookings"},                 # may mark bookings complete only
-    "Accountant": {"Reports", "Counter"},    # daily closing + counter billing
+    "Accountant": {"Reports"},               # daily closing only — reconciles cash, never collects it
     "Committee": {"Hundi", "Auction", "Reports"},  # hundi verification, auction decisions, daily closing
 }
 

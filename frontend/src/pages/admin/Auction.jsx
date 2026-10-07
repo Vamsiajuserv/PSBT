@@ -4,7 +4,7 @@ import {
   Gavel, CalendarClock, Users, CheckCircle2, User, ShieldCheck,
   XCircle, Banknote, Receipt, Printer, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
-import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { AuctionAPI, AuctionItemsAPI, DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
@@ -340,14 +340,14 @@ export default function Auction() {
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Auction Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(emptyForm()); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Create New Auction</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       {user?.role !== 'Counter Staff' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
+        <KpiGrid>
           <StatTile icon={Gavel} color="#d97706" bg="bg-amber-50" title={tr("Total Auctions")} value={stats ? num(stats.total) : '—'} sub={tr("All Time")} />
           <StatTile icon={CalendarClock} color="#ea580c" bg="bg-orange-50" title={tr("Scheduled")} value={stats ? num(stats.scheduled) : '—'} sub={tr("Yet to Start")} />
           <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("In Progress")} value={stats ? num(stats.in_progress) : '—'} sub={tr("Active Now")} />
           <StatTile icon={CheckCircle2} color="#3b82f6" bg="bg-blue-50" title={tr("Completed")} value={stats ? num(stats.completed) : '—'} sub={tr("Result Recorded")} />
           <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Verified")} value={stats ? num(stats.verified) : '—'} sub={tr("Committee Approved")} />
           <StatTile icon={Banknote} color="#16a34a" bg="bg-green-50" title={tr("Payment Collected")} value={stats ? num(stats.paid) : '—'} sub={tr("Receipts Issued")} />
-        </div>
+        </KpiGrid>
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

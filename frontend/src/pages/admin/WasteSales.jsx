@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI, WasteMaterialsAPI } from '../../api/client.js'
@@ -347,13 +347,13 @@ export default function WasteSales() {
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Waste Material Sales Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openNewSale} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Waste Material Sale</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       {user?.role !== 'Counter Staff' && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <KpiGrid>
           <StatTile icon={IndianRupee} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Sales Amount")} value={stats ? inr(stats.total_amount) : '—'} sub={tr("All Time")} />
           <StatTile icon={CalendarDays} color="#059669" bg="bg-emerald-50" title={tr("Today's Sales Amount")} value={stats ? inr(stats.today_amount) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
           <StatTile icon={Clock} color="#d97706" bg="bg-amber-50" title={tr("Pending Verification")} value={stats ? num(stats.pending) : '—'} sub={tr("Awaiting committee review")} />
           <StatTile icon={CheckCircle} color="#059669" bg="bg-emerald-50" title={tr("Verified")} value={stats ? num(stats.verified) : '—'} sub={tr("Committee approved")} />
           <StatTile icon={Ban} color="#6b7280" bg="bg-gray-50" title={tr("Voided / Rejected")} value={stats ? num((stats.voided || 0) + (stats.rejected || 0)) : '—'} sub={tr("Cancelled records")} />
-        </div>
+        </KpiGrid>
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

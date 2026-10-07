@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { Plus, Pencil, Trash2, X, Save, Search, Info, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
-import { PageTitle, StatTile, Pill, num } from './ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, num } from './ui.jsx'
 import { useSortableTable, SortPanel, SortIndicator, UnsortedIndicator } from '../common/SortableTable.jsx'
 import { TableStates, LOAD_ERROR } from '../common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -114,16 +114,13 @@ export default function MasterScreen({ config }) {
         actions={canWrite && <button onClick={() => { setErr(''); setDrawer({ mode: 'create', data: { ...empty } }) }} className="btn-maroon !py-2.5"><Plus size={16} /> {tr(addLabel)}</button>} />
 
       {statCards.length > 0 && (
-        /* Column count follows the number of tiles so the row always fills the
-           width evenly (a fixed 4-col grid left a gap after 3 tiles). */
-        <div className={`grid grid-cols-2 gap-4 mb-6 ${
-          { 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4' }[statCards.length] || 'lg:grid-cols-4'
-        }`}>
+        /* KpiGrid picks the column count from the tile count and available width. */
+        <KpiGrid>
           {statCards.map((c) => (
             <StatTile key={c.key} icon={c.icon} color={c.color} bg={c.bg} title={tr(c.title)}
               value={stats ? num(stats[c.key]) : '—'} sub={tr(c.sub)} />
           ))}
-        </div>
+        </KpiGrid>
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

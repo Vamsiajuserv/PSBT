@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { PoojaHistoryAPI, PoojasAPI } from '../../api/client.js'
@@ -246,7 +246,7 @@ export default function PoojaHistory() {
       </div>
 
       {user?.role !== 'Counter Staff' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <KpiGrid>
           <StatTile icon={Flame} color="#ea580c" bg="bg-orange-50" title={tr("Total Completed Poojas")}
             value={stats ? num(stats.total_completed) : '—'} sub={tr("All time completed poojas")} />
           <StatTile icon={CalendarCheck} color="#059669" bg="bg-emerald-50" title={tr("Completed This Month")}
@@ -255,7 +255,7 @@ export default function PoojaHistory() {
             value={stats ? num(stats.devotees_served) : '—'} sub={tr("Unique devotees served")} />
           <StatTile icon={InfinityIcon} color="#7c3aed" bg="bg-violet-50" title={tr("Active Long-Term Poojas")}
             value={stats ? num(stats.active_long_term) : '—'} sub={tr("Life Long & Monthly poojas")} />
-        </div>
+        </KpiGrid>
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

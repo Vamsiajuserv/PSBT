@@ -4,7 +4,7 @@ import {
   Users as UsersIcon, UserCheck, UserX, ShieldCheck,
 } from 'lucide-react'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { UsersAPI, RolesAPI, PoojarisAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -187,12 +187,12 @@ export default function Users() {
     <div>
       <PageTitle title={tr("User Management")} subtitle={tr("Manage system users, roles and access.")} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <KpiGrid>
         <StatTile icon={UsersIcon} color="#2563eb" bg="bg-blue-50" title={tr("Total Users")} value={stats ? num(stats.total) : '—'} sub={tr("All registered users")} />
         <StatTile icon={UserCheck} color="#059669" bg="bg-emerald-50" title={tr("Active Users")} value={stats ? num(stats.active) : '—'} sub={tr("Currently active users")} />
         <StatTile icon={UserX} color="#dc2626" bg="bg-red-50" title={tr("Inactive Users")} value={stats ? num(stats.inactive) : '—'} sub={tr("Currently inactive users")} />
         <StatTile icon={ShieldCheck} color="#7c3aed" bg="bg-violet-50" title={tr("Roles")} value={stats ? num(stats.roles) : '—'} sub={tr("System roles defined")} />
-      </div>
+      </KpiGrid>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 flex flex-wrap items-end gap-4">
@@ -348,9 +348,9 @@ export default function Users() {
                   </div>
                   <div><label className="label"><T>Role *</T></label><Select required className="input" value={drawer.data.role} onChange={(e) => setD({ role: e.target.value, modules: roleModules[e.target.value] || [] })}><option value="">{tr("Select Role")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>
                   {drawer.data.role === 'Poojari' && (
-                    <div><label className="label"><T>Linked Poojari</T></label>
-                      <Select className="input" value={drawer.data.poojari_id} onChange={(e) => setD({ poojari_id: e.target.value })}>
-                        <option value="">{tr('Not linked')}</option>
+                    <div><label className="label"><T>Linked Poojari *</T></label>
+                      <Select required className="input" value={drawer.data.poojari_id} onChange={(e) => setD({ poojari_id: e.target.value })}>
+                        <option value="">{tr('Select Poojari')}</option>
                         {poojariList.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)} ({p.code}){p.active ? '' : ` · ${tr('Inactive')}`}</option>)}
                       </Select>
                       <div className="text-[0.7rem] text-gray-400 mt-0.5"><T>Bookings assigned to this poojari appear in this user's "My Poojas".</T></div>

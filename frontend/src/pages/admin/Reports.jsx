@@ -15,9 +15,25 @@ import { T, tr } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
-const firstOfMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
-const today = () => new Date().toISOString().slice(0, 10)
-const thisWeekStart = () => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().slice(0, 10) }
+// Calendar dates in the temple's time zone (IST). toISOString() is UTC, which
+// before 5:30 AM IST is still yesterday — and shifts local month-ends back a day.
+const ymd = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })   // YYYY-MM-DD
+const today = () => ymd(new Date())
+const firstOfMonth = () => today().slice(0, 8) + '01'
+// Week runs Monday → today.
+const thisWeekStart = () => {
+  const [y, m, d] = today().split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(d - ((dt.getUTCDay() + 6) % 7))
+  return dt.toISOString().slice(0, 10)
+}
+const lastMonthRange = () => {
+  const [y, m] = today().split('-').map(Number)
+  const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1
+  const lastDay = new Date(Date.UTC(py, pm, 0)).getUTCDate()
+  const mm = String(pm).padStart(2, '0')
+  return [`${py}-${mm}-01`, `${py}-${mm}-${String(lastDay).padStart(2, '0')}`]
+}
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 // 4 consolidated categories
@@ -195,8 +211,8 @@ export default function Reports() {
           <button onClick={setToday} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>Today</T></button>
           <button onClick={() => { setStart(thisWeekStart()); setEnd(today()) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>This Week</T></button>
           <button onClick={() => { setStart(firstOfMonth()); setEnd(today()) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>This Month</T></button>
-          <button onClick={() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); setStart(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`); const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0); setEnd(lastDay.toISOString().slice(0, 10)) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>Last Month</T></button>
-          <button onClick={() => { const d = new Date(); setStart(`${d.getFullYear()}-01-01`); setEnd(today()) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>This Year</T></button>
+          <button onClick={() => { const [a, b] = lastMonthRange(); setStart(a); setEnd(b) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>Last Month</T></button>
+          <button onClick={() => { setStart(today().slice(0, 4) + '-01-01'); setEnd(today()) }} className="h-7 px-3 rounded-md border border-gray-200 bg-white text-[0.75rem] font-medium text-gray-600 hover:bg-maroon-50 hover:text-maroon-700 hover:border-maroon-200 transition-colors"><T>This Year</T></button>
         </div>
 
         {/* Main filters */}

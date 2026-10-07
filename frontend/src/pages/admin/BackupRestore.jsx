@@ -3,7 +3,7 @@ import {
   Database, HardDriveDownload, RotateCcw, Table2, Download, Upload, ShieldCheck,
   CheckCircle2, AlertTriangle, X, Loader2, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
-import { PageTitle, StatTile, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { BackupAPI, getToken } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
@@ -93,12 +93,12 @@ export default function BackupRestore() {
       <PageTitle title={tr("Backup & Restore")} subtitle={tr("Back up temple configuration and restore it through a validated, controlled workflow.")}
         actions={<button onClick={createBackup} disabled={busy} className="btn-maroon !py-2.5 disabled:opacity-50">{busy ? <Loader2 size={16} className="animate-spin" /> : <HardDriveDownload size={16} />} {tr('Create Backup')}</button>} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <KpiGrid>
         <StatTile icon={Database} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Backups")} value={stats ? num(stats.total_backups) : '—'} sub={tr("Snapshots taken")} />
         <StatTile icon={RotateCcw} color="#2563eb" bg="bg-blue-50" title={tr("Restores")} value={stats ? num(stats.restores) : '—'} sub={tr("Restore operations")} />
         <StatTile icon={Table2} color="#7c3aed" bg="bg-violet-50" title={tr("Tables")} value={stats ? num(stats.tables) : '—'} sub={tr("Full backup (config + records)")} />
         <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Last Backup")} value={stats?.last_backup ? fmtStamp(stats.last_backup).split(', ')[0] : '—'} sub={tr("Most recent")} />
-      </div>
+      </KpiGrid>
 
       {msg && <div className="mb-4 text-[0.8125rem] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2.5">{msg}</div>}
 

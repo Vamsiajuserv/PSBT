@@ -242,6 +242,7 @@ export const BookingsAPI = {
   lookup: (ticket) => api.get('/bookings/lookup' + qs({ ticket })),
   checkDuplicate: (params) => api.get('/bookings/check-duplicate' + qs(params)),
   complete: (id) => api.post(`/bookings/${id}/complete`),
+  undoPerformed: (id) => api.post(`/bookings/${id}/undo-performed`),
   reschedule: (id, body) => api.post(`/bookings/${id}/reschedule`, body),
   cancel: (id, body = {}) => api.post(`/bookings/${id}/cancel`, body),
   remove: (id) => api.del(`/bookings/${id}`),
@@ -357,6 +358,7 @@ export const VendorsAPI = {
 export const SchedulesAPI = {
   list: (params = {}) => api.get('/schedules' + qs(params)),
   stats: () => api.get('/schedules/stats'),
+  overlaps: (params = {}) => api.get('/schedules/overlaps' + qs(params)),
   create: (b) => api.post('/schedules', b),
   update: (id, b) => api.put(`/schedules/${id}`, b),
   remove: (id) => api.del(`/schedules/${id}`),

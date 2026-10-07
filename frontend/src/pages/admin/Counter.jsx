@@ -607,7 +607,7 @@ export default function Counter() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[65fr_35fr] gap-3 px-4 pb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[58fr_42fr] gap-3 px-4 pb-4">
         {/* ══════════════════════════════════════════════════════════════════════════
             LEFT PANEL: Combined Devotee Details + Pooja Selection (Single Scrollable Card)
         ══════════════════════════════════════════════════════════════════════════ */}
@@ -807,86 +807,86 @@ export default function Counter() {
         ══════════════════════════════════════════════════════════════════════════ */}
         <div className="bg-white rounded-xl border border-amber-200/60 shadow-sm flex flex-col h-[calc(100vh-140px)]">
           {/* Compact Header */}
-          <div className="flex-shrink-0 px-3 py-2 border-b border-gray-100 bg-gradient-to-r from-maroon-700 to-maroon-800 rounded-t-xl">
+          <div className="flex-shrink-0 px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-maroon-700 to-maroon-800 rounded-t-xl">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ReceiptIcon size={16} className="text-white" />
-                <h3 className="text-white font-semibold text-sm"><T>Current Booking</T></h3>
+              <div className="flex items-center gap-3">
+                <ReceiptIcon size={18} className="text-white" />
+                <h3 className="text-white font-semibold text-base"><T>Current Booking</T></h3>
                 {selected.length > 0 && (
-                  <span className="text-white/80 text-xs">({selected.length})</span>
+                  <span className="text-white/80 text-sm">({selected.length})</span>
                 )}
               </div>
               <button
                 onClick={handleResetClick}
-                className="flex items-center gap-1 px-2 py-1 rounded border border-white/30 bg-white/10 text-white/90 text-[10px] font-medium hover:bg-white/20 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded border border-white/30 bg-white/10 text-white/90 text-xs font-medium hover:bg-white/20 transition-colors"
               >
-                <RotateCcw size={10} />
+                <RotateCcw size={12} />
                 <T>Reset</T>
               </button>
             </div>
           </div>
 
           {/* Scrollable Body */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
             {/* Devotee */}
-            <div className="border border-gray-200 rounded-lg p-2">
+            <div className="border border-gray-200 rounded-lg p-3">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide"><T>Devotee</T></span>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide"><T>Devotee</T></span>
                 {devotee ? (
-                  <span className="text-[10px] text-emerald-700 font-medium flex items-center gap-1"><Check size={10} /><T>Existing devotee</T></span>
+                  <span className="text-xs text-emerald-700 font-medium flex items-center gap-1"><Check size={12} /><T>Existing devotee</T></span>
                 ) : isNewDevotee ? (
-                  <span className="text-[10px] text-blue-700 font-medium flex items-center gap-1"><UserPlus size={10} /><T>New devotee</T></span>
+                  <span className="text-xs text-blue-700 font-medium flex items-center gap-1"><UserPlus size={12} /><T>New devotee</T></span>
                 ) : null}
               </div>
               {name.trim() || mobile.trim() ? (
                 <>
-                  <div className="text-xs font-semibold text-gray-800 truncate">
+                  <div className="text-sm font-semibold text-gray-800 truncate">
                     {name.trim() ? personName({ name: name.trim() }, lang) : '—'}
-                    {devotee?.code && <span className="text-[10px] text-gray-500 font-normal"> ({devotee.code})</span>}
+                    {devotee?.code && <span className="text-xs text-gray-500 font-normal"> ({devotee.code})</span>}
                   </div>
-                  <div className="text-[10px] text-gray-500">{mobile.trim() ? `${countryCode} ${mobile.trim()}` : '—'}</div>
+                  <div className="text-xs text-gray-500">{mobile.trim() ? `${countryCode} ${mobile.trim()}` : '—'}</div>
                 </>
               ) : (
-                <div className="text-[10px] text-gray-400"><T>Enter mobile number and name</T></div>
+                <div className="text-xs text-gray-400"><T>Enter mobile number and name</T></div>
               )}
             </div>
 
             {/* Sankalpam */}
-            <div className="border border-gray-200 rounded-lg p-2">
-              <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1"><T>Sankalpam</T></div>
+            <div className="border border-gray-200 rounded-lg p-3">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1"><T>Sankalpam</T></div>
               {hasSankalpamData || savedGothram || savedNakshatram ? (
-                <div className="space-y-0.5 text-[11px] text-gray-700">
+                <div className="space-y-0.5 text-[13px] text-gray-700">
                   {(gothram || nakshatram || rasi) && <div className="font-medium">{[gothram, nakshatram, rasi].filter(Boolean).join(' · ')}</div>}
-                  {(savedGothram || savedNakshatram) && <div className="text-gray-500">{[savedGothram, savedNakshatram].filter(Boolean).join(' · ')} <span className="text-[10px]">(<T>saved</T>)</span></div>}
+                  {(savedGothram || savedNakshatram) && <div className="text-gray-500">{[savedGothram, savedNakshatram].filter(Boolean).join(' · ')} <span className="text-xs">(<T>saved</T>)</span></div>}
                   {beneficiary.trim() && <div><span className="text-gray-500"><T>In the name of</T>:</span> {beneficiary.trim()}</div>}
                   {participants.length > 0 && <div><span className="text-gray-500"><T>Participants</T>:</span> {participants.map((p) => personName({ name: p.name }, lang)).join(', ')}</div>}
                   {specialNotes.trim() && <div className="text-gray-500 italic truncate">{specialNotes.trim()}</div>}
                 </div>
               ) : (
-                <div className="text-[10px] text-gray-400"><T>Not added</T></div>
+                <div className="text-xs text-gray-400"><T>Not added</T></div>
               )}
             </div>
 
             {/* Poojas */}
-            <div className="border border-gray-200 rounded-lg p-2">
-              <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1"><T>Poojas</T> ({selected.length})</div>
+            <div className="border border-gray-200 rounded-lg p-3">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1"><T>Poojas</T> ({selected.length})</div>
               {selected.length === 0 ? (
-                <div className="text-[10px] text-gray-400"><T>Tick poojas on the left</T></div>
+                <div className="text-xs text-gray-400"><T>Tick poojas on the left</T></div>
               ) : (
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {selected.map((item) => (
-                    <div key={item.lineId} className="flex items-center justify-between bg-gray-50 rounded-lg px-2 py-1.5">
+                    <div key={item.lineId} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs font-medium text-gray-800 truncate">{lang === 'te' && item.name_te ? item.name_te : item.pooja_name} <span className="text-[10px] text-gray-500 font-normal">· {tr(item.plan_name)}</span></div>
-                        <div className="text-[9px] text-gray-500 flex items-center gap-1">
-                          <CalendarDays size={9} className="shrink-0" />{cartLineWhen(item)}
+                        <div className="text-sm font-medium text-gray-800 truncate">{lang === 'te' && item.name_te ? item.name_te : item.pooja_name} <span className="text-xs text-gray-500 font-normal">· {tr(item.plan_name)}</span></div>
+                        <div className="text-[11px] text-gray-500 flex items-center gap-1">
+                          <CalendarDays size={11} className="shrink-0" />{cartLineWhen(item)}
                           {item.category === 'Vehicle' && item.vehicle_no && <span className="text-amber-600">· {item.vehicle_no}</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-xs font-semibold text-gray-700">₹{Number(item.amount || 0).toLocaleString('en-IN')}</span>
-                        <button onClick={() => removeSelected(item.lineId)} aria-label={tr('Remove')} className="w-5 h-5 rounded bg-white border border-gray-200 grid place-items-center text-gray-400 hover:text-red-500 hover:border-red-300">
-                          <X size={10} />
+                        <span className="text-sm font-semibold text-gray-700">₹{Number(item.amount || 0).toLocaleString('en-IN')}</span>
+                        <button onClick={() => removeSelected(item.lineId)} aria-label={tr('Remove')} className="w-6 h-6 rounded bg-white border border-gray-200 grid place-items-center text-gray-400 hover:text-red-500 hover:border-red-300">
+                          <X size={12} />
                         </button>
                       </div>
                     </div>
@@ -897,15 +897,15 @@ export default function Counter() {
 
             {/* Duplicate Warnings - ALL duplicates are blocked */}
             {dupWarnings.length > 0 && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {dupWarnings.map((w) => (
-                  <div key={w.lineId} className="rounded-lg px-2 py-1.5 border bg-red-50 border-red-300">
+                  <div key={w.lineId} className="rounded-lg px-3 py-2 border bg-red-50 border-red-300">
                     <div className="flex items-start gap-1.5">
-                      <AlertTriangle size={12} className="shrink-0 mt-0.5 text-red-600" />
-                      <div className="text-[10px] flex-1">
+                      <AlertTriangle size={14} className="shrink-0 mt-0.5 text-red-600" />
+                      <div className="text-xs flex-1">
                         <div className="font-semibold text-red-800"><T>Active Plan Exists - Blocked</T></div>
                         <div className="text-red-700">{w.pooja_name}</div>
-                        <div className="text-[9px] text-red-600 mt-0.5"><T>Remove this item from cart to proceed</T></div>
+                        <div className="text-[11px] text-red-600 mt-0.5"><T>Remove this item from cart to proceed</T></div>
                       </div>
                     </div>
                   </div>
@@ -915,20 +915,20 @@ export default function Counter() {
 
             {/* Vehicle Details - Compact */}
             {vehicleItems.length > 0 && (
-              <div className="border border-gray-200 rounded-lg p-2">
+              <div className="border border-gray-200 rounded-lg p-3">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Car size={12} className="text-amber-600" />
-                  <span className="text-[10px] font-semibold text-gray-700"><T>Vehicle Details</T></span>
+                  <Car size={14} className="text-amber-600" />
+                  <span className="text-xs font-semibold text-gray-700"><T>Vehicle Details</T></span>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5.5">
                   {vehicleItems.map((item) => (
                     <div key={item.lineId}>
-                      <div className="text-[9px] text-gray-500 mb-0.5">{item.pooja_name}</div>
+                      <div className="text-[11px] text-gray-500 mb-0.5">{item.pooja_name}</div>
                       <input
                         value={item.vehicle_no || ''}
                         onChange={(e) => updateItemMeta(item.lineId, 'vehicle_no', sanitizeVehicle(e.target.value))}
                         placeholder={tr("TS 09 AB 1234")}
-                        className="input !text-xs !py-1 w-full"
+                        className="input !text-sm !py-1 w-full"
                         maxLength={12}
                       />
                     </div>
@@ -939,12 +939,12 @@ export default function Counter() {
 
             {/* Booking Details - Compact */}
             {itemsNeedingBookingDetails.length > 0 && (
-              <div className="border border-amber-200 bg-amber-50/30 rounded-lg p-2">
+              <div className="border border-amber-200 bg-amber-50/30 rounded-lg p-3">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <CalendarDays size={12} className="text-amber-600" />
-                  <span className="text-[10px] font-semibold text-gray-700"><T>Booking Schedule</T></span>
+                  <CalendarDays size={14} className="text-amber-600" />
+                  <span className="text-xs font-semibold text-gray-700"><T>Booking Schedule</T></span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {itemsNeedingBookingDetails.map((item) => (
                     <BookingItemDetails
                       key={item.lineId}
@@ -961,28 +961,28 @@ export default function Counter() {
 
             {/* Payment Method - Inline */}
             {selected.length > 0 && (
-              <div className="border border-gray-200 rounded-lg p-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <IndianRupee size={12} className="text-amber-600" />
-                  <span className="text-[10px] font-semibold text-gray-700"><T>Payment</T></span>
+              <div className="border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center gap-3 mb-2">
+                  <IndianRupee size={14} className="text-amber-600" />
+                  <span className="text-xs font-semibold text-gray-700"><T>Payment</T></span>
                 </div>
                 <div className="flex gap-1.5">
                   {['Cash', 'UPI/QR Code'].map((m) => (
                     <button
                       key={m}
                       onClick={() => { setMode(m); setError('') }}
-                      className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-1.5 text-xs font-medium transition-all ${mode === m ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-600 hover:border-amber-300'}`}
+                      className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-1.5 text-sm font-medium transition-all ${mode === m ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-600 hover:border-amber-300'}`}
                     >
                       {tr(m === 'UPI/QR Code' ? 'UPI' : m)}
                     </button>
                   ))}
                 </div>
                 {mode === 'UPI/QR Code' && (
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 space-y-3">
                     {upiConfig.upi_id && total > 0 && (
-                      <div className="flex flex-col items-center bg-white border border-gray-100 rounded-lg p-2">
-                        <QRCodeSVG value={buildUpiUrl(upiConfig.upi_id, upiConfig.upi_payee_name, total, 'Temple Seva')} size={100} level="M" />
-                        <p className="text-[9px] text-gray-500 mt-1">{upiConfig.upi_id}</p>
+                      <div className="flex flex-col items-center bg-white border border-gray-100 rounded-lg p-3">
+                        <QRCodeSVG value={buildUpiUrl(upiConfig.upi_id, upiConfig.upi_payee_name, total, 'Temple Seva')} size={140} level="M" />
+                        <p className="text-[11px] text-gray-500 mt-1">{upiConfig.upi_id}</p>
                       </div>
                     )}
                   </div>
@@ -992,14 +992,14 @@ export default function Counter() {
           </div>
 
           {/* Fixed Footer - Compact Total & Checkout */}
-          <div className="flex-shrink-0 px-3 py-2 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white rounded-b-xl">
-            {error && <div className="mb-2 bg-red-50 border border-red-200 rounded px-2 py-1.5 text-[10px] text-red-700 font-medium text-center">{error}</div>}
-            <div className="flex items-center gap-2">
+          <div className="flex-shrink-0 px-4 py-3 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white rounded-b-xl">
+            {error && <div className="mb-2 bg-red-50 border border-red-200 rounded px-3 py-2 text-xs text-red-700 font-medium text-center">{error}</div>}
+            <div className="flex items-center gap-3">
               <div className="flex-1">
-                <div className="text-[10px] text-gray-500"><T>Total</T></div>
-                <div className="text-lg font-bold text-maroon-700">{inr(total)}</div>
+                <div className="text-xs text-gray-500"><T>Total</T></div>
+                <div className="text-2xl font-bold text-maroon-700">{inr(total)}</div>
               </div>
-              <button onClick={checkout} disabled={busy || dupChecking || !selected.length || !canBill} className="flex-1 bg-gradient-to-r from-maroon-700 to-maroon-800 text-white rounded-lg py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 hover:from-maroon-800 hover:to-maroon-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm">
+              <button onClick={checkout} disabled={busy || dupChecking || !selected.length || !canBill} className="flex-1 bg-gradient-to-r from-maroon-700 to-maroon-800 text-white rounded-lg py-3 text-sm font-semibold flex items-center justify-center gap-1.5 hover:from-maroon-800 hover:to-maroon-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm">
                 {busy ? <><Loader2 size={14} className="animate-spin" /> <T>Processing...</T></> : <><Check size={14} /> <T>Bill</T></>}
               </button>
             </div>

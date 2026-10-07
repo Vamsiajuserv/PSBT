@@ -3,7 +3,7 @@ import {
   Plus, Pencil, Trash2, X, RotateCcw, Info, Save, Trash,
   Flame, Layers, CalendarCheck, Clock, LayoutGrid, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
-import { PageTitle, SearchInput, Pill, num } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, SearchInput, Pill, num } from '../../components/admin/ui.jsx'
 import { PoojasAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Toggle, NumberField, Combobox } from '../../components/common/Field.jsx'
@@ -57,19 +57,6 @@ const SORT_COLUMNS = [
   { key: 'primary_rate', label: 'Rate', type: 'number' },
   { key: 'active', label: 'Status', type: 'text' },
 ]
-
-function StatTile({ icon: Icon, color, bg, title, value, sub }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      <div className="flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={20} /></div>
-        <div><div className="text-[0.6875rem] uppercase tracking-wide text-gray-400 font-semibold">{title}</div>
-          <div className="text-2xl font-extrabold text-gray-800 leading-none mt-0.5">{value}</div></div>
-      </div>
-      <div className="text-[0.75rem] text-gray-400 mt-3">{sub}</div>
-    </div>
-  )
-}
 
 export default function PoojaMaster() {
   const { user } = useAuth()
@@ -174,13 +161,13 @@ export default function PoojaMaster() {
         <Info size={16} className="text-amber-500 shrink-0" /> <T>Category classifies the pooja type. Plans define how the pooja can be booked (e.g., Daily, Monthly, One-Time, Life Long).</T>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+      <KpiGrid>
         <StatTile icon={Flame} color="#ea580c" bg="bg-orange-50" title={tr("Total Poojas")} value={stats ? num(stats.total_poojas) : '—'} sub={tr("Configured poojas")} />
         <StatTile icon={Layers} color="#059669" bg="bg-emerald-50" title={tr("Total Plans")} value={stats ? num(stats.total_plans) : '—'} sub={tr("Across all poojas")} />
         <StatTile icon={CalendarCheck} color="#d97706" bg="bg-amber-50" title={tr("Active Plans")} value={stats ? num(stats.active_plans) : '—'} sub={tr("Currently available")} />
         <StatTile icon={Clock} color="#7c3aed" bg="bg-violet-50" title={tr("Life Long Plans")} value={stats ? num(stats.life_long_plans) : '—'} sub={tr("Long-term poojas")} />
         <StatTile icon={LayoutGrid} color="#2563eb" bg="bg-blue-50" title={tr("Pooja Categories")} value={stats ? num(stats.categories) : '—'} sub={tr("Official categories")} />
-      </div>
+      </KpiGrid>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 pt-5">

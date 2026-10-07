@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import {
   TrendingUp, TrendingDown, BarChart3, PieChart, Activity, ArrowUpRight, ArrowDownRight,
-  Calendar, Filter, RotateCcw, Flame, HandHeart, HandCoins, Gavel, Recycle, UtensilsCrossed,
+  Calendar, Filter, RotateCcw, Search, Flame, HandHeart, HandCoins, Gavel, Recycle, UtensilsCrossed,
   IndianRupee, Users, ChevronDown, Download,
 } from 'lucide-react'
 import { AnalyticsAPI } from '../../api/client.js'
 import { DateField, Select } from '../../components/common/Field.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
+import FitText from '../../components/common/FitText.jsx'
+import { KpiGrid } from '../../components/admin/ui.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -51,20 +53,19 @@ function SummaryCard({ icon: Icon, label, amount, count, growth, color, onClick,
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-white rounded-xl border shadow-sm p-4 transition-all hover:shadow-md ${active ? 'border-maroon-400 ring-2 ring-maroon-100' : 'border-gray-100'}`}
+      className={`min-w-0 overflow-hidden text-left bg-white rounded-xl border shadow-sm p-4 transition-all hover:shadow-md ${active ? 'border-maroon-400 ring-2 ring-maroon-100' : 'border-gray-100'}`}
     >
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full grid place-items-center shrink-0" style={{ backgroundColor: color + '15', color }}>
-          <Icon size={18} />
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-8 h-8 rounded-full grid place-items-center shrink-0" style={{ backgroundColor: color + '15', color }}>
+          <Icon size={16} />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[0.75rem] text-gray-500 leading-tight">{tr(label)}</div>
-          <div className="text-lg font-extrabold text-gray-800 tabular-nums">{inr(amount)}</div>
-        </div>
+        <div className="text-[0.75rem] text-gray-500 leading-tight truncate">{tr(label)}</div>
       </div>
-      <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
-        <span className="text-[0.75rem] text-gray-400">{num(count)} {tr('txns')}</span>
-        <span className={`text-[0.75rem] font-semibold flex items-center gap-0.5 ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+      {/* Amount gets the full card width; FitText keeps long values readable */}
+      <FitText className="mt-2 text-lg font-extrabold text-gray-800 tabular-nums leading-tight">{inr(amount)}</FitText>
+      <div className="flex items-center justify-between gap-1 mt-3 pt-2 border-t border-gray-100">
+        <span className="text-[0.75rem] text-gray-400 truncate">{num(count)} {tr('txns')}</span>
+        <span className={`text-[0.75rem] font-semibold flex items-center gap-0.5 shrink-0 ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
           {isPositive ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
           {pct(growth)}
         </span>
@@ -340,11 +341,24 @@ export default function Analytics() {
   // filters - persisted in URL for state preservation across navigation
   const {
     start, setStart, end, setEnd, granularity, setGranularity,
-    selectedMetric, setSelectedMetric, comparisonPeriod, setComparisonPeriod,
+    selectedMetric, setSelectedMetric, comparisonPeriod, setComparisonPeriod, setFilters,
   } = useFilterParams({
     start: thirtyDaysAgo, end: todayISO, granularity: 'daily', selectedMetric: 'all', comparisonPeriod: 'month',
   })
   const [loading, setLoading] = useState(true)
+
+  // Draft filter values — edits stay local until the user clicks Apply
+  const [draft, setDraft] = useState({ start, end, granularity, comparisonPeriod })
+  useEffect(() => { setDraft({ start, end, granularity, comparisonPeriod }) }, [start, end, granularity, comparisonPeriod])
+  const setDraftField = (field, value) => setDraft((d) => ({ ...d, [field]: value }))
+  const isDirty = draft.start !== start || draft.end !== end
+    || draft.granularity !== granularity || draft.comparisonPeriod !== comparisonPeriod
+  const applyFilters = () => {
+    if (!draft.start || !draft.end) { toast(tr('Select both start and end dates'), 'error'); return }
+    if (!isDirty) { load(); return }
+    // One URL update for all four values (separate setters can overwrite each other)
+    setFilters({ start: draft.start, end: draft.end, granularity: draft.granularity, comparisonPeriod: draft.comparisonPeriod })
+  }
 
   const [summary, setSummary] = useState(null)
   const [trends, setTrends] = useState(null)
@@ -391,8 +405,7 @@ export default function Analytics() {
   const setPreset = (days) => {
     const e = new Date()
     const s = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-    setStart(s.toISOString().slice(0, 10))
-    setEnd(e.toISOString().slice(0, 10))
+    setDraft((d) => ({ ...d, start: s.toISOString().slice(0, 10), end: e.toISOString().slice(0, 10) }))
   }
 
   // Prepare chart data
@@ -437,7 +450,7 @@ export default function Analytics() {
                 key={label}
                 onClick={() => setPreset(days)}
                 className={`px-3 py-1.5 rounded-lg text-[0.8125rem] font-medium transition ${
-                  start === new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+                  draft.start === new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
                     ? 'bg-maroon-700 text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
@@ -447,27 +460,31 @@ export default function Analytics() {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input !py-1.5 !text-sm w-36" />
+            <DateField value={draft.start} onChange={(e) => { const v = e.target.value; setDraft((d) => ({ ...d, start: v, end: d.end && v > d.end ? '' : d.end })) }} className="input !py-1.5 !text-sm w-36" />
             <span className="text-gray-400">–</span>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input !py-1.5 !text-sm w-36" />
+            <DateField value={draft.end} onChange={(e) => setDraftField('end', e.target.value)} min={draft.start} className="input !py-1.5 !text-sm w-36" />
           </div>
-          <Select value={granularity} onChange={(e) => setGranularity(e.target.value)} className="input !py-1.5 !text-sm w-32">
+          <Select value={draft.granularity} onChange={(e) => setDraftField('granularity', e.target.value)} className="input !py-1.5 !text-sm w-32">
             <option value="daily">{tr('Daily')}</option>
             <option value="weekly">{tr('Weekly')}</option>
             <option value="monthly">{tr('Monthly')}</option>
           </Select>
-          <Select value={comparisonPeriod} onChange={(e) => setComparisonPeriod(e.target.value)} className="input !py-1.5 !text-sm w-40">
+          <Select value={draft.comparisonPeriod} onChange={(e) => setDraftField('comparisonPeriod', e.target.value)} className="input !py-1.5 !text-sm w-40">
             <option value="day">{tr('vs Yesterday')}</option>
             <option value="week">{tr('vs Last Week')}</option>
             <option value="month">{tr('vs Last Month')}</option>
             <option value="year">{tr('vs Last Year')}</option>
           </Select>
+          <button onClick={applyFilters} disabled={loading} className="btn-maroon !py-1.5 !text-sm shrink-0">
+            <Search size={14} />{' '}<T>Apply</T>
+            {isDirty && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-300" aria-hidden="true" />}
+          </button>
         </div>
       </div>
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <KpiGrid className="">
           {['pooja', 'donation', 'hundi', 'auction', 'annadanam', 'waste'].map(key => {
             const m = summary.metrics[key] || {}
             const comp = comparison?.metrics?.[key] || {}
@@ -485,7 +502,7 @@ export default function Analytics() {
               />
             )
           })}
-        </div>
+        </KpiGrid>
       )}
 
       {/* Total Revenue Card */}
@@ -529,21 +546,31 @@ export default function Analytics() {
       {/* Middle Row: Top Performers + Payment Modes */}
       <div className="grid lg:grid-cols-3 gap-5">
         {/* Top Poojas */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col">
           <h3 className="font-serif text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <Flame size={18} className="text-blue-600" />
             <T>Top Poojas</T>
           </h3>
-          <HorizontalBarChart items={topPoojas?.items} color={COLORS.pooja} />
+          {/* Height follows the Payment Mode card on desktop; the list scrolls inside */}
+          <div className="relative flex-1 min-h-0">
+            <div className="max-h-80 overflow-y-auto pr-2 lg:max-h-none lg:absolute lg:inset-0">
+              <HorizontalBarChart items={topPoojas?.items} color={COLORS.pooja} />
+            </div>
+          </div>
         </div>
 
         {/* Top Donation Categories */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col">
           <h3 className="font-serif text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <HandHeart size={18} className="text-emerald-600" />
             <T>Top Donation Categories</T>
           </h3>
-          <HorizontalBarChart items={topDonations?.items} color={COLORS.donation} />
+          {/* Height follows the Payment Mode card on desktop; the list scrolls inside */}
+          <div className="relative flex-1 min-h-0">
+            <div className="max-h-80 overflow-y-auto pr-2 lg:max-h-none lg:absolute lg:inset-0">
+              <HorizontalBarChart items={topDonations?.items} color={COLORS.donation} />
+            </div>
+          </div>
         </div>
 
         {/* Payment Mode Split */}

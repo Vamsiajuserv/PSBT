@@ -8,15 +8,17 @@ import threading
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import case, or_, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db, SessionLocal
-from ..models import Booking, Devotee, PoojaPlan, Seva, Pooja, Festival, Poojari
+from ..models import Booking, BookingPerformance, Devotee, PoojaPlan, Seva, Pooja, Festival, Poojari
 from ..schemas import BookingCreate, BookingOut, QuickCreateBookingIn, BulkQuickCreateBookingIn
-from ..security import RequireModule, require_admin, log_action, client_ip
+from ..security import RequireModule, require_admin, log_action, client_ip, ADMIN_ROLES
 from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination, enforce_rate_limit, ist_today, ist_now, parse_time_slot, sort_expr, apply_column_filters
 from .settings import time_slots, max_advance_days
 from .refunds import record_refund
+from .schedules import scheduled_poojari
 from .. import notifications as notif
 
 
@@ -155,7 +157,8 @@ def _check_date_and_slot(db: Session, start: date, slot: str | None, *, slot_fro
 def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_long_term=False) -> None:
     """Server-side booking rules shared by Advance Booking and Counter Billing.
     Mutates `data`: normalised date/slot, authoritative amount, festival link,
-    validity and performance quota. Raises HTTPException on any violation."""
+    validity and performance quota, and the scheduled poojari when none was
+    chosen. Raises HTTPException on any violation."""
     today = ist_today()
     start = data.get("scheduled_date") or today
     if isinstance(start, str):
@@ -218,6 +221,12 @@ def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_l
     if dup:
         until = f", valid until {dup.valid_until}" if dup.valid_until else ""
         raise HTTPException(409, f"This devotee already holds an active {plan.plan_name} booking for this pooja ({dup.booking_code}{until}).")
+
+    # No poojari chosen → take the one the Poojari Schedule assigns to this pooja/date.
+    if not data.get("poojari_id"):
+        pr = scheduled_poojari(db, data.get("pooja_id"), start, data.get("time_slot"))
+        if pr:
+            data["poojari_id"], data["poojari_name"] = pr.id, pr.name
 
 
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
@@ -434,41 +443,64 @@ def check_duplicate(pooja_id: int, plan_id: int,
     }
 
 
+def _ticket_key(col):
+    """A ticket/receipt/booking code with case, dashes and spaces ignored, so a typed
+    'tkt2026006361' or 'tkt-2026-006361' finds TKT-2026-006361."""
+    return func.upper(func.replace(func.replace(col, "-", ""), " ", ""))
+
+
 @router.get("/lookup")
 def lookup_ticket(ticket: str, db: Session = Depends(get_db), user=Depends(read)):
     """Ticket verification for the Poojari: resolve a ticket / receipt / booking code
     to its booking and a plain validity verdict (valid for today, already performed,
-    payment pending, wrong day, cancelled), plus the devotee's repeat-visit info."""
-    code = (ticket or "").strip()
+    payment pending, wrong day, cancelled), plus the devotee's repeat-visit info.
+
+    verdict_code (+ verdict_date) lets the screen word and translate the verdict;
+    verdict stays as the English sentence. A slot that is over today is only flagged
+    (slot_passed) — the pooja may still be performed late."""
+    code = "".join((ticket or "").split()).replace("-", "").upper()
     if not code:
         raise HTTPException(400, "Enter a ticket / receipt number to verify.")
     b = (db.query(Booking)
-         .filter(or_(Booking.ticket_no == code, Booking.receipt_no == code,
-                     Booking.booking_code == code)).first())
+         .filter(or_(_ticket_key(Booking.ticket_no) == code, _ticket_key(Booking.receipt_no) == code,
+                     _ticket_key(Booking.booking_code) == code))
+         .order_by(Booking.id.desc()).first())
     if not b:
         raise HTTPException(404, "No booking found for this ticket / receipt number.")
-    today = date.today()
+    today = ist_today()
     allowed = b.performances_allowed
     done = b.performances_done or 0
     remaining = None if allowed is None else max(0, allowed - done)
+    vdate = None
     if b.status == "Cancelled":
-        verdict, ok = "Cancelled — not valid", False
+        vcode, verdict, ok = "cancelled", "Cancelled — not valid", False
     elif b.payment_status != "Paid":
-        verdict, ok = "Payment pending — send to counter", False
+        vcode, verdict, ok = "unpaid", "Payment pending — send to counter", False
     elif b.status == "Completed" or (remaining is not None and remaining <= 0):
-        verdict, ok = "All performances completed", False
+        vcode, verdict, ok = "completed", "All performances completed", False
     elif b.valid_until and today > b.valid_until:
-        verdict, ok = f"Expired on {b.valid_until}", False
+        vcode, vdate, ok = "expired", b.valid_until, False
+        verdict = f"Expired on {b.valid_until:%d %b %Y}"
     elif b.scheduled_date and today < b.scheduled_date:
-        verdict, ok = f"Not started — valid from {b.scheduled_date}", False
+        vcode, vdate, ok = "not_started", b.scheduled_date, False
+        verdict = f"Not started — valid from {b.scheduled_date:%d %b %Y}"
     elif b.last_performed_on == today:
-        verdict, ok = "Already performed today", False
+        vcode, verdict, ok = "done_today", "Already performed today", False
     else:
-        verdict, ok = "Valid — proceed with the pooja", True
+        vcode, verdict, ok = "valid", "Valid — proceed with the pooja", True
+
+    perf = None
+    if b.last_performed_on == today:
+        perf = (db.query(BookingPerformance)
+                .filter(BookingPerformance.booking_id == b.id, BookingPerformance.performed_on == today).first())
+    slot = parse_time_slot(b.time_slot) if b.time_slot else None
+    slot_passed = bool(ok and slot and ist_now().time() > slot[1])
+
     visits, last_visit = 0, None
     if b.devotee_id:
+        # Other completed visits by this devotee (this ticket itself is not a "previous" visit)
         cnt, last = (db.query(func.count(Booking.id), func.max(Booking.scheduled_date))
-                     .filter(Booking.devotee_id == b.devotee_id,
+                     .filter(Booking.devotee_id == b.devotee_id, Booking.id != b.id,
                              Booking.status == "Completed").first())
         visits, last_visit = (cnt or 0), (str(last) if last else None)
     return {
@@ -482,7 +514,14 @@ def lookup_ticket(ticket: str, db: Session = Depends(get_db), user=Depends(read)
         "vehicle_no": b.vehicle_no,
         "valid_until": str(b.valid_until) if b.valid_until else None,
         "performances_allowed": allowed, "performances_done": done, "remaining": remaining,
-        "valid": ok, "verdict": verdict,
+        "valid": ok, "verdict": verdict, "verdict_code": vcode,
+        "verdict_date": str(vdate) if vdate else None,
+        "slot_passed": slot_passed,
+        "performed_today": {
+            "poojari_name": perf.poojari_name, "performed_by": perf.performed_by,
+            "performed_at": perf.performed_at.isoformat() if perf.performed_at else None,
+            "can_undo": user.role in ADMIN_ROLES or perf.performed_by == user.username,
+        } if perf else None,
         "visits": visits, "last_visit": last_visit, "repeat": visits > 0,
     }
 
@@ -511,7 +550,7 @@ def complete_booking(bid: int, request: Request, db: Session = Depends(get_db),
         raise HTTPException(409, "Only a paid booking can be marked performed")
     if b.status == "Completed":
         raise HTTPException(409, "All performances for this ticket are already completed")
-    today = date.today()
+    today = ist_today()
     if b.scheduled_date and today < b.scheduled_date:
         raise HTTPException(409, f"This pooja starts on {b.scheduled_date}")
     if b.valid_until and today > b.valid_until:
@@ -530,17 +569,76 @@ def complete_booking(bid: int, request: Request, db: Session = Depends(get_db),
         b.performances_allowed = 1
     if allowed is not None and done >= allowed:
         raise HTTPException(409, f"All {allowed} performances already completed")
-    b.performances_done = done + 1
-    b.last_performed_on = today
-    # For One-Time/single-performance poojas, mark as completed immediately
-    if allowed is not None and b.performances_done >= allowed:
-        b.status = "Completed"    # quota exhausted → terminal
+    perf = record_performance(db, b, user, today)
     quota = allowed if allowed is not None else "∞"
+    try:
+        db.commit()
+    except IntegrityError:   # a second tap for the same booking + day raced this one
+        db.rollback()
+        raise HTTPException(409, "This pooja has already been performed today.")
+    db.refresh(b)
+    by = f" by {perf.poojari_name}" if perf.poojari_name else ""
+    log_action(db, username=user.username, action="UPDATE", entity="Booking",
+               detail=f"Performed {b.booking_code} ({b.performances_done}/{quota}){by}", ip=client_ip(request))
+    _booking_notify(db, b, "pooja_completed", user)
+    return b
+
+
+def _performer(db: Session, b: Booking, user) -> Poojari | None:
+    """Who performed it: the signed-in poojari, else the booking's assigned poojari
+    (an administrator or counter recording on a poojari's behalf)."""
+    if user.role == "Poojari" and getattr(user, "poojari_id", None):
+        p = db.get(Poojari, user.poojari_id)
+        if p:
+            return p
+    return db.get(Poojari, b.poojari_id) if b.poojari_id else None
+
+
+def record_performance(db: Session, b: Booking, user, day: date) -> BookingPerformance:
+    """Consume one performance of `b` on `day` and log who performed it. The caller
+    has already checked eligibility and commits. Any poojari may cover any pooja;
+    an unassigned booking is taken by the poojari who performs it, so its remaining
+    days (Monthly, Life Long…) appear in their queue."""
+    p = _performer(db, b, user)
+    b.performances_done = (b.performances_done or 0) + 1
+    b.last_performed_on = day
+    if b.performances_allowed is not None and b.performances_done >= b.performances_allowed:
+        b.status = "Completed"    # quota exhausted → terminal
+    if p and not b.poojari_id:
+        b.poojari_id, b.poojari_name = p.id, p.name
+    perf = BookingPerformance(booking_id=b.id, performed_on=day, poojari_id=p.id if p else None,
+                              poojari_name=p.name if p else None, performed_by=user.username)
+    db.add(perf)
+    return perf
+
+
+@router.post("/{bid}/undo-performed", response_model=BookingOut)
+def undo_performed(bid: int, request: Request, db: Session = Depends(get_db),
+                   user=Depends(RequireModule("Bookings", write=True))):
+    """Reverse today's 'Mark Performed' on a booking (a mistaken tap) and give the
+    performance back. Only today's entry, and only by whoever recorded it or an
+    administrator. A completion notification already sent is not recalled."""
+    b = db.get(Booking, bid)
+    if not b:
+        raise HTTPException(404, "Booking not found")
+    today = ist_today()
+    perf = (db.query(BookingPerformance)
+            .filter(BookingPerformance.booking_id == b.id, BookingPerformance.performed_on == today).first())
+    if not perf or b.last_performed_on != today:
+        raise HTTPException(409, "Only a performance recorded today can be undone.")
+    if user.role not in ADMIN_ROLES and perf.performed_by != user.username:
+        raise HTTPException(403, "Only the person who recorded this performance, or an administrator, can undo it.")
+    db.delete(perf)
+    b.performances_done = max(0, (b.performances_done or 0) - 1)
+    if b.status == "Completed":
+        b.status = "Confirmed"
+    b.last_performed_on = (db.query(func.max(BookingPerformance.performed_on))
+                           .filter(BookingPerformance.booking_id == b.id, BookingPerformance.performed_on < today)
+                           .scalar())
     db.commit()
     db.refresh(b)
     log_action(db, username=user.username, action="UPDATE", entity="Booking",
-               detail=f"Performed {b.booking_code} ({b.performances_done}/{quota})", ip=client_ip(request))
-    _booking_notify(db, b, "pooja_completed", user)
+               detail=f"Undid today's performance of {b.booking_code} ({b.performances_done} done)", ip=client_ip(request))
     return b
 
 

@@ -127,7 +127,8 @@ export default function Calendar() {
         status: b.status,
         devotee: b.devotee_name,
         plan: b.plan_name,
-        amount: b.amount,
+        // The API sends money as text ("500.00"); convert so totals add instead of joining into NaN
+        amount: Number(b.amount) || 0,
       })
     }
     return map

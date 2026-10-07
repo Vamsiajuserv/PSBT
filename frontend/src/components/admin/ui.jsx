@@ -1,6 +1,7 @@
 import React from 'react'
 import { useLang, tr } from '../../i18n/LanguageContext.jsx'
 import { Search } from 'lucide-react'
+import FitText from '../common/FitText.jsx'
 
 // Shared admin design-system primitives — matches the Dashboard / Bookings /
 // Devotee-Details reference screens so every module looks like one system.
@@ -121,10 +122,21 @@ export function StatTile({ icon: Icon, color = '#8a1c1c', bg = 'bg-maroon-50', t
         <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={18} aria-hidden="true" /></div>
         <div className="min-w-0 flex-1">
           <div className="text-[0.625rem] sm:text-[0.6875rem] uppercase tracking-wide text-gray-600 font-semibold leading-tight">{title}</div>
-          <div className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums whitespace-nowrap">{value}</div>
+          <FitText className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums">{value}</FitText>
         </div>
       </div>
       <div className="text-[0.6875rem] sm:text-[0.75rem] text-gray-600 mt-2 sm:mt-3 leading-tight min-h-[1rem]">{sub || '\u00A0'}</div>
+    </div>
+  )
+}
+
+// Row of KPI cards. Columns follow the width actually available (see .kpi-grid
+// in index.css): cards wrap onto an even second row instead of being squeezed.
+export function KpiGrid({ children, className = 'mb-6', ...rest }) {
+  const n = React.Children.toArray(children).length
+  return (
+    <div className={`kpi-wrap ${className}`}>
+      <div className="kpi-grid" data-n={Math.min(n, 6)} {...rest}>{children}</div>
     </div>
   )
 }

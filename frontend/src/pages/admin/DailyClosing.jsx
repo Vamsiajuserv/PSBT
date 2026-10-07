@@ -3,7 +3,8 @@ import {
   IndianRupee, ListChecks, ClipboardCheck, Lock, Filter,
   Wallet, Scale, CreditCard, Info, CheckCircle2, Unlock,
 } from 'lucide-react'
-import { inr, num, fmtStamp } from '../../components/admin/ui.jsx'
+import { inr, num, fmtStamp, KpiGrid } from '../../components/admin/ui.jsx'
+import FitText from '../../components/common/FitText.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { DailyClosingAPI, RefundsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -18,13 +19,13 @@ const dashN = (n) => (n ? String(n) : '-')
 
 function KpiCard({ icon: Icon, title, value, sub, valueClass, subClass }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 flex items-center gap-4">
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 flex items-center gap-4 h-full overflow-hidden">
       <div className="w-12 h-12 rounded-full bg-maroon-50 grid place-items-center shrink-0 ring-1 ring-maroon-100">
         <Icon size={22} className="text-maroon-700" />
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="text-[0.71875rem] text-gray-500 leading-tight">{title}</div>
-        <div className={`text-[1.375rem] font-bold leading-tight mt-0.5 ${valueClass || 'text-gray-800'}`}>{value}</div>
+        <FitText className={`text-[1.375rem] font-bold leading-tight mt-0.5 tabular-nums ${valueClass || 'text-gray-800'}`}>{value}</FitText>
         <div className={`text-[0.6875rem] mt-0.5 ${subClass || 'text-gray-400'}`}>{sub}</div>
       </div>
     </div>
@@ -143,7 +144,7 @@ export default function DailyClosing() {
       </div>
 
       {/* ── KPI row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      <KpiGrid>
         <KpiCard icon={IndianRupee} title={tr("Total Collections (₹)")} value={hideAmount(inr(t.total))} sub={`${modules.length} ${tr('Modules')}`} valueClass="text-maroon-800" />
         <KpiCard icon={Wallet} title={tr("Cash Collections (₹)")} value={hideAmount(inr(t.cash))} sub={canSeeAmounts ? `${sum.cash_pct}% ${tr('of Total')}` : ''} />
         <KpiCard icon={CreditCard} title={tr("UPI / QR Collections (₹)")} value={hideAmount(inr(t.upi))} sub={canSeeAmounts ? `${sum.upi_pct}% ${tr('of Total')}` : ''} />
@@ -151,7 +152,7 @@ export default function DailyClosing() {
         <KpiCard icon={ClipboardCheck} title={tr("Closing Status")}
           value={closed ? tr('Closed') : tr('Open')} valueClass={closed ? 'text-rose-600' : 'text-emerald-600'}
           sub={closed ? `${tr('By')} ${personName({ name: sum.closed_by }, lang)}` : tr('Not Closed For The Day')} />
-      </div>
+      </KpiGrid>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* ── Left: collections + charts ── */}

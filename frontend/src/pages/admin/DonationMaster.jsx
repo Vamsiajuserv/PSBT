@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { Plus, Pencil, Trash2, X, Save, RotateCcw, Search, Info, HandHeart, Coins, Package, Users, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
-import { PageTitle, Pill, num } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, num } from '../../components/admin/ui.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { DonationCategoriesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -21,19 +21,6 @@ const SORT_COLUMNS = [
 const CASH_UNITS = ['Amount']
 const MATERIAL_UNITS = ['Grams', 'Bags / Kg', 'Kg', 'Liters', 'Packet', 'Nos', 'Units']
 const emptyCat = () => ({ type: 'Cash', name: '', description: '', unit: 'Amount', quantity_required: false, active: true })
-
-function StatTile({ icon: Icon, color, bg, title, value, sub }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      <div className="flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={20} /></div>
-        <div><div className="text-[0.6875rem] uppercase tracking-wide text-gray-400 font-semibold">{title}</div>
-          <div className="text-2xl font-extrabold text-gray-800 leading-none mt-0.5">{value}</div></div>
-      </div>
-      <div className="text-[0.75rem] text-gray-400 mt-3">{sub}</div>
-    </div>
-  )
-}
 
 export default function DonationMaster() {
   const { user } = useAuth()
@@ -121,12 +108,12 @@ export default function DonationMaster() {
           </div>
         )} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <KpiGrid>
         <StatTile icon={HandHeart} color="#059669" bg="bg-emerald-50" title={tr("Total Categories")} value={stats ? num(stats.total) : '—'} sub={tr("Active Donation Categories")} />
         <StatTile icon={Coins} color="#d97706" bg="bg-amber-50" title={tr("Cash Categories")} value={stats ? num(stats.cash) : '—'} sub={tr("Cash Donation Categories")} />
         <StatTile icon={Package} color="#2563eb" bg="bg-blue-50" title={tr("Material Categories")} value={stats ? num(stats.material) : '—'} sub={tr("Material Donation Categories")} />
         <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("Sponsorship Categories")} value={stats ? num(stats.sponsorship) : '—'} sub={tr("Sponsorship Categories")} />
-      </div>
+      </KpiGrid>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-5 flex flex-col lg:flex-row lg:items-end gap-4">

@@ -312,8 +312,6 @@ def run():
             pr = random.choice(poojaris) if (assigned and poojaris) else None
             past = sdate < TODAY
             status = ("Completed" if past else "Scheduled") if pr else "Scheduled"
-            if not past and pr and random.random() < 0.15:
-                status = "In Progress"
             db.add(Schedule(
                 code=f"SCH-9{str(1000 + base_seq + k).zfill(4)}",
                 pooja_id=(p.id if p else None), pooja_name=(p.name if p else "General Pooja"),
@@ -321,7 +319,7 @@ def run():
                 poojari_id=(pr.id if pr else None), poojari_name=(pr.name if pr else None),
                 schedule_date=sdate, start_time=slot[0], end_time=slot[1],
                 execution_frequency=random.choice(["Daily", "Monthly", "One-Time"]),
-                schedule_type=random.choices(["One-Time", "Recurring"], [0.7, 0.3])[0],
+                schedule_type="One-Time",
                 status=status, created_by="admin", created_at=_dt(sdate)))
             ns += 1
         db.commit()

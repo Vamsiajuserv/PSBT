@@ -2,13 +2,14 @@
 from collections import OrderedDict
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
+from types import SimpleNamespace
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, WasteSale,
-                      Festival, Devotee, PoojaPlan, Pooja)
+                      Festival, Devotee, PoojaPlan, Pooja, Refund, BookingPerformance)
 from ..security import RequireModule, client_ip
 from ..helpers import mask_pan, enforce_rate_limit, fmt_ist_datetime
 
@@ -145,59 +146,114 @@ def _range(model, start, end, db, limit=MAX_REPORT_ROWS):
             .order_by(model.id.desc()).limit(limit).all())
 
 
+# ── Pooja booking money: one rule, shared with Daily Closing ─────────────────
+# A booking's money counts as collected when payment was received (Paid), on the
+# booking's created date — even if the booking was cancelled later. A later
+# cancellation is not erased from the day it was collected; the money paid back
+# is a Refund row, reported in its own column on the refund date. This is exactly
+# how Daily Closing builds its "Pooja Bookings" head, so the pooja reports and the
+# closing figures agree. Unpaid (Pending/Failed) bookings are never income.
+def _paid_bookings(db, start, end, limit=MAX_REPORT_ROWS):
+    return (db.query(Booking)
+            .filter(func.date(Booking.created_at).between(start, end), Booking.payment_status == "Paid")
+            .order_by(Booking.id.desc()).limit(limit).all())
+
+
+def _paid_booking_filter(start, end):
+    return (func.date(Booking.created_at).between(start, end), Booking.payment_status == "Paid")
+
+
+def _booking_refunds(db, start, end):
+    """Booking refunds paid out in [start, end] (by refund date, as Daily Closing
+    does), as (refund, booking) pairs; booking is None if it no longer exists."""
+    refunds = (db.query(Refund)
+               .filter(Refund.entity_type == "Booking", Refund.refund_date.between(start, end)).all())
+    ids = {r.entity_id for r in refunds if r.entity_id}
+    bmap = {b.id: b for b in db.query(Booking).filter(Booking.id.in_(ids)).all()} if ids else {}
+    return [(r, bmap.get(r.entity_id)) for r in refunds]
+
+
+_DELETED_BOOKING = SimpleNamespace(seva_name="(Deleted booking)", plan_name="(Deleted booking)", category=None)
+
+
+def _is_cash(mode) -> bool:
+    """Cash unless a digital mode is named — the same rule as Daily Closing."""
+    return (mode or "Cash").strip().lower() == "cash"
+
+
+def _collection_rows(db, start, end, key_of, base_of):
+    """Group paid bookings + their refunds by key_of(booking) into rows carrying
+    count / completed / cancelled / amount / refunds / net."""
+    agg = OrderedDict()
+
+    def row(b):
+        k = key_of(b)
+        return agg.setdefault(k, {**base_of(b), "count": 0, "completed": 0, "cancelled": 0,
+                                  "amount": 0.0, "refunds": 0.0})
+    for b in _paid_bookings(db, start, end):
+        a = row(b)
+        a["count"] += 1
+        a["amount"] += float(b.amount or 0)
+        if b.status == "Completed":
+            a["completed"] += 1
+        elif b.status == "Cancelled":
+            a["cancelled"] += 1
+    for rf, b in _booking_refunds(db, start, end):
+        # Refunds of bookings removed by older versions (now bookings are only
+        # voided) still left the drawer — keep them in the totals, on their own row.
+        row(b if b is not None else _DELETED_BOOKING)["refunds"] += float(rf.amount or 0)
+    return [{**a, "net": a["amount"] - a["refunds"]} for a in agg.values()]
+
+
+def _sum_total(rows, label_key, label, keys):
+    t = {k: "" for k in (rows[0].keys() if rows else [label_key])}
+    t[label_key] = label
+    for k in keys:
+        t[k] = sum(r[k] for r in rows)
+    return t
+
+
 def generate(report, start, end, db):
     # ══════════════════════════════════════════════════════════════════════════
     # POOJA REPORTS
     # ══════════════════════════════════════════════════════════════════════════
 
     if report == "Daily Pooja Summary":
-        buckets = _daily_summary(db, Booking, "amount", start, end, "payment_method")
-        rows, tot = [], {"count": 0, "completed": 0, "cancelled": 0, "amount": 0.0, "cash": 0.0, "upi": 0.0}
-        all_bookings = _range(Booking, start, end, db)
-        # Group by date with status counts
-        date_stats = {}
-        for b in all_bookings:
-            d = (b.created_at.date() if b.created_at else None)
-            if not d:
-                continue
-            ds = date_stats.setdefault(d, {"completed": 0, "cancelled": 0, "pending": 0})
-            if b.status == "Completed":
-                ds["completed"] += 1
-            elif b.status == "Cancelled":
-                ds["cancelled"] += 1
-            else:
-                ds["pending"] += 1
+        days = OrderedDict()
 
-        for d, b in buckets.items():
-            stats = date_stats.get(d, {})
-            rows.append({
-                "date": d.strftime("%d %b %Y"),
-                "count": b["count"],
-                "completed": stats.get("completed", 0),
-                "cancelled": stats.get("cancelled", 0),
-                "cash": b["cash"],
-                "upi": b["upi"],
-                "amount": b["amount"],
-            })
-            tot["count"] += b["count"]
-            tot["completed"] += stats.get("completed", 0)
-            tot["cancelled"] += stats.get("cancelled", 0)
-            tot["amount"] += b["amount"]
-            tot["cash"] += b["cash"]
-            tot["upi"] += b["upi"]
-        total = {"date": "Total", **tot}
+        def day(d):
+            return days.setdefault(d, {"count": 0, "completed": 0, "cancelled": 0,
+                                       "cash": 0.0, "upi": 0.0, "amount": 0.0, "refunds": 0.0})
+        for b in _paid_bookings(db, start, end):
+            if not b.created_at:
+                continue
+            r, amt = day(b.created_at.date()), float(b.amount or 0)
+            r["count"] += 1
+            r["amount"] += amt
+            r["cash" if _is_cash(b.payment_method) else "upi"] += amt
+            if b.status == "Completed":
+                r["completed"] += 1
+            elif b.status == "Cancelled":
+                r["cancelled"] += 1
+        for rf, _b in _booking_refunds(db, start, end):
+            day(rf.refund_date)["refunds"] += float(rf.amount or 0)
+        rows = [{"date": d.strftime("%d %b %Y"), **v, "net": v["amount"] - v["refunds"]}
+                for d, v in sorted(days.items())]
         return {
             "title": "Daily Pooja Summary",
-            "subtitle": "Day-wise pooja booking summary with status and collection breakdown.",
+            "subtitle": "Day-wise paid pooja bookings (cash / UPI), refunds paid out and net collection — matches Daily Closing.",
             "columns": [
-                T("date", "Date"), N("count", "Bookings"), N("completed", "Completed"),
-                N("cancelled", "Cancelled"), M("cash", "Cash (₹)"), M("upi", "UPI (₹)"), M("amount", "Total (₹)")
+                T("date", "Date"), N("count", "Paid Bookings"), N("completed", "Completed"),
+                N("cancelled", "Cancelled"), M("cash", "Cash (₹)"), M("upi", "UPI (₹)"),
+                M("amount", "Collected (₹)"), M("refunds", "Refunds (₹)"), M("net", "Net (₹)"),
             ],
-            "rows": rows, "total": total
+            "rows": rows,
+            "total": _sum_total(rows, "date", "Total", ["count", "completed", "cancelled", "cash", "upi",
+                                                         "amount", "refunds", "net"]),
         }
 
     if report == "Pooja Booking Register":
-        rows = _range(Booking, start, end, db)
+        rows = _paid_bookings(db, start, end)
         data = []
         for b in rows:
             mode = b.payment_method or "Cash"
@@ -225,7 +281,7 @@ def generate(report, start, end, db):
         }
         return {
             "title": "Pooja Booking Register",
-            "subtitle": "Complete booking ledger with devotee, schedule, and payment details.",
+            "subtitle": "Paid bookings (receipts issued) with devotee, schedule and payment details. Cancelled bookings stay listed; their refunds are in the Cancelled Bookings Report.",
             "columns": [
                 T("receipt", "Receipt#"), T("ticket", "Ticket#"), T("date", "Date/Time"),
                 T("devotee", "Devotee"), T("mobile", "Mobile"), T("pooja", "Pooja"),
@@ -237,66 +293,63 @@ def generate(report, start, end, db):
         }
 
     if report == "Pooja-wise Collection":
-        rows = _range(Booking, start, end, db)
-        agg = OrderedDict()
-        for b in rows:
-            key = b.seva_name or "Unknown"
-            a = agg.setdefault(key, {"pooja": key, "category": b.category or "-", "count": 0, "completed": 0, "amount": 0.0})
-            a["count"] += 1
-            a["amount"] += float(b.amount or 0)
-            if b.status == "Completed":
-                a["completed"] += 1
-        data = list(agg.values())
-        total = {"pooja": "Total", "category": "", "count": sum(r["count"] for r in data),
-                 "completed": sum(r["completed"] for r in data), "amount": sum(r["amount"] for r in data)}
+        data = _collection_rows(db, start, end, key_of=lambda b: b.seva_name or "Unknown",
+                                base_of=lambda b: {"pooja": b.seva_name or "Unknown", "category": b.category or "-"})
         return {
             "title": "Pooja-wise Collection",
-            "subtitle": "Collection grouped by pooja type for the selected period.",
-            "columns": [T("pooja", "Pooja Name"), T("category", "Category"), N("count", "Bookings"),
-                        N("completed", "Completed"), M("amount", "Collection (₹)")],
-            "rows": data, "total": total
+            "subtitle": "Paid bookings and collection per pooja; refunds paid out in the period are shown separately.",
+            "columns": [T("pooja", "Pooja Name"), T("category", "Category"), N("count", "Paid Bookings"),
+                        N("completed", "Completed"), N("cancelled", "Cancelled"), M("amount", "Collected (₹)"),
+                        M("refunds", "Refunds (₹)"), M("net", "Net (₹)")],
+            "rows": data,
+            "total": _sum_total(data, "pooja", "Total", ["count", "completed", "cancelled", "amount", "refunds", "net"]),
         }
 
     if report == "Plan-wise Collection":
-        rows = _range(Booking, start, end, db)
-        agg = OrderedDict()
-        for b in rows:
-            key = b.plan_name or "Unknown"
-            a = agg.setdefault(key, {"plan": key, "count": 0, "amount": 0.0})
-            a["count"] += 1
-            a["amount"] += float(b.amount or 0)
-        data = list(agg.values())
-        total = {"plan": "Total", "count": sum(r["count"] for r in data), "amount": sum(r["amount"] for r in data)}
+        data = _collection_rows(db, start, end, key_of=lambda b: b.plan_name or "Unknown",
+                                base_of=lambda b: {"plan": b.plan_name or "Unknown"})
         return {
             "title": "Plan-wise Collection",
-            "subtitle": "Collection grouped by plan type (Daily/Monthly/Yearly/Lifetime).",
-            "columns": [T("plan", "Plan Name"), N("count", "Bookings"), M("amount", "Collection (₹)")],
-            "rows": data, "total": total
+            "subtitle": "Paid bookings and collection per plan type (Daily/Monthly/Yearly/Lifetime); refunds shown separately.",
+            "columns": [T("plan", "Plan Name"), N("count", "Paid Bookings"), N("cancelled", "Cancelled"),
+                        M("amount", "Collected (₹)"), M("refunds", "Refunds (₹)"), M("net", "Net (₹)")],
+            "rows": data,
+            "total": _sum_total(data, "plan", "Total", ["count", "cancelled", "amount", "refunds", "net"]),
         }
 
     if report == "Poojari Performance":
-        rows = _range(Booking, start, end, db)
+        rows = _paid_bookings(db, start, end)
         agg = OrderedDict()
+        blank = lambda key: {"poojari": key, "assigned": 0, "performed": 0, "completed": 0, "pending": 0, "amount": 0.0}
         for b in rows:
-            if not b.poojari_name:
+            if not b.poojari_name or b.status == "Cancelled":
                 continue
             key = b.poojari_name
-            a = agg.setdefault(key, {"poojari": key, "assigned": 0, "completed": 0, "pending": 0, "amount": 0.0})
+            a = agg.setdefault(key, blank(key))
             a["assigned"] += 1
             a["amount"] += float(b.amount or 0)
             if b.status == "Completed":
                 a["completed"] += 1
             elif b.status not in ("Cancelled",):
                 a["pending"] += 1
+        # Actual work: performances recorded in the period, credited to whoever
+        # performed them (which may differ from the assigned poojari when covering).
+        performed = (db.query(BookingPerformance.poojari_name, func.count(BookingPerformance.id))
+                     .filter(BookingPerformance.performed_on.between(start, end),
+                             BookingPerformance.poojari_name.isnot(None))
+                     .group_by(BookingPerformance.poojari_name).all())
+        for name, cnt in performed:
+            agg.setdefault(name, blank(name))["performed"] = cnt
         data = list(agg.values())
         total = {"poojari": "Total", "assigned": sum(r["assigned"] for r in data),
+                 "performed": sum(r["performed"] for r in data),
                  "completed": sum(r["completed"] for r in data), "pending": sum(r["pending"] for r in data),
                  "amount": sum(r["amount"] for r in data)}
         return {
             "title": "Poojari Performance",
-            "subtitle": "Poojas assigned and completed by each poojari.",
-            "columns": [T("poojari", "Poojari"), N("assigned", "Assigned"), N("completed", "Completed"),
-                        N("pending", "Pending"), M("amount", "Total Amount (₹)")],
+            "subtitle": "Bookings assigned to each poojari, and poojas they actually performed in the period.",
+            "columns": [T("poojari", "Poojari"), N("assigned", "Assigned"), N("performed", "Performed"),
+                        N("completed", "Completed"), N("pending", "Pending"), M("amount", "Total Amount (₹)")],
             "rows": data, "total": total
         }
 
@@ -327,21 +380,32 @@ def generate(report, start, end, db):
         rows = (db.query(Booking)
                 .filter(func.date(Booking.created_at).between(start, end), Booking.status == "Cancelled")
                 .order_by(Booking.id.desc()).all())
+        ids = [b.id for b in rows]
+        refunded = {}
+        if ids:
+            for rf in db.query(Refund).filter(Refund.entity_type == "Booking", Refund.entity_id.in_(ids)).all():
+                refunded[rf.entity_id] = refunded.get(rf.entity_id, 0.0) + float(rf.amount or 0)
         data = [{
             "ticket": b.ticket_no or b.booking_code or "-",
             "date": b.created_at.strftime("%d %b %Y") if b.created_at else "-",
             "devotee": b.devotee_name or "-",
             "pooja": b.seva_name or "-",
-            "amount": float(b.amount or 0),
+            "payment": b.payment_status or "-",
+            "amount": float(b.amount or 0) if b.payment_status == "Paid" else 0.0,
+            "refunded": refunded.get(b.id, 0.0),
+            "retained": (float(b.amount or 0) - refunded.get(b.id, 0.0)) if b.payment_status == "Paid" else 0.0,
             "cancelled_by": b.created_by or "-",
         } for b in rows]
-        total = {"ticket": "Total", "date": "", "devotee": "", "pooja": "",
-                 "amount": sum(r["amount"] for r in data), "cancelled_by": ""}
+        total = {"ticket": "Total", "date": "", "devotee": "", "pooja": "", "payment": "",
+                 "amount": sum(r["amount"] for r in data), "refunded": sum(r["refunded"] for r in data),
+                 "retained": sum(r["retained"] for r in data), "cancelled_by": ""}
         return {
             "title": "Cancelled Bookings Report",
-            "subtitle": "All cancelled bookings for audit purposes.",
+            "subtitle": "Cancelled bookings with the amount collected, refunded and retained (unpaid bookings collected nothing).",
             "columns": [T("ticket", "Ticket#"), T("date", "Booking Date"), T("devotee", "Devotee"),
-                        T("pooja", "Pooja"), M("amount", "Amount (₹)"), T("cancelled_by", "Cancelled By")],
+                        T("pooja", "Pooja"), T("payment", "Payment"), M("amount", "Collected (₹)"),
+                        M("refunded", "Refunded (₹)"), M("retained", "Retained (₹)"),
+                        T("cancelled_by", "Booked By")],
             "rows": data, "total": total
         }
     # ══════════════════════════════════════════════════════════════════════════
@@ -478,8 +542,8 @@ def generate(report, start, end, db):
         ).all()]
         rows = []
         if ll_ids:
-            bks = (db.query(Booking).filter(Booking.plan_id.in_(ll_ids),
-                   func.date(Booking.created_at).between(start, end)).order_by(Booking.id.desc()).all())
+            bks = (db.query(Booking).filter(Booking.plan_id.in_(ll_ids), *_paid_booking_filter(start, end))
+                   .order_by(Booking.id.desc()).all())
             dev_ids = [b.devotee_id for b in bks if b.devotee_id]
             devmap = {d.id: d for d in db.query(Devotee).filter(Devotee.id.in_(dev_ids)).all()} if dev_ids else {}
             for b in bks:
@@ -667,8 +731,7 @@ def generate(report, start, end, db):
                        "head": head, "party": party or "-", "mode": mode or "-", "utr": utr or "-",
                        "cash": (amt if is_cash else 0.0), "online": (0.0 if is_cash else amt),
                        "amount": amt})
-        for b in db.query(Booking).filter(func.date(Booking.created_at).between(start, end),
-                                          Booking.status != "Cancelled").all():
+        for b in db.query(Booking).filter(*_paid_booking_filter(start, end)).all():
             m = b.payment_method or "Cash"
             add(b.created_at.date() if b.created_at else None, b.receipt_no or b.ticket_no or b.booking_code,
                 "Pooja Booking", b.devotee_name, m, b.payment_ref, float(b.amount or 0), m == "Cash")
@@ -714,7 +777,7 @@ def generate(report, start, end, db):
                             Booking.pooja_id.in_(pids),
                             Booking.scheduled_date.isnot(None),
                             Booking.scheduled_date.between(f.start_date, f.end_date))),
-                   Booking.status != "Cancelled").all())
+                   Booking.status != "Cancelled", Booking.payment_status == "Paid").all())
             pnames = [p.name for p in db.query(Pooja).filter(Pooja.id.in_(pids)).all()]
             period = (f.start_date.strftime("%d %b %Y") if f.start_date == f.end_date
                       else f"{f.start_date.strftime('%d %b')} – {f.end_date.strftime('%d %b %Y')}")
@@ -788,8 +851,7 @@ def generate(report, start, end, db):
             mk = dobj.strftime("%Y-%m") if dobj else None
             if mk in buckets:
                 buckets[mk][key] += amt
-        for b in db.query(Booking).filter(func.date(Booking.created_at).between(start, end),
-                                          Booking.status != "Cancelled").all():
+        for b in db.query(Booking).filter(*_paid_booking_filter(start, end)).all():
             bump(b.created_at.date() if b.created_at else None, "pooja", float(b.amount or 0))
         for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
             bump(d.donated_on or (d.created_at.date() if d.created_at else None), "donation", float(d.amount or 0))
@@ -831,9 +893,8 @@ def generate(report, start, end, db):
     if report == "Consolidated Summary":
         # Summary of all collections across heads for the period
         pooja_amt = sum(float(b.amount or 0) for b in db.query(Booking).filter(
-            func.date(Booking.created_at).between(start, end), Booking.status != "Cancelled").all())
-        pooja_count = db.query(Booking).filter(
-            func.date(Booking.created_at).between(start, end), Booking.status != "Cancelled").count()
+            *_paid_booking_filter(start, end)).all())
+        pooja_count = db.query(Booking).filter(*_paid_booking_filter(start, end)).count()
 
         donation_amt = sum(float(d.amount or 0) for d in db.query(Donation).filter(
             func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all())
@@ -887,8 +948,7 @@ def generate(report, start, end, db):
         modes = {"Cash": 0.0, "UPI": 0.0, "Card": 0.0, "Bank Transfer": 0.0, "Cheque": 0.0, "Online": 0.0}
         mode_counts = {"Cash": 0, "UPI": 0, "Card": 0, "Bank Transfer": 0, "Cheque": 0, "Online": 0}
 
-        for b in db.query(Booking).filter(func.date(Booking.created_at).between(start, end),
-                                          Booking.status != "Cancelled").all():
+        for b in db.query(Booking).filter(*_paid_booking_filter(start, end)).all():
             m = b.payment_method or "Cash"
             if m not in modes:
                 m = "Online" if m != "Cash" else "Cash"

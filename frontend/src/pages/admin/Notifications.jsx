@@ -4,7 +4,7 @@ import {
   MessageSquare, Mail, Send, CheckCircle2, XCircle, MinusCircle, Ban, Info,
   BellRing, Smartphone, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
-import { PageTitle, StatTile, Pill, Pager, num, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, Pager, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { NotificationsAPI } from '../../api/client.js'
 import { Select } from '../../components/common/Field.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
@@ -87,12 +87,12 @@ export default function Notifications() {
       <PageTitle title={tr("Notifications")} subtitle={tr("Configure SMS, Email and WhatsApp channels and review delivery history.")} />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <KpiGrid>
         <StatTile icon={CheckCircle2} color="#059669" bg="bg-emerald-50" title={tr("Delivered")} value={stats ? num(stats.SENT) : '—'} sub={tr("Sent successfully")} />
         <StatTile icon={XCircle} color="#dc2626" bg="bg-red-50" title={tr("Failed")} value={stats ? num(stats.FAILED) : '—'} sub={tr("Provider errors")} />
         <StatTile icon={MinusCircle} color="#d97706" bg="bg-amber-50" title={tr("Skipped")} value={stats ? num(stats.SKIPPED) : '—'} sub={tr("No provider / recipient")} />
         <StatTile icon={Ban} color="#6b7280" bg="bg-gray-100" title={tr("Disabled")} value={stats ? num(stats.DISABLED) : '—'} sub={tr("Channel switched off")} />
-      </div>
+      </KpiGrid>
 
       {!anyConfigured && (
         <div className="mb-5 flex items-start gap-2.5 bg-amber-50/70 border border-amber-100 rounded-xl px-5 py-3.5 text-[0.8125rem] text-gray-600">

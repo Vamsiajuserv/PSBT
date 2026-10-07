@@ -204,6 +204,22 @@ class Booking(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class BookingPerformance(Base):
+    """One row per performance of a booking (at most one per day) — who performed it
+    and when. Booking.performances_done / last_performed_on are the running totals;
+    this is the history behind them (queue history, reports, same-day undo)."""
+    __tablename__ = "booking_performances"
+    __table_args__ = (UniqueConstraint("booking_id", "performed_on", name="uq_booking_performance_day"),)
+
+    id = Column(Integer, primary_key=True)
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False, index=True)
+    performed_on = Column(Date, nullable=False, index=True)
+    poojari_id = Column(Integer, ForeignKey("poojaris.id"), nullable=True)   # who performed it
+    poojari_name = Column(String(120), nullable=True)
+    performed_by = Column(String(60), nullable=True)   # login that recorded it (NULL = backfilled history)
+    performed_at = Column(DateTime, server_default=func.now())
+
+
 # ── Donations ────────────────────────────────────────────────────────────────
 class Donation(Base):
     __tablename__ = "donations"
@@ -378,7 +394,11 @@ class Poojari(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
-# ── Poojari schedule (assign poojari to a pooja for a date/time) ──────────────
+# ── Poojari schedule (which poojari covers which pooja) ──────────────────────
+# Recurring: a standing assignment, active from schedule_date until stopped
+# (status Active → Stopped, ended_on set). One-Time: a single date, optional
+# time slot (status Scheduled | Completed | Cancelled). New bookings take their
+# poojari from here — see routers/schedules.py::scheduled_poojari.
 class Schedule(Base):
     __tablename__ = "schedules"
 
@@ -386,16 +406,17 @@ class Schedule(Base):
     code = Column(String(20), unique=True, nullable=False, index=True)   # SCH-0001
     pooja_id = Column(Integer, ForeignKey("poojas.id"), nullable=True)
     pooja_name = Column(String(120), nullable=False)
-    plan_id = Column(Integer, ForeignKey("pooja_plans.id"), nullable=True)
+    plan_id = Column(Integer, ForeignKey("pooja_plans.id"), nullable=True)   # legacy; assignments are per pooja
     plan_name = Column(String(60), nullable=True)
     poojari_id = Column(Integer, ForeignKey("poojaris.id"), nullable=True)
     poojari_name = Column(String(120), nullable=True)
-    schedule_date = Column(Date, nullable=True, index=True)
-    start_time = Column(String(20), nullable=True)         # "07:30 AM"
+    schedule_date = Column(Date, nullable=True, index=True)  # One-Time: the date · Recurring: active from
+    ended_on = Column(Date, nullable=True)                   # Recurring: the day it was stopped
+    start_time = Column(String(20), nullable=True)         # "07:30 AM" (optional)
     end_time = Column(String(20), nullable=True)
-    execution_frequency = Column(String(20), nullable=True)   # Daily | Monthly | One-Time
+    execution_frequency = Column(String(20), nullable=True)   # legacy display field
     schedule_type = Column(String(20), default="One-Time", nullable=False)  # One-Time | Recurring
-    status = Column(String(20), default="Scheduled", nullable=False)  # Scheduled | In Progress | Completed
+    status = Column(String(20), default="Scheduled", nullable=False)  # Recurring: Active | Stopped · One-Time: Scheduled | Completed | Cancelled
     notes = Column(Text, nullable=True)
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())

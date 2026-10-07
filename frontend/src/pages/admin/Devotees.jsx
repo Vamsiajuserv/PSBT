@@ -6,7 +6,7 @@ import {
   Flame, UtensilsCrossed, Gavel, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -441,7 +441,7 @@ export default function Devotees() {
         actions={canWrite && <button onClick={() => { setSaveErr(''); setModal({ mode: 'create', data: { ...EMPTY } }) }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Devotee</T></button>} />
 
       {user?.role !== 'Counter Staff' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6" role="region" aria-label={tr("Devotee statistics")}>
+        <KpiGrid role="region" aria-label={tr("Devotee statistics")}>
           <StatTile icon={Users} color="#ea580c" bg="bg-orange-50" title={tr("Total Devotees")}
             value={stats ? num(stats.total) : '—'} sub={tr("All registered devotees")} />
           <StatTile icon={CalendarPlus} color="#059669" bg="bg-emerald-50" title={tr("Recent Registrations")}
@@ -450,7 +450,7 @@ export default function Devotees() {
             value={stats ? num(stats.with_donations) : '—'} sub={tr("Devotees who donated")} />
           <StatTile icon={HandHeart} color="#2563eb" bg="bg-blue-50" title={tr("Total Annadanam Beneficiaries")}
             value={stats ? num(stats.annadanam_beneficiaries) : '—'} sub={tr("Through devotee sponsorships")} />
-        </div>
+        </KpiGrid>
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { AnnadanamAPI, DevoteesAPI, SettingsAPI, FestivalsAPI } from '../../api/client.js'
@@ -306,12 +306,12 @@ export default function Annadanam() {
         actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Annadanam Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={() => { setDrawer(emptyForm(defaultRate)); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Annadanam Donation</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       {user?.role !== 'Counter Staff' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <KpiGrid>
           <StatTile icon={UtensilsCrossed} color="#ea580c" bg="bg-orange-50" title={tr("Total Annadanam Records")} value={stats ? num(stats.total_records) : '—'} sub={tr("All Time")} />
           <StatTile icon={Users} color="#059669" bg="bg-emerald-50" title={tr("Today's Sponsorships")} value={stats ? num(stats.today_sponsorships) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
           <StatTile icon={IndianRupee} color="#7c3aed" bg="bg-violet-50" title={tr("Today's Collection")} value={stats ? inr(stats.today_collection) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
           <StatTile icon={HeartHandshake} color="#d97706" bg="bg-amber-50" title={tr("Total Persons Sponsored")} value={stats ? num(stats.total_persons) : '—'} sub={tr("Across all Annadanam records")} />
-        </div>
+        </KpiGrid>
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

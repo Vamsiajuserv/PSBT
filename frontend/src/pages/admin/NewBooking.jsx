@@ -8,7 +8,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react'
 import { DevoteesAPI, PoojasAPI, BookingsAPI, PoojarisAPI, FestivalsAPI, TithiAPI, SettingsAPI } from '../../api/client.js'
 import { fmtDate } from '../../components/admin/ui.jsx'
-import { TicketRef } from '../../components/admin/BookingTicket.jsx'
+import { TicketShell } from '../../components/admin/BookingTicket.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
 import { Select, DateField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
@@ -231,9 +231,9 @@ export default function NewBooking() {
   }
 
   const slotsForDate = openSlots(cfg.slots, schedDate)
-  // Keep the chosen slot valid for the chosen date
+  // Slot is optional — clear it if it's no longer valid for the chosen date
   useEffect(() => {
-    if (!slotsForDate.includes(slot)) setSlot(slotsForDate[0] || '')
+    if (slot && !slotsForDate.includes(slot)) setSlot('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedDate, cfg.slots.join('|')])
 
@@ -282,7 +282,6 @@ export default function NewBooking() {
     if (schedDate < minDate) return tr('The pooja date cannot be before') + ` ${fmtDate(minDate)}.`
     if (maxDate && schedDate > maxDate) return tr('The pooja date cannot be after') + ` ${fmtDate(maxDate)}.`
     if (usePournami && !monthlyDates.includes(schedDate)) return tr('Select a Pournami date for this monthly pooja.')
-    if (cfg.slots.length > 0 && !slot) return tr('All time slots for this date are over. Select another date.')
     if (dupChecking) return tr('Checking existing plans, please wait.')
     if (dupWarning) return tr('Booking blocked: An active plan already exists for this devotee and pooja.')
     return ''
@@ -582,13 +581,13 @@ export default function NewBooking() {
                 {plan && <div className="text-[0.75rem] text-emerald-700 mt-1"><T>Validity</T>: {validityPreview(plan, schedDate)}</div>}
               </div>
               <div>
-                <label className="label"><T>Time Slot</T>{cfg.slots.length > 0 && ' *'}</label>
+                <label className="label"><T>Time Slot</T> <T>(Optional)</T></label>
                 {cfg.slots.length === 0 ? (
                   <div className="text-[0.8125rem] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"><T>No time slots configured in Settings.</T></div>
                 ) : slotsForDate.length === 0 ? (
-                  <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"><T>All time slots for this date are over. Select another date.</T></div>
+                  <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"><T>All time slots for this date are over. The booking will be saved without a time slot.</T></div>
                 ) : (
-                  <Select value={slot} onChange={(e) => setSlot(e.target.value)}>{slotsForDate.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}</Select>
+                  <Select value={slot} onChange={(e) => setSlot(e.target.value)}><option value="">{tr('Not selected')}</option>{slotsForDate.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}</Select>
                 )}
                 <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Slots are managed in Settings › Pooja Booking Settings.</T></div>
               </div>
@@ -712,16 +711,17 @@ export default function NewBooking() {
             </div>
 
             <div id="print-area" className="print-modal">
-              <div className="bg-[#fdf7ee] border-2 border-dashed border-amber-300 rounded-2xl p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <img src="/images/temple-logo.png" alt="Sai Baba Temple" className="w-10 h-10 object-contain" />
-                    <div><div className="font-display font-bold text-maroon-800 text-[0.9375rem] tracking-wide"><T>SRI SHIRDI SAI BABA TEMPLE</T></div><div className="text-[0.625rem] text-gray-700"><T>Endowments Department, Government of Telangana</T></div></div>
-                  </div>
-                  <TicketRef code={ticket.booking_code} />
+              <TicketShell code={ticket.booking_code} after={
+                <div className="text-[0.5625rem] text-gray-500 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-3">
+                  <div className="font-semibold text-gray-600 mb-1"><T>Terms & Conditions</T>:</div>
+                  <ol className="list-decimal list-inside space-y-0.5 pl-1">
+                    {ticket.time_slot && <li><T>Please arrive 15 minutes before the scheduled pooja time.</T></li>}
+                    <li><T>Ticket is valid only for the pooja date or validity period mentioned.</T></li>
+                    <li><T>Refunds are subject to temple policy.</T></li>
+                    <li><T>Temple is not responsible for lost or damaged tickets.</T></li>
+                  </ol>
                 </div>
-                <div className="text-center my-4"><span className="inline-block bg-maroon-800 text-cream text-[0.75rem] font-bold tracking-wider rounded px-4 py-1.5"><T>POOJA BOOKING TICKET</T></span></div>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-dashed border-amber-200 pt-4">
+              }>
                   <TField k={tr('Booking ID')} v={ticket.booking_code} mono />
                   <TField k={tr('Ticket Number')} v={ticket.ticket_no || ticket.receipt_no} mono />
                   <TField k={tr('Devotee')} v={<>{personName(devotee, lang)}<span className="block text-[0.6875rem] text-gray-500 font-normal">{devotee.mobile}</span></>} />
@@ -739,20 +739,7 @@ export default function NewBooking() {
                   <div className="bg-amber-100/60 rounded-lg px-3 py-2 col-span-2 flex items-center justify-between"><span className="text-[0.6875rem] text-gray-500"><T>Amount Paid (₹)</T></span><span className="font-extrabold text-maroon-800">{money2(ticket.amount)}</span></div>
                   <TField k={tr('Payment Mode')} v={modeLabel(ticket._method)} />
                   <TField k={tr('Payment Date & Time')} v={ticket._paidAt} />
-                </div>
-
-                <div className="text-[0.5625rem] text-gray-500 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-3">
-                  <div className="font-semibold text-gray-600 mb-1"><T>Terms & Conditions</T>:</div>
-                  <ol className="list-decimal list-inside space-y-0.5 pl-1">
-                    {ticket.time_slot && <li><T>Please arrive 15 minutes before the scheduled pooja time.</T></li>}
-                    <li><T>Ticket is valid only for the pooja date or validity period mentioned.</T></li>
-                    <li><T>Refunds are subject to temple policy.</T></li>
-                    <li><T>Temple is not responsible for lost or damaged tickets.</T></li>
-                  </ol>
-                </div>
-
-                <div className="text-center mt-4 pt-3 border-t border-dashed border-amber-200"><div className="font-display text-maroon-700 tracking-wide text-sm"><T>✦ Om Sai Ram ✦</T></div></div>
-              </div>
+              </TicketShell>
             </div>
           </div>
 

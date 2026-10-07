@@ -51,7 +51,7 @@ const NAV = [
       { to: '/admin/auction-items', label: tr('Auction Item Master') },
     ],
   },
-  { to: '/admin/annadanam', label: tr('Annadanam Management'), icon: UtensilsCrossed, chevron: true },
+  { to: '/admin/annadanam', label: tr('Annadanam Management'), icon: UtensilsCrossed },
   {
     label: tr('Waste Material Sales'), icon: Recycle,
     children: [
@@ -60,11 +60,11 @@ const NAV = [
       { to: '/admin/waste-materials', label: tr('Waste Material Master') },
     ],
   },
-  { to: '/admin/reports', label: tr('Reports'), icon: FileBarChart, chevron: true },
-  { to: '/admin/analytics', label: tr('Analytics & Trends'), icon: TrendingUp, chevron: true },
-  { to: '/admin/daily-closing', label: tr('Daily Closing'), icon: Wallet, chevron: true },
-  { to: '/admin/users', label: tr('User Management'), icon: ShieldCheck, chevron: true },
-  { to: '/admin/roles', label: tr('Role & Access Management'), icon: KeyRound, chevron: true },
+  { to: '/admin/reports', label: tr('Reports'), icon: FileBarChart },
+  { to: '/admin/analytics', label: tr('Analytics & Trends'), icon: TrendingUp },
+  { to: '/admin/daily-closing', label: tr('Daily Closing'), icon: Wallet },
+  { to: '/admin/users', label: tr('User Management'), icon: ShieldCheck },
+  { to: '/admin/roles', label: tr('Role & Access'), icon: KeyRound },
   {
     label: tr('Settings'), icon: SettingsIcon,
     children: [
@@ -119,6 +119,11 @@ function SidebarNav({ onNavigate, collapsed }) {
   const nav = NAV.map((n) => {
     if (n.children) {
       const kids = n.children.filter((c) => canAccessKey(user, keyOf(c.to)))
+      // Poojari / Counter Staff / Accountant / Committee: a group with a single reachable screen becomes
+      // a direct link (e.g. Calendar, Donations, Hundi Collections, Auctions, Waste Sales)
+      if (['Poojari', 'Counter Staff', 'Accountant', 'Committee'].includes(user?.role) && kids.length === 1) {
+        return { to: kids[0].to, label: kids[0].label, icon: kids[0].to === '/admin/calendar' ? Calendar : n.icon }
+      }
       return kids.length ? { ...n, children: kids } : null
     }
     if (!canAccessKey(user, keyOf(n.to))) return null
@@ -129,9 +134,15 @@ function SidebarNav({ onNavigate, collapsed }) {
     n.end ? location.pathname === n.to : location.pathname === n.to || location.pathname.startsWith(n.to + '/')
   ))
   const activeGroup = isTopLevelRoute ? null : nav.find((n) => n.children?.some((c) => location.pathname.startsWith(c.to)))
-  const [open, setOpen] = useState(activeGroup ? { [activeGroup.label]: true } : {})
+  // Accordion: only one section open at a time. On every page change only the current
+  // page's section stays open — a single-link page (Dashboard, Daily Closing…) closes it.
+  const [openGroup, setOpenGroup] = useState(activeGroup?.label ?? null)
+  useEffect(() => { setOpenGroup(activeGroup?.label ?? null) }, [location.pathname])
 
-  const labelClass = collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100 flex-1'
+  // Expanded: long labels (e.g. "Committee Member Master", Telugu names) wrap onto a
+  // second line instead of being clipped by the fixed sidebar width. Collapsed: one
+  // line, so the hidden zero-width label cannot grow tall.
+  const labelClass = collapsed ? 'opacity-0 w-0 overflow-hidden whitespace-nowrap' : 'opacity-100 flex-1 min-w-0 whitespace-normal break-words leading-snug'
 
   return (
     <nav className={`flex-1 overflow-y-auto overflow-x-hidden sidebar-scroll py-2 space-y-0.5 transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'px-0' : 'px-3'}`}>
@@ -139,7 +150,7 @@ function SidebarNav({ onNavigate, collapsed }) {
         const Icon = n.icon
         if (n.children) {
           const groupActive = n.children.some((c) => location.pathname.startsWith(c.to))
-          const isOpen = !collapsed && (open[n.label] ?? groupActive)
+          const isOpen = !collapsed && openGroup === n.label
           const firstChild = n.children[0]
 
           return (
@@ -149,7 +160,7 @@ function SidebarNav({ onNavigate, collapsed }) {
                 onClick={(e) => {
                   if (!collapsed) {
                     e.preventDefault()
-                    setOpen((o) => ({ ...o, [n.label]: !isOpen }))
+                    setOpenGroup(isOpen ? null : n.label)
                     // Auto-scroll to show expanded menu items when opening
                     if (!isOpen) {
                       setTimeout(() => {
@@ -171,8 +182,8 @@ function SidebarNav({ onNavigate, collapsed }) {
                 }`}
               >
                 <Icon size={collapsed ? 16 : 18} className="shrink-0" />
-                <span className={`text-left whitespace-nowrap transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
-                <span className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+                <span className={`text-left transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
+                <span className={`shrink-0 transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
                   {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 </span>
               </NavLink>
@@ -187,7 +198,7 @@ function SidebarNav({ onNavigate, collapsed }) {
                       }
                     >
                       <span className="w-1 h-1 rounded-full bg-current opacity-60 shrink-0" />
-                      <span className="whitespace-nowrap">{t(c.label)}</span>
+                      <span className="min-w-0 break-words leading-snug">{t(c.label)}</span>
                     </NavLink>
                   ))}
                 </div>
@@ -197,7 +208,7 @@ function SidebarNav({ onNavigate, collapsed }) {
         }
 
         return (
-          <NavLink key={n.to} to={n.to} end={n.end} onClick={onNavigate} title={collapsed ? t(n.label) : undefined}
+          <NavLink key={n.to} to={n.to} end={n.end} onClick={() => { setOpenGroup(null); onNavigate() }} title={collapsed ? t(n.label) : undefined}
             className={({ isActive }) =>
               `w-full flex items-center py-2 rounded-lg text-[0.84375rem] font-medium transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${
                 collapsed ? 'justify-center px-0' : 'gap-3 px-3'
@@ -207,10 +218,7 @@ function SidebarNav({ onNavigate, collapsed }) {
             }
           >
             <Icon size={collapsed ? 16 : 18} className="shrink-0" />
-            <span className={`whitespace-nowrap transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
-            <span className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'opacity-0 w-0' : 'opacity-55'}`}>
-              {n.chevron && <ChevronRight size={15} />}
-            </span>
+            <span className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
           </NavLink>
         )
       })}

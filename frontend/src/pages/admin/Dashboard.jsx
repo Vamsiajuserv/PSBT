@@ -9,6 +9,8 @@ import { useAuth, useHasModule } from '../../auth/AuthContext.jsx'
 import { DashboardAPI } from '../../api/client.js'
 import { DateField } from '../../components/common/Field.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
+import FitText from '../../components/common/FitText.jsx'
+import { KpiGrid } from '../../components/admin/ui.jsx'
 import { T, tr, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -54,8 +56,8 @@ const ALERT_ROUTE = { hundi: '/admin/hundi', auction: '/admin/auction', donation
 function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, footValue, to }) {
   const inner = (
     <div className={`bg-gradient-to-br from-white to-gray-50/50 rounded-xl border border-gray-100 shadow-sm p-4 h-full overflow-hidden flex flex-col ${to ? 'cursor-pointer transition-all duration-300 hover:shadow-lg hover:border-maroon-200 hover:-translate-y-0.5 focus-within:ring-2 focus-within:ring-maroon-500 focus-within:ring-offset-2' : ''}`}>
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-xl grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}>
+      <div className="flex items-center gap-2.5">
+        <div className={`w-9 h-9 rounded-xl grid place-items-center shrink-0 ${iconBg}`} style={{ color: iconColor }}>
           <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
@@ -64,9 +66,9 @@ function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, foot
         </div>
       </div>
       <div className="flex-1 flex items-end mt-3">
-        <div className="text-xl sm:text-2xl font-extrabold text-gray-800 leading-none tabular-nums whitespace-nowrap">{value}</div>
+        <FitText className="w-full text-xl sm:text-2xl font-extrabold text-gray-800 leading-none tabular-nums">{value}</FitText>
       </div>
-      {footLabel && <div className="mt-3 pt-2.5 border-t border-gray-100/80 text-[0.6875rem] text-gray-600 flex items-center justify-between">
+      {footLabel && <div className="mt-3 pt-2.5 border-t border-gray-100/80 text-[0.6875rem] text-gray-600 flex flex-wrap items-center justify-between gap-x-2">
         <span>{footLabel}</span>
         <span className="font-bold text-gray-800 tabular-nums">{footValue}</span>
       </div>}
@@ -155,7 +157,6 @@ export default function Dashboard() {
   // The API formats the range as '25 Jul 2026'; the month is a word, so it
   // translates while the numerals stay put.
   const rangeLabel = (d?.range?.label || '').replace(/[A-Za-z]{3,}/g, (w) => tr(w))
-  const rangeSub = d?.range?.single ? (start === todayISO ? `(${tr('Today')})` : `(${rangeLabel})`) : `(${rangeLabel})`
   const setPreset = (from, to) => { setFilters({ start: from, end: to }) }
   const shift = (days) => { const t = new Date(); t.setDate(t.getDate() - days); return t.toISOString().slice(0, 10) }
   const activePreset = () => {
@@ -214,20 +215,20 @@ export default function Dashboard() {
 
       {/* KPI tiles — each gated to the module its screen needs, so a counter
           user sees only the collections they actually handle. */}
-      {d && <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-6" role="region" aria-label={tr('Key performance indicators')}>
-        {hasModule('Bookings') && <Kpi to="/admin/bookings" icon={CalendarDays} iconBg="bg-blue-50" iconColor="#2563eb" title={tr("Pooja Bookings")} sub={rangeSub}
+      {d && <KpiGrid className="mb-6 kpi-one-row" role="region" aria-label={tr('Key performance indicators')}>
+        {hasModule('Bookings') && <Kpi to="/admin/bookings" icon={CalendarDays} iconBg="bg-blue-50" iconColor="#2563eb" title={tr("Pooja Bookings")}
           value={t ? num(t.pooja_bookings.count) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
-        {hasModule('Donations') && <Kpi to="/admin/donations" icon={HandHeart} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Donations Received")} sub={rangeSub}
+        {hasModule('Donations') && <Kpi to="/admin/donations" icon={HandHeart} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Donations Received")}
           value={t ? num(t.donations.receipts) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
-        {hasModule('Hundi') && <Kpi to="/admin/hundi" icon={HandCoins} iconBg="bg-amber-50" iconColor="#d97706" title={tr("Hundi Collection")} sub={rangeSub}
+        {hasModule('Hundi') && <Kpi to="/admin/hundi" icon={HandCoins} iconBg="bg-amber-50" iconColor="#d97706" title={tr("Hundi Collection")}
           value={t ? num(t.hundi.count) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
-        {hasModule('Auction') && <Kpi to="/admin/auction" icon={Gavel} iconBg="bg-violet-50" iconColor="#7c3aed" title={tr("Auction Sales")} sub={rangeSub}
+        {hasModule('Auction') && <Kpi to="/admin/auction" icon={Gavel} iconBg="bg-violet-50" iconColor="#7c3aed" title={tr("Auction Sales")}
           value={t ? inr(t.auction.amount) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
-        {hasModule('Annadanam') && <Kpi to="/admin/annadanam" icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Annadanam Sponsors")} sub={rangeSub}
+        {hasModule('Annadanam') && <Kpi to="/admin/annadanam" icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Annadanam Sponsors")}
           value={t ? num(t.annadanam.count) : '—'} footLabel={tr("Beneficiaries")} footValue={t ? num(t.annadanam.beneficiaries) : '—'} />}
-        {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Waste Material Sales")} sub={rangeSub}
+        {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Waste Material Sales")}
           value={t ? num(t.waste.count) : '—'} footLabel={tr("Total Weight")} footValue={t ? `${num(t.waste.weight)} ${tr("Kg")}` : '—'} />}
-      </div>}
+      </KpiGrid>}
 
       {/* Row: Today's Overview | Week chart | Recent Bookings - Hidden for Counter Staff (Item 14) */}
       {d && !isCounterStaff && <div className="grid lg:grid-cols-3 gap-4 sm:gap-5 mb-5">

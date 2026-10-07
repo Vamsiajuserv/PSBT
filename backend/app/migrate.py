@@ -27,6 +27,9 @@ COLUMN_MIGRATIONS = {
     "festivals": [
         ("plan_fees", "TEXT"),
     ],
+    "schedules": [
+        ("ended_on", "DATE"),
+    ],
     "poojas": [
         ("materials", "TEXT"),
         ("materials_by", "VARCHAR(20) DEFAULT 'temple'"),
@@ -210,6 +213,30 @@ def run_migrations(engine) -> None:
             .bindparams(bindparam("names", expanding=True)),
             {"names": list(_FESTIVAL_POOJAS)},
         )
+        # Poojari schedules: "Recurring" now means a standing assignment with status
+        # Active/Stopped. Older "Recurring" rows were really dated entries
+        # (Scheduled/In Progress/Completed on one day), so they become One-Time.
+        # Idempotent: new recurring rows are always Active or Stopped.
+        conn.execute(text(
+            "UPDATE schedules SET schedule_type = 'One-Time' "
+            "WHERE schedule_type = 'Recurring' AND status NOT IN ('Active', 'Stopped')"
+        ))
+        conn.execute(text("UPDATE schedules SET status = 'Scheduled' WHERE status = 'In Progress'"))
+        # Performance log: seed it with each booking's last known performance so the
+        # queue history isn't blank for work done before the log existed. Earlier
+        # performances were never recorded, so they cannot be recovered. Idempotent.
+        # bookings.poojari_id has no foreign key, so some rows point at poojaris that
+        # no longer exist — keep the name but drop the dangling id.
+        # The time of day was never recorded either, so performed_at stays NULL.
+        conn.execute(text(
+            "INSERT INTO booking_performances (booking_id, performed_on, poojari_id, poojari_name, performed_at) "
+            "SELECT b.id, b.last_performed_on, p.id, b.poojari_name, NULL FROM bookings b "
+            "LEFT JOIN poojaris p ON p.id = b.poojari_id "
+            "WHERE b.last_performed_on IS NOT NULL "
+            "ON CONFLICT (booking_id, performed_on) DO NOTHING"
+        ))
+        conn.execute(text("UPDATE booking_performances SET performed_at = NULL "
+                          "WHERE performed_by IS NULL AND performed_at IS NOT NULL"))
         # Add Auction module to Counter Staff role if not already present
         conn.execute(text(
             "UPDATE roles SET modules = modules || ',Auction' "
@@ -284,7 +311,7 @@ _ROLE_CANON = {
                       "Annadanam", "Counter", "Reports", "Users", "Audit"],
     "COUNTER_STAFF": ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter"],
     "POOJARI": ["Sevas", "Bookings"],
-    "ACCOUNTANT": ["Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"],
+    "ACCOUNTANT": ["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"],
     "COMMITTEE": ["Hundi", "Auction", "Reports", "Counter"],
 }
 _CANON = set(_ROLE_CANON["ADMINISTRATOR"])

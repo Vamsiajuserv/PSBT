@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { Users, UserCog, ShieldCheck, Pencil, X, IndianRupee, Flame, Search, RotateCcw, Plus, Trash2, Save, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
-import { PageTitle, StatTile, Pill, num, inr } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, num, inr } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { CommitteeAPI, PoojasAPI } from '../../api/client.js'
@@ -139,11 +139,11 @@ function MembersTab() {
 
   return (
     <>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <KpiGrid>
         <StatTile icon={Users} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Members")} value={stats ? num(stats.total) : '—'} sub={tr("All committee members")} />
         <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Active")} value={stats ? num(stats.active) : '—'} sub={tr("Currently serving")} />
         <StatTile icon={UserCog} color="#dc2626" bg="bg-red-50" title={tr("Inactive")} value={stats ? num(stats.inactive) : '—'} sub={tr("Not serving")} />
-      </div>
+      </KpiGrid>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
@@ -382,11 +382,11 @@ function FestivalPricingTab() {
 
   return (
     <>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <KpiGrid>
         <StatTile icon={Flame} color="#ea580c" bg="bg-orange-50" title={tr("Total Plans")} value={num(plans.length)} sub={tr("All pooja plans")} />
         <StatTile icon={IndianRupee} color="#059669" bg="bg-emerald-50" title={tr("Fixed Price")} value={num(plans.filter((p) => !p.committee_decided).length)} sub={tr("Pre-defined amounts")} />
         <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("Committee Decided")} value={num(plans.filter((p) => p.committee_decided).length)} sub={tr("Editable by committee")} />
-      </div>
+      </KpiGrid>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">

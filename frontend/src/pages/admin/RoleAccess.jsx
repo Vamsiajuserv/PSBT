@@ -5,7 +5,7 @@ import {
   CheckCircle2, XCircle, Info, X, Save, LayoutDashboard, Flame, HeartHandshake, Landmark,
   Gavel, UtensilsCrossed, Recycle, FileBarChart, Settings as SettingsIcon, RefreshCw,
 } from 'lucide-react'
-import { PageTitle, StatTile, Pill, num } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, num } from '../../components/admin/ui.jsx'
 import { LOAD_ERROR } from '../../components/common/states.jsx'
 import { RolesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -89,12 +89,12 @@ export default function RoleAccess() {
       <div className="mb-1 text-[0.75rem] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600"><T>Settings</T></Link> › <span className="text-gray-500">{tr('Role & Access Management')}</span></div>
       <PageTitle title={tr("Role & Access Management")} subtitle={tr("Manage roles and configure module-level permissions.")} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <KpiGrid>
         <StatTile icon={UsersIcon} color="#7c3aed" bg="bg-violet-50" title={tr("Total Roles")} value={stats ? num(stats.total) : '—'} sub={tr("All defined roles")} />
         <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Active Roles")} value={stats ? num(stats.active) : '—'} sub={tr("Currently active roles")} />
         <StatTile icon={UserCog} color="#d97706" bg="bg-amber-50" title={tr("Assigned Users")} value={stats ? num(stats.assigned_users) : '—'} sub={tr("Users mapped to roles")} />
         <StatTile icon={Lock} color="#2563eb" bg="bg-blue-50" title={tr("Inactive Roles")} value={stats ? num(stats.inactive) : '—'} sub={tr("Currently inactive roles")} />
-      </div>
+      </KpiGrid>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,1fr)_minmax(300px,1fr)_minmax(380px,1.3fr)] gap-5">
         {/* Roles List */}

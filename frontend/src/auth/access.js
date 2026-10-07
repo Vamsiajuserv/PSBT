@@ -30,11 +30,15 @@ export const ACCESS = {
 
   // ── Transactional screens (visible to any role holding the module) ──
   devotees: { module: 'Devotees' },
-  bookings: { module: 'Bookings', roles: ['Counter Staff'] },
+  // Accountant: view-only list (backend grants no Bookings write) — no Advance Booking.
+  bookings: { module: 'Bookings', roles: ['Counter Staff', 'Accountant'] },
   'bookings/new': { module: 'Bookings', roles: ['Counter Staff'] },   // Advance Booking wizard
   'pooja-history': { module: 'Bookings', roles: ['Counter Staff'] },
-  calendar: { module: 'Bookings', excludeRoles: ['Counter Staff'] },
-  counter: { module: 'Counter' },
+  calendar: { module: 'Bookings', excludeRoles: ['Counter Staff', 'Accountant'] },
+  // Accountant and Committee keep the Counter module (view-only Waste Sales and
+  // waste-sale verification, refunds in Daily Closing) but not the billing screen:
+  // whoever reconciles or approves the cash must not collect it.
+  counter: { module: 'Counter', excludeRoles: ['Accountant', 'Committee'] },
   donations: { module: 'Donations' },
   hundi: { module: 'Hundi' },
   annadanam: { module: 'Annadanam' },
