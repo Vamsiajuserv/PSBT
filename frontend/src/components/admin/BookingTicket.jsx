@@ -22,9 +22,13 @@ export function TicketRef({ code, className = '' }) {
 const FIELDS_BESIDE_QR = 4
 
 // Children as a flat list of fields — <>…</> groups are unwrapped so each field counts once.
-const flattenFields = (children, prefix = '') => React.Children.toArray(children).flatMap((c) =>
-  c.type === React.Fragment ? flattenFields(c.props.children, prefix + c.key)
-    : [prefix ? React.cloneElement(c, { key: prefix + c.key }) : c])
+// Only real elements are kept: `{x && <TF/>}` with x === '' leaves an empty string behind,
+// and cloning a string would create an element with an undefined type (crashes the ticket).
+const flattenFields = (children, prefix = '') => React.Children.toArray(children).flatMap((c) => {
+  if (!React.isValidElement(c)) return []
+  if (c.type === React.Fragment) return flattenFields(c.props.children, prefix + c.key)
+  return [prefix ? React.cloneElement(c, { key: prefix + c.key }) : c]
+})
 
 // Ornate temple ticket shell — pass the fields as children. Logo, title badge and the
 // first fields stack on the left while the large QR runs down the right, so the QR's
