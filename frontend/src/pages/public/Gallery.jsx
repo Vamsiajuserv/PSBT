@@ -33,7 +33,7 @@ export default function Gallery() {
 
       <div className="max-w-7xl mx-auto px-4 py-14">
         <p className="text-center text-black max-w-xl mx-auto -mt-2">
-          {t('Glimpses of sevas, festivals and temple life at Sri Shirdi Sai Baba Temple.')}
+          {t('Glimpses of sevas, festivals and temple life at Shri Shirdi Sai Baba Temple.')}
         </p>
 
         {/* Photo grid — clean tiles, click to open the lightbox. */}

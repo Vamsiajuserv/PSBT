@@ -3,12 +3,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const TEMPLE = {
-  name: 'Punjagutta Sri Shirdi Sai Baba Temple',
+  name: 'Punjagutta Shri Shirdi Sai Baba Temple',
   nameTelugu: 'పంజాగుట్ట శ్రీ షిర్డి సాయిబాబా దేవస్థానం',
   short: 'Sai Baba Temple',
   tagline: 'A sacred place of faith, devotion and blessings of Sai Baba.',
-  trust: 'Sri Shirdi Sai Premsamaj (Regd. Charitable Trust)',
-  managedBy: 'Sri Shirdi Sai Premsamaj',
+  trust: 'Shri Shirdi Sai Premsamaj (Regd. Charitable Trust)',
+  managedBy: 'Shri Shirdi Sai Premsamaj',
   established: 1987,
   regNo: 'To be provided',   // Trust registration no. — pending from temple
   pan: 'To be provided',     // Trust PAN — pending from temple
@@ -25,7 +25,7 @@ export const SEVA_CATEGORIES = ['Daily', 'Monthly', 'Long-term', 'Ceremony', 'Fe
 
 export const SEVAS = [
   // Daily
-  { id: 'SV01', name: 'Abhishekam', nameTe: 'అభిషేకం', amount: 516, slot: 'Morning', category: 'Daily', desc: 'Sacred bathing ritual of Sri Sai Baba.' },
+  { id: 'SV01', name: 'Abhishekam', nameTe: 'అభిషేకం', amount: 516, slot: 'Morning', category: 'Daily', desc: 'Sacred bathing ritual of Shri Sai Baba.' },
   { id: 'SV02', name: 'Archana', nameTe: 'అర్చన', amount: 116, slot: 'All day', category: 'Daily', desc: 'Offering of prayers with names & gotra.' },
   { id: 'SV03', name: 'Rudrabhishekam', nameTe: 'రుద్రాభిషేకం', amount: 1516, slot: 'Morning', category: 'Daily', desc: 'Vedic abhishekam invoking Lord Shiva.' },
   // Monthly
@@ -39,7 +39,7 @@ export const SEVAS = [
   { id: 'SV09', name: 'Annaprasana', nameTe: 'అన్నప్రాశన', amount: 750, slot: 'Morning', category: 'Ceremony', desc: 'First-feeding ceremony for infants.' },
   { id: 'SV10', name: 'Aksharabhyasam', nameTe: 'అక్షరాభ్యాసం', amount: 750, slot: 'Morning', category: 'Ceremony', desc: 'Initiation of a child into learning.' },
   { id: 'SV11', name: 'Namakaranam', nameTe: 'నామకరణం', amount: 500, slot: 'Morning', category: 'Ceremony', desc: 'Naming ceremony for the newborn.' },
-  { id: 'SV12', name: 'Sai Vratam', nameTe: 'సాయి వ్రతం', amount: 516, slot: 'Thursday', category: 'Ceremony', desc: 'Sri Sai Vratam puja for devotees.' },
+  { id: 'SV12', name: 'Sai Vratam', nameTe: 'సాయి వ్రతం', amount: 516, slot: 'Thursday', category: 'Ceremony', desc: 'Shri Sai Vratam puja for devotees.' },
   // Festival
   { id: 'SV13', name: 'Devi Navaratri Pooja', nameTe: 'దేవీ నవరాత్రి పూజ', amount: 2516, slot: 'Festival', category: 'Festival', desc: 'Nine-day Navaratri pooja participation.' },
   { id: 'SV14', name: 'Karthika Masam Pooja', nameTe: 'కార్తీక మాస పూజ', amount: 1116, slot: 'Festival', category: 'Festival', desc: 'Special poojas through Karthika month.' },
@@ -106,7 +106,7 @@ export const SEVA_EMOJI = {
 export const MANTRA = { hi: 'ॐ श्री साईं राम', te: 'సబకా మాలిక్ ఏక్', sloka: 'శ్రద్ధ · సబూరి' }
 
 export const ANNOUNCEMENTS = [
-  { text: 'Annual Sri Sai Baba Maha Pooja on Guru Purnima', date: '20 Jun 2026' },
+  { text: 'Annual Shri Sai Baba Maha Pooja on Guru Purnima', date: '20 Jun 2026' },
   { text: 'Special Rudrabhishekam on Shravana Sundays', date: '14 Jul 2026' },
   { text: 'Vinayaka Chavithi 9-Days Pooja bookings open', date: '25 Aug 2026' },
 ]
@@ -136,7 +136,7 @@ export const DONATION_FUNDS = [
 ]
 
 export const AUCTIONS = [
-  { id: 'AU01', item: 'Sri Sai Palki Seva (Annual)', base: 25000, current: 41000, bids: 12, status: 'Live', closes: '2026-07-10' },
+  { id: 'AU01', item: 'Shri Sai Palki Seva (Annual)', base: 25000, current: 41000, bids: 12, status: 'Live', closes: '2026-07-10' },
   { id: 'AU02', item: 'Dhwajarohanam Honour', base: 15000, current: 22500, bids: 7, status: 'Live', closes: '2026-07-12' },
   { id: 'AU03', item: 'Rathotsavam Lead Seva', base: 30000, current: 30000, bids: 0, status: 'Upcoming', closes: '2026-07-20' },
   { id: 'AU04', item: 'Guru Purnima Maha Aarti', base: 18000, current: 35000, bids: 15, status: 'Closed', closes: '2026-06-20' },
@@ -232,8 +232,8 @@ export const REPORTS = [
 // ── Public website content (requirement §2, §6) ─────────────────────────────
 export const ABOUT = {
   intro:
-    'Sri Shirdi Sai Baba Temple at Dwarakapuri Colony, Punjagutta, Hyderabad is managed by the ' +
-    'registered charitable trust Sri Shirdi Sai Premsamaj. The temple follows Shirdi Sai Baba ' +
+    'Shri Shirdi Sai Baba Temple at Dwarakapuri Colony, Punjagutta, Hyderabad is managed by the ' +
+    'registered charitable trust Shri Shirdi Sai Premsamaj. The temple follows Shirdi Sai Baba ' +
     'traditions and performs daily sevas in the same manner as Shirdi.',
   mission:
     'Beyond religious activities, the trust conducts charitable healthcare initiatives and supports ' +
@@ -248,14 +248,14 @@ export const ABOUT = {
 }
 
 export const HISTORY = [
-  { year: '1987', title: 'Temple Established', desc: 'Sri Shirdi Sai Premsamaj trust establishes the temple at Dwarakapuri Colony, Punjagutta.' },
+  { year: '1987', title: 'Temple Established', desc: 'Shri Shirdi Sai Premsamaj trust establishes the temple at Dwarakapuri Colony, Punjagutta.' },
   { year: '1990s', title: 'Daily Sevas Begin', desc: 'Regular abhishekam, archana and aarti introduced following Shirdi traditions.' },
   { year: '2000s', title: 'Annadanam & Healthcare', desc: 'Free food offering and charitable medical services for the public expanded.' },
   { year: 'Today', title: 'A Living Centre of Devotion', desc: 'Known for Thursday celebrations, Guru Purnima, Rama Navami, Sai Mahasamadhi & Sai Jayanti.' },
 ]
 
 export const FESTIVALS = [
-  { name: 'Sri Rama Navami', nameTe: 'శ్రీ రామ నవమి', month: 'Mar–Apr', icon: '🏹', img: S('goldfull'), desc: 'Celebration of the birth of Lord Rama.' },
+  { name: 'Shri Rama Navami', nameTe: 'శ్రీ రామ నవమి', month: 'Mar–Apr', icon: '🏹', img: S('goldfull'), desc: 'Celebration of the birth of Lord Rama.' },
   { name: 'Guru Purnima', nameTe: 'గురు పూర్ణిమ', month: 'Jul', icon: '🌕', img: S('sai3'), desc: 'Honouring the guru — a principal Sai festival.' },
   { name: 'Sai Baba Mahasamadhi', nameTe: 'సాయి మహాసమాధి', month: 'Oct (Vijayadashami)', icon: '🪔', img: S('samadhi'), desc: 'Observance of Baba’s Mahasamadhi day.' },
   { name: 'Sai Jayanti', nameTe: 'సాయి జయంతి', month: 'Sep–Oct', icon: '✨', img: S('temple3'), desc: 'Birth celebration of Shirdi Sai Baba.' },
@@ -267,9 +267,9 @@ export const FESTIVALS = [
 
 // Gallery placeholders — replace src with real images in Phase 1.
 export const GALLERY = [
-  { id: 'G1', caption: 'Golden Shrine — Sri Sai Baba', img: S('goldfull') },
+  { id: 'G1', caption: 'Golden Shrine — Shri Sai Baba', img: S('goldfull') },
   { id: 'G2', caption: 'Samadhi Mandir, Shirdi', img: S('samadhi') },
-  { id: 'G3', caption: 'Sri Sai Baba (Marble Murti)', img: S('temple3') },
+  { id: 'G3', caption: 'Shri Sai Baba (Marble Murti)', img: S('temple3') },
   { id: 'G4', caption: 'Baba Blessing Devotees', img: S('temple2') },
   { id: 'G5', caption: 'Sai Baba — Historic Portrait', img: S('sai3') },
   { id: 'G6', caption: 'Baba Seated on Stone', img: S('sai2') },

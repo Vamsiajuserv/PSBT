@@ -23,7 +23,7 @@ const OCCASIONS = [
   { icon: Cake, title: 'Birthdays', desc: 'Begin a birthday with the merit of feeding devotees.' },
   { icon: Heart, title: 'Anniversaries', desc: 'Celebrate a wedding day or milestone with seva.' },
   { icon: Flower2, title: 'In Memory', desc: 'Offer food in remembrance of departed loved ones.' },
-  { icon: Sparkles, title: 'Festival Days', desc: 'Sri Rama Navami, Guru Purnima, Thursdays & more.' },
+  { icon: Sparkles, title: 'Festival Days', desc: 'Shri Rama Navami, Guru Purnima, Thursdays & more.' },
 ]
 
 // How a sponsorship works at the temple.
@@ -158,9 +158,9 @@ export default function Annadanam() {
         <div className="grid md:grid-cols-3 gap-5 mt-10">
           <div className="card p-6">
             <div className="w-11 h-11 rounded-full bg-gold-100 text-gold-600 grid place-items-center"><Sparkles size={19} /></div>
-            <div className="font-bold text-maroon-700 mt-3">{t('Sri Rama Navami Maha Annadanam')}</div>
+            <div className="font-bold text-maroon-700 mt-3">{t('Shri Rama Navami Maha Annadanam')}</div>
             <p className="text-[0.78125rem] text-black leading-relaxed mt-1.5">
-              {t('Every year on Sri Rama Navami, annadanam is served on a grand scale — free food reaches thousands of devotees in a single day.')}
+              {t('Every year on Shri Rama Navami, annadanam is served on a grand scale — free food reaches thousands of devotees in a single day.')}
             </p>
           </div>
           <div className="card p-6">

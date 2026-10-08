@@ -815,7 +815,7 @@ export const COUNTRY_CODES = [
   { code: '+880', country: 'Bangladesh', abbr: 'BD', flag: '🇧🇩', digits: 10 },
   { code: '+92', country: 'Pakistan', abbr: 'PK', flag: '🇵🇰', digits: 10 },
   { code: '+93', country: 'Afghanistan', abbr: 'AF', flag: '🇦🇫', digits: 9 },
-  { code: '+94', country: 'Sri Lanka', abbr: 'LK', flag: '🇱🇰', digits: 9 },
+  { code: '+94', country: 'Shri Lanka', abbr: 'LK', flag: '🇱🇰', digits: 9 },
   { code: '+977', country: 'Nepal', abbr: 'NP', flag: '🇳🇵', digits: 10 },
   { code: '+975', country: 'Bhutan', abbr: 'BT', flag: '🇧🇹', digits: 8 },
   { code: '+960', country: 'Maldives', abbr: 'MV', flag: '🇲🇻', digits: 7 },

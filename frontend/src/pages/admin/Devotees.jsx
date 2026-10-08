@@ -12,7 +12,7 @@ import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { isAdminRole } from '../../auth/access.js'
 import { Select, DateField, CountryCodeSelect, Combobox, getCountryDigits } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang, teText, stamp } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, teText, teAddress, stamp } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
 import { toast } from '../../components/common/Dialog.jsx'
 import { useTemple } from '../../lib/SiteContext.jsx'
@@ -112,8 +112,8 @@ function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true
 
   const headerHtml = `
     <div class="header">
-      <img src="/images/temple-logo.png" alt="Temple Logo" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 8px; object-fit: cover;" onerror="this.style.display='none'" />
-      <div class="temple-name">${escapeHtml(temple?.name || 'Sri Shirdi Sai Baba Temple')}</div>
+      <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 8px; object-fit: cover;" onerror="this.style.display='none'" />
+      <div class="temple-name">${escapeHtml(temple?.name || 'Shri Shirdi Sai Baba Temple')}</div>
       <div class="temple-name-te">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
       <div class="temple-address">${escapeHtml(temple?.address || 'Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana')}</div>
     </div>
@@ -127,7 +127,7 @@ function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true
 
   const footerHtml = `
     <div class="footer">
-      <div class="blessing">|| Om Sri Sai Ram ||</div>
+      <div class="blessing">|| Om Shri Sai Ram ||</div>
       <div class="footer-text">This is a computer-generated document.</div>
       <div class="footer-text">Printed on: ${new Date().toLocaleDateString('en-GB', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true})}</div>
     </div>
@@ -675,7 +675,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
       ...bookings.map((b) => ({ icon: Flame, tone: 'bg-blue-50 text-blue-600', title: tr('Pooja Booking'), sub: `${tr(b.pooja)}${b.plan ? ` (${tr(b.plan)})` : ''}`, date: b.scheduled_date || b.booked_on, amount: b.amount })),
       ...donations.map((x) => ({ icon: HandHeart, tone: 'bg-emerald-50 text-emerald-600', title: tr('Donation'), sub: tr(x.fund), date: x.date, amount: x.amount })),
       ...annadanam.map((a) => ({ icon: UtensilsCrossed, tone: 'bg-orange-50 text-orange-600', title: tr('Annadanam Sponsorship'), sub: `${a.plates} ${tr('Beneficiaries')}`, date: a.date, amount: a.amount })),
-      ...auction.map((a) => ({ icon: Gavel, tone: 'bg-violet-50 text-violet-600', title: tr('Auction Purchase'), sub: a.item, date: a.date, amount: a.amount })),
+      ...auction.map((a) => ({ icon: Gavel, tone: 'bg-violet-50 text-violet-600', title: tr('Auction Purchase'), sub: tr(a.item), date: a.date, amount: a.amount })),
     ].filter((x) => x.date)
     items.sort((a, b) => new Date(b.date) - new Date(a.date))
     return items.slice(0, 6)
@@ -716,7 +716,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
           <div className="grid grid-cols-2 gap-x-2 gap-y-2 mt-3 pt-3 border-t border-gray-100">
             <Meta label={tr("Devotee ID")} value={dev.code} />
             <Meta label={tr("City / Location")} value={dev.city || '—'} />
-            <Meta label={tr("Address")} value={dev.address || '—'} wide />
+            <Meta label={tr("Address")} value={dev.address ? teAddress(dev.address) : '—'} wide />
             <Meta label={tr("Email")} value={dev.email || '—'} />
             <Meta label={tr("Gothram")} value={dev.gothram || '—'} />
             <Meta label={tr("Nakshatram")} value={dev.nakshatram || '—'} />
@@ -778,11 +778,11 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
               {bookings.map((b) => (
                 <tr key={b.booking_code} className="hover:bg-gray-50/60">
                   <td className="px-3 py-2.5 font-mono text-[0.71875rem] text-gray-500">{b.booking_code}</td>
-                  <td className="px-3 py-2.5 font-semibold text-gray-800">{b.pooja}</td>
-                  <td className="px-3 py-2.5"><Pill tone={PLAN_TONE[b.plan] || 'gray'}>{b.plan || '—'}</Pill></td>
+                  <td className="px-3 py-2.5 font-semibold text-gray-800">{tr(b.pooja)}</td>
+                  <td className="px-3 py-2.5"><Pill tone={PLAN_TONE[b.plan] || 'gray'}>{b.plan ? tr(b.plan) : '—'}</Pill></td>
                   <td className="px-3 py-2.5 text-gray-500 text-[0.75rem]">{fmtDate(b.scheduled_date)}</td>
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{canSeeAmounts ? inr(b.amount) : '—'}</td>
-                  <td className="px-3 py-2.5"><Pill tone={STATUS_TONE[b.status] || 'gray'}>{b.status}</Pill></td>
+                  <td className="px-3 py-2.5"><Pill tone={STATUS_TONE[b.status] || 'gray'}>{tr(b.status)}</Pill></td>
                 </tr>
               ))}
             </DrawerTable>
@@ -793,8 +793,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
               {donations.map((x) => (
                 <tr key={x.receipt_no} className="hover:bg-gray-50/60">
                   <td className="px-3 py-2.5 font-mono text-[0.71875rem] text-maroon-600">{x.receipt_no}</td>
-                  <td className="px-3 py-2.5 text-gray-700">{x.fund}</td>
-                  <td className="px-3 py-2.5 text-gray-500">{x.type}</td>
+                  <td className="px-3 py-2.5 text-gray-700">{tr(x.fund)}</td>
+                  <td className="px-3 py-2.5 text-gray-500">{tr(x.type)}</td>
                   <td className="px-3 py-2.5 font-semibold text-emerald-700">{canSeeAmounts ? inr(x.amount) : '—'}</td>
                   <td className="px-3 py-2.5 text-gray-500 text-[0.75rem]">{fmtDate(x.date)}</td>
                 </tr>
@@ -804,8 +804,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
 
           {tab === 'Other Activities' && (
             <DrawerTable cols={[tr('Type'), tr('Detail'), tr('Amount'), tr('Date')]} empty={tr("No other activities.")}>
-              {[...annadanam.map((a) => ({ k: 'an' + a.code, type: tr('Annadanam'), detail: `${a.plates} ${tr('Beneficiaries')} · ${a.occasion || ''}`, amount: a.amount, date: a.date })),
-                ...auction.map((a) => ({ k: 'au' + a.code, type: tr('Auction'), detail: a.item, amount: a.amount, date: a.date }))].map((r) => (
+              {[...annadanam.map((a) => ({ k: 'an' + a.code, type: tr('Annadanam'), detail: `${a.plates} ${tr('Beneficiaries')} · ${a.occasion ? tr(a.occasion) : ''}`, amount: a.amount, date: a.date })),
+                ...auction.map((a) => ({ k: 'au' + a.code, type: tr('Auction'), detail: tr(a.item), amount: a.amount, date: a.date }))].map((r) => (
                 <tr key={r.k} className="hover:bg-gray-50/60">
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{r.type}</td>
                   <td className="px-3 py-2.5 text-gray-600">{r.detail}</td>
@@ -828,8 +828,8 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
 
             {/* Temple Header - No Border */}
             <div style={{ padding: '15px 20px', marginBottom: '25px', textAlign: 'center' }}>
-              <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba" style={{ width: '70px', height: '70px', borderRadius: '50%', marginBottom: '10px', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
-              <div style={{ fontWeight: 'bold', fontSize: '22px', marginBottom: '3px' }}>{temple?.name || tr('Sri Shirdi Sai Baba Temple')}</div>
+              <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" style={{ width: '70px', height: '70px', borderRadius: '50%', marginBottom: '10px', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
+              <div style={{ fontWeight: 'bold', fontSize: '22px', marginBottom: '3px' }}>{temple?.name || tr('Shri Shirdi Sai Baba Temple')}</div>
               <div style={{ fontSize: '16px', marginBottom: '5px' }}>శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
               <div style={{ fontSize: '14px', color: '#333' }}>{temple?.address || tr('Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana')}</div>
             </div>
@@ -879,7 +879,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
 
             {/* Footer - No Border */}
             <div style={{ padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontWeight: '600', fontSize: '18px', color: '#000' }}>|| {tr('Om Sri Sai Ram')} ||</div>
+              <div style={{ fontWeight: '600', fontSize: '18px', color: '#000' }}>|| {tr('Om Shri Sai Ram')} ||</div>
               <div style={{ fontSize: '13px', color: '#000', marginTop: '10px' }}>{tr('This is a computer-generated summary.')}</div>
               <div style={{ fontSize: '13px', color: '#000', marginTop: '5px' }}>{tr('Printed on')}: {stamp(new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }))}</div>
             </div>

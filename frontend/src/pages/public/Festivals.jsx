@@ -84,7 +84,7 @@ export default function Festivals() {
       <div className="max-w-7xl mx-auto px-4 py-14">
         {/* ── The three great Shirdi festivals ── */}
         <SectionTitle title={t('The Three Great Festivals of Shirdi')}
-          subtitle={t('As at Shirdi itself, Sri Rama Navami, Guru Purnima and Vijayadashami are the principal utsavams of the temple.')} />
+          subtitle={t('As at Shirdi itself, Shri Rama Navami, Guru Purnima and Vijayadashami are the principal utsavams of the temple.')} />
         <div className="grid md:grid-cols-3 gap-6 mt-10">
           {major.map((f) => {
             const live = dateFor(f.name)

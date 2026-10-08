@@ -450,9 +450,9 @@ export default function PoojaHistory() {
               {/* Temple Header */}
               <div className="text-center mb-6 print-header">
                 <div className="flex items-center justify-center gap-3 mb-2">
-                  <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba" className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                  <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                   <div>
-                    <h1 className="font-serif text-xl font-bold text-maroon-800">{tr('Sri Shirdi Sai Baba Temple')}</h1>
+                    <h1 className="font-serif text-xl font-bold text-maroon-800">{tr('Shri Shirdi Sai Baba Temple')}</h1>
                     <p className="text-sm text-gray-600">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</p>
                   </div>
                 </div>
@@ -528,7 +528,7 @@ export default function PoojaHistory() {
               {/* Footer */}
               <div className="mt-6 pt-4 border-t border-gray-200 text-center text-xs text-gray-500 print-footer">
                 <p><T>Generated on</T>: {stamp(new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }))}</p>
-                <p className="mt-1">{tr('Sri Shirdi Sai Baba Temple')} · {tr('Pooja History Report')}</p>
+                <p className="mt-1">{tr('Shri Shirdi Sai Baba Temple')} · {tr('Pooja History Report')}</p>
               </div>
             </div>
 

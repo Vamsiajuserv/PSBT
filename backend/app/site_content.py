@@ -15,7 +15,7 @@ _IMG = lambda name: f"/images/sai/{name}.jpg"
 TEMPLE_EXTRAS = {
     "nameTelugu": "పంజాగుట్ట శ్రీ షిర్డి సాయిబాబా దేవస్థానం",
     "tagline": "A sacred place of faith, devotion and blessings of Sai Baba.",
-    "managedBy": "Sri Shirdi Sai Premsamaj",
+    "managedBy": "Shri Shirdi Sai Premsamaj",
     "timingsNote": "Temple is open on all days including weekends and holidays.",
     "timings": "5:00 AM – 9:00 PM",
     "pan": "To be provided",
@@ -45,8 +45,8 @@ DEFAULT_CONTENT = {
 
     "about": {
         "intro": (
-            "Sri Shirdi Sai Baba Temple at Dwarakapuri Colony, Punjagutta, Hyderabad is managed by the "
-            "registered charitable trust Sri Shirdi Sai Premsamaj. The temple follows Shirdi Sai Baba "
+            "Shri Shirdi Sai Baba Temple at Dwarakapuri Colony, Punjagutta, Hyderabad is managed by the "
+            "registered charitable trust Shri Shirdi Sai Premsamaj. The temple follows Shirdi Sai Baba "
             "traditions and performs daily sevas in the same manner as Shirdi."
         ),
         "mission": (
@@ -63,7 +63,7 @@ DEFAULT_CONTENT = {
     },
 
     "history": [
-        {"year": "1983", "title": "The Foundation", "desc": "Sri Shirdi Sai Premsamaj, a registered charitable society, begins building a Sai mandir at Dwarakapuri Colony, Punjagutta — among the earliest Sai Baba temples of Hyderabad."},
+        {"year": "1983", "title": "The Foundation", "desc": "Shri Shirdi Sai Premsamaj, a registered charitable society, begins building a Sai mandir at Dwarakapuri Colony, Punjagutta — among the earliest Sai Baba temples of Hyderabad."},
         {"year": "April 1987", "title": "Temple Opened to Devotees", "desc": "The temple is consecrated and opened to devotees, with daily sevas performed in the same manner as at Shirdi."},
         {"year": "1990s", "title": "Shirdi Traditions Take Root", "desc": "Daily abhishekam, archana and the four aartis are established, and the Thursday evening Palki Yatra through Dwarakapuri Colony begins drawing devotees from across the city."},
         {"year": "2000s", "title": "Annadanam & Free Healthcare", "desc": "The trust's seva grows beyond the temple — daily annadanam expands, and free medical consultations, physiotherapy, a pathology lab and a free pharmacy serve the public."},

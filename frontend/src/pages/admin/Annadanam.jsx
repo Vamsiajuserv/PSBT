@@ -81,8 +81,8 @@ function printAnnadanamReceipt(doc, toWordsFn) {
     </head>
     <body>
       <div class="header">
-        <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba" style="width: 70px; height: 70px; border-radius: 50%; margin-bottom: 10px; object-fit: cover;" onerror="this.style.display='none'" />
-        <div class="temple-name">Sri Shirdi Sai Baba Temple</div>
+        <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" style="width: 70px; height: 70px; border-radius: 50%; margin-bottom: 10px; object-fit: cover;" onerror="this.style.display='none'" />
+        <div class="temple-name">Shri Shirdi Sai Baba Temple</div>
         <div class="temple-name-te" style="font-size: 14px; margin-bottom: 5px;">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
         <div class="address">Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana 500082</div>
         <div class="address">☎ +91 040 2335 3589</div>
@@ -106,7 +106,7 @@ function printAnnadanamReceipt(doc, toWordsFn) {
         <div class="amount-words">${toWordsFn(doc.amount)}</div>
       </div>
       <div class="footer">
-        || Om Sri Sai Ram ||<br/>
+        || Om Shri Sai Ram ||<br/>
         Thank you for your generous contribution to Annadanam.<br/>
         This is a computer-generated receipt.
       </div>
@@ -381,8 +381,8 @@ export default function Annadanam() {
                   <td className="px-4 py-3 text-gray-600">{modeLabel(a.mode)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setPrintDoc(a)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
-                      <button onClick={() => setPrintDoc(a)} title={tr("Print receipt")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
+                      <button onClick={() => setPrintDoc(a)} title={tr("View receipt on screen")} aria-label={tr("View receipt on screen")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      <button onClick={() => printAnnadanamReceipt(a, toWords)} title={tr("Print receipt directly")} aria-label={tr("Print receipt directly")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
                     </div>
                   </td>
                 </tr>

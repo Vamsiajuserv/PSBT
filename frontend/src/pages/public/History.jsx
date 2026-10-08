@@ -81,7 +81,7 @@ export default function History() {
             <figure className="lg:sticky lg:top-24">
               {templeImg && (
                 <div className="rounded-2xl overflow-hidden border-4 border-gold-300 shadow-card">
-                  <img src={templeImg} alt="Sri Shirdi Sai Baba Temple"
+                  <img src={templeImg} alt="Shri Shirdi Sai Baba Temple"
                        className="w-full object-cover aspect-[4/5]" loading="lazy" />
                 </div>
               )}

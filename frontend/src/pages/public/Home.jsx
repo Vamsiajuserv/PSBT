@@ -47,7 +47,7 @@ export default function Home() {
     <div>
       {/* ── Hero ── */}
       <section className="relative bg-maroon-900 text-cream overflow-hidden">
-        <img src={IMG.hero} alt={tr("Sri Shirdi Sai Baba Temple")} className="absolute inset-0 w-full h-full object-cover object-center" />
+        <img src={IMG.hero} alt={tr("Shri Shirdi Sai Baba Temple")} className="absolute inset-0 w-full h-full object-cover object-center" />
         {/* Left-anchored scrim: dark enough behind the text (which sits over a
             light wall), then clears fast so Baba — center-right — stays bright. */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(56,10,10,0.90)_0%,rgba(56,10,10,0.64)_34%,rgba(56,10,10,0.14)_58%,transparent_78%)]" />
@@ -55,9 +55,9 @@ export default function Home() {
 
         <div className="relative max-w-7xl mx-auto px-4 py-20 lg:py-28">
           <div className="max-w-xl">
-            <div className="font-script text-3xl text-gold-300 leading-none">|| {t('Om Sri Sai Ram')} ||</div>
+            <div className="font-script text-3xl text-gold-300 leading-none">|| {t('Om Shri Sai Ram')} ||</div>
             <div className="font-serif text-4xl md:text-5xl font-bold mt-4 leading-tight">{t('Welcome to')}</div>
-            <h1 className="font-serif text-4xl md:text-6xl font-bold mt-1 leading-tight text-gold-200">{t('Sri Shirdi Sai Baba Temple')}</h1>
+            <h1 className="font-serif text-4xl md:text-6xl font-bold mt-1 leading-tight text-gold-200">{t('Shri Shirdi Sai Baba Temple')}</h1>
             <div className="mt-5 flex items-center gap-2 text-gold-400"><span className="h-px w-16 bg-gold-400/70" /><span>❖</span><span className="h-px w-16 bg-gold-400/70" /></div>
             <p className="text-cream/85 mt-5 text-lg leading-relaxed">{t(TEMPLE.tagline)}</p>
           </div>
@@ -107,13 +107,13 @@ export default function Home() {
       <section className="bg-ivory border-y border-gold-200/60">
         <div className="max-w-7xl mx-auto px-4 py-16 grid lg:grid-cols-2 gap-12 items-center">
           <div className="rounded-2xl overflow-hidden border-4 border-gold-300 shadow-card">
-            <img src={IMG.about} alt={tr("Sri Sai Baba shrine")} className="w-full h-full object-cover aspect-[4/3]" loading="lazy" />
+            <img src={IMG.about} alt={tr("Shri Sai Baba shrine")} className="w-full h-full object-cover aspect-[4/3]" loading="lazy" />
           </div>
           <div>
             <div className="font-display text-xs uppercase tracking-[0.2em] text-gold-600 flex items-center gap-2">{t('About Our Temple')} <span className="h-px w-10 bg-gold-400" /></div>
             <h2 className="font-serif text-3xl md:text-4xl font-bold text-maroon-700 mt-3 leading-tight">{t('A Place of Faith, Devotion and Compassion')}</h2>
             <p className="text-black text-sm leading-relaxed mt-5">
-              {t("Sri Shirdi Sai Baba Temple, Dwarakapuri Colony, Punjagutta, Hyderabad is dedicated to spreading the teachings of Shirdi Sai Baba. The temple serves as a spiritual center where devotees from all walks of life come together to seek Baba's blessings.")}
+              {t("Shri Shirdi Sai Baba Temple, Dwarakapuri Colony, Punjagutta, Hyderabad is dedicated to spreading the teachings of Shirdi Sai Baba. The temple serves as a spiritual center where devotees from all walks of life come together to seek Baba's blessings.")}
             </p>
             <div className="grid sm:grid-cols-3 gap-6 mt-8">
               {HIGHLIGHTS.map((h) => {

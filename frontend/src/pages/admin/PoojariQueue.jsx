@@ -374,8 +374,8 @@ export default function PoojariQueue() {
 
             <div className="flex-1 overflow-y-auto p-6" id="print-pooja-queue">
               <div className="text-center mb-6 print-header">
-                <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba" className="w-16 h-16 mx-auto mb-2 rounded-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
-                <h1 className="font-serif text-xl font-bold text-maroon-800">Sri Shirdi Sai Baba Temple</h1>
+                <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-16 h-16 mx-auto mb-2 rounded-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
+                <h1 className="font-serif text-xl font-bold text-maroon-800">Shri Shirdi Sai Baba Temple</h1>
                 <p className="text-sm text-gray-600">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</p>
                 <h2 className="text-lg font-semibold text-gray-800 mt-3">{isQueueMode ? tr('Pooja Queue Report') : tr('Pooja Performance Report')}</h2>
                 <p className="text-sm text-gray-600">
@@ -419,7 +419,7 @@ export default function PoojariQueue() {
 
               <div className="mt-6 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
                 <p><T>Generated on</T>: {stamp(new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }))}</p>
-                <p className="mt-1">Sri Shirdi Sai Baba Temple · Pooja Report</p>
+                <p className="mt-1">Shri Shirdi Sai Baba Temple · Pooja Report</p>
               </div>
             </div>
 

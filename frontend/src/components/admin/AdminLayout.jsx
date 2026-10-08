@@ -270,12 +270,12 @@ export default function AdminLayout() {
           {/* Logo - always centered */}
           <img
             src="/images/temple-logo.png"
-            alt="Sri Shirdi Sai Baba Temple"
+            alt="Shri Shirdi Sai Baba Temple"
             className={`drop-shadow-md rounded-full bg-white object-contain mx-auto transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'w-7 h-7 p-0.5' : 'w-20 h-20 p-1'}`}
           />
           {/* Temple name - hidden when collapsed */}
           <div className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] overflow-hidden ${collapsed ? 'max-h-0 opacity-0 mt-0' : 'max-h-24 opacity-100 mt-1'}`}>
-            <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight"><T>Sri Shirdi Sai Baba Temple</T></div>
+            <div className="font-serif font-bold text-gold-200 text-[0.9375rem] leading-tight"><T>Shri Shirdi Sai Baba Temple</T></div>
             <div className="text-[0.65625rem] text-cream/55 leading-tight mt-1"><T>Dwarkapuri Colony, Punjagutta,</T><br /><T>Hyderabad, Telangana</T></div>
           </div>
         </div>
@@ -301,7 +301,7 @@ export default function AdminLayout() {
           <div className="flex items-center gap-2">
             <button className="lg:hidden text-[#E5B94F] hover:text-[#FFF1C7] focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:ring-offset-1 focus:ring-offset-[#5A071A] rounded p-1" title={tr("Menu")} aria-label={tr("Open navigation menu")}
               onClick={() => setOpen((o) => !o)}><Menu size={22} /></button>
-            <span className="font-serif font-bold text-gold-100 text-[1.375rem] whitespace-nowrap lg:ml-2"><T>Sri Shirdi Sai Baba Temple</T></span>
+            <span className="font-serif font-bold text-gold-100 text-[1.375rem] whitespace-nowrap lg:ml-2"><T>Shri Shirdi Sai Baba Temple</T></span>
           </div>
 
           {/* Right: All controls */}

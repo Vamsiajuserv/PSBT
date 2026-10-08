@@ -23,9 +23,9 @@ const UI_TE = {
   'Established': 'స్థాపించబడింది', 'Managed By': 'నిర్వహణ', 'Trust Reg. No': 'ట్రస్ట్ నమోదు నం.',
   'Pan No.': 'పాన్ నం.', 'Everyday': 'ప్రతిరోజు',
   'All Rights Reserved.': 'సర్వ హక్కులు ప్రత్యేకించబడినవి.',
-  'Website designed and developed for Sri Shirdi Sai Baba Temple.':
+  'Website designed and developed for Shri Shirdi Sai Baba Temple.':
     'శ్రీ షిర్డీ సాయిబాబా ఆలయం కోసం రూపొందించి అభివృద్ధి చేయబడిన వెబ్‌సైట్.',
-  'A sacred place dedicated to Sri Shirdi Sai Baba, spreading love, faith and seva.':
+  'A sacred place dedicated to Shri Shirdi Sai Baba, spreading love, faith and seva.':
     'ప్రేమ, విశ్వాసం మరియు సేవను వ్యాప్తి చేస్తూ శ్రీ షిర్డీ సాయిబాబాకు అంకితమైన పవిత్ర స్థలం.',
   // Common actions / labels
   'Book a Seva': 'సేవను బుక్ చేయండి', 'Book Now': 'ఇప్పుడే బుక్ చేయండి',
@@ -39,14 +39,14 @@ const UI_TE = {
   'Upcoming Festivals': 'రాబోయే పండుగలు', 'Our Services': 'మా సేవలు',
   'Temple Gallery': 'ఆలయ గ్యాలరీ', 'Get in Touch': 'సంప్రదించండి',
   // Home page
-  'Welcome to': 'స్వాగతం', 'Sri Shirdi Sai Baba Temple': 'శ్రీ షిర్డీ సాయిబాబా ఆలయం',
+  'Welcome to': 'స్వాగతం', 'Shri Shirdi Sai Baba Temple': 'శ్రీ షిర్డీ సాయిబాబా ఆలయం',
   'A sacred place of faith, devotion and blessings of Sai Baba.':
     'సాయిబాబా విశ్వాసం, భక్తి మరియు అనుగ్రహాల పవిత్ర స్థలం.',
   'Temple Location': 'ఆలయ స్థానం', 'Contact': 'సంప్రదింపు',
   'Our Services & Offerings': 'మా సేవలు & నైవేద్యాలు', 'View Details': 'వివరాలు చూడండి',
   'About Our Temple': 'మా ఆలయం గురించి',
   'A Place of Faith, Devotion and Compassion': 'విశ్వాసం, భక్తి మరియు కరుణ యొక్క స్థలం',
-  "Sri Shirdi Sai Baba Temple, Dwarakapuri Colony, Punjagutta, Hyderabad is dedicated to spreading the teachings of Shirdi Sai Baba. The temple serves as a spiritual center where devotees from all walks of life come together to seek Baba's blessings.":
+  "Shri Shirdi Sai Baba Temple, Dwarakapuri Colony, Punjagutta, Hyderabad is dedicated to spreading the teachings of Shirdi Sai Baba. The temple serves as a spiritual center where devotees from all walks of life come together to seek Baba's blessings.":
     'పంజాగుట్ట, ద్వారకాపురి కాలనీ, హైదరాబాద్‌లోని శ్రీ షిర్డీ సాయిబాబా ఆలయం షిర్డీ సాయిబాబా బోధనలను వ్యాప్తి చేయడానికి అంకితమైంది. అన్ని వర్గాల భక్తులు బాబా అనుగ్రహం కోసం కలిసివచ్చే ఆధ్యాత్మిక కేంద్రంగా ఆలయం సేవలందిస్తుంది.',
   'Spiritual Environment': 'ఆధ్యాత్మిక వాతావరణం', 'Seva to Society': 'సమాజానికి సేవ',
   'Devotion for All': 'అందరికీ భక్తి',
@@ -145,6 +145,12 @@ const UI_TE = {
   'Store Custody': 'నిల్వ కస్టడీ',
   'Custodian': 'కస్టోడియన్',
   'Custody Date': 'కస్టడీ తేదీ',
+  'Valuables → Store Custody': 'విలువైన వస్తువులు → నిల్వ కస్టడీ',
+  // Hundi item names and store locations staff have entered (free text, so both casings)
+  'Gold Chain': 'బంగారు గొలుసు', 'gold chain': 'బంగారు గొలుసు',
+  'Cloth Material': 'వస్త్ర సామగ్రి', 'cloth material': 'వస్త్ర సామగ్రి',
+  'Temple Store Room': 'ఆలయ నిల్వ గది', 'temple store room': 'ఆలయ నిల్వ గది',
+  'Locker A': 'లాకర్ A', 'Main Vault': 'ప్రధాన ఖజానా',
   'Search method': 'వెతుకు పద్ధతి',
   'Search devotee': 'భక్తుడిని వెతకండి',
   'Beneficiary name': 'లబ్ధిదారుడి పేరు',
@@ -299,6 +305,9 @@ const UI_TE = {
   // ── Pooja Master Categories ──
   'Daily Pooja': 'రోజువారీ పూజ',
   'Monthly Pooja': 'నెలవారీ పూజ',
+  // Pooja / auction names stored on bookings and auctions (devotee history tables)
+  'Sai Vratam': 'సాయి వ్రతం', 'Monthly Archana': 'నెలవారీ అర్చన', 'Monthly Abhishekam': 'నెలవారీ అభిషేకం',
+  'Rice Bag Donation': 'బియ్యం బస్తా విరాళం', 'Pancha': 'పంచ',
   'Long-Term Pooja': 'దీర్ఘకాలిక పూజ',
   'Festival Pooja': 'పండుగ పూజ',
   'Occasion Pooja': 'సందర్భ పూజ',
@@ -594,7 +603,7 @@ const UI_TE = {
   'Rupees': 'రూపాయలు',
   'Terms & Conditions': 'నిబంధనలు & షరతులు',
   'This is a computer-generated receipt and does not require a signature.': 'ఇది కంప్యూటర్-ఉత్పత్తి రసీదు మరియు సంతకం అవసరం లేదు.',
-  '|| Om Sri Sai Ram ||': '|| ఓం శ్రీ సాయి రామ్ ||',
+  '|| Om Shri Sai Ram ||': '|| ఓం శ్రీ సాయి రామ్ ||',
 
   // ── Number Words (for receipt amounts) ──
   'Zero': 'సున్నా',
@@ -669,7 +678,7 @@ const UI_TE = {
   'Shivaratri': 'శివరాత్రి',
   'Maha Shivaratri': 'మహా శివరాత్రి',
   'Rama Navami': 'రామ నవమి',
-  'Sri Rama Navami': 'శ్రీ రామ నవమి',
+  'Shri Rama Navami': 'శ్రీ రామ నవమి',
   'Krishna Janmashtami': 'కృష్ణ జన్మాష్టమి',
   'Janmashtami': 'జన్మాష్టమి',
   'Hanuman Jayanti': 'హనుమాన్ జయంతి',
@@ -730,7 +739,7 @@ const UI_TE = {
   'Vietnam': 'వియత్నాం',
   'Bangladesh': 'బంగ్లాదేశ్',
   'Pakistan': 'పాకిస్తాన్',
-  'Sri Lanka': 'శ్రీలంక',
+  'Shri Lanka': 'శ్రీలంక',
   'Nepal': 'నేపాల్',
   'Maldives': 'మాల్దీవులు',
   'Mauritius': 'మారిషస్',
@@ -927,6 +936,8 @@ const UI_TE = {
   'Print Devotee Summary': 'భక్తుని సారాంశం ప్రింట్ చేయండి',
   'Print Receipt': 'రసీదు ప్రింట్ చేయండి',
   'Print receipt': 'రసీదు ప్రింట్ చేయండి',
+  'View receipt on screen': 'రసీదును స్క్రీన్‌పై చూడండి',
+  'Print receipt directly': 'రసీదును నేరుగా ప్రింట్ చేయండి',
   'Print Ticket / Receipt': 'టికెట్ / రసీదు ప్రింట్ చేయండి',
   'Record Annadanam Donation': 'అన్నదాన విరాళం నమోదు చేయండి',
   'Record Donation': 'విరాళం నమోదు చేయండి',
@@ -1456,7 +1467,7 @@ const UI_TE = {
   'Restore inserts new records and updates existing ones by their code/key. It will not delete any data.': 'పునరుద్ధరణ కొత్త రికార్డులను చొప్పిస్తుంది మరియు ఉన్నవాటిని వాటి కోడ్/కీ ద్వారా నవీకరిస్తుంది. ఇది ఏ డేటాను తొలగించదు.',
   'Once the day is closed, no further transactions can be recorded for the selected date.': 'రోజు మూసివేయబడిన తర్వాత, ఎంచుకున్న తేదీకి మరిన్ని లావాదేవీలు నమోదు చేయలేరు.',
   'Om Sai Ram': 'ఓం సాయి రామ్',
-  'Om Sri Sai Ram': 'ఓం శ్రీ సాయి రామ్',
+  'Om Shri Sai Ram': 'ఓం శ్రీ సాయి రామ్',
   'Failed to load UPI settings': 'UPI సెట్టింగ్‌లను లోడ్ చేయడంలో విఫలమైంది',
   'The festival window for this pooja is over': 'ఈ పూజ కోసం పండుగ విండో ముగిసింది',
   'View-only access.': 'చూడటం మాత్రమే యాక్సెస్.',
@@ -1470,9 +1481,9 @@ const UI_TE = {
   'failed': 'విఫలమైంది',
   // Temple-profile values that arrive from the DB (settings / site content)
   // rather than as literals in the page — see the DYNAMIC check in i18n-audit.
-  'Sri Shirdi Sai Baba Temple': 'శ్రీ షిర్డీ సాయిబాబా దేవస్థానం',
+  'Shri Shirdi Sai Baba Temple': 'శ్రీ షిర్డీ సాయిబాబా దేవస్థానం',
   'Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana': 'ద్వారకాపురి కాలనీ, పంజాగుట్ట, హైదరాబాద్, తెలంగాణ',
-  'Sri Shirdi Sai Premsamaj': 'శ్రీ షిర్డీ సాయి ప్రేమసమాజ్',
+  'Shri Shirdi Sai Premsamaj': 'శ్రీ షిర్డీ సాయి ప్రేమసమాజ్',
   'To be provided': 'అందించవలసి ఉంది',
   'Temple is open on all days including weekends and holidays.':
     'వారాంతాలు మరియు సెలవు దినాలతో సహా అన్ని రోజులలో ఆలయం తెరిచి ఉంటుంది.',
@@ -1556,7 +1567,7 @@ const UI_TE = {
   'Material donation.': 'వస్తు రూప విరాళం.',
   'is a sacred offering performed at the temple as an expression of devotion, bringing peace, prosperity and blessings to devotees.':
     'భక్తికి చిహ్నంగా ఆలయంలో నిర్వహించే పవిత్ర సేవ — భక్తులకు శాంతి, ఐశ్వర్యం మరియు ఆశీస్సులు ప్రసాదిస్తుంది.',
-  'Sri Sai Baba shrine': 'శ్రీ సాయిబాబా మందిరం',
+  'Shri Sai Baba shrine': 'శ్రీ సాయిబాబా మందిరం',
   // Donations page — how-to steps and the counter-assistance list
   'Visit the Temple Counter': 'ఆలయ కౌంటర్‌ను సందర్శించండి',
   'Register Name and Mobile': 'పేరు మరియు మొబైల్ నంబర్ నమోదు చేయండి',
@@ -1598,6 +1609,7 @@ const UI_TE = {
   'Dashboard refreshed.': 'డాష్\u200cబోర్డ్ రిఫ్రెష్ చేయబడింది.',
   "Today's Overview": 'ఈరోజు సమీక్ష',
   'Overview': 'సమీక్ష',
+  'Section': 'విభాగం',
   'Period': 'కాలం',
   'Total Receipts': 'మొత్తం రసీదులు',
   'Total Weight': 'మొత్తం బరువు',
@@ -1923,7 +1935,7 @@ const UI_TE = {
   'Maha Deeparadhana': 'మహా దీపారాధన',
   'Sai Paduka Seva': 'సాయి పాదుకా సేవ',
   'Silver Chariot Seva': 'వెండి రథ సేవ',
-  'Sri Sai Palki Seva (Annual)': 'శ్రీ సాయి పల్లకి సేవ (వార్షిక)',
+  'Shri Sai Palki Seva (Annual)': 'శ్రీ సాయి పల్లకి సేవ (వార్షిక)',
   'Temple Flag Hoisting': 'ఆలయ ధ్వజారోహణం',
   'Wooden Furniture': 'కలప ఫర్నిచర్',
   // Daily-closing module rows (served by /daily-closing)
@@ -2259,7 +2271,7 @@ const UI_TE = {
   // Waste-sale vendors — display only, like the bank names. The stored value
   // stays as registered so receipts and vendor paperwork still match.
   'Green Earth Recyclers': 'గ్రీన్ ఎర్త్ రీసైక్లర్స్',
-  'Sri Balaji Traders': 'శ్రీ బాలాజీ ట్రేడర్స్',
+  'Shri Balaji Traders': 'శ్రీ బాలాజీ ట్రేడర్స్',
   // Donation funds and units
   'Aarti Sponsorship': 'హారతి ప్రాయోజకత్వం',
   'Annadanam Sponsorship': 'అన్నదాన ప్రాయోజకత్వం',
@@ -2788,16 +2800,16 @@ const UI_TE = {
   // Auction status / units
   'Live': 'ప్రత్యక్షం', 'Upcoming': 'రాబోయే', 'Nos': 'సంఖ్య', 'Packet': 'ప్యాకెట్',
   // Long pooja descriptions (Pooja Master)
-  "Abhishekam is a sacred ritual in which the idol of Sri Shirdi Sai Baba is ceremonially bathed with holy offerings such as milk, curd, honey, coconut water, sandalwood paste, and sacred water while Vedic hymns and prayers are chanted. This divine ceremony is performed to seek Baba's blessings for good health, prosperity, peace, protection, and spiritual well-being. Devotees participate with devotion and faith, praying for happiness, success, and the fulfillment of their wishes.":
+  "Abhishekam is a sacred ritual in which the idol of Shri Shirdi Sai Baba is ceremonially bathed with holy offerings such as milk, curd, honey, coconut water, sandalwood paste, and sacred water while Vedic hymns and prayers are chanted. This divine ceremony is performed to seek Baba's blessings for good health, prosperity, peace, protection, and spiritual well-being. Devotees participate with devotion and faith, praying for happiness, success, and the fulfillment of their wishes.":
     'అభిషేకం అనేది శ్రీ షిర్డీ సాయిబాబా విగ్రహానికి పాలు, పెరుగు, తేనె, కొబ్బరి నీరు, గంధం మరియు పవిత్ర జలంతో వేద మంత్రాల మధ్య పవిత్రంగా స్నానం చేయించే పవిత్ర కార్యక్రమం. ఆరోగ్యం, ఐశ్వర్యం, శాంతి, రక్షణ మరియు ఆధ్యాత్మిక క్షేమం కోసం బాబా ఆశీస్సులు పొందేందుకు ఈ దివ్య కార్యక్రమం నిర్వహిస్తారు. భక్తులు భక్తి విశ్వాసాలతో పాల్గొని, సంతోషం, విజయం మరియు కోరికల నెరవేర్పు కోసం ప్రార్థిస్తారు.',
-  "Ashtotharam (Archana) is a sacred ritual in which the 108 divine names of Sri Shirdi Sai Baba are chanted with devotion while offering flowers. It is performed to seek Baba's blessings for health, prosperity, peace, and spiritual well-being. Devotees participate with faith, praying for happiness, success, and fulfillment in life.":
+  "Ashtotharam (Archana) is a sacred ritual in which the 108 divine names of Shri Shirdi Sai Baba are chanted with devotion while offering flowers. It is performed to seek Baba's blessings for health, prosperity, peace, and spiritual well-being. Devotees participate with faith, praying for happiness, success, and fulfillment in life.":
     'అష్టోత్తరం (అర్చన) అనేది శ్రీ షిర్డీ సాయిబాబా 108 దివ్య నామాలను భక్తితో స్మరిస్తూ పుష్పాలు సమర్పించే పవిత్ర కార్యక్రమం. ఆరోగ్యం, ఐశ్వర్యం, శాంతి మరియు ఆధ్యాత్మిక క్షేమం కోసం బాబా ఆశీస్సులు పొందేందుకు దీనిని నిర్వహిస్తారు. భక్తులు విశ్వాసంతో పాల్గొని, జీవితంలో సంతోషం, విజయం మరియు పరిపూర్ణత కోసం ప్రార్థిస్తారు.',
-  "Sahasranama Archana is a sacred ritual in which the 1,000 divine names of Sri Shirdi Sai Baba are chanted with deep devotion while offering flowers. This powerful worship is performed to seek Baba's blessings for good health, prosperity, peace, family well-being, and spiritual growth. Devotees participate with unwavering faith, praying for the fulfillment of their wishes, protection from difficulties, and divine grace in every aspect of life.":
+  "Sahasranama Archana is a sacred ritual in which the 1,000 divine names of Shri Shirdi Sai Baba are chanted with deep devotion while offering flowers. This powerful worship is performed to seek Baba's blessings for good health, prosperity, peace, family well-being, and spiritual growth. Devotees participate with unwavering faith, praying for the fulfillment of their wishes, protection from difficulties, and divine grace in every aspect of life.":
     'సహస్రనామ అర్చన అనేది శ్రీ షిర్డీ సాయిబాబా 1,000 దివ్య నామాలను గాఢ భక్తితో స్మరిస్తూ పుష్పాలు సమర్పించే పవిత్ర కార్యక్రమం. ఆరోగ్యం, ఐశ్వర్యం, శాంతి, కుటుంబ క్షేమం మరియు ఆధ్యాత్మిక అభివృద్ధి కోసం బాబా ఆశీస్సులు పొందేందుకు ఈ శక్తివంతమైన ఆరాధన నిర్వహిస్తారు. భక్తులు అచంచల విశ్వాసంతో పాల్గొని, కోరికల నెరవేర్పు, కష్టాల నుండి రక్షణ మరియు జీవితంలోని ప్రతి అంశంలో దైవానుగ్రహం కోసం ప్రార్థిస్తారు.',
   // Festival names. These also arrive from the Festival Master table (live
   // dates), which stores English only — so they need dictionary entries, not
   // just the `nameTe` twin the site content carries.
-  'Sri Rama Navami': 'శ్రీ రామ నవమి', 'Guru Purnima': 'గురు పూర్ణిమ',
+  'Shri Rama Navami': 'శ్రీ రామ నవమి', 'Guru Purnima': 'గురు పూర్ణిమ',
   'Sai Baba Mahasamadhi': 'సాయిబాబా మహాసమాధి', 'Sai Jayanti': 'సాయి జయంతి',
   'Vinayaka Chavithi': 'వినాయక చవితి', 'Devi Navaratri': 'దేవీ నవరాత్రి',
   'Karthika Masam': 'కార్తీక మాసం', 'Thursday Celebrations': 'గురువారం వేడుకలు',
@@ -2807,7 +2819,7 @@ const UI_TE = {
   'Aug–Sep': 'ఆగస్టు–సెప్టెంబర్', 'Nov–Dec': 'నవంబర్–డిసెంబర్',
   'Oct (Vijayadashami)': 'అక్టోబర్ (విజయదశమి)', 'Weekly': 'వారానికొకసారి',
   'Shirdi Sai Baba': 'షిర్డీ సాయిబాబా',
-  'SRI SHIRDI SAI BABA TEMPLE': 'శ్రీ షిర్డీ సాయిబాబా ఆలయం',
+  'SHRI SHIRDI SAI BABA TEMPLE': 'శ్రీ షిర్డీ సాయిబాబా ఆలయం',
   'POOJA BOOKING TICKET': 'పూజ బుకింగ్ టికెట్',
   'Thank you for your devotion. May Sai Baba bless you.': 'మీ భక్తికి ధన్యవాదాలు. సాయిబాబా మిమ్మల్ని ఆశీర్వదించుగాక.',
   'Please show this ticket at the temple counter / pooja venue.': 'దయచేసి ఈ టికెట్‌ను ఆలయ కౌంటర్ / పూజ వేదిక వద్ద చూపించండి.',
@@ -2851,7 +2863,7 @@ const UI_TE = {
   'Settings saved successfully.': 'సెట్టింగ్‌లు విజయవంతంగా సేవ్ చేయబడ్డాయి.',
   'Short description of the role': 'పాత్ర యొక్క సంక్షిప్త వివరణ',
   'Special Note:': 'ప్రత్యేక గమనిక:',
-  'Sri Shirdi Sai Baba Temple location map': 'శ్రీ షిర్డీ సాయిబాబా ఆలయ స్థాన పటం',
+  'Shri Shirdi Sai Baba Temple location map': 'శ్రీ షిర్డీ సాయిబాబా ఆలయ స్థాన పటం',
   'The Life of': 'జీవిత గాథ',
   'The hundi is the temple\'s traditional offering box. Devotees may place their offerings directly into the hundi within the temple premises. All collections are counted and recorded by temple staff.': 'హుండీ అనేది ఆలయం యొక్క సాంప్రదాయ కానుక పెట్టె. భక్తులు తమ కానుకలను ఆలయ ఆవరణలో నేరుగా హుండీలో వేయవచ్చు. అన్ని వసూళ్లను ఆలయ సిబ్బంది లెక్కించి నమోదు చేస్తారు.',
   'This records the auction and its winning devotee. Live bid-by-bid tracking and on-system payment receipts are not yet available — settle the winning payment at the counter and record it there.': 'ఇది వేలం మరియు దాని విజేత భక్తుని నమోదు చేస్తుంది. ప్రత్యక్ష బిడ్-బై-బిడ్ ట్రాకింగ్ మరియు సిస్టమ్‌లో చెల్లింపు రసీదులు ఇంకా అందుబాటులో లేవు — విజేత చెల్లింపును కౌంటర్ వద్ద పరిష్కరించి అక్కడ నమోదు చేయండి.',
@@ -2868,7 +2880,7 @@ const UI_TE = {
   'Why fear when I am here? I shall be active and vigorous even from my tomb.': 'నేను ఇక్కడ ఉన్నప్పుడు భయం ఎందుకు? నా సమాధి నుండి కూడా నేను చురుకుగా మరియు శక్తివంతంగా ఉంటాను.',
   'recorded but not sent': 'నమోదు చేయబడింది కానీ పంపబడలేదు',
   'to pick the date, slot and poojari.': 'తేదీ, స్లాట్ మరియు పూజారిని ఎంచుకోవడానికి.',
-  '© 2026 Sri Shirdi Sai Baba Temple.': '© 2026 శ్రీ షిర్డీ సాయిబాబా ఆలయం.',
+  '© 2026 Shri Shirdi Sai Baba Temple.': '© 2026 శ్రీ షిర్డీ సాయిబాబా ఆలయం.',
   '— Shri Sai Baba': '— శ్రీ సాయిబాబా',
   '— Shri Sai Baba of Shirdi': '— షిర్డీ శ్రీ సాయిబాబా',
   '“Have faith and patience, and everything will be possible.”': '“విశ్వాసం మరియు ఓపిక కలిగి ఉండండి, అన్నీ సాధ్యమవుతాయి.”',
@@ -2890,28 +2902,28 @@ const UI_TE = {
   'Place the file in frontend/public and enter its path here.': 'ఫైల్‌ను frontend/public లో ఉంచి దాని మార్గాన్ని ఇక్కడ నమోదు చేయండి.',
   'Photo gallery coming soon': 'ఫోటో గ్యాలరీ త్వరలో వస్తుంది',
   'Our temple photographs will be added here shortly.': 'మా ఆలయ ఫోటోలు త్వరలో ఇక్కడ జోడించబడతాయి.',
-  'Sri Sai Baba': 'శ్రీ సాయిబాబా',
+  'Shri Sai Baba': 'శ్రీ సాయిబాబా',
   'Alankaram': 'అలంకారం',
   'Seva & Rituals': 'సేవ & ఆచారాలు',
   'Sai Leela': 'సాయి లీల',
   'Deities': 'దేవతలు',
   'Temple': 'ఆలయం',
-  'Sri Sai Baba — Golden Throne': 'శ్రీ సాయిబాబా — స్వర్ణ సింహాసనం',
-  'Sri Sai Baba Murti': 'శ్రీ సాయిబాబా మూర్తి',
+  'Shri Sai Baba — Golden Throne': 'శ్రీ సాయిబాబా — స్వర్ణ సింహాసనం',
+  'Shri Sai Baba Murti': 'శ్రీ సాయిబాబా మూర్తి',
   'Baba in Full Alankaram': 'పూర్ణ అలంకారంలో బాబా',
   'Sai Baba Shrine — Floral Alankaram': 'సాయిబాబా మందిరం — పుష్ప అలంకారం',
   'Sai Baba Portrait Shrine': 'సాయిబాబా చిత్ర మందిరం',
   'Daily Seva at the Shrine': 'మందిరంలో నిత్య సేవ',
-  'Archana to Sri Sai Baba': 'శ్రీ సాయిబాబాకు అర్చన',
+  'Archana to Shri Sai Baba': 'శ్రీ సాయిబాబాకు అర్చన',
   'Sanctum Sanctorum': 'గర్భగుడి',
   'Silver Uyyala — Palki Seva': 'వెండి ఉయ్యాల — పల్లకి సేవ',
   'Sai Leela Paintings': 'సాయి లీల చిత్రాలు',
   'Scenes from Baba\'s Life': 'బాబా జీవిత దృశ్యాలు',
-  'Sri Sai Baba — Portrait': 'శ్రీ సాయిబాబా — చిత్రం',
+  'Shri Sai Baba — Portrait': 'శ్రీ సాయిబాబా — చిత్రం',
   'Baba the Fakir': 'ఫకీరు బాబా',
-  'Sri Vinayaka': 'శ్రీ వినాయకుడు',
-  'Sri Dattatreya': 'శ్రీ దత్తాత్రేయ',
-  'Sri Venugopala Krishna': 'శ్రీ వేణుగోపాల కృష్ణుడు',
+  'Shri Vinayaka': 'శ్రీ వినాయకుడు',
+  'Shri Dattatreya': 'శ్రీ దత్తాత్రేయ',
+  'Shri Venugopala Krishna': 'శ్రీ వేణుగోపాల కృష్ణుడు',
   'Shiva Lingam': 'శివ లింగం',
   'Temple Entrance': 'ఆలయ ప్రవేశం',
   'Main Prayer Hall': 'ప్రధాన ప్రార్థన మందిరం',
@@ -2921,18 +2933,18 @@ const UI_TE = {
   'Temple Exterior': 'ఆలయ బాహ్య భాగం',
   'Temple Pathway': 'ఆలయ మార్గం',
   'Temple by Night': 'రాత్రి వేళ ఆలయం',
-  'Sri Shirdi Sai Baba Temple at Dwarakapuri Colony, Punjagutta, Hyderabad is managed by the registered charitable trust Sri Shirdi Sai Premsamaj. The temple follows Shirdi Sai Baba traditions and performs daily sevas in the same manner as Shirdi.': 'పంజాగుట్ట, ద్వారకాపురి కాలనీలోని శ్రీ షిర్డీ సాయిబాబా ఆలయాన్ని నమోదిత ధార్మిక ట్రస్ట్ శ్రీ షిర్డీ సాయి ప్రేమసమాజ్ నిర్వహిస్తుంది. ఆలయం షిర్డీ సాయిబాబా సంప్రదాయాలను అనుసరిస్తూ, షిర్డీలో వలెనే నిత్య సేవలను నిర్వహిస్తుంది.',
+  'Shri Shirdi Sai Baba Temple at Dwarakapuri Colony, Punjagutta, Hyderabad is managed by the registered charitable trust Shri Shirdi Sai Premsamaj. The temple follows Shirdi Sai Baba traditions and performs daily sevas in the same manner as Shirdi.': 'పంజాగుట్ట, ద్వారకాపురి కాలనీలోని శ్రీ షిర్డీ సాయిబాబా ఆలయాన్ని నమోదిత ధార్మిక ట్రస్ట్ శ్రీ షిర్డీ సాయి ప్రేమసమాజ్ నిర్వహిస్తుంది. ఆలయం షిర్డీ సాయిబాబా సంప్రదాయాలను అనుసరిస్తూ, షిర్డీలో వలెనే నిత్య సేవలను నిర్వహిస్తుంది.',
   'Beyond religious activities, the trust conducts charitable healthcare initiatives and supports free medical services for the public through its associated medical facilities, alongside daily Annadanam (free food offering).': 'మతపరమైన కార్యకలాపాలకు మించి, ట్రస్ట్ ధార్మిక ఆరోగ్య సేవా కార్యక్రమాలను నిర్వహిస్తుంది మరియు తన అనుబంధ వైద్య సదుపాయాల ద్వారా ప్రజలకు ఉచిత వైద్య సేవలను, అలాగే నిత్య అన్నదానాన్ని (ఉచిత భోజన సేవ) అందిస్తుంది.',
   'The Foundation': 'పునాది',
   'Temple Opened to Devotees': 'భక్తులకు ఆలయ ప్రారంభం',
   'Shirdi Traditions Take Root': 'షిర్డీ సంప్రదాయాలు వేళ్లూనుకున్నాయి',
   'Annadanam & Free Healthcare': 'అన్నదానం & ఉచిత ఆరోగ్య సేవ',
   'A Living Centre of Devotion': 'భక్తికి సజీవ కేంద్రం',
-  'Sri Shirdi Sai Premsamaj, a registered charitable society, begins building a Sai mandir at Dwarakapuri Colony, Punjagutta — among the earliest Sai Baba temples of Hyderabad.': 'నమోదిత ధార్మిక సంస్థ శ్రీ షిర్డీ సాయి ప్రేమసమాజ్, హైదరాబాద్‌లోని తొలి సాయిబాబా ఆలయాలలో ఒకటిగా, పంజాగుట్ట ద్వారకాపురి కాలనీలో సాయి మందిర నిర్మాణాన్ని ప్రారంభించింది.',
+  'Shri Shirdi Sai Premsamaj, a registered charitable society, begins building a Sai mandir at Dwarakapuri Colony, Punjagutta — among the earliest Sai Baba temples of Hyderabad.': 'నమోదిత ధార్మిక సంస్థ శ్రీ షిర్డీ సాయి ప్రేమసమాజ్, హైదరాబాద్‌లోని తొలి సాయిబాబా ఆలయాలలో ఒకటిగా, పంజాగుట్ట ద్వారకాపురి కాలనీలో సాయి మందిర నిర్మాణాన్ని ప్రారంభించింది.',
   'The temple is consecrated and opened to devotees, with daily sevas performed in the same manner as at Shirdi.': 'ఆలయం ప్రతిష్ఠించబడి భక్తులకు తెరవబడింది, షిర్డీలో వలెనే నిత్య సేవలు నిర్వహించబడ్డాయి.',
   'Daily abhishekam, archana and the four aartis are established, and the Thursday evening Palki Yatra through Dwarakapuri Colony begins drawing devotees from across the city.': 'నిత్య అభిషేకం, అర్చన మరియు నాలుగు హారతులు స్థాపించబడ్డాయి, గురువారం సాయంత్రం ద్వారకాపురి కాలనీ గుండా పల్లకి యాత్ర నగరమంతటి నుండి భక్తులను ఆకర్షించడం మొదలైంది.',
   'The trust\'s seva grows beyond the temple — daily annadanam expands, and free medical consultations, physiotherapy, a pathology lab and a free pharmacy serve the public.': 'ట్రస్ట్ సేవ ఆలయానికి మించి విస్తరించింది — నిత్య అన్నదానం విస్తరించింది, ఉచిత వైద్య సలహాలు, ఫిజియోథెరపీ, పాథాలజీ ల్యాబ్ మరియు ఉచిత ఔషధశాల ప్రజలకు సేవలందిస్తున్నాయి.',
-  'Thousands visit for Thursday palki seva and the great festivals — Sri Rama Navami, Guru Purnima, Vijayadashami (Mahasamadhi) and Sai Jayanti.': 'వేలాది మంది గురువారం పల్లకి సేవ కోసం మరియు శ్రీ రామ నవమి, గురు పూర్ణిమ, విజయదశమి (మహాసమాధి), సాయి జయంతి వంటి గొప్ప పండుగల కోసం సందర్శిస్తారు.',
+  'Thousands visit for Thursday palki seva and the great festivals — Shri Rama Navami, Guru Purnima, Vijayadashami (Mahasamadhi) and Sai Jayanti.': 'వేలాది మంది గురువారం పల్లకి సేవ కోసం మరియు శ్రీ రామ నవమి, గురు పూర్ణిమ, విజయదశమి (మహాసమాధి), సాయి జయంతి వంటి గొప్ప పండుగల కోసం సందర్శిస్తారు.',
   'c. 1858': 'సుమారు 1858',
   '1858–1918': '1858–1918',
   'Teachings': 'బోధనలు',
@@ -2962,7 +2974,7 @@ const UI_TE = {
   'Annadanam at Our Temple': 'మా ఆలయంలో అన్నదానం',
   'Annadanam is the sacred offering of food — considered the highest of all danas. Every day, devotee sponsorships help the temple serve free prasadam meals to devotees and the needy.': 'అన్నదానం అనేది ఆహార పవిత్ర సమర్పణ — అన్ని దానాలలో అత్యున్నతమైనది. ప్రతిరోజూ, భక్తుల ప్రాయోజకత్వాలు ఆలయం భక్తులకు మరియు అవసరమైనవారికి ఉచిత ప్రసాద భోజనాన్ని అందించడంలో సహాయపడతాయి.',
   'Any number of plates may be sponsored — these are the sevas devotees choose most.': 'ఎన్ని ప్లేట్లనైనా ప్రాయోజకత్వం చేయవచ్చు — భక్తులు ఎక్కువగా ఎంచుకునే సేవలు ఇవి.',
-  'As at Shirdi itself, Sri Rama Navami, Guru Purnima and Vijayadashami are the principal utsavams of the temple.': 'షిర్డీలో వలెనే, శ్రీ రామ నవమి, గురు పూర్ణిమ మరియు విజయదశమి ఆలయ ప్రధాన ఉత్సవాలు.',
+  'As at Shirdi itself, Shri Rama Navami, Guru Purnima and Vijayadashami are the principal utsavams of the temple.': 'షిర్డీలో వలెనే, శ్రీ రామ నవమి, గురు పూర్ణిమ మరియు విజయదశమి ఆలయ ప్రధాన ఉత్సవాలు.',
   'Baba\'s Grace at Work — Every Day': 'బాబా అనుగ్రహం కార్యరూపంలో — ప్రతిరోజూ',
   'Baba\'s Palki Yatra': 'బాబా పల్లకి యాత్ర',
   'Bhajans · Aarti · Prasadam': 'భజనలు · హారతి · ప్రసాదం',
@@ -2974,13 +2986,13 @@ const UI_TE = {
   'Every Thursday': 'ప్రతి గురువారం',
   'Every Thursday evening Baba\'s palki is taken through Dwarakapuri Colony with bhajans, followed by prasadam distribution to devotees.': 'ప్రతి గురువారం సాయంత్రం బాబా పల్లకిని భజనలతో ద్వారకాపురి కాలనీ గుండా తీసుకెళ్తారు, ఆ తర్వాత భక్తులకు ప్రసాద వితరణ జరుగుతుంది.',
   'Every donation is recorded by the temple': 'ప్రతి విరాళం ఆలయం ద్వారా నమోదు చేయబడుతుంది',
-  'Every year on Sri Rama Navami, annadanam is served on a grand scale — free food reaches thousands of devotees in a single day.': 'ప్రతి సంవత్సరం శ్రీ రామ నవమి నాడు అన్నదానం భారీ స్థాయిలో జరుగుతుంది — ఒకే రోజున వేలాది మంది భక్తులకు ఉచిత ఆహారం అందుతుంది.',
+  'Every year on Shri Rama Navami, annadanam is served on a grand scale — free food reaches thousands of devotees in a single day.': 'ప్రతి సంవత్సరం శ్రీ రామ నవమి నాడు అన్నదానం భారీ స్థాయిలో జరుగుతుంది — ఒకే రోజున వేలాది మంది భక్తులకు ఉచిత ఆహారం అందుతుంది.',
   'Feed Devotees, Serve Humanity': 'భక్తులకు అన్నం పెట్టండి, మానవాళికి సేవ చేయండి',
   'Feed the hungry, and I shall consider it as feeding Me.': 'ఆకలిగొన్నవారికి అన్నం పెట్టండి, దానిని నాకు అన్నం పెట్టినట్లుగా నేను భావిస్తాను.',
   'Festival poojas can be booked at the temple counter, and annadanam may be sponsored for any festival day.': 'పండుగ పూజలను ఆలయ కౌంటర్‌లో బుక్ చేసుకోవచ్చు, ఏ పండుగ రోజునైనా అన్నదానం ప్రాయోజకత్వం చేయవచ్చు.',
   'For enquiries about poojas, donations, annadanam or festivals — our office replies during temple hours.': 'పూజలు, విరాళాలు, అన్నదానం లేదా పండుగల గురించి విచారణలకు — మా కార్యాలయం ఆలయ సమయాల్లో సమాధానమిస్తుంది.',
   'Full name': 'పూర్తి పేరు',
-  'Glimpses of sevas, festivals and temple life at Sri Shirdi Sai Baba Temple.': 'శ్రీ షిర్డీ సాయిబాబా ఆలయంలో సేవలు, పండుగలు మరియు ఆలయ జీవన దృశ్యాలు.',
+  'Glimpses of sevas, festivals and temple life at Shri Shirdi Sai Baba Temple.': 'శ్రీ షిర్డీ సాయిబాబా ఆలయంలో సేవలు, పండుగలు మరియు ఆలయ జీవన దృశ్యాలు.',
   'How can we help you?': 'మేము మీకు ఎలా సహాయం చేయగలం?',
   'How to Donate': 'ఎలా విరాళం ఇవ్వాలి',
   'How to Reach': 'ఎలా చేరుకోవాలి',
@@ -3004,7 +3016,7 @@ const UI_TE = {
   'Seva in Numbers': 'సంఖ్యలలో సేవ',
   'Shraddha · Saburi': 'శ్రద్ధ · సబూరి',
   'Sponsor Annadanam': 'అన్నదానం ప్రాయోజకత్వం చేయండి',
-  'Sri Rama Navami Maha Annadanam': 'శ్రీ రామ నవమి మహా అన్నదానం',
+  'Shri Rama Navami Maha Annadanam': 'శ్రీ రామ నవమి మహా అన్నదానం',
   'Subject': 'విషయం',
   'Take Part in a Festival': 'పండుగలో పాల్గొనండి',
   'Temple Office': 'ఆలయ కార్యాలయం',
@@ -3095,22 +3107,22 @@ const UI_TE = {
   'Booking Terms': 'బుకింగ్ నిబంధనలు',
   'Validity begins from the booking date; each pooja is performed once per day.': 'చెల్లుబాటు బుకింగ్ తేదీ నుండి ప్రారంభమవుతుంది; ప్రతి పూజ రోజుకు ఒకసారి నిర్వహించబడుతుంది.',
   'Each plan above has its own validity — select a plan to see its terms. Validity begins from the booking date.': 'పైన ఉన్న ప్రతి ప్లాన్‌కు దాని స్వంత చెల్లుబాటు ఉంది — నిబంధనలను చూడటానికి ఒక ప్లాన్‌ను ఎంచుకోండి. చెల్లుబాటు బుకింగ్ తేదీ నుండి ప్రారంభమవుతుంది.',
-  'Sai Pooja with Gothranamam is a sacred ritual in which prayers are offered to Sri Shirdi Sai Baba by chanting the devotee\'s name and Gothram (family lineage). This special pooja is performed to seek Baba\'s divine blessings for good health, prosperity, family harmony, success, and overall well-being. Devotees participate with deep faith, praying for the welfare of their family, inner peace, fulfillment of their wishes, and a life filled with happiness and divine grace.': 'గోత్రనామ సాయి పూజ అనేది భక్తుని పేరు మరియు గోత్రాన్ని (వంశ పరంపర) ఉచ్చరిస్తూ శ్రీ షిర్డీ సాయిబాబాకు ప్రార్థనలు సమర్పించే పవిత్ర ఆచారం. ఈ ప్రత్యేక పూజ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, విజయం మరియు సర్వతోముఖ శ్రేయస్సు కోసం బాబా దివ్య ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు తమ కుటుంబ సంక్షేమం, అంతర్గత శాంతి, కోరికల నెరవేర్పు మరియు సంతోషం, దివ్య అనుగ్రహంతో నిండిన జీవితం కోసం ప్రార్థిస్తూ గాఢ విశ్వాసంతో పాల్గొంటారు.',
-  'Vishesha Pooja is a special worship performed with devotion to Sri Shirdi Sai Baba on auspicious occasions, festivals, birthdays, anniversaries, or to fulfill a specific prayer. This sacred pooja is offered to seek Baba\'s blessings for good health, prosperity, success, family harmony, and protection from obstacles. Devotees participate with faith, praying for peace, happiness, and the fulfillment of their heartfelt wishes.': 'విశేష పూజ అనేది శుభ సందర్భాలు, పండుగలు, పుట్టినరోజులు, వార్షికోత్సవాలలో లేదా ఒక నిర్దిష్ట ప్రార్థనను నెరవేర్చడానికి శ్రీ షిర్డీ సాయిబాబాకు భక్తితో నిర్వహించే ప్రత్యేక పూజ. ఈ పవిత్ర పూజ మంచి ఆరోగ్యం, శ్రేయస్సు, విజయం, కుటుంబ సామరస్యం మరియు అడ్డంకుల నుండి రక్షణ కోసం బాబా ఆశీర్వాదాలను కోరుతూ సమర్పించబడుతుంది. భక్తులు శాంతి, సంతోషం మరియు తమ హృదయపూర్వక కోరికల నెరవేర్పు కోసం ప్రార్థిస్తూ విశ్వాసంతో పాల్గొంటారు.',
-  'Nithya Pooja is a daily worship offered to Sri Shirdi Sai Baba with devotion, prayers, and sacred offerings. It is performed to seek Baba\'s divine blessings for good health, peace, prosperity, family well-being, and spiritual growth. Devotees participate with faith, praying for happiness, protection, and success in every aspect of life.': 'నిత్య పూజ అనేది శ్రీ షిర్డీ సాయిబాబాకు భక్తి, ప్రార్థనలు మరియు పవిత్ర నైవేద్యాలతో సమర్పించే రోజువారీ ఆరాధన. ఇది మంచి ఆరోగ్యం, శాంతి, శ్రేయస్సు, కుటుంబ శ్రేయస్సు మరియు ఆధ్యాత్మిక వికాసం కోసం బాబా దివ్య ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు జీవితంలోని ప్రతి అంశంలో సంతోషం, రక్షణ మరియు విజయం కోసం ప్రార్థిస్తూ విశ్వాసంతో పాల్గొంటారు.',
-  'Sai Vratam (Pournami) is a sacred monthly pooja performed at Sri Shirdi Sai Baba Temple on the auspicious day of Pournami (Full Moon). Devotees observe the vratam with devotion by participating in special poojas, Sai Baba Ashtotharam, bhajans, and aarti to seek Baba\'s divine blessings for good health, prosperity, family harmony, peace, and spiritual growth. It is believed that performing this vratam with sincere faith helps fulfill wishes and brings happiness, success, and divine grace into one\'s life.': 'సాయి వ్రతం (పౌర్ణమి) అనేది శ్రీ షిర్డీ సాయిబాబా ఆలయంలో శుభప్రదమైన పౌర్ణమి (పూర్ణ చంద్రుడు) రోజున నిర్వహించే పవిత్ర మాసిక పూజ. భక్తులు ప్రత్యేక పూజలు, సాయిబాబా అష్టోత్తరం, భజనలు మరియు హారతిలో పాల్గొంటూ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, శాంతి మరియు ఆధ్యాత్మిక వికాసం కోసం బాబా దివ్య ఆశీర్వాదాలను కోరుతూ భక్తితో వ్రతాన్ని ఆచరిస్తారు. నిజమైన విశ్వాసంతో ఈ వ్రతాన్ని ఆచరించడం కోరికలను నెరవేర్చి, జీవితంలో సంతోషం, విజయం మరియు దివ్య అనుగ్రహాన్ని తెస్తుందని నమ్ముతారు.',
+  'Sai Pooja with Gothranamam is a sacred ritual in which prayers are offered to Shri Shirdi Sai Baba by chanting the devotee\'s name and Gothram (family lineage). This special pooja is performed to seek Baba\'s divine blessings for good health, prosperity, family harmony, success, and overall well-being. Devotees participate with deep faith, praying for the welfare of their family, inner peace, fulfillment of their wishes, and a life filled with happiness and divine grace.': 'గోత్రనామ సాయి పూజ అనేది భక్తుని పేరు మరియు గోత్రాన్ని (వంశ పరంపర) ఉచ్చరిస్తూ శ్రీ షిర్డీ సాయిబాబాకు ప్రార్థనలు సమర్పించే పవిత్ర ఆచారం. ఈ ప్రత్యేక పూజ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, విజయం మరియు సర్వతోముఖ శ్రేయస్సు కోసం బాబా దివ్య ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు తమ కుటుంబ సంక్షేమం, అంతర్గత శాంతి, కోరికల నెరవేర్పు మరియు సంతోషం, దివ్య అనుగ్రహంతో నిండిన జీవితం కోసం ప్రార్థిస్తూ గాఢ విశ్వాసంతో పాల్గొంటారు.',
+  'Vishesha Pooja is a special worship performed with devotion to Shri Shirdi Sai Baba on auspicious occasions, festivals, birthdays, anniversaries, or to fulfill a specific prayer. This sacred pooja is offered to seek Baba\'s blessings for good health, prosperity, success, family harmony, and protection from obstacles. Devotees participate with faith, praying for peace, happiness, and the fulfillment of their heartfelt wishes.': 'విశేష పూజ అనేది శుభ సందర్భాలు, పండుగలు, పుట్టినరోజులు, వార్షికోత్సవాలలో లేదా ఒక నిర్దిష్ట ప్రార్థనను నెరవేర్చడానికి శ్రీ షిర్డీ సాయిబాబాకు భక్తితో నిర్వహించే ప్రత్యేక పూజ. ఈ పవిత్ర పూజ మంచి ఆరోగ్యం, శ్రేయస్సు, విజయం, కుటుంబ సామరస్యం మరియు అడ్డంకుల నుండి రక్షణ కోసం బాబా ఆశీర్వాదాలను కోరుతూ సమర్పించబడుతుంది. భక్తులు శాంతి, సంతోషం మరియు తమ హృదయపూర్వక కోరికల నెరవేర్పు కోసం ప్రార్థిస్తూ విశ్వాసంతో పాల్గొంటారు.',
+  'Nithya Pooja is a daily worship offered to Shri Shirdi Sai Baba with devotion, prayers, and sacred offerings. It is performed to seek Baba\'s divine blessings for good health, peace, prosperity, family well-being, and spiritual growth. Devotees participate with faith, praying for happiness, protection, and success in every aspect of life.': 'నిత్య పూజ అనేది శ్రీ షిర్డీ సాయిబాబాకు భక్తి, ప్రార్థనలు మరియు పవిత్ర నైవేద్యాలతో సమర్పించే రోజువారీ ఆరాధన. ఇది మంచి ఆరోగ్యం, శాంతి, శ్రేయస్సు, కుటుంబ శ్రేయస్సు మరియు ఆధ్యాత్మిక వికాసం కోసం బాబా దివ్య ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు జీవితంలోని ప్రతి అంశంలో సంతోషం, రక్షణ మరియు విజయం కోసం ప్రార్థిస్తూ విశ్వాసంతో పాల్గొంటారు.',
+  'Sai Vratam (Pournami) is a sacred monthly pooja performed at Shri Shirdi Sai Baba Temple on the auspicious day of Pournami (Full Moon). Devotees observe the vratam with devotion by participating in special poojas, Sai Baba Ashtotharam, bhajans, and aarti to seek Baba\'s divine blessings for good health, prosperity, family harmony, peace, and spiritual growth. It is believed that performing this vratam with sincere faith helps fulfill wishes and brings happiness, success, and divine grace into one\'s life.': 'సాయి వ్రతం (పౌర్ణమి) అనేది శ్రీ షిర్డీ సాయిబాబా ఆలయంలో శుభప్రదమైన పౌర్ణమి (పూర్ణ చంద్రుడు) రోజున నిర్వహించే పవిత్ర మాసిక పూజ. భక్తులు ప్రత్యేక పూజలు, సాయిబాబా అష్టోత్తరం, భజనలు మరియు హారతిలో పాల్గొంటూ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, శాంతి మరియు ఆధ్యాత్మిక వికాసం కోసం బాబా దివ్య ఆశీర్వాదాలను కోరుతూ భక్తితో వ్రతాన్ని ఆచరిస్తారు. నిజమైన విశ్వాసంతో ఈ వ్రతాన్ని ఆచరించడం కోరికలను నెరవేర్చి, జీవితంలో సంతోషం, విజయం మరియు దివ్య అనుగ్రహాన్ని తెస్తుందని నమ్ముతారు.',
   'Devi Navaratri Pooja is a sacred worship performed during the auspicious Navaratri festival to honor Goddess Durga, the divine embodiment of strength, wisdom, and compassion. This special pooja is conducted to seek the Goddess\'s blessings for health, prosperity, protection, success, and spiritual growth. Devotees participate with devotion, praying for the well-being of their families, the removal of obstacles, and the fulfillment of their sincere wishes.': 'దేవీ నవరాత్రి పూజ అనేది శక్తి, జ్ఞానం మరియు కరుణ యొక్క దివ్య స్వరూపమైన దుర్గా దేవిని గౌరవించడానికి శుభప్రదమైన నవరాత్రి పండుగలో నిర్వహించే పవిత్ర ఆరాధన. ఈ ప్రత్యేక పూజ ఆరోగ్యం, శ్రేయస్సు, రక్షణ, విజయం మరియు ఆధ్యాత్మిక వికాసం కోసం దేవి ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు తమ కుటుంబాల శ్రేయస్సు, అడ్డంకుల తొలగింపు మరియు తమ నిజమైన కోరికల నెరవేర్పు కోసం ప్రార్థిస్తూ భక్తితో పాల్గొంటారు.',
   'Vinayaka Chavithi Pooja is a sacred worship performed on the auspicious occasion of Vinayaka Chavithi to honor Lord Ganesha, the remover of obstacles and the giver of wisdom and prosperity. This special pooja is performed to seek Lord Ganesha\'s blessings for success, good health, family happiness, prosperity, and the smooth completion of all endeavors. Devotees participate with devotion, praying for peace, wisdom, and the fulfillment of their heartfelt wishes.': 'వినాయక చవితి పూజ అనేది అడ్డంకులను తొలగించే మరియు జ్ఞానం, శ్రేయస్సును ప్రసాదించే గణేశుడిని గౌరవించడానికి శుభప్రదమైన వినాయక చవితి సందర్భంగా నిర్వహించే పవిత్ర ఆరాధన. ఈ ప్రత్యేక పూజ విజయం, మంచి ఆరోగ్యం, కుటుంబ సంతోషం, శ్రేయస్సు మరియు అన్ని ప్రయత్నాల సాఫీ పూర్తి కోసం గణేశుడి ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు శాంతి, జ్ఞానం మరియు తమ హృదయపూర్వక కోరికల నెరవేర్పు కోసం ప్రార్థిస్తూ భక్తితో పాల్గొంటారు.',
-  'Karthika Masam Pooja is a special worship performed during the sacred month of Karthika at Sri Shirdi Sai Baba Temple with devotion and faith. During this holy month, devotees offer deepa seva (lighting lamps), special prayers, bhajans, and poojas to seek Sri Sai Baba\'s divine blessings for good health, prosperity, family harmony, peace, and spiritual growth. Devotees participate wholeheartedly, praying for the fulfillment of their wishes, removal of obstacles, and a life filled with happiness and Baba\'s grace.': 'కార్తీక మాస పూజ అనేది శ్రీ షిర్డీ సాయిబాబా ఆలయంలో పవిత్ర కార్తీక మాసంలో భక్తి, విశ్వాసంతో నిర్వహించే ప్రత్యేక ఆరాధన. ఈ పవిత్ర మాసంలో భక్తులు దీప సేవ (దీపాలు వెలిగించడం), ప్రత్యేక ప్రార్థనలు, భజనలు మరియు పూజలను సమర్పిస్తూ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, శాంతి మరియు ఆధ్యాత్మిక వికాసం కోసం శ్రీ సాయిబాబా దివ్య ఆశీర్వాదాలను కోరుతారు. భక్తులు తమ కోరికల నెరవేర్పు, అడ్డంకుల తొలగింపు మరియు సంతోషం, బాబా అనుగ్రహంతో నిండిన జీవితం కోసం మనఃపూర్వకంగా పాల్గొంటారు.',
-  'Sri Rama Navami is a sacred festival celebrated with great devotion at Sri Shirdi Sai Baba Temple, commemorating the birth of Lord Sri Rama. Special poojas, bhajans, devotional prayers, and spiritual programs are conducted to seek divine blessings for righteousness, peace, prosperity, family well-being, and spiritual growth. Devotees participate with faith, praying for happiness, success, and the fulfillment of their wishes under the grace of Sri Rama and Sri Shirdi Sai Baba.': 'శ్రీ రామ నవమి అనేది శ్రీరాముడి జన్మను స్మరిస్తూ శ్రీ షిర్డీ సాయిబాబా ఆలయంలో గొప్ప భక్తితో జరుపుకునే పవిత్ర పండుగ. ధర్మం, శాంతి, శ్రేయస్సు, కుటుంబ శ్రేయస్సు మరియు ఆధ్యాత్మిక వికాసం కోసం దివ్య ఆశీర్వాదాలను కోరుతూ ప్రత్యేక పూజలు, భజనలు, భక్తి ప్రార్థనలు మరియు ఆధ్యాత్మిక కార్యక్రమాలు నిర్వహించబడతాయి. భక్తులు శ్రీరాముడు మరియు శ్రీ షిర్డీ సాయిబాబా అనుగ్రహంలో సంతోషం, విజయం మరియు తమ కోరికల నెరవేర్పు కోసం ప్రార్థిస్తూ విశ్వాసంతో పాల్గొంటారు.',
-  'Rudrabhishekam is a special sacred ritual performed at Sri Shirdi Sai Baba Temple by offering Abhishekam to the Shiva Lingam with holy substances such as milk, water, honey, curd, and sandalwood while chanting powerful Vedic mantras. As Sri Sai Baba always emphasized devotion to Lord Shiva and the unity of all faiths, this pooja is conducted to seek divine blessings for good health, prosperity, family harmony, peace, protection, and spiritual well-being. Devotees participate with faith, praying for the removal of obstacles, fulfillment of their wishes, and Baba\'s divine grace.': 'రుద్రాభిషేకం అనేది శ్రీ షిర్డీ సాయిబాబా ఆలయంలో పాలు, నీరు, తేనె, పెరుగు మరియు గంధం వంటి పవిత్ర ద్రవ్యాలతో శివలింగానికి అభిషేకం చేస్తూ శక్తివంతమైన వేద మంత్రాలను ఉచ్చరిస్తూ నిర్వహించే ప్రత్యేక పవిత్ర ఆచారం. శ్రీ సాయిబాబా ఎల్లప్పుడూ శివుని పట్ల భక్తిని మరియు అన్ని మతాల ఐక్యతను నొక్కి చెప్పినందున, ఈ పూజ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, శాంతి, రక్షణ మరియు ఆధ్యాత్మిక శ్రేయస్సు కోసం దివ్య ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు అడ్డంకుల తొలగింపు, కోరికల నెరవేర్పు మరియు బాబా దివ్య అనుగ్రహం కోసం ప్రార్థిస్తూ విశ్వాసంతో పాల్గొంటారు.',
-  'Namakaranam is a sacred naming ceremony performed at Sri Shirdi Sai Baba Temple to bless a newborn child with a meaningful name in the divine presence of Sri Sai Baba. Special prayers and poojas are offered to seek Baba\'s blessings for the child\'s good health, long life, wisdom, prosperity, and a bright future. Parents and family members participate with devotion, praying for the child\'s happiness, success, and lifelong divine protection.': 'నామకరణం అనేది శ్రీ సాయిబాబా దివ్య సన్నిధిలో నవజాత శిశువుకు అర్థవంతమైన పేరుతో ఆశీర్వదించడానికి శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర నామకరణ వేడుక. శిశువు మంచి ఆరోగ్యం, దీర్ఘాయువు, జ్ఞానం, శ్రేయస్సు మరియు ఉజ్జ్వల భవిష్యత్తు కోసం బాబా ఆశీర్వాదాలను కోరుతూ ప్రత్యేక ప్రార్థనలు మరియు పూజలు సమర్పించబడతాయి. తల్లిదండ్రులు మరియు కుటుంబ సభ్యులు శిశువు సంతోషం, విజయం మరియు జీవితకాల దివ్య రక్షణ కోసం ప్రార్థిస్తూ భక్తితో పాల్గొంటారు.',
-  'Aksharabhyasam is a sacred ceremony performed at Sri Shirdi Sai Baba Temple to mark a child\'s first step into the world of education. In the divine presence of Sri Sai Baba, the child is guided to write the first letters while special prayers and poojas are offered for wisdom, knowledge, good character, and academic success. Parents and family members participate with devotion, seeking Baba\'s blessings for the child\'s bright future, confidence, and lifelong learning.': 'అక్షరాభ్యాసం అనేది శిశువు విద్యా ప్రపంచంలోకి తొలి అడుగు వేయడాన్ని సూచించడానికి శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వేడుక. శ్రీ సాయిబాబా దివ్య సన్నిధిలో శిశువుకు తొలి అక్షరాలు రాయడంలో మార్గనిర్దేశనం చేయబడుతుంది, జ్ఞానం, విద్య, మంచి నడవడిక మరియు విద్యా విజయం కోసం ప్రత్యేక ప్రార్థనలు, పూజలు సమర్పించబడతాయి. తల్లిదండ్రులు మరియు కుటుంబ సభ్యులు శిశువు ఉజ్జ్వల భవిష్యత్తు, ఆత్మవిశ్వాసం మరియు జీవితకాల అభ్యాసం కోసం బాబా ఆశీర్వాదాలను కోరుతూ భక్తితో పాల్గొంటారు.',
-  'Annaprasana is a sacred ceremony performed at Sri Shirdi Sai Baba Temple to celebrate a baby\'s first intake of solid food. In the divine presence of Sri Sai Baba, special poojas and prayers are offered to seek blessings for the child\'s good health, long life, happiness, wisdom, and prosperous future. Parents and family members participate with devotion, praying for the child\'s healthy growth, well-being, and lifelong protection under Baba\'s divine grace.': 'అన్నప్రాశన అనేది శిశువు తొలిసారి ఘనాహారం తీసుకోవడాన్ని జరుపుకోవడానికి శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వేడుక. శ్రీ సాయిబాబా దివ్య సన్నిధిలో శిశువు మంచి ఆరోగ్యం, దీర్ఘాయువు, సంతోషం, జ్ఞానం మరియు శ్రేయోవంతమైన భవిష్యత్తు కోసం ఆశీర్వాదాలను కోరుతూ ప్రత్యేక పూజలు, ప్రార్థనలు సమర్పించబడతాయి. తల్లిదండ్రులు మరియు కుటుంబ సభ్యులు శిశువు ఆరోగ్యకరమైన ఎదుగుదల, శ్రేయస్సు మరియు బాబా దివ్య అనుగ్రహంలో జీవితకాల రక్షణ కోసం ప్రార్థిస్తూ భక్తితో పాల్గొంటారు.',
-  'Vastra Seva is a sacred offering performed at Sri Shirdi Sai Baba Temple, where devotees offer new clothes to Sri Sai Baba as a symbol of devotion, gratitude, and surrender. This seva is performed to seek Baba\'s divine blessings for good health, prosperity, family harmony, success, and spiritual well-being. Devotees participate with faith, praying for the fulfillment of their wishes and expressing their love and reverence through this humble offering.': 'వస్త్ర సేవ అనేది భక్తులు భక్తి, కృతజ్ఞత మరియు శరణాగతికి చిహ్నంగా శ్రీ సాయిబాబాకు కొత్త వస్త్రాలను సమర్పించే పవిత్ర సేవ. ఈ సేవ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, విజయం మరియు ఆధ్యాత్మిక శ్రేయస్సు కోసం బాబా దివ్య ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు తమ కోరికల నెరవేర్పు కోసం ప్రార్థిస్తూ, ఈ వినయపూర్వక సమర్పణ ద్వారా తమ ప్రేమ, భక్తిని వ్యక్తం చేస్తూ విశ్వాసంతో పాల్గొంటారు.',
-  'Bike / Scooter Pooja is a sacred vehicle blessing ceremony performed at Sri Shirdi Sai Baba Temple for newly purchased or existing two-wheelers. Special prayers and poojas are offered to seek Sri Sai Baba\'s divine blessings for safe journeys, protection from accidents, success, prosperity, and peace of mind. Devotees perform this pooja with faith, praying for the safety of themselves and their families, and for Baba\'s guidance in every journey.': 'బైక్ / స్కూటర్ పూజ అనేది కొత్తగా కొన్న లేదా ఉన్న ద్విచక్ర వాహనాల కోసం శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వాహన ఆశీర్వాద వేడుక. సురక్షిత ప్రయాణాలు, ప్రమాదాల నుండి రక్షణ, విజయం, శ్రేయస్సు మరియు మనశ్శాంతి కోసం శ్రీ సాయిబాబా దివ్య ఆశీర్వాదాలను కోరుతూ ప్రత్యేక ప్రార్థనలు, పూజలు సమర్పించబడతాయి. భక్తులు తమ మరియు తమ కుటుంబాల భద్రత కోసం, ప్రతి ప్రయాణంలో బాబా మార్గదర్శకత్వం కోసం ప్రార్థిస్తూ విశ్వాసంతో ఈ పూజను నిర్వహిస్తారు.',
-  'Auto Pooja is a sacred vehicle blessing ceremony performed at Sri Shirdi Sai Baba Temple for newly purchased or regularly used auto-rickshaws. Special prayers and poojas are offered to seek Sri Sai Baba\'s divine blessings for safe journeys, protection from accidents, prosperity, success in livelihood, and peace of mind. Devotees perform this pooja with faith, praying for a successful career, steady income, the well-being of their families, and Baba\'s guidance on every journey.': 'ఆటో పూజ అనేది కొత్తగా కొన్న లేదా క్రమం తప్పకుండా ఉపయోగించే ఆటో-రిక్షాల కోసం శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వాహన ఆశీర్వాద వేడుక. సురక్షిత ప్రయాణాలు, ప్రమాదాల నుండి రక్షణ, శ్రేయస్సు, జీవనోపాధిలో విజయం మరియు మనశ్శాంతి కోసం శ్రీ సాయిబాబా దివ్య ఆశీర్వాదాలను కోరుతూ ప్రత్యేక ప్రార్థనలు, పూజలు సమర్పించబడతాయి. భక్తులు విజయవంతమైన ఉపాధి, స్థిరమైన ఆదాయం, తమ కుటుంబాల శ్రేయస్సు మరియు ప్రతి ప్రయాణంలో బాబా మార్గదర్శకత్వం కోసం ప్రార్థిస్తూ విశ్వాసంతో ఈ పూజను నిర్వహిస్తారు.',
-  'Car Pooja is a sacred vehicle blessing ceremony performed at Sri Shirdi Sai Baba Temple for newly purchased or existing cars. Special prayers and poojas are offered to seek Sri Sai Baba\'s divine blessings for safe journeys, protection from accidents, prosperity, success, and peace of mind. Devotees perform this pooja with faith, praying for the safety of their family, smooth travels, and Baba\'s divine guidance and protection on every journey.': 'కార్ పూజ అనేది కొత్తగా కొన్న లేదా ఉన్న కార్ల కోసం శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వాహన ఆశీర్వాద వేడుక. సురక్షిత ప్రయాణాలు, ప్రమాదాల నుండి రక్షణ, శ్రేయస్సు, విజయం మరియు మనశ్శాంతి కోసం శ్రీ సాయిబాబా దివ్య ఆశీర్వాదాలను కోరుతూ ప్రత్యేక ప్రార్థనలు, పూజలు సమర్పించబడతాయి. భక్తులు తమ కుటుంబ భద్రత, సాఫీ ప్రయాణాలు మరియు ప్రతి ప్రయాణంలో బాబా దివ్య మార్గదర్శకత్వం, రక్షణ కోసం ప్రార్థిస్తూ విశ్వాసంతో ఈ పూజను నిర్వహిస్తారు.',
+  'Karthika Masam Pooja is a special worship performed during the sacred month of Karthika at Shri Shirdi Sai Baba Temple with devotion and faith. During this holy month, devotees offer deepa seva (lighting lamps), special prayers, bhajans, and poojas to seek Shri Sai Baba\'s divine blessings for good health, prosperity, family harmony, peace, and spiritual growth. Devotees participate wholeheartedly, praying for the fulfillment of their wishes, removal of obstacles, and a life filled with happiness and Baba\'s grace.': 'కార్తీక మాస పూజ అనేది శ్రీ షిర్డీ సాయిబాబా ఆలయంలో పవిత్ర కార్తీక మాసంలో భక్తి, విశ్వాసంతో నిర్వహించే ప్రత్యేక ఆరాధన. ఈ పవిత్ర మాసంలో భక్తులు దీప సేవ (దీపాలు వెలిగించడం), ప్రత్యేక ప్రార్థనలు, భజనలు మరియు పూజలను సమర్పిస్తూ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, శాంతి మరియు ఆధ్యాత్మిక వికాసం కోసం శ్రీ సాయిబాబా దివ్య ఆశీర్వాదాలను కోరుతారు. భక్తులు తమ కోరికల నెరవేర్పు, అడ్డంకుల తొలగింపు మరియు సంతోషం, బాబా అనుగ్రహంతో నిండిన జీవితం కోసం మనఃపూర్వకంగా పాల్గొంటారు.',
+  'Shri Rama Navami is a sacred festival celebrated with great devotion at Shri Shirdi Sai Baba Temple, commemorating the birth of Lord Shri Rama. Special poojas, bhajans, devotional prayers, and spiritual programs are conducted to seek divine blessings for righteousness, peace, prosperity, family well-being, and spiritual growth. Devotees participate with faith, praying for happiness, success, and the fulfillment of their wishes under the grace of Shri Rama and Shri Shirdi Sai Baba.': 'శ్రీ రామ నవమి అనేది శ్రీరాముడి జన్మను స్మరిస్తూ శ్రీ షిర్డీ సాయిబాబా ఆలయంలో గొప్ప భక్తితో జరుపుకునే పవిత్ర పండుగ. ధర్మం, శాంతి, శ్రేయస్సు, కుటుంబ శ్రేయస్సు మరియు ఆధ్యాత్మిక వికాసం కోసం దివ్య ఆశీర్వాదాలను కోరుతూ ప్రత్యేక పూజలు, భజనలు, భక్తి ప్రార్థనలు మరియు ఆధ్యాత్మిక కార్యక్రమాలు నిర్వహించబడతాయి. భక్తులు శ్రీరాముడు మరియు శ్రీ షిర్డీ సాయిబాబా అనుగ్రహంలో సంతోషం, విజయం మరియు తమ కోరికల నెరవేర్పు కోసం ప్రార్థిస్తూ విశ్వాసంతో పాల్గొంటారు.',
+  'Rudrabhishekam is a special sacred ritual performed at Shri Shirdi Sai Baba Temple by offering Abhishekam to the Shiva Lingam with holy substances such as milk, water, honey, curd, and sandalwood while chanting powerful Vedic mantras. As Shri Sai Baba always emphasized devotion to Lord Shiva and the unity of all faiths, this pooja is conducted to seek divine blessings for good health, prosperity, family harmony, peace, protection, and spiritual well-being. Devotees participate with faith, praying for the removal of obstacles, fulfillment of their wishes, and Baba\'s divine grace.': 'రుద్రాభిషేకం అనేది శ్రీ షిర్డీ సాయిబాబా ఆలయంలో పాలు, నీరు, తేనె, పెరుగు మరియు గంధం వంటి పవిత్ర ద్రవ్యాలతో శివలింగానికి అభిషేకం చేస్తూ శక్తివంతమైన వేద మంత్రాలను ఉచ్చరిస్తూ నిర్వహించే ప్రత్యేక పవిత్ర ఆచారం. శ్రీ సాయిబాబా ఎల్లప్పుడూ శివుని పట్ల భక్తిని మరియు అన్ని మతాల ఐక్యతను నొక్కి చెప్పినందున, ఈ పూజ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, శాంతి, రక్షణ మరియు ఆధ్యాత్మిక శ్రేయస్సు కోసం దివ్య ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు అడ్డంకుల తొలగింపు, కోరికల నెరవేర్పు మరియు బాబా దివ్య అనుగ్రహం కోసం ప్రార్థిస్తూ విశ్వాసంతో పాల్గొంటారు.',
+  'Namakaranam is a sacred naming ceremony performed at Shri Shirdi Sai Baba Temple to bless a newborn child with a meaningful name in the divine presence of Shri Sai Baba. Special prayers and poojas are offered to seek Baba\'s blessings for the child\'s good health, long life, wisdom, prosperity, and a bright future. Parents and family members participate with devotion, praying for the child\'s happiness, success, and lifelong divine protection.': 'నామకరణం అనేది శ్రీ సాయిబాబా దివ్య సన్నిధిలో నవజాత శిశువుకు అర్థవంతమైన పేరుతో ఆశీర్వదించడానికి శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర నామకరణ వేడుక. శిశువు మంచి ఆరోగ్యం, దీర్ఘాయువు, జ్ఞానం, శ్రేయస్సు మరియు ఉజ్జ్వల భవిష్యత్తు కోసం బాబా ఆశీర్వాదాలను కోరుతూ ప్రత్యేక ప్రార్థనలు మరియు పూజలు సమర్పించబడతాయి. తల్లిదండ్రులు మరియు కుటుంబ సభ్యులు శిశువు సంతోషం, విజయం మరియు జీవితకాల దివ్య రక్షణ కోసం ప్రార్థిస్తూ భక్తితో పాల్గొంటారు.',
+  'Aksharabhyasam is a sacred ceremony performed at Shri Shirdi Sai Baba Temple to mark a child\'s first step into the world of education. In the divine presence of Shri Sai Baba, the child is guided to write the first letters while special prayers and poojas are offered for wisdom, knowledge, good character, and academic success. Parents and family members participate with devotion, seeking Baba\'s blessings for the child\'s bright future, confidence, and lifelong learning.': 'అక్షరాభ్యాసం అనేది శిశువు విద్యా ప్రపంచంలోకి తొలి అడుగు వేయడాన్ని సూచించడానికి శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వేడుక. శ్రీ సాయిబాబా దివ్య సన్నిధిలో శిశువుకు తొలి అక్షరాలు రాయడంలో మార్గనిర్దేశనం చేయబడుతుంది, జ్ఞానం, విద్య, మంచి నడవడిక మరియు విద్యా విజయం కోసం ప్రత్యేక ప్రార్థనలు, పూజలు సమర్పించబడతాయి. తల్లిదండ్రులు మరియు కుటుంబ సభ్యులు శిశువు ఉజ్జ్వల భవిష్యత్తు, ఆత్మవిశ్వాసం మరియు జీవితకాల అభ్యాసం కోసం బాబా ఆశీర్వాదాలను కోరుతూ భక్తితో పాల్గొంటారు.',
+  'Annaprasana is a sacred ceremony performed at Shri Shirdi Sai Baba Temple to celebrate a baby\'s first intake of solid food. In the divine presence of Shri Sai Baba, special poojas and prayers are offered to seek blessings for the child\'s good health, long life, happiness, wisdom, and prosperous future. Parents and family members participate with devotion, praying for the child\'s healthy growth, well-being, and lifelong protection under Baba\'s divine grace.': 'అన్నప్రాశన అనేది శిశువు తొలిసారి ఘనాహారం తీసుకోవడాన్ని జరుపుకోవడానికి శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వేడుక. శ్రీ సాయిబాబా దివ్య సన్నిధిలో శిశువు మంచి ఆరోగ్యం, దీర్ఘాయువు, సంతోషం, జ్ఞానం మరియు శ్రేయోవంతమైన భవిష్యత్తు కోసం ఆశీర్వాదాలను కోరుతూ ప్రత్యేక పూజలు, ప్రార్థనలు సమర్పించబడతాయి. తల్లిదండ్రులు మరియు కుటుంబ సభ్యులు శిశువు ఆరోగ్యకరమైన ఎదుగుదల, శ్రేయస్సు మరియు బాబా దివ్య అనుగ్రహంలో జీవితకాల రక్షణ కోసం ప్రార్థిస్తూ భక్తితో పాల్గొంటారు.',
+  'Vastra Seva is a sacred offering performed at Shri Shirdi Sai Baba Temple, where devotees offer new clothes to Shri Sai Baba as a symbol of devotion, gratitude, and surrender. This seva is performed to seek Baba\'s divine blessings for good health, prosperity, family harmony, success, and spiritual well-being. Devotees participate with faith, praying for the fulfillment of their wishes and expressing their love and reverence through this humble offering.': 'వస్త్ర సేవ అనేది భక్తులు భక్తి, కృతజ్ఞత మరియు శరణాగతికి చిహ్నంగా శ్రీ సాయిబాబాకు కొత్త వస్త్రాలను సమర్పించే పవిత్ర సేవ. ఈ సేవ మంచి ఆరోగ్యం, శ్రేయస్సు, కుటుంబ సామరస్యం, విజయం మరియు ఆధ్యాత్మిక శ్రేయస్సు కోసం బాబా దివ్య ఆశీర్వాదాలను కోరుతూ నిర్వహించబడుతుంది. భక్తులు తమ కోరికల నెరవేర్పు కోసం ప్రార్థిస్తూ, ఈ వినయపూర్వక సమర్పణ ద్వారా తమ ప్రేమ, భక్తిని వ్యక్తం చేస్తూ విశ్వాసంతో పాల్గొంటారు.',
+  'Bike / Scooter Pooja is a sacred vehicle blessing ceremony performed at Shri Shirdi Sai Baba Temple for newly purchased or existing two-wheelers. Special prayers and poojas are offered to seek Shri Sai Baba\'s divine blessings for safe journeys, protection from accidents, success, prosperity, and peace of mind. Devotees perform this pooja with faith, praying for the safety of themselves and their families, and for Baba\'s guidance in every journey.': 'బైక్ / స్కూటర్ పూజ అనేది కొత్తగా కొన్న లేదా ఉన్న ద్విచక్ర వాహనాల కోసం శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వాహన ఆశీర్వాద వేడుక. సురక్షిత ప్రయాణాలు, ప్రమాదాల నుండి రక్షణ, విజయం, శ్రేయస్సు మరియు మనశ్శాంతి కోసం శ్రీ సాయిబాబా దివ్య ఆశీర్వాదాలను కోరుతూ ప్రత్యేక ప్రార్థనలు, పూజలు సమర్పించబడతాయి. భక్తులు తమ మరియు తమ కుటుంబాల భద్రత కోసం, ప్రతి ప్రయాణంలో బాబా మార్గదర్శకత్వం కోసం ప్రార్థిస్తూ విశ్వాసంతో ఈ పూజను నిర్వహిస్తారు.',
+  'Auto Pooja is a sacred vehicle blessing ceremony performed at Shri Shirdi Sai Baba Temple for newly purchased or regularly used auto-rickshaws. Special prayers and poojas are offered to seek Shri Sai Baba\'s divine blessings for safe journeys, protection from accidents, prosperity, success in livelihood, and peace of mind. Devotees perform this pooja with faith, praying for a successful career, steady income, the well-being of their families, and Baba\'s guidance on every journey.': 'ఆటో పూజ అనేది కొత్తగా కొన్న లేదా క్రమం తప్పకుండా ఉపయోగించే ఆటో-రిక్షాల కోసం శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వాహన ఆశీర్వాద వేడుక. సురక్షిత ప్రయాణాలు, ప్రమాదాల నుండి రక్షణ, శ్రేయస్సు, జీవనోపాధిలో విజయం మరియు మనశ్శాంతి కోసం శ్రీ సాయిబాబా దివ్య ఆశీర్వాదాలను కోరుతూ ప్రత్యేక ప్రార్థనలు, పూజలు సమర్పించబడతాయి. భక్తులు విజయవంతమైన ఉపాధి, స్థిరమైన ఆదాయం, తమ కుటుంబాల శ్రేయస్సు మరియు ప్రతి ప్రయాణంలో బాబా మార్గదర్శకత్వం కోసం ప్రార్థిస్తూ విశ్వాసంతో ఈ పూజను నిర్వహిస్తారు.',
+  'Car Pooja is a sacred vehicle blessing ceremony performed at Shri Shirdi Sai Baba Temple for newly purchased or existing cars. Special prayers and poojas are offered to seek Shri Sai Baba\'s divine blessings for safe journeys, protection from accidents, prosperity, success, and peace of mind. Devotees perform this pooja with faith, praying for the safety of their family, smooth travels, and Baba\'s divine guidance and protection on every journey.': 'కార్ పూజ అనేది కొత్తగా కొన్న లేదా ఉన్న కార్ల కోసం శ్రీ షిర్డీ సాయిబాబా ఆలయంలో నిర్వహించే పవిత్ర వాహన ఆశీర్వాద వేడుక. సురక్షిత ప్రయాణాలు, ప్రమాదాల నుండి రక్షణ, శ్రేయస్సు, విజయం మరియు మనశ్శాంతి కోసం శ్రీ సాయిబాబా దివ్య ఆశీర్వాదాలను కోరుతూ ప్రత్యేక ప్రార్థనలు, పూజలు సమర్పించబడతాయి. భక్తులు తమ కుటుంబ భద్రత, సాఫీ ప్రయాణాలు మరియు ప్రతి ప్రయాణంలో బాబా దివ్య మార్గదర్శకత్వం, రక్షణ కోసం ప్రార్థిస్తూ విశ్వాసంతో ఈ పూజను నిర్వహిస్తారు.',
   'Temple Name': 'ఆలయం పేరు',
   'Location': 'ప్రాంతం',
   'Phone': 'ఫోన్',
@@ -3127,7 +3139,7 @@ const UI_TE = {
   'In Memory': 'స్మృతిలో',
   'Offer food in remembrance of departed loved ones.': 'దివంగత ప్రియమైనవారి స్మృతిలో అన్నదానం చేయండి.',
   'Festival Days': 'పండుగ రోజులు',
-  'Sri Rama Navami, Guru Purnima, Thursdays & more.': 'శ్రీ రామ నవమి, గురు పూర్ణిమ, గురువారాలు & మరిన్ని.',
+  'Shri Rama Navami, Guru Purnima, Thursdays & more.': 'శ్రీ రామ నవమి, గురు పూర్ణిమ, గురువారాలు & మరిన్ని.',
   'Visit the Counter': 'కౌంటర్‌ను సందర్శించండి',
   'Come to the temple counter or call the office.': 'ఆలయ కౌంటర్‌కు రండి లేదా కార్యాలయానికి కాల్ చేయండి.',
   'Choose Date & Plates': 'తేదీ & ప్లేట్లు ఎంచుకోండి',
@@ -3229,7 +3241,7 @@ const UI_TE = {
   'Bangladesh': 'బంగ్లాదేశ్',
   'Pakistan': 'పాకిస్తాన్',
   'Afghanistan': 'ఆఫ్ఘనిస్తాన్',
-  'Sri Lanka': 'శ్రీలంక',
+  'Shri Lanka': 'శ్రీలంక',
   'Nepal': 'నేపాల్',
   'Bhutan': 'భూటాన్',
   'Maldives': 'మాల్దీవులు',
@@ -4078,7 +4090,7 @@ export function stamp(text) {
 }
 
 // Audit details are free text the API composes from vocabulary, ids, amounts and
-// staff names ("Ashtotharam / Archana ₹20.00 (Confirmed)", "Assigned Sri Krishna
+// staff names ("Ashtotharam / Archana ₹20.00 (Confirmed)", "Assigned Shri Krishna
 // Murthy → BK2607…"). No single entry can hold them, so translate the vocabulary
 // runs and the names, and leave ids, amounts and machine constants alone.
 let DETAIL_RE = null
@@ -4098,8 +4110,22 @@ export function auditDetail(text) {
   if (reg.lang !== 'te' || !s) return s
   const whole = reg.t(s)
   if (whole !== s) return whole
-  const named = s.replace(/\b(?:Sri|Smt|Kum)\.?(?:\s+[A-Z][A-Za-z]+)+/g, (n) => toTelugu(n) || n)
+  const named = s.replace(/\b(?:Shri|Smt|Kum)\.?(?:\s+[A-Z][A-Za-z]+)+/g, (n) => toTelugu(n) || n)
   return named.replace(detailRe(), (m) => UI_TE[m] || m)
+}
+
+// A free-text address ("40-132, Vijayawada"). The whole string is never a
+// dictionary entry, so translate each comma-separated part the dictionary knows
+// (place names) and keep the rest — door numbers, street names — as written.
+export function teAddress(text) {
+  const s = String(text ?? '')
+  if (reg.lang !== 'te' || !s) return s
+  return s.split(/(\s*,\s*)/).map((part) => {
+    const p = part.trim()
+    if (!p || p === ',') return part
+    const title = p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()
+    return UI_TE[p] || glossaryTe(p) || UI_TE[title] || glossaryTe(title) || part
+  }).join('')
 }
 
 // Display text of unknown shape: a known term, a date-time the API pre-formatted,

@@ -249,25 +249,25 @@ export default function PoojariSchedule() {
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        {/* Filters — one self-packing row */}
-        <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-[12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
+        {/* Filters — one row from 1280px (fields size to their text, search takes the rest), wraps below */}
+        <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap xl:flex-nowrap items-end gap-3 xl:gap-2">
+          <div className="flex-1 min-w-[12rem] xl:min-w-0 xl:flex-[1_1_8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} placeholder={tr('Poojari, pooja or ID')} className="input !pl-9" /></div></div>
-          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Type</T></label>
-            <Select value={type} onChange={(e) => { setType(e.target.value); setStatus('') }} className="input"><option value="">{tr('All Types')}</option><option value={RECURRING}>{tr('Recurring')}</option><option value={ONE_TIME}>{tr('One-Time')}</option></Select></div>
-          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
-            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" /></div>
-          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
-            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" /></div>
-          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
-            <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input"><option value="">{tr('All Poojas')}</option>{uniquePoojaNames.map((n) => <option key={n} value={n}>{tr(n)}</option>)}</Select></div>
-          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
-            <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input"><option value="">{tr('All Poojaris')}</option>{poojaris.map((p) => <option key={p.id} value={p.name}>{personName(p, lang)}</option>)}</Select></div>
-          <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr('All Status')}</option>
+          <div className="w-[8rem] xl:w-auto xl:flex-[0_1_auto] xl:max-w-[10rem] xl:min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Type</T></label>
+            <Select value={type} onChange={(e) => { setType(e.target.value); setStatus('') }} className="input xl:!px-2.5 xl:!text-[0.8125rem]"><option value="">{tr('All Types')}</option><option value={RECURRING}>{tr('Recurring')}</option><option value={ONE_TIME}>{tr('One-Time')}</option></Select></div>
+          <div className="w-[8rem] xl:w-auto xl:flex-[0_1_auto] xl:max-w-[10rem] xl:min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input xl:!px-2.5 xl:!text-[0.8125rem]" /></div>
+          <div className="w-[8rem] xl:w-auto xl:flex-[0_1_auto] xl:max-w-[10rem] xl:min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input xl:!px-2.5 xl:!text-[0.8125rem]" /></div>
+          <div className="w-[8rem] xl:w-auto xl:flex-[0_1_auto] xl:max-w-[10rem] xl:min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
+            <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input xl:!px-2.5 xl:!text-[0.8125rem]"><option value="">{tr('All Poojas')}</option>{uniquePoojaNames.map((n) => <option key={n} value={n}>{tr(n)}</option>)}</Select></div>
+          <div className="w-[8rem] xl:w-auto xl:flex-[0_1_auto] xl:max-w-[10rem] xl:min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Poojari</T></label>
+            <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input xl:!px-2.5 xl:!text-[0.8125rem]"><option value="">{tr('All Poojaris')}</option>{poojaris.map((p) => <option key={p.id} value={p.name}>{personName(p, lang)}</option>)}</Select></div>
+          <div className="w-[8rem] xl:w-auto xl:flex-[0_1_auto] xl:max-w-[10rem] xl:min-w-0"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input xl:!px-2.5 xl:!text-[0.8125rem]"><option value="">{tr('All Status')}</option>
               {(type ? STATUSES[type] : [...STATUSES[RECURRING], ...STATUSES[ONE_TIME]]).map((st) => <option key={st} value={st}>{tr(st)}</option>)}</Select></div>
-          <button onClick={search} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
-          <button onClick={clear} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+          <button onClick={search} title={tr('Apply')} className="btn-maroon !py-2.5 xl:!px-3.5 shrink-0"><Search size={14} />{' '}<span className="xl:max-[1439px]:sr-only"><T>Apply</T></span></button>
+          <button onClick={clear} title={tr('Clear')} className="btn-outline !py-2.5 xl:!px-3.5 shrink-0"><RotateCcw size={14} />{' '}<span className="xl:max-[1439px]:sr-only"><T>Clear</T></span></button>
         </div>
 
         <SortPanel sorts={sorts} columns={SORT_COLUMNS} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />

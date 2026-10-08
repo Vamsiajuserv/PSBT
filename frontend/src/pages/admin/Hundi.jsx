@@ -564,10 +564,10 @@ export default function Hundi() {
                     {view.items.map((it, i) => (
                       <div key={it.id ?? i} className="flex items-start justify-between gap-3 px-3 py-2.5">
                         <div className="min-w-0">
-                          <div className="text-[0.8125rem] font-medium text-gray-800 truncate">{it.item_name}</div>
+                          <div className="text-[0.8125rem] font-medium text-gray-800 truncate">{tr(it.item_name)}</div>
                           <div className="text-[0.6875rem] text-gray-400">
-                            {it.item_type || '—'}
-                            {it.quantity != null && ` · ${num(it.quantity)}${it.unit ? ` ${it.unit}` : ''}`}
+                            {it.item_type ? tr(it.item_type) : '—'}
+                            {it.quantity != null && ` · ${num(it.quantity)}${it.unit ? ` ${tr(it.unit)}` : ''}`}
                           </div>
                         </div>
                         <div className="text-[0.8125rem] font-semibold text-gray-800 tabular-nums shrink-0">{canSeeAmounts ? inr(it.value) : '—'}</div>
@@ -601,7 +601,7 @@ export default function Hundi() {
                   <VField label={tr("Valuables Amount")} value={canSeeAmounts ? inr(view.valuables_amount) : '—'} />
                   <VField label={tr("Status")} value={view.valuables_status ? <Pill tone={VAL_TONE[view.valuables_status]}>{tr(view.valuables_status)}</Pill> : '—'} />
                   <VField label={tr("Custody Date")} value={view.valuables_stored_on ? fmtDate(view.valuables_stored_on) : '—'} />
-                  <VField label={tr("Store Location")} value={view.store_location || '—'} />
+                  <VField label={tr("Store Location")} value={view.store_location ? tr(view.store_location) : '—'} />
                   <VField label={tr("Custodian")} value={view.valuables_custodian ? personName({ name: view.valuables_custodian }, lang) : '—'} wide />
                 </DSection>
               )}

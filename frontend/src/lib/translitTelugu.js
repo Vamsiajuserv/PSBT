@@ -20,7 +20,7 @@
 // రెడ్డ్య and `Sastry` never as సాస్ట్ర్య.
 const NAME_TOKENS = {
   // honorifics / initials
-  sri: 'శ్రీ', smt: 'శ్రీమతి', kum: 'కుమారి', dr: 'డా',
+  Shri: 'శ్రీ', smt: 'శ్రీమతి', kum: 'కుమారి', dr: 'డా',
   // given names
   anil: 'అనిల్', anitha: 'అనిత', anjaneya: 'ఆంజనేయ', anjaneyulu: 'ఆంజనేయులు',
   bhavani: 'భవాని', chaitanya: 'చైతన్య', chandra: 'చంద్ర', divya: 'దివ్య',

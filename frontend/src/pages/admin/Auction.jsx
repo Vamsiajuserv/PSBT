@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import {
-  Plus, X, Eye, MoreVertical, Search, RotateCcw, Info, Trash2,
+  Plus, X, Eye, Search, RotateCcw, Info, Trash2,
   Gavel, CalendarClock, Users, CheckCircle2, User, ShieldCheck,
   XCircle, Banknote, Receipt, Printer, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
@@ -55,22 +55,8 @@ export default function Auction() {
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [view, setView] = useState(null)
-  const [menu, setMenu] = useState(null)
   const [receipt, setReceipt] = useState(null) // for printing receipt
   const [paymentModal, setPaymentModal] = useState(null) // for payment collection
-  const menuRef = useRef(null)
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!menu) return
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenu(null)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [menu])
 
   // filters - persisted in URL for state preservation across navigation
   const {
@@ -193,7 +179,6 @@ export default function Auction() {
   }, [q, status, verification, payment, start, end, page, sorts, filters])
   // Load on initial mount, page changes, or reload trigger
   useEffect(() => { load() }, [page, reloadTrigger, listTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setMenu(null) }, [q, status, verification, payment, start, end])
 
   async function save(e) {
     e.preventDefault()
@@ -250,7 +235,7 @@ export default function Auction() {
       toast(ex?.detail || tr('Could not record the auction result.'), 'error')
     }
   }
-  async function remove(a) { setMenu(null); if (await confirmDialog({ title: `${tr('Delete auction')} "${tr(a.item)}"?`, message: tr('It will be marked Void and excluded from totals.'), tone: 'danger', confirmLabel: tr('Delete') })) { await AuctionAPI.remove(a.id); toast(tr('Auction voided.')); load() } }
+  async function remove(a) { if (await confirmDialog({ title: `${tr('Delete auction')} "${tr(a.item)}"?`, message: tr('It will be marked Void and excluded from totals.'), tone: 'danger', confirmLabel: tr('Delete') })) { await AuctionAPI.remove(a.id); toast(tr('Auction voided.')); load() } }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
 
   // Committee verify auction
@@ -516,13 +501,7 @@ export default function Auction() {
                       {a.payment_status === 'Paid' && (
                         <button onClick={() => setReceipt(a)} title={tr("Print receipt")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-blue-200 text-blue-700 text-[0.78125rem] font-semibold hover:bg-blue-50"><Receipt size={14} /><T>Receipt</T></button>
                       )}
-                      <button onClick={() => setMenu(menu === a.id ? null : a.id)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><MoreVertical size={15} /></button>
-                      {menu === a.id && (
-                        <div ref={menuRef} className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-lg shadow-lg py-1 w-36 text-sm">
-                          <button onClick={() => { setView(a); setMenu(null) }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-600"><Eye size={14} />{' '}<T>View</T></button>
-                          {isAdmin && <button onClick={() => remove(a)} className="w-full text-left px-3 py-2 hover:bg-red-50 flex items-center gap-2 text-red-600"><Trash2 size={14} />{' '}<T>Delete</T></button>}
-                        </div>
-                      )}
+                      {isAdmin && <button onClick={() => remove(a)} title={tr('Delete')} aria-label={tr('Delete')} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-red-500 hover:text-red-700 hover:border-red-300"><Trash2 size={15} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -726,9 +705,9 @@ export default function Auction() {
               {/* Temple header */}
               <div className="text-center border-b border-dashed border-gray-300 pb-4 mb-4">
                 <div className="flex items-center justify-center gap-3 mb-2">
-                  <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba" className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                  <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                   <div>
-                    <div className="font-serif text-lg font-bold text-maroon-800">{tr('Sri Shirdi Sai Baba Temple')}</div>
+                    <div className="font-serif text-lg font-bold text-maroon-800">{tr('Shri Shirdi Sai Baba Temple')}</div>
                     <div className="text-sm text-gray-600">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
                   </div>
                 </div>

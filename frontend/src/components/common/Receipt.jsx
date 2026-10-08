@@ -59,9 +59,9 @@ export function Receipt({
     <div className={`receipt-a4 ${font}`}>
       {/* ═══════════════ TEMPLE HEADER ═══════════════ */}
       <header className="receipt-header">
-        <img src="/images/temple-logo.png" alt="Sai Baba Temple" className="temple-logo-img" />
+        <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="temple-logo-img" />
         <h1 className="temple-name">
-          {te ? (temple?.nameTelugu || t(temple?.name) || t('Sri Shirdi Sai Baba Temple')) : (temple?.name || 'Sri Shirdi Sai Baba Temple')}
+          {te ? (temple?.nameTelugu || t(temple?.name) || t('Shri Shirdi Sai Baba Temple')) : (temple?.name || 'Shri Shirdi Sai Baba Temple')}
         </h1>
         <p className="temple-address">
           {te ? (temple?.addressTe || t(temple?.address || '')) : (temple?.address || '')}
@@ -131,7 +131,7 @@ export function Receipt({
       {/* ═══════════════ FOOTER ═══════════════ */}
       <footer className="receipt-footer">
         <div className="blessing">
-          {te ? '|| ఓం శ్రీ సాయి రామ్ ||' : '|| Om Sri Sai Ram ||'}
+          {te ? '|| ఓం శ్రీ సాయి రామ్ ||' : '|| Om Shri Sai Ram ||'}
         </div>
         {footerNote && <p className="footer-note">{L(footerNote)}</p>}
         {temple?.receiptFooter && <p className="temple-message">{t(temple.receiptFooter)}</p>}

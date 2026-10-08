@@ -90,7 +90,7 @@ export default function Contact() {
 
           <div className="card overflow-hidden">
             <iframe
-              title={tr("Sri Shirdi Sai Baba Temple location map")}
+              title={tr("Shri Shirdi Sai Baba Temple location map")}
               src="https://www.google.com/maps?q=Shirdi+Sai+Baba+Temple+Dwarakapuri+Colony+Punjagutta+Hyderabad&z=16&output=embed"
               className="w-full aspect-[16/9] border-0"
               loading="lazy"

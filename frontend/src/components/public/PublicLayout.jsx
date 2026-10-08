@@ -76,10 +76,10 @@ function Logo({ light = false }) {
     <Link to="/" className="flex items-center gap-3">
       {/* Official temple seal — the badge carries its own ring, so it sits
           directly on both the ivory header and the maroon footer. */}
-      <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-16 h-16 shrink-0 drop-shadow-sm" />
+      <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-16 h-16 shrink-0 drop-shadow-sm" />
       <div className="leading-tight">
         <div className={`font-display font-bold text-[0.9375rem] sm:text-lg tracking-wide uppercase ${light ? 'text-gold-200' : 'text-maroon-700'}`}>
-          {tr(temple?.name || 'Sri Shirdi Sai Baba Temple')}
+          {tr(temple?.name || 'Shri Shirdi Sai Baba Temple')}
         </div>
         <div className={`text-[0.625rem] sm:text-[0.6875rem] ${light ? 'text-cream/70' : 'text-black'}`}>
           {address}
@@ -104,7 +104,7 @@ export default function PublicLayout() {
     return (
       <div className="temple-loader min-h-screen grid place-items-center px-6 text-center">
         <div className="animate-fade-in">
-          <div className="font-script text-3xl text-gold-300 mb-3">|| {t('Om Sri Sai Ram')} ||</div>
+          <div className="font-script text-3xl text-gold-300 mb-3">|| {t('Om Shri Sai Ram')} ||</div>
           <p className="text-cream/80 text-sm max-w-sm mx-auto">{error || t('Could not load temple information. Please try again.')}</p>
           <button onClick={() => window.location.reload()} className="btn-primary mt-5 !py-2 text-xs">{t('Retry')}</button>
         </div>
@@ -221,7 +221,7 @@ export default function PublicLayout() {
           <div>
             <div className="font-display font-bold text-lg tracking-wide text-gold-200 uppercase">{t(TEMPLE.name)}</div>
             <p className="text-xs leading-relaxed text-cream/60 mt-3">
-              {t(TEMPLE.tagline || 'A sacred place dedicated to Sri Shirdi Sai Baba, spreading love, faith and seva.')}
+              {t(TEMPLE.tagline || 'A sacred place dedicated to Shri Shirdi Sai Baba, spreading love, faith and seva.')}
             </p>
             <div className="flex gap-2 mt-4">
               {[[Facebook, 'facebook'], [Instagram, 'instagram'], [Youtube, 'youtube']]

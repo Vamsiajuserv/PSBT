@@ -70,8 +70,8 @@ export default function StaffLogin() {
           {images?.about && <img src={images.about} alt="Temple" className="absolute inset-0 w-full h-full object-cover opacity-30" />}
           <div className="absolute inset-0 bg-gradient-to-t from-maroon-900 via-maroon-900/70 to-maroon-900/40" />
           <div className="relative text-cream">
-            <img src="/images/temple-logo.png" alt="Sri Shirdi Sai Baba Temple" className="w-24 h-24 mx-auto drop-shadow-lg" />
-            <h1 className="font-serif text-3xl font-bold text-gold-200 mt-5 tracking-wide">{tr(temple?.name || 'Sri Shirdi Sai Baba Temple')}</h1>
+            <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-24 h-24 mx-auto drop-shadow-lg" />
+            <h1 className="font-serif text-3xl font-bold text-gold-200 mt-5 tracking-wide">{tr(temple?.name || 'Shri Shirdi Sai Baba Temple')}</h1>
             <p className="text-cream/70 text-sm mt-2">{tr(temple?.place || temple?.address || '')}</p>
             <Flourish className="mt-4" width="w-14" />
             <h2 className="font-serif text-xl font-bold text-gold-300 mt-4"><T>Temple Staff Portal</T></h2>

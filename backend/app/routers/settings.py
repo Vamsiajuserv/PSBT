@@ -20,13 +20,13 @@ SENSITIVE_KEYS = {"account_number", "ifsc", "account_name", "bank_name", "gst_nu
 # Default temple configuration (seeded on first read).
 DEFAULTS = {
     # Basic Information
-    "temple_name": "Sri Shirdi Sai Baba Temple",
+    "temple_name": "Shri Shirdi Sai Baba Temple",
     "short_name": "SSST",
     "established_year": "1987",
     "registration_number": "TEMP/SSST/2005/01",
-    "trust_name": "Sri Shirdi Sai Premsamaj",
+    "trust_name": "Shri Shirdi Sai Premsamaj",
     "gst_number": "36AAAAA0000A1Z5",
-    "about": "Sri Shirdi Sai Baba Temple is dedicated to the worship of Shirdi Sai Baba and provides various services to devotees.",
+    "about": "Shri Shirdi Sai Baba Temple is dedicated to the worship of Shirdi Sai Baba and provides various services to devotees.",
     # Address Details
     "address_line": "Dwarkapuri Colony, Punjagutta",
     "city": "Hyderabad",

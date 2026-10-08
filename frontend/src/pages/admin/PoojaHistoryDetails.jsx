@@ -11,7 +11,7 @@ import { PoojaHistoryAPI } from '../../api/client.js'
 import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const shortPooja = (name) => (name || '').replace(/^Sri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
+const shortPooja = (name) => (name || '').replace(/^Shri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 const weekday = (d) => (d ? stamp(new Date(d).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', weekday: 'long' })) : '')
 const modeLabel = (m) => tr(m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'UPI / QR Code' : (m || 'Cash'))

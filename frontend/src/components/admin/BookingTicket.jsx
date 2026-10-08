@@ -43,9 +43,9 @@ export function TicketShell({ code, children, after }) {
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
-            <img src="/images/temple-logo.png" alt="Sai Baba Temple" className="w-12 h-12 object-contain shrink-0" />
+            <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-12 h-12 object-contain shrink-0" />
             <div>
-              <div className="font-display font-bold text-maroon-800 text-[1rem] leading-tight tracking-wide">{tr("SRI SHIRDI SAI BABA TEMPLE")}</div>
+              <div className="font-display font-bold text-maroon-800 text-[1rem] leading-tight tracking-wide">{tr("SHRI SHIRDI SAI BABA TEMPLE")}</div>
               <div className="text-[0.625rem] text-gray-700">{tr("Endowments Department, Government of Telangana")}</div>
             </div>
           </div>
