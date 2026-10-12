@@ -40,7 +40,7 @@ export default function VendorMaster() {
 
   const options = useMemo(() => [
     ...materials.filter((m) => m.active).sort((a, b) => a.id - b.id).map((m) => ({ value: m.name, label: label(m.name) })),
-    ...legacy.map((n) => ({ value: n, label: `${n} (${tr('not in master')})` })),
+    ...legacy.map((n) => ({ value: n, label: `${tr(n)} (${tr('not in master')})` })),
   ], [materials, legacy, lang]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return <MasterScreen key={materials.length} config={{
@@ -58,7 +58,7 @@ export default function VendorMaster() {
     ],
     columns: [
       { key: 'code', label: tr('Vendor ID'), mono: true },
-      { key: 'name', label: tr('Name'), strong: true },
+      { key: 'name', label: tr('Name'), strong: true, person: true },
       { key: 'phone', label: tr('Phone') },
       // A comma-separated list — translate each material, not the whole string.
       { key: 'material_types', label: tr('Material Types'),

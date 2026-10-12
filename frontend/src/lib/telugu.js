@@ -60,7 +60,7 @@ export const TE = {
 
   // ── Payment methods ──
   Cash: 'నగదు',
-  UPI: 'యూపీఐ',
+  UPI: 'UPI',
   Card: 'కార్డు',
   Online: 'ఆన్‌లైన్',
   Cheque: 'చెక్',

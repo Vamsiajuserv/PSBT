@@ -39,6 +39,7 @@ const NAME_TOKENS = {
   venkateswarlu: 'వెంకటేశ్వర్లు', vijay: 'విజయ్', vishnu: 'విష్ణు',
   ganesh: 'గణేష్', mahesh: 'మహేష్', naveen: 'నవీన్', pavan: 'పవన్',
   santosh: 'సంతోష్', satish: 'సతీష్', vamsi: 'వంశీ', arjun: 'అర్జున్',
+  uday: 'ఉదయ్', engine: 'ఇంజిన్', sashank: 'శశాంక్', balaji: 'బాలాజీ', sri: 'శ్రీ', traders: 'ట్రేడర్స్',
   deepak: 'దీపక్', kalyan: 'కళ్యాణ్', sunil: 'సునీల్', swapna: 'స్వప్న',
   bhaskar: 'భాస్కర్', jyothi: 'జ్యోతి', sailaja: 'శైలజ', vani: 'వాణి',
   // surnames

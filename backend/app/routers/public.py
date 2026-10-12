@@ -5,7 +5,7 @@ seva catalogue, live donation funds and active auctions — from the database, s
 the public pages contain no hardcoded data.
 """
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -17,6 +17,8 @@ from ..models import (Setting, Pooja, PoojaPlan, DonationCategory, Auction, Anna
                       Festival, ContactMessage)
 from ..site_content import DEFAULT_CONTENT, TEMPLE_EXTRAS
 from ..routers.settings import DEFAULTS as SETTINGS_DEFAULTS
+from ..helpers import ist_today
+from .almanac import almanac_days, POURNAMI, FESTIVAL
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -193,12 +195,26 @@ def site(db: Session = Depends(get_db)):
         # matches these to its content cards by name and shows real dates/countdown.
         "festival_dates": [
             {"name": f.name, "start": str(f.start_date) if f.start_date else None,
-             "end": str(f.end_date) if f.end_date else None, "status": f.status}
+             "end": str(f.end_date) if f.end_date else None, "status": f.status,
+             "almanac_code": f.almanac_code}
             for f in db.query(Festival).filter(Festival.status == "Active").order_by(Festival.start_date).all()
         ],
         "donations_impact": donations_impact,
         "auctions": auctions,
     }
+
+
+# ── Pournami & festival days (almanac engine, TTD panchangam) ───────────────
+@router.get("/almanac")
+def public_almanac(db: Session = Depends(get_db)):
+    """Upcoming Pournami and festival days for the devotee site: today to a year
+    ahead, fixed range (the years are generated at startup, so an anonymous
+    request never triggers a calculation beyond them). Provisional = still to be
+    confirmed against the TTD calendar."""
+    today = ist_today()
+    rows = almanac_days(db, today, today + timedelta(days=365), (POURNAMI, FESTIVAL))
+    return {"items": [{"date": str(r.event_date), "type": r.event_type, "name": r.name, "name_te": r.name_te,
+                       "rule_code": r.rule_code, "provisional": r.status != "PUBLISHED"} for r in rows]}
 
 
 # ── Contact-us inquiries ─────────────────────────────────────────────────────

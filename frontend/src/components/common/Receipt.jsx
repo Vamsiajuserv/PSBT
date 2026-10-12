@@ -1,6 +1,6 @@
 import React from 'react'
 import { useTemple } from '../../lib/SiteContext.jsx'
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr } from '../../i18n/LanguageContext.jsx'
 
 // Number to words converter for Indian currency - supports English and Telugu
 function numberToWords(num, isTelugu = false) {
@@ -32,7 +32,28 @@ function numberToWords(num, isTelugu = false) {
     if (n < 10000000) return convert(Math.floor(n / 100000)) + lakh + (n % 100000 ? ' ' + convert(n % 100000) : '')
     return convert(Math.floor(n / 10000000)) + crore + (n % 10000000 ? ' ' + convert(n % 10000000) : '')
   }
-  return convert(Math.floor(num)) + only
+  // Telugu inflects the place words: వంద / నూట / రెండు వందలు, వెయ్యి / రెండు వేలు,
+  // and takes the joining form (వందల, వేల, లక్షల, కోట్ల) when more follows.
+  const place = (count, rest, one, many, joined) => {
+    if (count === 1) return one(rest)
+    return convertTe(count) + (rest ? joined : many)
+  }
+  const convertTe = (n) => {
+    if (n < 100) return convert(n)
+    const tail = (r) => (r ? ' ' + convertTe(r) : '')
+    if (n < 1000) { const r = n % 100; return place(Math.floor(n / 100), r, (x) => (x ? 'నూట' : 'వంద'), ' వందలు', ' వందల') + tail(r) }
+    if (n < 100000) { const r = n % 1000; return place(Math.floor(n / 1000), r, () => 'వెయ్యి', ' వేలు', ' వేల') + tail(r) }
+    if (n < 10000000) { const r = n % 100000; return place(Math.floor(n / 100000), r, () => 'ఒక లక్ష', ' లక్షలు', ' లక్షల') + tail(r) }
+    const r = n % 10000000
+    return place(Math.floor(n / 10000000), r, () => 'ఒక కోటి', ' కోట్లు', ' కోట్ల') + tail(r)
+  }
+  return (isTelugu ? convertTe : convert)(Math.floor(num)) + only
+}
+
+// The amount line every receipt prints: "Rupees Two Hundred Fifty Only" /
+// "రూపాయలు రెండు వందల యాభై మాత్రమే".
+export function amountInWords(amount, isTelugu = false) {
+  return `${isTelugu ? 'రూపాయలు' : 'Rupees'} ${numberToWords(Math.round(Number(amount) || 0), isTelugu)}`
 }
 
 // Professional A4-optimized temple receipt
@@ -59,7 +80,7 @@ export function Receipt({
     <div className={`receipt-a4 ${font}`}>
       {/* ═══════════════ TEMPLE HEADER ═══════════════ */}
       <header className="receipt-header">
-        <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="temple-logo-img" />
+        <img src="/images/temple-logo.png" alt={tr("Shri Shirdi Sai Baba Temple")} className="temple-logo-img" />
         <h1 className="temple-name">
           {te ? (temple?.nameTelugu || t(temple?.name) || t('Shri Shirdi Sai Baba Temple')) : (temple?.name || 'Shri Shirdi Sai Baba Temple')}
         </h1>

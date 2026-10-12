@@ -1,6 +1,7 @@
 import React from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { tr, teText } from '../../i18n/LanguageContext.jsx'
+import { tr, teText, useLang } from '../../i18n/LanguageContext.jsx'
+import { useTemple } from '../../lib/SiteContext.jsx'
 
 // Real scannable ticket QR (closes gap SYS-01). The QR encodes the ticket /
 // booking code itself, so any scanner (USB gun or phone camera) reads the exact
@@ -35,6 +36,8 @@ const flattenFields = (children, prefix = '') => React.Children.toArray(children
 // height is used instead of leaving a gap under the logo. `after` renders below the
 // fields (e.g. terms & conditions).
 export function TicketShell({ code, children, after }) {
+  const { lang } = useLang()
+  const temple = useTemple()
   const fields = flattenFields(children)
   const beside = fields.slice(0, FIELDS_BESIDE_QR)
   const below = fields.slice(FIELDS_BESIDE_QR)
@@ -43,9 +46,10 @@ export function TicketShell({ code, children, after }) {
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
-            <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-12 h-12 object-contain shrink-0" />
+            <img src="/images/temple-logo.png" alt={tr("Shri Shirdi Sai Baba Temple")} className="w-12 h-12 object-contain shrink-0" />
             <div>
-              <div className="font-display font-bold text-maroon-800 text-[1rem] leading-tight tracking-wide">{tr("SHRI SHIRDI SAI BABA TEMPLE")}</div>
+              {/* Same temple name as the receipts: Admin → Settings, Telugu twin in Telugu. */}
+              <div className="font-display font-bold text-maroon-800 text-[1rem] leading-tight tracking-wide">{lang === 'te' ? (temple?.nameTelugu || tr(temple?.name || 'Shri Shirdi Sai Baba Temple')) : (temple?.name || 'Shri Shirdi Sai Baba Temple').toUpperCase()}</div>
               <div className="text-[0.625rem] text-gray-700">{tr("Endowments Department, Government of Telangana")}</div>
             </div>
           </div>

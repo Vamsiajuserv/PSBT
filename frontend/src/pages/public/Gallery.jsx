@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { X, ChevronLeft, ChevronRight, Camera } from 'lucide-react'
 import { MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr } from '../../i18n/LanguageContext.jsx'
 
 export default function Gallery() {
   const { t } = useLang()
@@ -62,11 +62,11 @@ export default function Gallery() {
       {show && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
              onClick={() => setOpen(null)}>
-          <button onClick={() => setOpen(null)} aria-label="Close"
+          <button onClick={() => setOpen(null)} aria-label={tr("Close")}
                   className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white grid place-items-center">
             <X size={20} />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); step(-1) }} aria-label="Previous"
+          <button onClick={(e) => { e.stopPropagation(); step(-1) }} aria-label={tr("Previous")}
                   className="absolute left-3 sm:left-6 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 text-white grid place-items-center">
             <ChevronLeft size={22} />
           </button>
@@ -75,7 +75,7 @@ export default function Gallery() {
                  className="w-full max-h-[80vh] object-contain rounded-xl shadow-2xl" />
             <figcaption className="text-center mt-3 text-[0.75rem] text-white/60">{open + 1} / {items.length}</figcaption>
           </figure>
-          <button onClick={(e) => { e.stopPropagation(); step(1) }} aria-label="Next"
+          <button onClick={(e) => { e.stopPropagation(); step(1) }} aria-label={tr("Next")}
                   className="absolute right-3 sm:right-6 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 text-white grid place-items-center">
             <ChevronRight size={22} />
           </button>

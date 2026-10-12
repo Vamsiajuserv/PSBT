@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { SectionTitle, CountUp } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr, useTempleAddress, clock12 } from '../../i18n/LanguageContext.jsx'
 
 // ── Services & offerings (informational — no online booking) ─────────────────
 const SERVICES = [
@@ -35,7 +35,7 @@ export default function Home() {
 
   // ── Info strip below the hero ──
   const INFO = [
-    { icon: Clock, title: tr('Temple Timings'), lines: [TEMPLE.timings, tr('Everyday')] },
+    { icon: Clock, title: tr('Temple Timings'), lines: [clock12(TEMPLE.timings), tr('Everyday')] },
     // Address comes from Settings (English + Telugu) — it wraps instead of
     // truncating, since a full address is longer than the other three cards.
     { icon: MapPin, title: tr('Temple Location'), lines: [address], wrap: true },

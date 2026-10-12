@@ -10,7 +10,7 @@ import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI, BookingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
+import { T, tr, trLocal, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Shri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
@@ -42,7 +42,7 @@ export default function BookingDetails() {
   useEffect(() => { load() }, [load])
   const canOperate = ['Admin', 'Administrator', 'Counter Staff', 'Poojari'].includes(user?.role)
   async function complete() {
-    if (!(await confirmDialog({ title: `${tr('Mark')} ${d.booking_code} ${tr('as completed')}?`, message: tr('It will move to Pooja History.') }))) return
+    if (!(await confirmDialog({ title: tr(`Mark ${d.booking_code} as completed?`), message: tr('It will move to Pooja History.') }))) return
     try { await BookingsAPI.complete(id); toast(tr('Performance recorded.')); PoojaHistoryAPI.detail(id).then(setD) }
     catch (ex) { toast(ex.detail || tr('Could not complete this booking.'), 'error') }
   }
@@ -70,7 +70,7 @@ export default function BookingDetails() {
         <Meta icon={ClipboardList} label={tr("Booking ID")} value={<span className="font-mono">{d.booking_code}</span>} />
         <Meta icon={Ticket} label={tr("Ticket Number")} value={<span className="font-mono">{ticketNo}</span>} />
         <Meta icon={Calendar} label={tr("Booking Date")} value={fmtStamp(d.created_at)} />
-        <Meta icon={UserCheck} label={tr("Booked By")} value={tr(bb.name) !== bb.name ? tr(bb.name) : personName(bb, lang)} sub={`(${tr(bb.sub)})`} />
+        <Meta icon={UserCheck} label={tr("Booked By")} value={trLocal(bb.name) || personName(bb, lang)} sub={`(${tr(bb.sub)})`} />
         <Meta icon={Building2} label={tr("Booking Source")} value={d.source === 'Counter' ? tr('Counter Booking') : tr('Online Booking')} />
         <div className="ml-auto"><span className="inline-flex items-center gap-1.5 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5"><CheckCircle2 size={15} /> {tr((d.status || 'Confirmed').toUpperCase())}</span></div>
       </div>

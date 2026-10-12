@@ -63,7 +63,7 @@ export default function Annadanam() {
               style={{ textShadow: '0 3px 14px rgba(0,0,0,0.4)' }}>
             {t('Annadanam')}
           </h1>
-          <nav aria-label="Breadcrumb" className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-poppins text-[0.625rem] sm:text-[0.6875rem] md:text-xs font-medium">
+          <nav aria-label={tr("Breadcrumb")} className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-poppins text-[0.625rem] sm:text-[0.6875rem] md:text-xs font-medium">
             <Link to="/" className="text-white hover:text-[#D4AF37] transition-colors">{t('Home')}</Link>
             <span className="text-white/70">›</span>
             <span className="text-[#D4AF37]">{t('Annadanam')}</span>
@@ -73,7 +73,7 @@ export default function Annadanam() {
 
       {/* ── Hero: image + live impact ── */}
       <section className="relative bg-maroon-900 text-cream overflow-hidden">
-        <img src={IMG.banner || IMG.hero} alt="Annadanam seva" className="absolute inset-0 w-full h-full object-cover opacity-25" loading="lazy" />
+        <img src={IMG.banner || IMG.hero} alt={tr("Annadanam seva")} className="absolute inset-0 w-full h-full object-cover opacity-25" loading="lazy" />
         <div className="absolute inset-0 bg-gradient-to-b from-maroon-900/60 via-maroon-900/80 to-maroon-900" />
         <div className="relative max-w-5xl mx-auto px-4 py-14 text-center">
           <div className="font-script text-2xl text-gold-300">{t('Sacred Food Offering')}</div>

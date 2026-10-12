@@ -19,6 +19,7 @@ from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, a
 from .settings import time_slots, max_advance_days
 from .refunds import record_refund
 from .schedules import scheduled_poojari
+from .almanac import assert_pournami
 from .. import notifications as notif
 
 
@@ -165,6 +166,7 @@ def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_l
         start = date.fromisoformat(start)
     data["scheduled_date"] = start
     data["time_slot"] = _check_date_and_slot(db, start, data.get("time_slot"))
+    assert_pournami(db, plan, start)
 
     # Festival poojas must fall inside their festival window; the committee's
     # per-festival price, when configured, is authoritative.
@@ -683,6 +685,7 @@ def reschedule_booking(bid: int, body: dict, request: Request,
                 b.festival_id = match.id
     old = b.scheduled_date
     plan = db.get(PoojaPlan, b.plan_id) if b.plan_id else None
+    assert_pournami(db, plan, nd)
     b.scheduled_date = nd
     b.performances_allowed, b.valid_until = plan_terms(plan, nd)
     b.time_slot = slot

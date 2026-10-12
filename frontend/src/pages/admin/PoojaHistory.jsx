@@ -11,7 +11,7 @@ import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { PoojaHistoryAPI, PoojasAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, stamp, teText, clock12 } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
@@ -61,7 +61,7 @@ function formatValidTo(plan, fromDate, bookingTime) {
   const mins = String(validUntil.getMinutes()).padStart(2, '0')
   const ampm = hours >= 12 ? 'PM' : 'AM'
   const hr12 = hours % 12 || 12
-  return `${dateStr}, ${String(hr12).padStart(2, '0')}:${mins} ${ampm}`
+  return `${dateStr}, ${clock12(`${String(hr12).padStart(2, '0')}:${mins} ${ampm}`)}`
 }
 
 export default function PoojaHistory() {
@@ -330,7 +330,7 @@ export default function PoojaHistory() {
                   <td className="px-4 py-3 text-gray-700">{tr(b.pooja_name)}</td>
                   <td className="px-4 py-3">{b.plan_name ? <Pill tone={PLAN_TONE[b.plan_name] || 'gray'}>{tr(b.plan_name)}</Pill> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 text-gray-600">{b.poojari_name ? personName({ name: b.poojari_name }, lang) : '—'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(b.scheduled_date)}</div><div className="text-[0.6875rem] text-gray-400">{startOf(b.time_slot)}</div></td>
+                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(b.scheduled_date)}</div><div className="text-[0.6875rem] text-gray-400">{clock12(startOf(b.time_slot))}</div></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
                   <td className="px-4 py-3"><StatusPill completion={b.completion} /></td>
                   <td className="px-4 py-3">
@@ -387,8 +387,8 @@ export default function PoojaHistory() {
               <DSection icon={ClipboardList} n="4" title={tr("Poojari & Execution Details")}>
                 <Field label={tr("Poojari Name")} value={drawer.poojari_name ? personName({ name: drawer.poojari_name }, lang) : '—'} />
                 <Field label={tr("Performed On")} value={fmtDate(drawer.scheduled_date)} />
-                <Field label={tr("Start Time")} value={startOf(drawer.time_slot) || '—'} />
-                <Field label={tr("End Time")} value={endOf(drawer.time_slot) || '—'} />
+                <Field label={tr("Start Time")} value={clock12(startOf(drawer.time_slot)) || '—'} />
+                <Field label={tr("End Time")} value={clock12(endOf(drawer.time_slot)) || '—'} />
                 <Field label={tr("Execution Status")} value={<StatusPill completion={drawer.completion} />} />
               </DSection>
 
@@ -450,7 +450,7 @@ export default function PoojaHistory() {
               {/* Temple Header */}
               <div className="text-center mb-6 print-header">
                 <div className="flex items-center justify-center gap-3 mb-2">
-                  <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                  <img src="/images/temple-logo.png" alt={tr("Shri Shirdi Sai Baba Temple")} className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                   <div>
                     <h1 className="font-serif text-xl font-bold text-maroon-800">{tr('Shri Shirdi Sai Baba Temple')}</h1>
                     <p className="text-sm text-gray-600">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</p>

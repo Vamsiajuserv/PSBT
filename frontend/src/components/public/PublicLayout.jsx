@@ -3,7 +3,7 @@ import { Outlet, NavLink, Link } from 'react-router-dom'
 import {
   Menu, X, Phone, Mail, MapPin, ChevronDown, Facebook, Instagram, Youtube, ShieldCheck, Clock, Languages,
 } from 'lucide-react'
-import { useLang, T, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
+import { useLang, T, tr, useTempleAddress, clock12 } from '../../i18n/LanguageContext.jsx'
 import { useSiteContext, useTemple } from '../../lib/SiteContext.jsx'
 import { getFontScale, setFontScale } from '../../lib/fontScale.js'
 import TempleLoader from './TempleLoader.jsx'
@@ -76,7 +76,7 @@ function Logo({ light = false }) {
     <Link to="/" className="flex items-center gap-3">
       {/* Official temple seal — the badge carries its own ring, so it sits
           directly on both the ivory header and the maroon footer. */}
-      <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-16 h-16 shrink-0 drop-shadow-sm" />
+      <img src="/images/temple-logo.png" alt={tr("Shri Shirdi Sai Baba Temple")} className="w-16 h-16 shrink-0 drop-shadow-sm" />
       <div className="leading-tight">
         <div className={`font-display font-bold text-[0.9375rem] sm:text-lg tracking-wide uppercase ${light ? 'text-gold-200' : 'text-maroon-700'}`}>
           {tr(temple?.name || 'Shri Shirdi Sai Baba Temple')}
@@ -280,7 +280,7 @@ export default function PublicLayout() {
             <div className="flex gap-2 text-xs">
               <Clock size={14} className="text-gold-400 shrink-0 mt-0.5" />
               <div>
-                <div className="font-semibold text-cream">{TEMPLE.timings}</div>
+                <div className="font-semibold text-cream">{clock12(TEMPLE.timings)}</div>
                 <div className="text-cream/60">{t('Everyday')}</div>
               </div>
             </div>
@@ -292,7 +292,7 @@ export default function PublicLayout() {
 
         <div className="border-t border-white/10">
           <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-center text-[0.875rem] text-white">
-            <span className="flex items-center gap-2">{t('Developed By')} <a href="https://tesync.in" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity"><img src="/images/tesync-logo.png" alt="TESYNC" className="h-4 brightness-110 saturate-150" /></a></span>
+            <span className="flex items-center gap-2">{t('Developed By')} <a href="https://tesync.in" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity"><img src="/images/tesync-logo.png" alt={t('TESYNC')} className="h-4 brightness-110 saturate-150" /></a></span>
           </div>
         </div>
       </footer>

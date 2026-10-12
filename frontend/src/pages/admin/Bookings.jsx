@@ -182,7 +182,7 @@ export default function Bookings() {
     setAssigning(true)
     try {
       const res = await PoojarisAPI.assignBulk([...selected], Number(bulkPoojari))
-      toast(tr('${count} booking(s) assigned to ${name}.').replace('${count}', res.assigned).replace('${name}', res.poojari_name || tr('poojari')))
+      toast(tr('${count} booking(s) assigned to ${name}.').replace('${count}', res.assigned).replace('${name}', res.poojari_name ? personName({ name: res.poojari_name }, lang) : tr('poojari')))
       setSelected(new Set())
       setBulkPoojari('')
       loadList()
@@ -232,7 +232,7 @@ export default function Bookings() {
     catch (ex) { toast(ex.detail || tr('Could not reschedule this booking.'), 'error') }
   }
   async function complete(b) {
-    if (!(await confirmDialog({ title: `${tr('Mark')} ${b.booking_code} ${tr('as completed')}?`, message: tr('It will move to Pooja History.') }))) return
+    if (!(await confirmDialog({ title: tr(`Mark ${b.booking_code} as completed?`), message: tr('It will move to Pooja History.') }))) return
     try { await BookingsAPI.complete(b.id); toast(tr('Performance recorded.')); loadList() }
     catch (ex) { toast(ex.detail || tr('Could not complete this booking.'), 'error') }
   }

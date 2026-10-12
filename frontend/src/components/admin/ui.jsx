@@ -1,5 +1,5 @@
 import React from 'react'
-import { useLang, tr } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr, clock12 } from '../../i18n/LanguageContext.jsx'
 import { Search } from 'lucide-react'
 import FitText from '../common/FitText.jsx'
 
@@ -50,7 +50,7 @@ export const fmtStamp = (s) => {
   if (!d || isNaN(d.getTime())) return '—'
   const dateStr = localiseMonth(d.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }))
   const timeStr = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
-  return `${dateStr}, ${timeStr}`
+  return `${dateStr}, ${clock12(timeStr)}`
 }
 
 const PILL_TONES = {
@@ -83,7 +83,7 @@ export function PageTitle({ title, subtitle, actions }) {
 
 export function KpiRow({ children, cols = 4 }) {
   const c = { 3: 'xl:grid-cols-3', 4: 'xl:grid-cols-4', 5: 'xl:grid-cols-5', 6: 'xl:grid-cols-6' }[cols] || 'xl:grid-cols-4'
-  return <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${c} gap-3 sm:gap-4 mb-6`} role="region" aria-label="Key metrics">{children}</div>
+  return <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${c} gap-3 sm:gap-4 mb-6`} role="region" aria-label={tr("Key metrics")}>{children}</div>
 }
 
 export function KpiCard({ icon: Icon, iconBg = 'bg-blue-50', iconColor = '#2563eb', title, sub, value, footLabel, footValue, onClick }) {

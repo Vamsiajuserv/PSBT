@@ -7,14 +7,14 @@ import {
 import { toast } from '../../components/common/Dialog.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, KpiGrid, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
-import { Receipt } from '../../components/common/Receipt.jsx'
+import { Receipt, amountInWords } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI, WasteMaterialsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
-import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, trLocal, clock12, personName, useLang, getLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -33,23 +33,8 @@ const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI (QR)' : m)
 const unitShort = (u) => { const m = /\(([^)]+)\)/.exec(u || ''); return m ? m[1] : (u || '').toLowerCase() }
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-function toWords(n) {
-  n = Math.round(Number(n) || 0)
-  if (n === 0) return tr('Zero Rupees Only')
-  const a = ['', tr('One'), tr('Two'), tr('Three'), tr('Four'), tr('Five'), tr('Six'), tr('Seven'), tr('Eight'), tr('Nine'), tr('Ten'), tr('Eleven'), tr('Twelve'), tr('Thirteen'), tr('Fourteen'), tr('Fifteen'), tr('Sixteen'), tr('Seventeen'), tr('Eighteen'), tr('Nineteen')]
-  const b = ['', '', tr('Twenty'), tr('Thirty'), tr('Forty'), tr('Fifty'), tr('Sixty'), tr('Seventy'), tr('Eighty'), tr('Ninety')]
-  const two = (x) => (x < 20 ? a[x] : b[Math.floor(x / 10)] + (x % 10 ? ' ' + a[x % 10] : ''))
-  const three = (x) => (x >= 100 ? a[Math.floor(x / 100)] + ' ' + tr('Hundred') + (x % 100 ? ' ' + two(x % 100) : '') : two(x))
-  let out = ''
-  const crore = Math.floor(n / 10000000); n %= 10000000
-  const lakh = Math.floor(n / 100000); n %= 100000
-  const thou = Math.floor(n / 1000); n %= 1000
-  if (crore) out += three(crore) + ' ' + tr('Crore') + ' '
-  if (lakh) out += two(lakh) + ' ' + tr('Lakh') + ' '
-  if (thou) out += two(thou) + ' ' + tr('Thousand') + ' '
-  if (n) out += three(n) + ' '
-  return out.trim() + ' ' + tr('Rupees Only')
-}
+// Amount in words, in the screen's language (shared with the receipt's amount box).
+const toWords = (n) => amountInWords(n, getLang() === 'te')
 
 const emptyForm = (mat) => ({ vendor_id: '', vendor_name: '', devotee_id: null, buyer_name: '', mobile: '', material: mat?.name || DEFAULT_MATERIALS[0], materialCustom: false, unit: mat?.unit || 'Kilogram (kg)', quantity: 1, rate: mat?.default_rate ? String(mat.default_rate) : '', mode: 'Cash', txn_ref: '', paid_at: nowLocal(), verified_by: '' })
 
@@ -274,6 +259,9 @@ export default function WasteSales() {
   const filterNames = materials.length ? [...new Set(materials.map((x) => x.name))].sort((a, b) => a.localeCompare(b)) : DEFAULT_MATERIALS
   const findMaterial = (name) => materials.find((x) => x.name.toLowerCase() === String(name || '').trim().toLowerCase())
   // Display name: the master's Telugu spelling when set, else the glossary/English.
+  // Buyers are people or vendor firms: a dictionary hit wins, else the name reads transliterated
+  // (never sent to the translation API — names are not machine-translated).
+  const buyerLabel = (name) => trLocal(name) || personName({ name }, lang)
   const matLabel = (name) => (lang === 'te' && findMaterial(name)?.name_te) || tr(name)
   const materialOptions = (selectedVendor && selectedVendor.material_types
     ? selectedVendor.material_types.split(',').map((s) => s.trim()).filter(Boolean)
@@ -420,7 +408,7 @@ export default function WasteSales() {
                 <tr key={s.id} className={`hover:bg-gray-50/60 ${s.status === 'Void' ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{s.code}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(s.paid_at || s.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(s.paid_at || s.created_at)}</div></td>
-                  <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(s.buyer_name)}</div><div className="text-[0.6875rem] text-gray-400">{s.mobile || ''}</div></td>
+                  <td className="px-4 py-3"><div className="font-semibold text-gray-800">{buyerLabel(s.buyer_name)}</div><div className="text-[0.6875rem] text-gray-400">{s.mobile || ''}</div></td>
                   <td className="px-4 py-3 text-gray-600">{matLabel(s.material)}</td>
                   <td className="px-4 py-3 text-gray-700">{money2(s.weight_kg)} {tr(unitShort(s.unit))}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? `₹${money2(s.amount)}` : '—'}</td>
@@ -466,7 +454,7 @@ export default function WasteSales() {
                   <label className="label"><T>Vendor</T></label>
                   <Select className="input" value={drawer.vendor_id} onChange={(e) => onVendor(e.target.value)}>
                     <option value="">{tr("Other / walk-in buyer / devotee")}</option>
-                    {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.phone ? ` — ${v.phone}` : ''}</option>)}
+                    {vendors.map((v) => <option key={v.id} value={v.id}>{personName(v, lang)}{v.phone ? ` — ${v.phone}` : ''}</option>)}
                   </Select>
                 </div>
                 {drawer.vendor_id ? (
@@ -569,7 +557,7 @@ export default function WasteSales() {
                   <div>
                     <div className="text-[0.75rem] text-gray-500"><T>Calculated Amount</T></div>
                     <div className="text-2xl font-extrabold text-gray-800 leading-none mt-0.5">₹ {money2(amount)}</div>
-                    <div className="text-[0.6875rem] text-gray-400 mt-1">{money2(drawer.quantity)} {unitShort(drawer.unit)} × ₹{money2(drawer.rate)} per {unitShort(drawer.unit)}</div>
+                    <div className="text-[0.6875rem] text-gray-400 mt-1">{money2(drawer.quantity)} {tr(unitShort(drawer.unit))} × ₹{money2(drawer.rate)} {tr('per')} {tr(unitShort(drawer.unit))}</div>
                   </div>
                 </div>
               </div>
@@ -626,17 +614,18 @@ export default function WasteSales() {
             <div id="print-area">
               <Receipt title={tr("Waste Material Sale Receipt")} titleTe="వ్యర్థ పదార్థ విక్రయ రసీదు" no={printDoc.code} subNo={fmtDate(printDoc.paid_at || printDoc.created_at)} subNoLabel="Date" amount={printDoc.amount}
                 rows={[
-                  { en: 'Buyer', value: printDoc.buyer_name },
+                  { en: 'Buyer', value: printDoc.buyer_name, valueTe: buyerLabel(printDoc.buyer_name) },
                   { en: 'Mobile', value: printDoc.mobile || '—' },
                   { en: 'Material', value: printDoc.material, valueTe: findMaterial(printDoc.material)?.name_te || te(printDoc.material) },
-                  { en: 'Quantity', value: `${money2(printDoc.weight_kg)} ${unitShort(printDoc.unit)}` },
-                  { en: 'Rate', value: `₹${money2(printDoc.rate)} / ${unitShort(printDoc.unit)}` },
+                  { en: 'Quantity', value: `${money2(printDoc.weight_kg)} ${unitShort(printDoc.unit)}`, valueTe: `${money2(printDoc.weight_kg)} ${tr(unitShort(printDoc.unit))}` },
+                  { en: 'Rate', value: `₹${money2(printDoc.rate)} / ${unitShort(printDoc.unit)}`, valueTe: `₹${money2(printDoc.rate)} / ${tr(unitShort(printDoc.unit))}` },
                   { en: 'Payment Mode', value: modeLabel(printDoc.mode) },
                   ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref }] : []),
                   { en: 'Verification', value: printDoc.verification_status || 'Pending' },
-                  ...(printDoc.verified_by ? [{ en: 'Verified By', value: `${printDoc.verified_by} on ${fmtDate(printDoc.verified_at)}` }] : []),
+                  ...(printDoc.verified_by ? [{ en: 'Verified By', value: `${printDoc.verified_by} on ${fmtDate(printDoc.verified_at)}`, valueTe: `${personName({ name: printDoc.verified_by }, 'te')} · ${fmtDate(printDoc.verified_at)}` }] : []),
                   ...(printDoc.rejection_reason ? [{ en: 'Rejection Reason', value: printDoc.rejection_reason }] : []),
                 ]}
+                showTerms={false}
                 footerNote={toWords(printDoc.amount)} />
             </div>
             <div className="flex gap-2 justify-center mt-4 no-print">
@@ -661,7 +650,7 @@ export default function WasteSales() {
             <div className="px-6 py-5">
               <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-[0.8125rem]">
                 <div className="flex justify-between"><span className="text-gray-500"><T>Buyer</T>:</span><span className="font-semibold text-gray-800">{verifyModal.buyer_name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{matLabel(verifyModal.material)} — {money2(verifyModal.weight_kg)} {unitShort(verifyModal.unit)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{matLabel(verifyModal.material)} — {money2(verifyModal.weight_kg)} {tr(unitShort(verifyModal.unit))}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500"><T>Amount</T>:</span><span className="font-semibold text-gray-800">₹{money2(verifyModal.amount)} ({verifyModal.mode})</span></div>
                 <div className="flex justify-between"><span className="text-gray-500"><T>Recorded by</T>:</span><span className="text-gray-700">{verifyModal.created_by || '—'}</span></div>
               </div>

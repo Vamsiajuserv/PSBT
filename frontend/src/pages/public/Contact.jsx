@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { useLang, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr, useTempleAddress, clock12 } from '../../i18n/LanguageContext.jsx'
 import { Select, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { sanitizePhone, validatePhone } from '../../lib/validation.js'
 
@@ -30,7 +30,7 @@ export default function Contact() {
     { icon: MapPin, label: tr('Address'), value: address, href: MAPS_URL },
     { icon: Phone, label: tr('Phone'), value: TEMPLE.phone, href: TEMPLE.phone ? `tel:${String(TEMPLE.phone).replace(/\s+/g, '')}` : null },
     { icon: Mail, label: tr('Email'), value: TEMPLE.email, href: TEMPLE.email ? `mailto:${TEMPLE.email}` : null },
-    { icon: Clock, label: tr('Timings'), value: `${TEMPLE.timings || ''} · ${t('Everyday')}` },
+    { icon: Clock, label: tr('Timings'), value: `${clock12(TEMPLE.timings || '')} · ${t('Everyday')}` },
   ]
 
   // ── Inquiry form state ──

@@ -28,6 +28,7 @@ const NAV = [
       { to: '/admin/pooja-history', label: tr('Pooja History') },
       { to: '/admin/calendar', label: tr('Calendar') },
       { to: '/admin/festivals', label: tr('Festival Master') },
+      { to: '/admin/almanac', label: tr('Pournami & Festivals') },
     ],
   },
   {
@@ -270,7 +271,7 @@ export default function AdminLayout() {
           {/* Logo - always centered */}
           <img
             src="/images/temple-logo.png"
-            alt="Shri Shirdi Sai Baba Temple"
+            alt={tr("Shri Shirdi Sai Baba Temple")}
             className={`drop-shadow-md rounded-full bg-white object-contain mx-auto transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'w-7 h-7 p-0.5' : 'w-20 h-20 p-1'}`}
           />
           {/* Temple name - hidden when collapsed */}
@@ -292,7 +293,7 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {open && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setOpen(false)} role="button" aria-label="Close navigation menu" tabIndex={0} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)} />}
+      {open && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setOpen(false)} role="button" aria-label={tr("Close navigation menu")} tabIndex={0} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)} />}
 
       {/* ── Main ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
@@ -308,9 +309,9 @@ export default function AdminLayout() {
           <div className="flex items-center gap-2 lg:gap-4">
             <button onClick={() => navigate('/admin/calendar')} title={tr("Open Calendar")} className="hidden md:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap hover:text-white hover:bg-white/10 rounded-lg px-2 py-1 -mx-2 transition-all duration-300 cursor-pointer"><Calendar size={15} className="text-[#E5B94F]" /> {todayLabel()}</button>
             <span className="hidden lg:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap tabular-nums"><Clock size={15} className="text-[#E5B94F]" /> {liveTime}</span>
-            <div className="inline-flex items-center rounded-full border border-[#D4AF37] overflow-hidden text-[0.6875rem] font-bold" role="group" aria-label="Language selection">
-              <button onClick={() => setLang('en')} title="English" aria-label="Switch to English" aria-pressed={lang === 'en'} className={`px-2 py-1 outline-none transition-none ${lang === 'en' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>EN</button>
-              <button onClick={() => setLang('te')} title="తెలుగు" aria-label="Switch to Telugu" aria-pressed={lang === 'te'} className={`px-2 py-1 font-telugu outline-none transition-none ${lang === 'te' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>తెలుగు</button>
+            <div className="inline-flex items-center rounded-full border border-[#D4AF37] overflow-hidden text-[0.6875rem] font-bold" role="group" aria-label={tr("Language selection")}>
+              <button onClick={() => setLang('en')} title={tr("English")} aria-label={tr("English")} aria-pressed={lang === 'en'} className={`px-2 py-1 outline-none transition-none ${lang === 'en' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>EN</button>
+              <button onClick={() => setLang('te')} title="తెలుగు" aria-label={tr("Switch to Telugu")} aria-pressed={lang === 'te'} className={`px-2 py-1 font-telugu outline-none transition-none ${lang === 'te' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>తెలుగు</button>
             </div>
             <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label={tr("Notifications")} className="text-[#E5B94F] hover:text-[#FFF1C7] focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:ring-offset-1 focus:ring-offset-[#5A071A] rounded-full p-1">
               <Bell size={18} />

@@ -110,7 +110,7 @@ export function MinimalBanner({ title, breadcrumb }) {
         </h1>
 
         {crumbs.length > 0 && (
-          <nav className="font-poppins" aria-label="Breadcrumb"
+          <nav className="font-poppins" aria-label={tr("Breadcrumb")}
                style={{ marginTop: 3, fontSize: 'clamp(9px, 0.85vw, 11px)' }}>
             {crumbs.map((c, i) => (
               <span key={c}>
@@ -535,7 +535,7 @@ export function DemoNote({ children }) {
 export function Spinner({ size = 'md', className = '' }) {
   const sizes = { sm: 'w-4 h-4', md: 'w-6 h-6', lg: 'w-8 h-8', xl: 'w-10 h-10' }
   return (
-    <div className={`animate-spin ${sizes[size] || sizes.md} ${className}`} role="status" aria-label="Loading">
+    <div className={`animate-spin ${sizes[size] || sizes.md} ${className}`} role="status" aria-label={tr("Loading")}>
       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
         <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
@@ -648,7 +648,7 @@ export function SuccessMessage({ message, onDismiss, className = '' }) {
       <span className="text-emerald-500">✓</span>
       <p className="flex-1 text-sm">{t(message)}</p>
       {onDismiss && (
-        <button onClick={onDismiss} className="text-emerald-600 hover:text-emerald-800" aria-label="Dismiss">×</button>
+        <button onClick={onDismiss} className="text-emerald-600 hover:text-emerald-800" aria-label={tr("Dismiss")}>×</button>
       )}
     </div>
   )

@@ -11,9 +11,13 @@ PyJWT==2.10.1
 pyotp==2.9.0
 python-multipart==0.0.19
 email-validator==2.2.0
-# Optional: Panchangam calculations (requires C++ build tools on Windows)
-# ephem==4.1.5
+# Almanac engine (Pournami / tithi): PyEphem ships ready-built wheels for Windows
+# and Linux on Python 3.11-3.13, so every machine computes identical dates.
+ephem==4.2.1
+# Optional, legacy lunar.py only: no wheels for Python 3.12+ (needs a C compiler).
 # pyswisseph==2.10.3.2
 pytz==2024.1
 requests==2.32.3
 beautifulsoup4==4.12.3
+# Security: Encryption for PAN at rest (PRIV-001) and backup encryption (INF-001)
+cryptography==44.0.0

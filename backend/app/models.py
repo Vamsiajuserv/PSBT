@@ -542,6 +542,9 @@ class Festival(Base):
     # Committee-decided fees for this occurrence, set once by the committee:
     # JSON {"<plan_id>": amount}. Bookings pull the price from here (authoritative).
     plan_fees = Column(Text, nullable=True)
+    # The Hindu festival this occurrence celebrates (almanac.DEFAULT_FESTIVALS code);
+    # its date then comes from the almanac and a mismatching window is flagged.
+    almanac_code = Column(String(40), nullable=True)
     status = Column(String(20), default="Active", nullable=False)  # Active | Inactive
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
@@ -703,7 +706,9 @@ class RevokedToken(Base):
     username = Column(String(60), nullable=True)  # for audit purposes
 
 
-# ── Tithi Master (Pournami / Amavasya dates for tithi-specific poojas) ────────
+# ── Tithi Master — RETIRED (see docs/adr/0006) ───────────────────────────────
+# Pournami / Amavasya days now come from the almanac engine (AlmanacEvent). The
+# table is kept, unread, so its historical rows are not lost; nothing writes to it.
 class Tithi(Base):
     __tablename__ = "tithis"
 
@@ -717,3 +722,45 @@ class Tithi(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (UniqueConstraint("tithi_date", "tithi_type", name="uq_tithi_date_type"),)
+
+
+# ── Almanac (engine-computed Pournami / festival days, reviewed then published) ─
+class AlmanacEvent(Base):
+    """One calendar day of significance (Pournami now; festivals later), produced
+    by the almanac engine as DRAFT and shown to staff/devotees only once PUBLISHED.
+    VERIFIED/PUBLISHED rows are never overwritten by a re-generate."""
+    __tablename__ = "almanac_events"
+
+    id = Column(Integer, primary_key=True)
+    event_type = Column(String(30), nullable=False)          # Pournami | Festival …
+    event_date = Column(Date, nullable=False, index=True)    # the day it is observed (may be overridden)
+    computed_date = Column(Date, nullable=True)              # the engine's answer, kept when overridden
+    name = Column(String(160), nullable=False)               # Kartika Pournami
+    name_te = Column(String(200), nullable=True)
+    lunar_month = Column(String(40), nullable=True)          # Kartika
+    lunar_month_te = Column(String(60), nullable=True)
+    adhika = Column(Boolean, default=False, nullable=False)  # falls in an Adhika (leap) month
+    tithi_start = Column(DateTime, nullable=True)            # IST
+    tithi_end = Column(DateTime, nullable=True)              # IST
+    sunrise = Column(DateTime, nullable=True)                # IST, sunrise of event_date at `location`
+    tithi_case = Column(String(10), nullable=True)           # normal | vridhi | kshaya
+    detail = Column(String(160), nullable=True)              # how the day was decided, e.g. "Tithi at sunrise"
+    margin_minutes = Column(Integer, nullable=True)          # nearest sunrise to a tithi boundary
+    needs_review = Column(Boolean, default=False, nullable=False)
+    review_notes = Column(Text, nullable=True)               # why the engine flagged it
+    rule = Column(String(20), nullable=True)                 # udaya | madhyahna | … (the kala used)
+    rule_code = Column(String(40), nullable=True)            # festival rule (almanac.DEFAULT_FESTIVALS)
+    location = Column(String(80), nullable=True)             # Tirumala (TTD)
+    source = Column(String(20), default="engine", nullable=False)   # engine | manual
+    status = Column(String(12), default="DRAFT", nullable=False)    # DRAFT | VERIFIED | PUBLISHED
+    override_reason = Column(Text, nullable=True)
+    verified_by = Column(String(60), nullable=True)
+    verified_at = Column(DateTime, nullable=True)
+    published_by = Column(String(60), nullable=True)
+    published_at = Column(DateTime, nullable=True)
+    created_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Two festivals may share a day (e.g. Vijayadashami and a Pournami), never the same one twice.
+    __table_args__ = (UniqueConstraint("event_type", "event_date", "name", name="uq_almanac_type_date_name"),)

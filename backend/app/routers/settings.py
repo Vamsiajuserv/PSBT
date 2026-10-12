@@ -8,6 +8,8 @@ from ..models import Setting
 from ..schemas import SettingsUpdateIn
 from ..security import RequireModule, require_admin, log_action, client_ip, ADMIN_ROLES, get_current_user
 from ..helpers import parse_time_slot
+from ..almanac import Location, TTD_TIRUMALA
+from ..panchangam import TEMPLE_PUNJAGUTTA
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 read = RequireModule("Reports")   # any staff with a back-office module can view
@@ -70,6 +72,16 @@ DEFAULTS = {
     # Pooja Booking Settings — one slot per line; blank max days = no limit
     "pooja_time_slots": "06:00 AM - 07:00 AM\n07:30 AM - 08:30 AM\n09:00 AM - 10:00 AM\n10:30 AM - 11:30 AM\n12:00 PM - 01:00 PM\n04:00 PM - 05:00 PM",
     "advance_booking_max_days": "",
+    # Panchangam — the reference location the almanac computes sunrise for. The
+    # temple follows the TTD panchangam, so this is Tirumala, not the temple address.
+    "panchang_location_name": "Tirumala (TTD)",
+    "panchang_latitude": "13.6833",
+    "panchang_longitude": "79.3474",
+    # The temple itself — the daily Panchangam panel's sunrise, Rahukalam and other
+    # local times. Temporarily the centre of Punjagutta until the exact pin is set.
+    "temple_location_name": "Punjagutta, Hyderabad",
+    "temple_latitude": "17.436793",
+    "temple_longitude": "78.443906",
     # Backup Settings
     # Audit
     "created_by": "Administrator",
@@ -93,6 +105,39 @@ def max_advance_days(db: Session) -> int | None:
     """How many days ahead a pooja may be booked; None means no limit."""
     raw = str(_setting_value(db, "advance_booking_max_days") or "").strip()
     return int(raw) if raw.isdigit() else None
+
+
+def panchang_location(db: Session) -> Location:
+    """The reference location the almanac engine computes sunrise for."""
+    try:
+        return Location(name=_setting_value(db, "panchang_location_name") or TTD_TIRUMALA.name,
+                        lat=float(_setting_value(db, "panchang_latitude")),
+                        lon=float(_setting_value(db, "panchang_longitude")))
+    except (TypeError, ValueError):
+        return TTD_TIRUMALA
+
+
+def temple_location(db: Session) -> Location:
+    """Where the temple is — the daily Panchangam panel's local times."""
+    try:
+        return Location(name=_setting_value(db, "temple_location_name") or TEMPLE_PUNJAGUTTA.name,
+                        lat=float(_setting_value(db, "temple_latitude")),
+                        lon=float(_setting_value(db, "temple_longitude")))
+    except (TypeError, ValueError):
+        return TEMPLE_PUNJAGUTTA
+
+
+def _validate_panchang_settings(body_dict: dict) -> None:
+    for key, lo, hi in (("panchang_latitude", -90, 90), ("panchang_longitude", -180, 180),
+                        ("temple_latitude", -90, 90), ("temple_longitude", -180, 180)):
+        if key in body_dict:
+            try:
+                v = float(str(body_dict[key]).strip())
+            except ValueError:
+                raise HTTPException(422, f"{key.replace('_', ' ').capitalize()} must be a number.")
+            if not lo <= v <= hi:
+                raise HTTPException(422, f"{key.replace('_', ' ').capitalize()} must be between {lo} and {hi}.")
+            body_dict[key] = str(v)
 
 
 def _validate_booking_settings(body_dict: dict) -> None:
@@ -156,6 +201,7 @@ def update_settings(body: SettingsUpdateIn, request: Request,
     # Convert Pydantic model to dict, excluding unset fields
     body_dict = body.model_dump(exclude_unset=True)
     _validate_booking_settings(body_dict)
+    _validate_panchang_settings(body_dict)
     body_dict["updated_by"] = getattr(user, "name", None) or user.username
     body_dict["updated_at"] = now
     for k, v in body_dict.items():

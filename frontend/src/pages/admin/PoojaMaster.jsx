@@ -319,7 +319,7 @@ export default function PoojaMaster() {
                   <div><label className="label"><T>Status</T></label>
                     <div className="flex gap-2">
                       {['Active', 'Inactive'].map((s) => { const on = drawer.data.active === (s === 'Active'); return (
-                        <button type="button" key={s} onClick={() => setDrawer({ ...drawer, data: { ...drawer.data, active: s === 'Active' } })} className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${on ? 'bg-maroon-700 text-cream border-maroon-700' : 'border-gray-200 text-gray-500'}`}>{s}</button>) })}
+                        <button type="button" key={s} onClick={() => setDrawer({ ...drawer, data: { ...drawer.data, active: s === 'Active' } })} className={`flex-1 py-2 rounded-lg text-sm font-semibold border ${on ? 'bg-maroon-700 text-cream border-maroon-700' : 'border-gray-200 text-gray-500'}`}>{tr(s)}</button>) })}
                     </div>
                   </div>
                 </div>
@@ -332,7 +332,7 @@ export default function PoojaMaster() {
                   {drawer.data.plans.map((pl, i) => (
                     <div key={i} className="border border-gray-200 rounded-xl p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="font-semibold text-gray-700 text-sm">Plan {i + 1}</span>
+                        <span className="font-semibold text-gray-700 text-sm">{tr('Plan')} {i + 1}</span>
                         {drawer.data.plans.length > 1 && <button type="button" onClick={() => setDrawer({ ...drawer, data: { ...drawer.data, plans: drawer.data.plans.filter((_, j) => j !== i) } })} className="text-gray-300 hover:text-red-600"><Trash size={15} /></button>}
                       </div>
                       <div className="grid grid-cols-2 gap-3">

@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import AuctionItem, HundiItem, CommitteeMember, Festival, Pooja, WasteMaterial, WasteSale, WasteVendor
 from ..security import RequireModule, require_admin, log_action, client_ip
+from ..helpers import ist_today
+from ..almanac import DEFAULT_FESTIVALS
+from .almanac import festival_almanac_day
 
 
 def _require_field(body: dict, field: str, max_len: int = 200) -> str:
@@ -375,14 +378,31 @@ def _pooja_names(db, ids_csv):
     return [{"id": p.id, "name": p.name} for p in rows]
 
 
+def _almanac_code(body: dict):
+    """Validated festival link from a create/update body ('' / None clears it)."""
+    code = (body.get("almanac_code") or "").strip() or None
+    if code and code not in {r.code for r in DEFAULT_FESTIVALS}:
+        raise HTTPException(400, "Unknown almanac festival")
+    return code
+
+
 def _fe(db, x: Festival):
+    # Linked festivals carry their almanac day; almanac_ok is False when the
+    # entry's dates do not contain it (e.g. dates copied from last year).
+    day = festival_almanac_day(db, x.almanac_code, x.start_date or ist_today())
+    in_window = bool(day and x.start_date and x.start_date <= day.event_date <= (x.end_date or x.start_date))
     return {"id": x.id, "code": x.code, "name": x.name,
             "start_date": str(x.start_date) if x.start_date else None,
             "end_date": str(x.end_date) if x.end_date else None,
             "pooja_ids": [int(i) for i in (x.pooja_ids or "").split(",") if i.strip().isdigit()],
             "poojas": _pooja_names(db, x.pooja_ids),
             "status": x.status, "description": x.description,
-            "plan_fees": (json.loads(x.plan_fees) if x.plan_fees else {})}
+            "plan_fees": (json.loads(x.plan_fees) if x.plan_fees else {}),
+            "almanac_code": x.almanac_code,
+            "almanac_date": str(day.event_date) if day else None,
+            "almanac_name": day.name if day else None,
+            "almanac_provisional": bool(day and day.status != "PUBLISHED"),
+            "almanac_ok": (in_window if x.almanac_code else None)}
 
 
 @festivals_router.get("/stats")
@@ -415,7 +435,7 @@ def fe_create(body: dict, request: Request, db: Session = Depends(get_db), user=
         ids = ",".join(str(int(i)) for i in body.get("pooja_ids", []))
     except (ValueError, TypeError):
         raise HTTPException(400, "Invalid pooja_ids - must be integers")
-    x = Festival(code=_next_code(db, Festival, "FEST-"), name=name,
+    x = Festival(code=_next_code(db, Festival, "FEST-"), name=name, almanac_code=_almanac_code(body),
                  start_date=body.get("start_date") or None, end_date=body.get("end_date") or None,
                  pooja_ids=ids, status=body.get("status", "Active"), description=body.get("description"),
                  plan_fees=(json.dumps(body["plan_fees"]) if body.get("plan_fees") else None))
@@ -443,6 +463,8 @@ def fe_update(iid: int, body: dict, request: Request, db: Session = Depends(get_
             raise HTTPException(400, "Invalid pooja_ids - must be integers")
     if "plan_fees" in body:
         x.plan_fees = json.dumps(body["plan_fees"]) if body["plan_fees"] else None
+    if "almanac_code" in body:
+        x.almanac_code = _almanac_code(body)
     db.commit(); db.refresh(x)
     log_action(db, username=user.username, action="UPDATE", entity="Festival", detail=x.name, ip=client_ip(request))
     return _fe(db, x)

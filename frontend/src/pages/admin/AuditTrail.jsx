@@ -6,6 +6,7 @@ import { AuditAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import { T, tr, auditDetail, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { toTelugu } from '../../lib/translitTelugu.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const ACTION_TONE = { LOGIN: 'blue', CREATE: 'green', UPDATE: 'amber', DELETE: 'red', DENIED: 'red', LOGOUT: 'gray' }
@@ -18,6 +19,20 @@ const SORT_COLUMNS = [
   { key: 'action', label: 'Action', type: 'text', filterable: true, filterOptions: ['LOGIN', 'LOGOUT', 'CREATE', 'UPDATE', 'DELETE', 'VERIFY', 'REJECT', 'RESET', 'DENIED', 'RATE_LIMIT'] },
   { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['SUCCESS', 'FAILURE', 'HIT'] },
 ]
+
+// On person records the detail is often just the person's name ("Praneeth Oleti").
+const PERSON_ENTITIES = new Set(['Devotee', 'Poojari', 'User', 'CommitteeMember'])
+const detailLabel = (r, lang) => (PERSON_ENTITIES.has(r.entity) && /^[A-Za-z][A-Za-z .]*$/.test(r.detail)
+  ? personName({ name: r.detail }, lang) : auditDetail(r.detail))
+
+// Rate-limit rows store "RateLimit:<action>:<username>" — show the action in words, keep the username.
+// The username in the label is written in Telugu letters in Telugu mode (display only;
+// "counter1" → కౌంటర్1 — each run of letters converted, digits kept).
+const userLabel = (u, lang) => (lang === 'te' ? u.replace(/[A-Za-z]+/g, (w) => toTelugu(w) || w) : u)
+const entityLabel = (e, lang) => {
+  const m = /^RateLimit:([a-z_]+)(?::(.+))?$/.exec(e)
+  return m ? `${tr('Rate limit')}: ${tr(m[1])}${m[2] ? ` (${userLabel(m[2], lang)})` : ''}` : tr(e)
+}
 
 export default function AuditTrail() {
   const { lang } = useLang()
@@ -100,9 +115,9 @@ export default function AuditTrail() {
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("User, entity or detail…")} className="input !pl-9" /></div>
           </div>
           <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Action</T></label>
-            <Select value={action} onChange={(e) => setAction(e.target.value)} className="input"><option value="">{tr("All")}</option>{ACTIONS.map((a) => <option key={a}>{a}</option>)}</Select></div>
+            <Select value={action} onChange={(e) => setAction(e.target.value)} className="input"><option value="">{tr("All")}</option>{ACTIONS.map((a) => <option key={a} value={a}>{tr(a)}</option>)}</Select></div>
           <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Entity</T></label>
-            <Select value={entity} onChange={(e) => setEntity(e.target.value)} className="input"><option value="">{tr("All")}</option>{entities.map((e) => <option key={e}>{e}</option>)}</Select></div>
+            <Select value={entity} onChange={(e) => setEntity(e.target.value)} className="input"><option value="">{tr("All")}</option>{entities.map((e) => <option key={e} value={e}>{entityLabel(e, lang)}</option>)}</Select></div>
           <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label><DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" /></div>
           <div className="w-[8rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label><DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" /></div>
           <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
@@ -184,13 +199,13 @@ export default function AuditTrail() {
                     {/* The person's name for readability; the username stays
                         visible because it is the identity the system authenticated. */}
                     <div className="font-semibold text-gray-800">
-                      {personName({ name: r.actor_name, name_te: r.actor_name_te }, lang) || r.username || '—'}
+                      {personName({ name: r.actor_name, name_te: r.actor_name_te }, lang) || (r.username ? userLabel(r.username, lang) : '—')}
                     </div>
                     {r.actor_name && <div className="text-[0.6875rem] text-gray-400 font-mono">{r.username}</div>}
                   </td>
                   <td className="px-4 py-3"><Pill tone={ACTION_TONE[r.action] || 'gray'}>{tr(r.action)}</Pill></td>
-                  <td className="px-4 py-3 text-gray-600">{r.entity ? tr(r.entity) : '—'}</td>
-                  <td className="px-4 py-3 text-gray-600 max-w-md truncate">{r.detail ? auditDetail(r.detail) : '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{r.entity ? entityLabel(r.entity, lang) : '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 max-w-md truncate">{r.detail ? detailLabel(r, lang) : '—'}</td>
                   <td className="px-4 py-3"><Pill tone={r.status === 'SUCCESS' ? 'green' : 'red'}>{tr(r.status)}</Pill></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-400">{r.ip || '—'}</td>
                 </tr>

@@ -59,12 +59,12 @@ export default function Auction() {
           <div className="card w-full max-w-md p-6 relative text-center" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setBidFor(null)} className="absolute right-4 top-4 text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             <div className="w-12 h-12 mx-auto rounded-2xl bg-violet-100 text-violet-600 grid place-items-center mb-3"><Gavel size={24} /></div>
-            <h3 className="font-serif text-xl font-bold text-maroon-700">{bidFor.item}</h3>
+            <h3 className="font-serif text-xl font-bold text-maroon-700">{tr(bidFor.item)}</h3>
             <p className="text-sm text-gray-500 mt-2"><T>Bids for this auction are placed in person at the temple or over the phone with our office — online bidding is not available on the public site.</T>{' '}</p>
             <div className="mt-4 flex items-center justify-center gap-2 text-maroon-700 font-bold">
               <PhoneCall size={16} className="text-gold-500" /> {phone}
             </div>
-            <p className="text-xs text-gray-400 mt-1">9:00 AM – 8:00 PM · Current bid ₹{bidFor.current.toLocaleString('en-IN')}</p>
+            <p className="text-xs text-gray-400 mt-1">{tr('9:00 AM – 8:00 PM')} · {tr('Current bid')} ₹{bidFor.current.toLocaleString('en-IN')}</p>
             <button className="btn-primary mt-5" onClick={() => setBidFor(null)}><T>Got it</T></button>
           </div>
         </div>

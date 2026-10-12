@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { SectionTitle, Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
-import { T, tr, useTempleAddress } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useTempleAddress, clock12 } from '../../i18n/LanguageContext.jsx'
 
 const PRINCIPLES = [
   { icon: Sparkles, title: tr('Faith'), desc: tr('Strengthening faith in Sai Baba and His teachings.') },
@@ -28,7 +28,7 @@ export default function About() {
     { icon: Landmark, label: tr('Temple Name'), value: tr(TEMPLE.name) },
     { icon: MapPin, label: tr('Location'), value: address },
     { icon: CalendarDays, label: tr('Established'), value: String(TEMPLE.established) },
-    { icon: Clock, label: tr('Timings'), value: TEMPLE.timings },
+    { icon: Clock, label: tr('Timings'), value: clock12(TEMPLE.timings) },
     { icon: Phone, label: tr('Phone'), value: TEMPLE.phone },
     { icon: Mail, label: tr('Email'), value: TEMPLE.email },
   ]

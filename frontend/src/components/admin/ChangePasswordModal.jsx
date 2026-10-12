@@ -134,7 +134,7 @@ export default function ChangePasswordModal() {
               )}
               {form.newPwd && pwdValidation.valid && pwdStrength.label && (
                 <p className={`text-[0.6875rem] mt-1 ${pwdStrength.color}`}>
-                  <T>Password strength:</T> {pwdStrength.label}
+                  <T>Password strength:</T> {tr(pwdStrength.label)}
                 </p>
               )}
             </div>

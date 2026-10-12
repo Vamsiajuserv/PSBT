@@ -12,6 +12,7 @@ import { exportReportToExcel } from '../../lib/excel.js'
 import { exportReportToPdf } from '../../lib/pdf.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { reportText } from '../../lib/reportText.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 
@@ -167,14 +168,12 @@ export default function Reports() {
     try { await exportReportToExcel(result) } finally { setExporting(false) }
   }
 
-  // Server-formatted dates ('01 Jul 2026') carry an English month; the word
-  // translates, the numerals stay.
-  const localiseDate = (v) => (typeof v === 'string' ? v.replace(/\b[A-Za-z]{3,}\b/g, (w) => tr(w)) : v)
+  // Text cells read in the active language (see lib/reportText.js).
   const cell = (col, row, isTotal) => {
     if (isTotal && row?.[col.key] === 'Total') return tr('Total')
     const v = row[col.key]
     if (col.type === 'money') return canSeeAmounts ? ((isTotal ? '₹ ' : '') + money2(v)) : '—'
-    if (col.type === 'text') return localiseDate(v)
+    if (col.type === 'text') return reportText(col, v)
     if (col.type === 'num') return v === '' || v == null ? '' : num(v)
     return v
   }
@@ -320,7 +319,7 @@ export default function Reports() {
                 {loading && <tr><td colSpan={(result?.columns?.length) || 1} className="px-5 py-12 text-center text-gray-600 text-sm"><T>Loading…</T></td></tr>}
                 {!loading && loadErr && (
                   <tr><td colSpan={(result?.columns?.length) || 1} className="px-5 py-12 text-center">
-                    <div className="text-sm text-red-600 mb-3">{loadErr}</div>
+                    <div className="text-sm text-red-600 mb-3">{tr(loadErr)}</div>
                     <button onClick={() => generate(report, start, end)} className="btn-outline !py-1.5 mx-auto"><Search size={14} />{' '}<T>Retry</T></button>
                   </td></tr>
                 )}

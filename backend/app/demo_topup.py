@@ -24,9 +24,10 @@ from sqlalchemy import text
 
 from .database import SessionLocal, engine
 from .helpers import plan_terms
+from .almanac import pournamis
 from .models import (Annadanam, Auction, AuctionItem, Booking, CommitteeMember, DailyClosing,
                      Devotee, DonationCategory, Donation, HundiCollection, HundiCollectionItem,
-                     Pooja, Poojari, Refund, Setting, Tithi, WasteSale)
+                     Pooja, Poojari, Refund, Setting, WasteSale)
 from .routers.daily_closing import _summary
 
 START = date(2026, 7, 22)          # day after the last existing daily closing
@@ -147,7 +148,8 @@ class TopUp:
         self.committee = [c.name for c in db.query(CommitteeMember).filter(CommitteeMember.active.is_(True)).all()]
         self.cats = db.query(DonationCategory).filter(DonationCategory.active.is_(True)).all()
         self.auction_items = db.query(AuctionItem).filter(AuctionItem.active.is_(True)).all()
-        self.pournami = sorted({t.tithi_date for t in db.query(Tithi).filter(Tithi.tithi_type == "Pournami").all()})
+        # Pournami days from the almanac engine (TTD rule) — the same days Sai Vratam is booked on
+        self.pournami = [p.day for p in pournamis(date.today() - timedelta(days=400), date.today() + timedelta(days=400))]
         raw_slots = db.query(Setting.svalue).filter(Setting.skey == "pooja_time_slots").scalar() or "06:00 AM - 07:00 AM"
         self.slots = [s.strip() for s in raw_slots.splitlines() if s.strip()]
         # Active entitlements already held, so we never create a duplicate plan.

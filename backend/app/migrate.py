@@ -4,7 +4,18 @@ Postgres supports ADD COLUMN IF NOT EXISTS, so these are safe to run on every
 startup. New tables are handled by Base.metadata.create_all — this only patches
 columns added to tables that already exist.
 """
+import logging
+import time
+
 from sqlalchemy import bindparam, text
+from sqlalchemy.exc import OperationalError
+
+logger = logging.getLogger(__name__)
+
+# PostgreSQL errors that mean "another connection held the lock" — worth a retry.
+# 40P01 deadlock_detected, 55P03 lock_not_available (our lock_timeout expired).
+LOCK_ERRORS = {"40P01", "55P03"}
+MIGRATION_LOCK_TIMEOUT = "10s"
 
 COLUMN_MIGRATIONS = {
     "waste_vendors": [("name_te", "VARCHAR(160)")],
@@ -25,7 +36,7 @@ COLUMN_MIGRATIONS = {
         ("vehicle_no", "VARCHAR(20)"),
     ],
     "festivals": [
-        ("plan_fees", "TEXT"),
+        ("plan_fees", "TEXT"), ("almanac_code", "VARCHAR(40)"),
     ],
     "schedules": [
         ("ended_on", "DATE"),
@@ -103,6 +114,9 @@ COLUMN_MIGRATIONS = {
     "backups": [
         ("encrypted", "BOOLEAN DEFAULT FALSE"),
     ],
+    "almanac_events": [
+        ("rule_code", "VARCHAR(40)"), ("detail", "VARCHAR(160)"),
+    ],
 }
 
 
@@ -155,8 +169,32 @@ DEFAULT_WASTE_MATERIALS = (
 )
 
 
+def retry_on_lock(fn, attempts: int = 5, delay: float = 2.0, sleep=time.sleep):
+    """Run fn(), retrying when PostgreSQL reports a deadlock or lock timeout.
+
+    The database is shared (local dev, Azure), and ALTER TABLE ... ADD COLUMN IF
+    NOT EXISTS takes an exclusive lock even when the column exists, so a startup
+    can collide with another connection. fn must be one transaction that is safe
+    to repeat (run_migrations is: it rolls back on error and is idempotent).
+    Waits delay, 2*delay, 4*delay… between attempts; any other error is raised.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return fn()
+        except OperationalError as exc:
+            code = getattr(getattr(exc, "orig", None), "pgcode", None)
+            if code not in LOCK_ERRORS or attempt == attempts:
+                raise
+            wait = delay * 2 ** (attempt - 1)
+            logger.warning("migration blocked by another connection (%s); retry %d/%d in %.0fs",
+                           code, attempt, attempts - 1, wait)
+            sleep(wait)
+
+
 def run_migrations(engine) -> None:
     with engine.begin() as conn:
+        # Fail fast instead of queueing behind a long transaction; retry_on_lock retries.
+        conn.execute(text(f"SET LOCAL lock_timeout = '{MIGRATION_LOCK_TIMEOUT}'"))
         for table, cols in COLUMN_MIGRATIONS.items():
             for col, ddl in cols:
                 conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}'))
@@ -178,6 +216,10 @@ def run_migrations(engine) -> None:
                     'CREATE UNIQUE INDEX IF NOT EXISTS uq_devotees_mobile ON devotees (mobile) '
                     'WHERE mobile IS NOT NULL AND mobile != \'\''
                 ))
+        # Almanac: one row per (type, day, name) so festivals can share a day.
+        conn.execute(text('ALTER TABLE almanac_events DROP CONSTRAINT IF EXISTS uq_almanac_type_date'))
+        conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_almanac_type_date_name '
+                          'ON almanac_events (event_type, event_date, name)'))
         # Atomic code-number allocator (see helpers.next_code_seq). Replaces the
         # old COUNT(*)+1 scheme that reused receipt numbers after a row was deleted.
         conn.execute(text(

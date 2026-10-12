@@ -13,7 +13,7 @@ import { te } from '../../lib/telugu.js'
 import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
-import { T, tr, clock12, stamp, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, stamp, personName, useLang, teTerm } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -50,6 +50,13 @@ export default function Donations() {
   const [cats, setCats] = useState([])
   const [drawer, setDrawer] = useState(null)
   const [printDoc, setPrintDoc] = useState(null)
+  // Row 🖨 prints straight away: the receipt renders invisibly (print-only), prints, then closes.
+  const [directPrint, setDirectPrint] = useState(false)
+  useEffect(() => {
+    if (!printDoc || !directPrint) return
+    const id = setTimeout(() => { window.print(); setDirectPrint(false); setPrintDoc(null) }, 300)
+    return () => clearTimeout(id)
+  }, [printDoc, directPrint])
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [reloadTrigger, setReloadTrigger] = useState(0)
@@ -388,15 +395,15 @@ export default function Donations() {
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-maroon-600">{d.donation_code || d.receipt_no}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: d.donor_name, name_te: d.donor_name_te }, lang)}</td>
                   <td className="px-4 py-3 text-gray-600">{tr(TYPE_LABEL[d.donation_type] || d.donation_type)}</td>
-                  <td className="px-4 py-3 text-gray-600">{tr(d.fund)}{d.g80 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-bold bg-emerald-50 text-emerald-700 align-middle">80G</span>}</td>
+                  <td className="px-4 py-3 text-gray-600">{teTerm(d.fund)}{d.g80 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-bold bg-emerald-50 text-emerald-700 align-middle">80G</span>}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? amountCell(d) : '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{d.donation_type !== 'Material' && d.mode && d.mode !== '-' ? tr(d.mode) : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(d.donated_on)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(d.created_at)}</div></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{d.receipt_no}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setPrintDoc(d)} title={tr("Print receipt")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
-                      <button onClick={() => setPrintDoc(d)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      <button onClick={() => { setDirectPrint(true); setPrintDoc(d) }} title={tr("Print receipt directly")} aria-label={tr("Print receipt directly")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
+                      <button onClick={() => { setDirectPrint(false); setPrintDoc(d) }} title={tr("View receipt on screen")} aria-label={tr("View receipt on screen")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                     </div>
                   </td>
                 </tr>
@@ -434,7 +441,7 @@ export default function Donations() {
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{personName({ name: drawer.donor_name }, lang)}</span><Pill tone="green"><T>Registered</T></Pill></div>
-                      {drawer.mobile && <div className="text-[0.75rem] text-gray-500">Mobile: {drawer.mobile}</div>}
+                      {drawer.mobile && <div className="text-[0.75rem] text-gray-500">{tr('Mobile:')} {drawer.mobile}</div>}
                     </div>
                     <button type="button" onClick={clearDevotee} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
                   </div>
@@ -544,13 +551,13 @@ export default function Donations() {
       )}
 
       {printDoc && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={() => setPrintDoc(null)}>
+        <div className={`fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal ${directPrint ? 'opacity-0 pointer-events-none print:opacity-100' : ''}`} onClick={() => setPrintDoc(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg my-auto">
             <div id="print-area">
               <Receipt title={tr("Donation Receipt")} titleTe="విరాళం రసీదు" no={printDoc.receipt_no} subNo={fmtDate(printDoc.donated_on)} subNoLabel="Date" amount={printDoc.amount}
                 rows={[
-                  { en: 'Donor', value: printDoc.donor_name },
-                  { en: 'Category', value: printDoc.fund, valueTe: te(printDoc.fund) },
+                  { en: 'Donor', value: printDoc.donor_name, valueTe: personName({ name: printDoc.donor_name, name_te: printDoc.donor_name_te }, 'te') },
+                  { en: 'Category', value: printDoc.fund, valueTe: te(printDoc.fund) || teTerm(printDoc.fund) },
                   { en: 'Type', value: TYPE_LABEL[printDoc.donation_type], valueTe: te(printDoc.donation_type) },
                   ...(printDoc.donation_type === 'Material' && printDoc.quantity ? [{ en: 'Quantity', value: `${num(printDoc.quantity)} ${printDoc.unit || ''}` }] : [{ en: 'Payment Mode', value: printDoc.mode }]),
                   ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref }] : []),

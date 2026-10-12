@@ -262,7 +262,7 @@ export default function Users() {
                           alertDialog({
                             title: tr('2FA setup for') + ` ${u.username}`,
                             message: tr('Enter the secret manually in Google Authenticator / Authy, or add it via the otpauth link. Without this the user CANNOT log in.'),
-                            mono: `Secret: ${t.secret}\n\n${t.otpauth_uri}`,
+                            mono: `${tr('Secret:')} ${t.secret}\n\n${t.otpauth_uri}`,
                           })
                         } catch (ex) { toast(ex?.detail || tr('Could not fetch the 2FA setup.'), 'error') }
                       }} title={tr("Show 2FA setup secret")} className="px-2 h-8 rounded-lg border border-amber-200 text-amber-700 text-[0.6875rem] font-bold hover:bg-amber-50"><T>2FA</T></button>}
@@ -361,7 +361,7 @@ export default function Users() {
                     <div className="relative"><input required={drawer.mode === 'create'} type={showPw ? 'text' : 'password'} className={`input pr-9 ${fieldErrors.password ? 'border-red-400' : ''}`} placeholder={drawer.mode === 'edit' ? tr('Leave blank to keep unchanged') : tr('Enter password')} value={drawer.data.password} onChange={(e) => { setFieldErrors((p) => ({ ...p, password: null })); setD({ password: e.target.value }) }} />
                       <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPw ? <EyeOff size={15} /> : <Eye size={15} />}</button></div>
                     {fieldErrors.password && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.password}</div>}
-                    {drawer.data.password && !fieldErrors.password && <div className={`text-[0.6875rem] mt-0.5 ${getPasswordStrength(drawer.data.password).color}`}><T>Password strength:</T> {getPasswordStrength(drawer.data.password).label}</div>}
+                    {drawer.data.password && !fieldErrors.password && <div className={`text-[0.6875rem] mt-0.5 ${getPasswordStrength(drawer.data.password).color}`}><T>Password strength:</T> {tr(getPasswordStrength(drawer.data.password).label)}</div>}
                     <div className="text-[0.6875rem] text-gray-400 mt-1"><T>Password must be at least 6 characters with letters and numbers.</T></div>
                   </div>
                   <div><label className="label">{tr("Confirm Password")} {drawer.mode === 'create' && '*'}</label>

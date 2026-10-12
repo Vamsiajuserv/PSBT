@@ -6,7 +6,7 @@ import {
   ClipboardList, CreditCard, Ticket, Moon, Car, AlertTriangle, FileText, Loader2,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { DevoteesAPI, PoojasAPI, BookingsAPI, PoojarisAPI, FestivalsAPI, TithiAPI, SettingsAPI } from '../../api/client.js'
+import { DevoteesAPI, PoojasAPI, BookingsAPI, PoojarisAPI, FestivalsAPI, AlmanacAPI, SettingsAPI } from '../../api/client.js'
 import { fmtDate } from '../../components/admin/ui.jsx'
 import { TicketShell } from '../../components/admin/BookingTicket.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
@@ -114,7 +114,7 @@ export default function NewBooking() {
     PoojasAPI.list().then((d) => setPoojas(d.items || [])).catch(() => toast(tr('Failed to load poojas'), 'error'))
     FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => toast(tr('Failed to load festivals'), 'error'))
     PoojarisAPI.list().then((d) => setPoojaris((Array.isArray(d) ? d : d?.items || []).filter((p) => p.active))).catch(() => toast(tr('Failed to load poojaris'), 'error'))
-    TithiAPI.upcoming('Pournami', 12).then((r) => setPournamiDates((r.dates || []).map((d) => d.date))).catch(() => setPournamiDates([]))
+    AlmanacAPI.pournamis(todayIST(), addDaysISO(todayIST(), 400)).then((r) => setPournamiDates(r.items || [])).catch(() => setPournamiDates([]))
     SettingsAPI.config()
       .then((c) => setCfg({
         slots: Array.isArray(c?.time_slots) ? c.time_slots : [],
@@ -194,10 +194,14 @@ export default function NewBooking() {
   })()
   const fest = festInfo?.fest || null
 
-  // Monthly poojas are performed on Pournami — offer only those dates when the calendar has them
-  const isMonthly = pooja?.category === 'Monthly'
-  const monthlyDates = pournamiDates.filter((d) => d >= today && (!limitDate || d <= limitDate))
-  const usePournami = isMonthly && monthlyDates.length > 0
+  // Pournami plans (e.g. Sai Vratam) are performed on Pournami — offer only the almanac's
+  // Pournami days (the server enforces the same rule). Before a plan is chosen, a pooja
+  // whose plans are all Pournami plans already counts.
+  const isPournamiPlan = (pl) => pl?.tithi_type === 'Pournami'
+  const allPournami = (p) => (p?.plans || []).length > 0 && p.plans.every(isPournamiPlan)
+  const usePournami = plan ? isPournamiPlan(plan) : allPournami(pooja)
+  const pournamiChoices = pournamiDates.filter((d) => d.event_date >= today && (!limitDate || d.event_date <= limitDate))
+  const monthlyDates = pournamiChoices.map((d) => d.event_date)
 
   const minDate = fest && fest.start_date > today ? fest.start_date : today
   const maxDate = [fest?.end_date, limitDate].filter(Boolean).sort()[0] || undefined
@@ -210,10 +214,7 @@ export default function NewBooking() {
 
   const defaultDateFor = (p) => {
     if (!p) return addDaysISO(today, 1)
-    if (p.category === 'Monthly') {
-      const first = pournamiDates.find((d) => d >= today && (!limitDate || d <= limitDate))
-      if (first) return first
-    }
+    if (allPournami(p) && monthlyDates.length) return monthlyDates[0]
     if (p.category === 'Festival') {
       const linked = festivals.filter((f) => f.status === 'Active' && f.start_date && f.end_date && (f.pooja_ids || []).includes(p.id))
       const cur = linked.find((f) => f.start_date <= today && today <= f.end_date)
@@ -229,6 +230,12 @@ export default function NewBooking() {
     setPoojaId(id); setPlan(null); setVehicleNo('')
     setSchedDate(defaultDateFor(p))
   }
+
+  // Choosing a Pournami plan moves the date onto the first Pournami day
+  useEffect(() => {
+    if (plan && isPournamiPlan(plan) && monthlyDates.length && !monthlyDates.includes(schedDate)) setSchedDate(monthlyDates[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan?.id])
 
   const slotsForDate = openSlots(cfg.slots, schedDate)
   // Slot is optional — clear it if it's no longer valid for the chosen date
@@ -513,7 +520,7 @@ export default function NewBooking() {
               {fest && (
                 <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[0.78125rem] text-amber-800 flex items-start gap-2"><CalendarDays size={15} className="shrink-0 mt-0.5" /> <span>{fest.name}: {fmtDate(fest.start_date)} – {fmtDate(fest.end_date)}. <T>The pooja date must fall in this festival window.</T></span></div>
               )}
-              {isMonthly && (
+              {usePournami && (
                 <div className="mt-3 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2 text-[0.78125rem] text-blue-800 flex items-start gap-2"><Moon size={15} className="shrink-0 mt-0.5" /> <T>Monthly poojas are booked on Pournami dates.</T></div>
               )}
             </div>
@@ -567,16 +574,29 @@ export default function NewBooking() {
               <div>
                 <label className="label"><T>Pooja Date *</T></label>
                 {usePournami ? (
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {monthlyDates.slice(0, 8).map((d) => (
-                      <button key={d} type="button" onClick={() => setSchedDate(d)} className={`px-2.5 py-1.5 rounded-lg text-[0.75rem] font-medium border ${schedDate === d ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'}`}>{fmtDate(d)}</button>
-                    ))}
-                  </div>
+                  pournamiChoices.length === 0 ? (
+                    <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1"><T>Pournami dates could not be loaded. Refresh the page.</T></div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {pournamiChoices.slice(0, 8).map((d) => (
+                          <button key={d.event_date} type="button" onClick={() => setSchedDate(d.event_date)}
+                            title={`${lang === 'te' && d.name_te ? d.name_te : tr(d.name)}${d.provisional ? ` · ${tr('Provisional — awaiting confirmation against TTD')}` : ''}`}
+                            className={`px-2.5 py-1.5 rounded-lg text-[0.75rem] font-medium border ${d.provisional ? 'border-dashed' : ''} ${schedDate === d.event_date ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'}`}>{fmtDate(d.event_date)}{d.provisional ? ' *' : ''}</button>
+                        ))}
+                      </div>
+                      {pournamiChoices.slice(0, 8).some((d) => d.provisional) && (
+                        <div className="text-[0.6875rem] text-gray-500 mt-1">* <T>Provisional — awaiting confirmation against TTD</T></div>
+                      )}
+                    </>
+                  )
                 ) : (
                   <DateField value={schedDate} min={minDate} max={maxDate} onChange={(e) => setSchedDate(e.target.value)} />
                 )}
                 <div className="text-[0.75rem] text-gray-400 mt-1.5">
-                  {cfg.maxDays != null ? <>{tr('Bookings are open up to')} {fmtDate(limitDate)}.</> : <T>Any date from today onwards.</T>}
+                  {usePournami
+                    ? <T>Only Pournami days can be booked for this pooja.</T>
+                    : cfg.maxDays != null ? <>{tr('Bookings are open up to')} {fmtDate(limitDate)}.</> : <T>Any date from today onwards.</T>}
                 </div>
                 {plan && <div className="text-[0.75rem] text-emerald-700 mt-1"><T>Validity</T>: {validityPreview(plan, schedDate)}</div>}
               </div>

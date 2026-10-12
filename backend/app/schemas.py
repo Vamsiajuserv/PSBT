@@ -399,6 +399,8 @@ class BookingOut(ORM):
     special_notes: Optional[str] = None
     vehicle_no: Optional[str] = None
     time_slot: Optional[str] = None
+    poojari_id: Optional[int] = None      # assigned poojari (Calendar's poojari filter)
+    poojari_name: Optional[str] = None
     status: str
     payment_status: str
     payment_method: Optional[str] = None

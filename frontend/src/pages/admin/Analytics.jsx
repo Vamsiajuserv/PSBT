@@ -9,16 +9,16 @@ import { DateField, Select } from '../../components/common/Field.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
 import FitText from '../../components/common/FitText.jsx'
 import { KpiGrid } from '../../components/admin/ui.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, teTerm, shortUnit } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
 const pct = (n) => (n >= 0 ? '+' : '') + n.toFixed(1) + '%'
 const shortNum = (n) => {
-  if (n >= 10000000) return (n / 10000000).toFixed(1) + 'Cr'
-  if (n >= 100000) return (n / 100000).toFixed(1) + 'L'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
+  if (n >= 10000000) return (n / 10000000).toFixed(1) + shortUnit('Cr')
+  if (n >= 100000) return (n / 100000).toFixed(1) + shortUnit('L')
+  if (n >= 1000) return (n / 1000).toFixed(1) + shortUnit('K')
   return num(n)
 }
 
@@ -188,7 +188,7 @@ function HorizontalBarChart({ items, maxItems = 10, color = '#8b1a1a' }) {
           <div className="flex items-center justify-between text-[0.8125rem] mb-1">
             <span className="text-gray-700 font-medium flex-1 mr-2 leading-tight">
               {item.rank && <span className="text-gray-400 mr-1.5">#{item.rank}</span>}
-              {tr(item.name)}
+              {teTerm(item.name)}
             </span>
             <span className="font-semibold text-gray-800 tabular-nums shrink-0">{inr(item.amount)}</span>
           </div>
@@ -235,7 +235,7 @@ function DonutChart({ segments, size = 180, label }) {
               transform={`rotate(${rotation} 90 90)`}
               className="transition-all hover:opacity-80"
             >
-              <title>{seg.label}: {inr(seg.value)} ({(pct * 100).toFixed(1)}%)</title>
+              <title>{tr(seg.label)}: {inr(seg.value)} ({(pct * 100).toFixed(1)}%)</title>
             </circle>
           )
         })}
@@ -322,7 +322,7 @@ function ComparisonCard({ label, current, previous, growth }) {
       <div className="flex items-end justify-between">
         <div>
           <div className="text-xl font-bold text-gray-800">{inr(current)}</div>
-          <div className="text-[0.75rem] text-gray-400">{tr('vs')} {inr(previous)} {tr('prev')}</div>
+          <div className="text-[0.75rem] text-gray-400">{tr(`vs ${inr(previous)} prev`)}</div>
         </div>
         <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[0.8125rem] font-semibold ${isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
           {isPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
@@ -415,7 +415,7 @@ export default function Analytics() {
 
   // Donation breakdown for donut
   const donationSegments = (donationBreakdown?.items || []).map((item, i) => ({
-    label: item.label,
+    label: teTerm(item.label),
     value: item.amount,
     color: ['#8b1a1a', '#ea580c', '#059669', '#2563eb', '#7c3aed', '#d97706'][i % 6],
   }))
@@ -455,7 +455,7 @@ export default function Analytics() {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {label}
+                {tr(label)}
               </button>
             ))}
           </div>
@@ -517,7 +517,7 @@ export default function Analytics() {
             <div className="flex flex-wrap gap-4">
               {comparison?.total && (
                 <ComparisonCard
-                  label={`${tr('vs')} ${tr(comparisonPeriod === 'day' ? 'Yesterday' : comparisonPeriod === 'week' ? 'Last Week' : comparisonPeriod === 'month' ? 'Last Month' : 'Last Year')}`}
+                  label={tr(comparisonPeriod === 'day' ? 'vs Yesterday' : comparisonPeriod === 'week' ? 'vs Last Week' : comparisonPeriod === 'month' ? 'vs Last Month' : 'vs Last Year')}
                   current={comparison.total.current_amount}
                   previous={comparison.total.previous_amount}
                   growth={comparison.total.growth}

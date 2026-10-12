@@ -42,10 +42,13 @@ except ImportError:
     EPHEM_AVAILABLE = False
     ephem = None
 
-# Temple location: Shirdi, Maharashtra (Sai Baba Temple)
-TEMPLE_LAT = 19.7660  # degrees North
-TEMPLE_LON = 74.4764  # degrees East
-TEMPLE_ALT = 570      # meters above sea level
+# Panchangam reference location. The temple follows the TTD panchangam, so sunrise
+# is computed for Tirumala (shared with the almanac engine). Shirdi was used before
+# and put Pournami a day early whenever the tithi ended just after Tirumala's sunrise.
+from .almanac import TTD_TIRUMALA
+TEMPLE_LAT = TTD_TIRUMALA.lat
+TEMPLE_LON = TTD_TIRUMALA.lon
+TEMPLE_ALT = 0        # sea-level horizon, as the almanac engine uses
 
 # Swiss Ephemeris constants
 SE_CALC_RISE = 1  # Calculate rising time
@@ -513,7 +516,7 @@ def validate_against_panchang(year: int) -> Dict:
         "count": len(results),
         "dates": results,
         "source": "Swiss Ephemeris (proper Tithi + Sunrise calculation)",
-        "location": f"Shirdi ({TEMPLE_LAT}°N, {TEMPLE_LON}°E)"
+        "location": f"{TTD_TIRUMALA.name} ({TEMPLE_LAT}°N, {TEMPLE_LON}°E)"
     }
 
 
@@ -882,7 +885,7 @@ def get_panchangam(dt: date) -> Dict:
         "abhijit_muhurtam": abhijit,
 
         # Location info
-        "location": "Shirdi",
+        "location": TTD_TIRUMALA.name,
         "coordinates": f"{TEMPLE_LAT}°N, {TEMPLE_LON}°E",
 
         # Technical
@@ -927,5 +930,5 @@ def get_purnima_details(dt: date) -> Dict:
         "tithi_at_sunrise": tithi,
         "elongation": round(elongation, 4),
         "is_purnima_day": _is_tithi_day(dt, 15),
-        "location": f"Shirdi ({TEMPLE_LAT}°N, {TEMPLE_LON}°E)"
+        "location": f"{TTD_TIRUMALA.name} ({TEMPLE_LAT}°N, {TEMPLE_LON}°E)"
     }

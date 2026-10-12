@@ -64,7 +64,7 @@ export default function Notifications() {
   }
   async function sendTest(ch) {
     const res = await promptDialog({
-      title: `${tr('Send a test')} ${ch}`,
+      title: tr(`Send a test ${ch}`),
       confirmLabel: tr('Send Test'),
       fields: [{ k: 'to', label: ch === 'Email' ? tr('Email address') : tr('Mobile number'), required: true }],
     })
@@ -147,7 +147,7 @@ export default function Notifications() {
           <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Delivery Log</T></h3>
           <div className="flex gap-2">
             <Select value={channel} onChange={(e) => setChannel(e.target.value)} className="input !w-auto !py-2 text-[0.8125rem]">
-              <option value="">{tr("All Channels")}</option>{['SMS', 'Email', 'WhatsApp'].map((c) => <option key={c}>{c}</option>)}
+              <option value="">{tr("All Channels")}</option>{['SMS', 'Email', 'WhatsApp'].map((c) => <option key={c} value={c}>{tr(c)}</option>)}
             </Select>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-auto !py-2 text-[0.8125rem]">
               <option value="">{tr("All Status")}</option>{['SENT', 'FAILED', 'SKIPPED', 'DISABLED'].map((c) => <option key={c} value={c}>{tr(c)}</option>)}

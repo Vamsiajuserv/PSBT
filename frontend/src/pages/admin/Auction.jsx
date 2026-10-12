@@ -28,12 +28,14 @@ const SORT_COLUMNS = [
   { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['Scheduled', 'In Progress', 'Completed'] },
 ]
 const todayISO = () => new Date().toISOString().slice(0, 10)
+// Stored form ("09:00 AM") — always English, whatever the screen language;
+// clock12() localises it for display.
 const to12h = (t) => {
   if (!t) return ''
   const [h, m] = t.split(':').map(Number)
   const ap = h >= 12 ? 'PM' : 'AM'
   const hh = h % 12 || 12
-  return clock12(`${String(hh).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ap}`)
+  return `${String(hh).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ap}`
 }
 const emptyForm = () => ({ itemChoice: '', item: '', base_amount: '', devotee: null, winner: '', description: '', auction_date: '', start_time: '', notes: '' })
 
@@ -217,7 +219,7 @@ export default function Auction() {
       fields: [
         { k: 'amount', label: tr('Highest bid (₹)'), type: 'number', required: true,
           defaultValue: String(a.current_amount || a.base_amount || ''),
-          note: `Base amount ₹${Number(a.base_amount).toLocaleString('en-IN')} — the bid cannot be below it.` },
+          note: tr('Base amount ₹{amount} — the bid cannot be below it.').replace('{amount}', Number(a.base_amount).toLocaleString('en-IN')) },
         { k: 'winner', label: tr('Winning bidder name'), defaultValue: a.winner || '' },
         { k: 'close', label: tr('Mark as Completed (winner finalised)'), type: 'checkbox' },
       ],
@@ -464,7 +466,7 @@ export default function Auction() {
                 <tr key={a.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{a.code}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{tr(a.item)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.auction_date)}</div><div className="text-[0.6875rem] text-gray-400">{a.start_time || ''}</div></td>
+                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.auction_date)}</div><div className="text-[0.6875rem] text-gray-400">{clock12(a.start_time || '')}</div></td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? (Number(a.current_amount) > 0 ? inr(a.current_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{a.winner ? personName({ name: a.winner }, lang) : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3"><Pill tone={STATUS_TONE[a.status] || 'gray'}>{tr(a.status)}</Pill></td>
@@ -564,7 +566,7 @@ export default function Auction() {
                     <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{personName(drawer.devotee, lang)}</span><Pill tone="green"><T>Registered</T></Pill></div>
-                      <div className="text-[0.75rem] text-gray-500">Mobile: {drawer.devotee.mobile}</div>
+                      <div className="text-[0.75rem] text-gray-500">{tr('Mobile:')} {drawer.devotee.mobile}</div>
                     </div>
                     <button type="button" onClick={() => { setM({ devotee: null }); setDq('') }} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
                   </div>
@@ -611,7 +613,7 @@ export default function Auction() {
                 <VField label={tr("Item Name")} value={tr(view.item)} wide />
                 <VField label={tr("Description")} value={view.description || '—'} wide />
                 <VField label={tr("Auction Date")} value={fmtDate(view.auction_date)} />
-                <VField label={tr("Start Time")} value={view.start_time || '—'} />
+                <VField label={tr("Start Time")} value={view.start_time ? clock12(view.start_time) : '—'} />
                 <VField label={tr("No. of Bidders")} value={view.bids} />
                 <VField label={tr("Status")} value={<Pill tone={STATUS_TONE[view.status] || 'gray'}>{tr(view.status)}</Pill>} />
                 <VField label={tr("Highest Bid")} value={canSeeAmounts ? (Number(view.current_amount) > 0 ? inr(view.current_amount) : '—') : '—'} />
@@ -636,7 +638,7 @@ export default function Auction() {
                   <h4 className="text-[0.8125rem] font-semibold text-gray-700 mb-3"><T>Payment Details</T></h4>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-4">
                     <VField label={tr("Payment Status")} value={<Pill tone={PAYMENT_TONE[view.payment_status] || 'gray'}>{tr(view.payment_status)}</Pill>} />
-                    {view.payment_mode && <VField label={tr("Payment Mode")} value={view.payment_mode} />}
+                    {view.payment_mode && <VField label={tr("Payment Mode")} value={tr(view.payment_mode)} />}
                     {view.payment_ref && <VField label={tr("Transaction Ref")} value={view.payment_ref} />}
                     {view.receipt_no && <VField label={tr("Receipt No")} value={view.receipt_no} />}
                     {view.paid_at && <VField label={tr("Paid At")} value={fmtStamp(view.paid_at)} />}
@@ -705,7 +707,7 @@ export default function Auction() {
               {/* Temple header */}
               <div className="text-center border-b border-dashed border-gray-300 pb-4 mb-4">
                 <div className="flex items-center justify-center gap-3 mb-2">
-                  <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                  <img src="/images/temple-logo.png" alt={tr("Shri Shirdi Sai Baba Temple")} className="w-12 h-12 rounded-full object-cover" onError={(e) => e.target.style.display = 'none'} />
                   <div>
                     <div className="font-serif text-lg font-bold text-maroon-800">{tr('Shri Shirdi Sai Baba Temple')}</div>
                     <div className="text-sm text-gray-600">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
@@ -722,7 +724,7 @@ export default function Auction() {
                 <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-3 mt-3">
                   <span><T>Amount Paid</T>:</span><span className="text-maroon-700">{inr(receipt.current_amount)}</span>
                 </div>
-                <div className="flex justify-between text-[0.8125rem]"><span className="text-gray-500"><T>Mode</T>:</span><span>{receipt.payment_mode}</span></div>
+                <div className="flex justify-between text-[0.8125rem]"><span className="text-gray-500"><T>Mode</T>:</span><span>{tr(receipt.payment_mode)}</span></div>
                 {receipt.payment_ref && <div className="flex justify-between text-[0.8125rem]"><span className="text-gray-500"><T>Ref</T>:</span><span className="font-mono text-[0.75rem]">{receipt.payment_ref}</span></div>}
               </div>
               <div className="border-t border-dashed border-gray-300 pt-4 mt-4 text-center text-[0.6875rem] text-gray-400">

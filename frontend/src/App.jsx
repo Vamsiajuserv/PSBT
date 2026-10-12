@@ -5,7 +5,7 @@ import PublicLayout from './components/public/PublicLayout.jsx'
 import AdminLayout from './components/admin/AdminLayout.jsx'
 import { RequireAuth, useAuth } from './auth/AuthContext.jsx'
 import { canAccessKey } from './auth/access.js'
-import { LanguageProvider } from './i18n/LanguageContext.jsx'
+import { LanguageProvider, tr } from './i18n/LanguageContext.jsx'
 import { SiteProvider } from './lib/SiteContext.jsx'
 import { DialogHost } from './components/common/Dialog.jsx'
 
@@ -15,7 +15,7 @@ function PageLoader() {
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <div className="w-10 h-10 border-4 border-maroon-200 border-t-maroon-700 rounded-full animate-spin" />
-        <span className="text-sm text-gray-500">Loading...</span>
+        <span className="text-sm text-gray-500">{tr('Loading...')}</span>
       </div>
     </div>
   )
@@ -67,6 +67,7 @@ const AuctionItemMaster = lazy(() => import('./pages/admin/AuctionItemMaster.jsx
 const HundiItemMaster = lazy(() => import('./pages/admin/HundiItemMaster.jsx'))
 const CommitteeMaster = lazy(() => import('./pages/admin/CommitteeMaster.jsx'))
 const FestivalMaster = lazy(() => import('./pages/admin/FestivalMaster.jsx'))
+const AlmanacReview = lazy(() => import('./pages/admin/AlmanacReview.jsx'))
 const Reports = lazy(() => import('./pages/admin/Reports.jsx'))
 const Analytics = lazy(() => import('./pages/admin/Analytics.jsx'))
 const AuditTrail = lazy(() => import('./pages/admin/AuditTrail.jsx'))
@@ -150,6 +151,7 @@ export default function App() {
         <Route path="hundi-items" element={<Guard k="hundi-items"><HundiItemMaster /></Guard>} />
         <Route path="committee" element={<Guard k="committee"><CommitteeMaster /></Guard>} />
         <Route path="festivals" element={<Guard k="festivals"><FestivalMaster /></Guard>} />
+        <Route path="almanac" element={<Guard k="almanac"><AlmanacReview /></Guard>} />
         <Route path="settings" element={<Guard k="settings"><Settings /></Guard>} />
         <Route path="calendar" element={<Guard k="calendar"><AdminCalendar /></Guard>} />
         <Route path="devotees" element={<Guard k="devotees"><AdminDevotees /></Guard>} />

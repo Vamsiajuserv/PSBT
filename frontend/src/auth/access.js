@@ -64,6 +64,7 @@ export const ACCESS = {
   'waste-materials': { adminOnly: true },
   committee: { module: 'Hundi', roles: ['Committee'] },  // Committee role for Festival Pricing
   festivals: { adminOnly: true },
+  almanac: { adminOnly: true },   // Pournami & festival days — yearly review against TTD
   settings: { adminOnly: true },
   users: { adminOnly: true },
   roles: { adminOnly: true },

@@ -1,12 +1,20 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, Bell, Sparkles, ArrowRight, Clock } from 'lucide-react'
+import { CalendarDays, Bell, Sparkles, ArrowRight, Clock, Moon } from 'lucide-react'
 import { Badge, MinimalBanner, SectionTitle } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
+import { PublicAPI } from '../../api/client.js'
 import { useLang, useContentText, tr, stamp } from '../../i18n/LanguageContext.jsx'
 
 const DAY = 24 * 60 * 60 * 1000
 const norm = (s) => (s || '').toLowerCase().replace(/[^a-z]/g, '')
+
+// Content cards whose date comes from the almanac engine (TTD panchangam rules)
+const CARD_CODES = {
+  'Sri Rama Navami': 'SRI_RAMA_NAVAMI', 'Guru Purnima': 'GURU_POURNAMI',
+  'Sai Baba Mahasamadhi': 'VIJAYADASHAMI', 'Vinayaka Chavithi': 'VINAYAKA_CHAVITHI',
+}
+const fmtDay = (s, opts) => stamp(new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', ...opts }))
 
 function fmtRange(start, end) {
   const f = (s) => stamp(new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }))
@@ -21,13 +29,33 @@ export default function Festivals() {
   const festivals = site?.festivals || []
   const dates = site?.festival_dates || []
 
-  // Match a content card to its live Festival-Master dates by name.
-  const dateFor = (name) => dates.find((d) => norm(d.name) === norm(name) ||
-    norm(d.name).includes(norm(name)) || norm(name).includes(norm(d.name)))
+  // Upcoming Pournami + festival days from the almanac (next 12 months)
+  const [almanac, setAlmanac] = useState([])
+  useEffect(() => { PublicAPI.almanac().then((r) => setAlmanac(r.items || [])).catch(() => setAlmanac([])) }, [])
+  const almanacFests = almanac.filter((a) => a.type === 'Festival')
+  const pournamis = almanac.filter((a) => a.type === 'Pournami').slice(0, 6)
+  const nameOf = (a) => (lang === 'te' && a.name_te ? a.name_te : t(a.name))
+
+  // A content card's date: the almanac's day when the card is an almanac festival,
+  // otherwise the live Festival-Master dates matched by name.
+  const dateFor = (name) => {
+    const code = CARD_CODES[name]
+    const a = code && almanacFests.find((x) => x.rule_code === code)
+    if (a) return { start: a.date, end: a.date, provisional: a.provisional }
+    return dates.find((d) => norm(d.name) === norm(name) ||
+      norm(d.name).includes(norm(name)) || norm(name).includes(norm(d.name)))
+  }
 
   // Upcoming schedule (today or later), soonest first — for the hero strip.
+  // Almanac festivals plus Festival-Master windows; a Master entry linked to an
+  // almanac festival is the same celebration, so it is listed once.
   const today = new Date(new Date().toDateString())
-  const upcoming = dates
+  const almanacCodes = new Set(almanacFests.map((a) => a.rule_code))
+  const upcoming = [
+    ...almanacFests.map((a) => ({ name: a.name, label: nameOf(a), start: a.date, end: a.date, provisional: a.provisional })),
+    ...dates.filter((d) => !(d.almanac_code && almanacCodes.has(d.almanac_code)))
+      .map((d) => ({ ...d, label: t(d.name) })),
+  ]
     .filter((d) => d.end && new Date(d.end + 'T00:00:00') >= today)
     .sort((a, b) => (a.start || '').localeCompare(b.start || ''))
   const next = upcoming[0]
@@ -51,7 +79,7 @@ export default function Festivals() {
               <div>
                 <div className="font-script text-2xl text-gold-300">{t('Utsavams in the Shirdi Tradition')}</div>
                 <h2 className="font-serif text-2xl md:text-3xl font-bold text-gold-200 mt-1">
-                  {t('Next Celebration')}: {t(next.name)}
+                  {t('Next Celebration')}: {next.label}
                 </h2>
                 <div className="flex flex-wrap items-center gap-3 mt-3 text-sm">
                   <span className="inline-flex items-center gap-1.5 bg-white/10 border border-gold-400/30 rounded-full px-3 py-1">
@@ -67,14 +95,17 @@ export default function Festivals() {
                 <div className="text-[0.6875rem] uppercase tracking-widest text-gold-300 font-bold mb-2">{t('Upcoming This Year')}</div>
                 <ul className="space-y-1.5">
                   {upcoming.slice(0, 4).map((u) => (
-                    <li key={u.name} className="flex items-center justify-between gap-6 text-[0.8125rem]">
-                      <span className="text-cream/90">{t(u.name)}</span>
+                    <li key={`${u.name}-${u.start}`} className="flex items-center justify-between gap-6 text-[0.8125rem]">
+                      <span className="text-cream/90">{u.label}{u.provisional ? ' *' : ''}</span>
                       <span className="text-gold-300 font-semibold whitespace-nowrap">
                         {stamp(new Date(u.start + 'T00:00:00').toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }))}
                       </span>
                     </li>
                   ))}
                 </ul>
+                {upcoming.slice(0, 4).some((u) => u.provisional) && (
+                  <div className="text-[0.625rem] text-cream/60 mt-2">* {t('Date to be confirmed by the temple')}</div>
+                )}
               </div>
             </div>
           </div>
@@ -99,7 +130,7 @@ export default function Festivals() {
                 <div className="p-5">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="font-serif text-lg font-bold text-maroon-700">{te(f, 'name')}</h3>
-                    <Badge tone="amber">{live?.start ? fmtRange(live.start, live.end) : te(f, 'month')}</Badge>
+                    <Badge tone="amber">{live?.start ? fmtRange(live.start, live.end) + (live.provisional ? ' *' : '') : te(f, 'month')}</Badge>
                   </div>
                   {lang === 'en' && <p className="text-xs text-black font-telugu">{f.nameTe}</p>}
                   <p className="text-sm text-black mt-2 leading-relaxed">{te(f, 'desc')}</p>
@@ -124,7 +155,7 @@ export default function Festivals() {
                   <div className="p-4">
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="font-serif text-base font-bold text-maroon-700">{te(f, 'name')}</h3>
-                      <Badge tone="amber">{live?.start ? fmtRange(live.start, live.end) : te(f, 'month')}</Badge>
+                      <Badge tone="amber">{live?.start ? fmtRange(live.start, live.end) + (live.provisional ? ' *' : '') : te(f, 'month')}</Badge>
                     </div>
                     {lang === 'en' && <p className="text-[0.6875rem] text-black font-telugu">{f.nameTe}</p>}
                     <p className="text-[0.8125rem] text-black mt-1.5 leading-relaxed">{te(f, 'desc')}</p>
@@ -136,11 +167,34 @@ export default function Festivals() {
         </div>
       </div>
 
+      {/* ── Pournami dates (Sai Vratam) — from the almanac engine ── */}
+      {pournamis.length > 0 && (
+        <section className="max-w-6xl mx-auto px-4 pb-14">
+          <SectionTitle title={t('Pournami Dates')}
+            subtitle={t('Sai Vratam is performed on every Pournami. Dates follow the TTD panchangam.')} />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+            {pournamis.map((p) => (
+              <div key={p.date} className="card p-4 flex items-center gap-4 border-gold-200">
+                <div className="w-12 h-12 rounded-full bg-gold-50 border border-gold-200 grid place-items-center text-2xl shrink-0">🌕</div>
+                <div className="min-w-0">
+                  <div className="font-serif text-lg font-bold text-maroon-700 leading-tight">{fmtDay(p.date, { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                  <div className="text-[0.8125rem] text-black">{fmtDay(p.date, { weekday: 'long' })} · {nameOf(p)}</div>
+                  {p.provisional && <div className="text-[0.6875rem] text-amber-700 mt-0.5">{t('Date to be confirmed by the temple')}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-6">
+            <Link to="/sevas" className="btn-maroon inline-flex"><Moon size={15} /> {t('Book Sai Vratam')} <ArrowRight size={15} /></Link>
+          </div>
+        </section>
+      )}
+
       {/* ── Thursday palki band — the temple's weekly signature ── */}
       <section className="bg-ivory border-y border-gold-200/60">
         <div className="max-w-6xl mx-auto px-4 py-14 grid lg:grid-cols-2 gap-10 items-center">
           <div className="rounded-2xl overflow-hidden border-4 border-gold-300 shadow-card">
-            <img src="/images/festivals/palki.jpg" alt="Palki seva" className="w-full object-cover aspect-[16/10]" loading="lazy" />
+            <img src="/images/festivals/palki.jpg" alt={tr("Palki seva")} className="w-full object-cover aspect-[16/10]" loading="lazy" />
           </div>
           <div>
             <div className="font-display text-xs uppercase tracking-[0.2em] text-gold-600 flex items-center gap-2">
@@ -151,7 +205,7 @@ export default function Festivals() {
               {t("Thursday is Baba's day. Every Thursday evening at 7:30 PM, Baba's palki is carried on devotees' shoulders through Dwarakapuri Colony and Hindi Colony to the singing of bhajans, returning to the temple for aarti and prasadam distribution. Devotees from across Hyderabad join this weekly procession.")}
             </p>
             <div className="flex flex-wrap gap-3 mt-6">
-              <span className="inline-flex items-center gap-1.5 bg-maroon-50 text-maroon-700 text-xs font-semibold rounded-full px-3 py-1.5"><Clock size={13} /> 7:30 PM {t('every Thursday')}</span>
+              <span className="inline-flex items-center gap-1.5 bg-maroon-50 text-maroon-700 text-xs font-semibold rounded-full px-3 py-1.5"><Clock size={13} /> {tr('7:30 PM every Thursday')}</span>
               <span className="inline-flex items-center gap-1.5 bg-gold-50 text-gold-700 text-xs font-semibold rounded-full px-3 py-1.5"><Sparkles size={13} /> {t('Bhajans · Aarti · Prasadam')}</span>
             </div>
           </div>

@@ -8,7 +8,7 @@ import { PageTitle, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI } from '../../api/client.js'
-import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, stamp, teText, clock12 } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Shri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
@@ -32,7 +32,7 @@ function validityRange(pl, fromDate, bookingTime) {
   const mins = String(validUntil.getMinutes()).padStart(2, '0')
   const ampm = hours >= 12 ? 'PM' : 'AM'
   const hr12 = hours % 12 || 12
-  return `${dateStr}, ${String(hr12).padStart(2, '0')}:${mins} ${ampm}`
+  return `${dateStr}, ${clock12(`${String(hr12).padStart(2, '0')}:${mins} ${ampm}`)}`
 }
 const validityShort = (pl) => { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('daily')) return tr('1 Day'); if (n.includes('monthly')) return tr('1 Month'); if (n.includes('life')) return tr('Lifetime'); if (n.includes('one')) return tr('One-Time'); if (n.includes('year')) return tr('1 Year'); return pl?.frequency || tr('Selected Date') }
 
@@ -84,7 +84,7 @@ export default function PoojaHistoryDetails() {
           </Section>
           <Section n="2" icon={Landmark} title={tr("Pooja & Plan Details")}>
             <Row label={tr("Pooja Name")} value={d.pooja_name} />
-            <Row label={tr("Plan")} value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
+            <Row label={tr("Plan")} value={`${tr(plan.plan_name || '')} ${tr(shortPooja(d.pooja_name))}`} />
             <Row label={tr("Plan Type")} value={plan.plan_name} />
             <Row label={tr("Rate Type")} value={plan.rate_type} />
             <Row label={tr("Plan Description")} value={`${tr(plan.plan_name || '')} ${tr(d.pooja_name || '')} ${tr('for')} ${tr(validityShort(plan))}`.trim()} />
@@ -93,7 +93,7 @@ export default function PoojaHistoryDetails() {
             <Row label={tr("Pooja Date")} value={`${fmtDate(d.scheduled_date)} (${weekday(d.scheduled_date)})`} />
             <Row label={tr("Booking Date & Time")} value={fmtStamp(d.created_at)} />
             <Row label={tr("Validity")} value={validRange} />
-            <Row label={tr("Completion Status")} value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} /> {d.completion}</span>} />
+            <Row label={tr("Completion Status")} value={<span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold"><CheckCircle2 size={14} /> {tr(d.completion)}</span>} />
           </Section>
           {pr.name && (
             <Section n="4" icon={UserCog} title={tr("Poojari Details")}>
@@ -111,10 +111,10 @@ export default function PoojaHistoryDetails() {
               <TF icon={Ticket} label={tr("Ticket Number")} value={ticketNo} mono />
               <TF icon={User} label={tr("Devotee")} value={personName(dev, lang)} sub={dev.mobile} />
               <TF icon={Landmark} label={tr("Pooja")} value={d.pooja_name} />
-              <TF icon={CalendarDays} label={tr("Plan")} value={`${plan.plan_name || ''} ${shortPooja(d.pooja_name)}`} />
+              <TF icon={CalendarDays} label={tr("Plan")} value={`${tr(plan.plan_name || '')} ${tr(shortPooja(d.pooja_name))}`} />
               <TF icon={Tag} label={tr("Plan Type")} value={plan.plan_name} />
               <TF icon={Calendar} label={tr("Pooja Date")} value={fmtDate(d.scheduled_date)} />
-              <TF icon={CheckCircle2} label={tr("Status")} value={<span className="text-emerald-700">{d.completion}</span>} />
+              <TF icon={CheckCircle2} label={tr("Status")} value={<span className="text-emerald-700">{tr(d.completion)}</span>} />
               <TF icon={IndianRupee} label={tr("Rate Type")} value={plan.rate_type} />
               <TF icon={IndianRupee} label={tr("Amount Paid (₹)")} value={money2(d.amount)} />
             </TicketShell>

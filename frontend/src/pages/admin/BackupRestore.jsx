@@ -198,7 +198,7 @@ export default function BackupRestore() {
               <div className="p-6 text-center">
                 <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 grid place-items-center"><CheckCircle2 size={30} /></div>
                 <h3 className="font-serif text-xl font-bold text-maroon-800 mt-3"><T>Restore Complete</T></h3>
-                <p className="text-[0.8125rem] text-gray-500 mt-1">{restore.result.written} rows restored across {restore.result.tables} tables.</p>
+                <p className="text-[0.8125rem] text-gray-500 mt-1">{tr('{rows} rows restored across {tables} tables.').replace('{rows}', restore.result.written).replace('{tables}', restore.result.tables)}</p>
                 <button onClick={() => setRestore(null)} className="btn-maroon mt-5 mx-auto"><T>Done</T></button>
               </div>
             ) : (
@@ -208,7 +208,7 @@ export default function BackupRestore() {
                   <button onClick={() => setRestore(null)} className="text-gray-400 hover:text-maroon-700"><X size={18} /></button>
                 </div>
                 <div className="px-6 py-5">
-                  <div className="text-[0.8125rem] text-gray-600 mb-3"><T>File:</T>{' '}<span className="font-mono">{restore.filename}</span> · schema {restore.validation.schema_version || '—'} · <span className="font-semibold">{num(restore.validation.total_records)}</span>{' '}<T>records</T></div>
+                  <div className="text-[0.8125rem] text-gray-600 mb-3"><T>File:</T>{' '}<span className="font-mono">{restore.filename}</span> · {tr('schema')} {restore.validation.schema_version || '—'} · <span className="font-semibold">{num(restore.validation.total_records)}</span>{' '}<T>records</T></div>
                   <div className="border border-gray-100 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
                     {Object.entries(restore.validation.table_counts).map(([t, c]) => (
                       <div key={t} className="flex items-center justify-between px-3 py-2 text-[0.8125rem]"><span className="text-gray-700">{t}</span><span className="font-semibold text-gray-800">{num(c)}</span></div>
@@ -217,7 +217,7 @@ export default function BackupRestore() {
                   {restore.validation.warnings?.length > 0 && (
                     <div className="mt-3 bg-amber-50/70 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.78125rem] text-amber-700 flex items-start gap-2"><AlertTriangle size={15} className="shrink-0 mt-0.5" /><div>{restore.validation.warnings.join(' ')}</div></div>
                   )}
-                  {restore.validation.unknown_tables?.length > 0 && <div className="mt-2 text-[0.75rem] text-gray-400">Ignored unknown tables: {restore.validation.unknown_tables.join(', ')}</div>}
+                  {restore.validation.unknown_tables?.length > 0 && <div className="mt-2 text-[0.75rem] text-gray-400">{tr('Ignored unknown tables:')} {restore.validation.unknown_tables.join(', ')}</div>}
                   <div className="bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.78125rem] text-gray-600 mt-3"><T>Restore inserts new records and updates existing ones by their code/key. It will not delete any data.</T></div>
                 </div>
                 <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">

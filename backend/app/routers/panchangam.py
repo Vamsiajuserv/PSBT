@@ -1,231 +1,113 @@
-"""Panchangam API — Complete Hindu Panchang data.
+"""Panchangam API — the daily Panchangam panel (Calendar, Festival Master).
 
-Data Source Hierarchy (per temple requirements):
-1. Fresh Prokerala API data (authoritative when available)
-2. Cached Prokerala API data (6-hour cache)
-3. Local Swiss Ephemeris calculation (fallback only)
+Calculated locally by app/panchangam.py (PyEphem — installs on Windows, Linux and
+Azure without a compiler) for the temple's own location (setting temple_latitude /
+temple_longitude) in Asia/Kolkata time. No network source: Prokerala is not used
+(see docs/adr/0006).
 
-The response always includes a 'source' field indicating where data came from:
-- "prokerala_api" = Official Prokerala API (authoritative)
-- "Swiss Ephemeris + Lahiri Ayanamsa" = Local calculation (fallback)
+Fields: weekday, tithi, paksha, nakshatra, yoga, karana (each with its end time),
+sunrise, sunset, Rahukalam, Yamagandam, Gulika Kalam and Abhijit Muhurtam. Times
+are astronomical ("drik"); printed traditional panchangams may differ.
 
-Provides accurate calculations for:
-- Tithi, Nakshatra, Yoga, Karana (Pancha Anga - 5 limbs)
-- Sunrise, Sunset
-- Rahukalam, Yamagandam, Gulika Kalam (inauspicious periods)
-- Abhijit Muhurtam (auspicious period)
+If the engine cannot run, every endpoint answers 503 with the reason — it never
+returns placeholder rows in place of a day.
 """
-from datetime import date, timedelta
-from typing import Optional, Dict
 import logging
-from fastapi import APIRouter, HTTPException
+from datetime import date, timedelta
 
-from ..config import settings
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..helpers import ist_today
+from .settings import temple_location
 
 logger = logging.getLogger(__name__)
-from ..lunar import (
-    get_panchangam as get_local_panchangam,
-    SWE_AVAILABLE,
-)
-
-# Import Prokerala helper (lazy import to avoid circular dependency)
-_prokerala_module = None
-
-
-def _get_prokerala():
-    """Lazy import of prokerala module."""
-    global _prokerala_module
-    if _prokerala_module is None:
-        from . import prokerala as pk
-        _prokerala_module = pk
-    return _prokerala_module
-
-
-def _try_prokerala_panchang(dt: date) -> Optional[Dict]:
-    """Try to get Panchangam from Prokerala API.
-
-    Returns None if Prokerala is unavailable or fails.
-    """
-    if not settings.prokerala_available:
-        return None
-
-    try:
-        pk = _get_prokerala()
-        return pk._get_panchang(dt)
-    except Exception as e:
-        logger.warning(f"Prokerala fallback error: {e}")
-        return None
-
-
-def get_panchangam(dt: date) -> Dict:
-    """Get Panchangam with Prokerala as authoritative source.
-
-    Hierarchy: Prokerala API → Local Swiss Ephemeris
-    """
-    # Try Prokerala first (authoritative)
-    prokerala_data = _try_prokerala_panchang(dt)
-    if prokerala_data:
-        return prokerala_data
-
-    # Fallback to local calculation
-    if SWE_AVAILABLE:
-        local_data = get_local_panchangam(dt)
-        local_data["source"] = "local_fallback"  # Mark as fallback
-        return local_data
-
-    return {"error": "No Panchangam source available", "date": str(dt)}
-
-
-def get_panchangam_range(start_date: date, end_date: date) -> list:
-    """Get Panchangam for a date range with Prokerala as authoritative source."""
-    results = []
-    current = start_date
-    while current <= end_date:
-        results.append(get_panchangam(current))
-        current += timedelta(days=1)
-    return results
 
 router = APIRouter(prefix="/api/panchangam", tags=["panchangam"])
 
+MAX_RANGE_DAYS = 31
+
+
+def _engine():
+    """The calculation module, or a 503 explaining why it is unavailable."""
+    try:
+        from .. import panchangam as engine
+        return engine
+    except ImportError as exc:                       # e.g. ephem not installed
+        logger.error("Panchangam engine unavailable: %s", exc)
+        raise HTTPException(503, f"Panchangam calculation is unavailable on this server ({exc}). "
+                                 "Install the packages in requirements.txt.")
+
+
+def _days(db: Session, start: date, end: date) -> list[dict]:
+    engine = _engine()
+    loc = temple_location(db)
+    out, d = [], start
+    try:
+        while d <= end:
+            out.append(engine.panchangam_for(d, loc))
+            d += timedelta(days=1)
+    except Exception as exc:                         # never hand back half-filled rows
+        logger.exception("Panchangam calculation failed for %s", d)
+        raise HTTPException(503, f"Panchangam could not be calculated for {d}: {exc}")
+    return out
+
+
+def _parse(value: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
+
 
 @router.get("/status")
-def panchangam_status():
-    """Check Panchangam data source status and hierarchy."""
-    prokerala_available = settings.prokerala_available
-
-    return {
-        "available": prokerala_available or SWE_AVAILABLE,
-        "hierarchy": [
-            {"source": "prokerala_api", "status": "active" if prokerala_available else "not_configured", "priority": 1},
-            {"source": "local_swiss_ephemeris", "status": "active" if SWE_AVAILABLE else "unavailable", "priority": 2},
-        ],
-        "authoritative_source": "prokerala_api" if prokerala_available else "local_swiss_ephemeris",
-        "features": [
-            "Tithi (lunar day)",
-            "Nakshatra (lunar mansion)",
-            "Yoga (sun-moon combination)",
-            "Karana (half-tithi)",
-            "Sunrise/Sunset",
-            "Rahukalam",
-            "Yamagandam",
-            "Gulika Kalam",
-            "Abhijit Muhurtam",
-        ],
-        "note": "Prokerala API is authoritative when configured. Local calculation is fallback only." if prokerala_available else "Local Swiss Ephemeris calculation active. Configure Prokerala API for authoritative data.",
-    }
+def panchangam_status(db: Session = Depends(get_db)):
+    try:
+        engine = _engine()
+    except HTTPException as exc:
+        return {"available": False, "reason": exc.detail}
+    loc = temple_location(db)
+    return {"available": True, "engine": engine.SOURCE, "times_basis": engine.TIMES_BASIS,
+            "location": loc.name, "coordinates": f"{loc.lat:.4f}°N, {loc.lon:.4f}°E",
+            "timezone": "Asia/Kolkata",
+            "features": ["Tithi, Nakshatra, Yoga, Karana (with end times)", "Sunrise / Sunset",
+                         "Rahukalam", "Yamagandam", "Gulika Kalam", "Abhijit Muhurtam"]}
 
 
 @router.get("/today")
-def panchangam_today():
-    """Get Panchangam for today.
-
-    Uses Prokerala API (authoritative) when available, falls back to local calculation.
-    Response includes 'source' field indicating data origin.
-    """
-    data = get_panchangam(date.today())
-    if "error" in data:
-        raise HTTPException(503, data["error"])
-    return data
+def panchangam_today(db: Session = Depends(get_db)):
+    """Today in India (not the server's UTC date)."""
+    today = ist_today()
+    return _days(db, today, today)[0]
 
 
 @router.get("/date/{dt}")
-def panchangam_for_date(dt: str):
-    """Get Panchangam for a specific date.
-
-    Uses Prokerala API (authoritative) when available, falls back to local calculation.
-    Response includes 'source' field indicating data origin.
-
-    Args:
-        dt: Date in YYYY-MM-DD format
-    """
-    try:
-        parsed_date = date.fromisoformat(dt)
-    except ValueError:
-        raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
-
-    data = get_panchangam(parsed_date)
-    if "error" in data:
-        raise HTTPException(503, data["error"])
-    return data
+def panchangam_for_date(dt: str, db: Session = Depends(get_db)):
+    d = _parse(dt)
+    return _days(db, d, d)[0]
 
 
 @router.get("/month/{year}/{month}")
-def panchangam_for_month(year: int, month: int):
-    """Get Panchangam for all days in a month.
-
-    Uses Prokerala API (authoritative) when available, falls back to local calculation.
-    Each day's data includes 'source' field indicating data origin.
-
-    Args:
-        year: Year (e.g., 2026)
-        month: Month (1-12)
-    """
+def panchangam_for_month(year: int, month: int, db: Session = Depends(get_db)):
     if month < 1 or month > 12:
         raise HTTPException(400, "Month must be between 1 and 12")
-
     if year < 1900 or year > 2100:
         raise HTTPException(400, "Year must be between 1900 and 2100")
-
-    # Calculate start and end of month
-    start_date = date(year, month, 1)
-    if month == 12:
-        end_date = date(year + 1, 1, 1) - timedelta(days=1)
-    else:
-        end_date = date(year, month + 1, 1) - timedelta(days=1)
-
-    data = get_panchangam_range(start_date, end_date)
-
-    # Determine primary source used
-    sources = set(d.get("source", "unknown") for d in data if "source" in d)
-    primary_source = "prokerala_api" if "prokerala_api" in sources else (
-        "local_fallback" if "local_fallback" in sources else "unknown"
-    )
-
-    return {
-        "year": year,
-        "month": month,
-        "days": len(data),
-        "panchangam": data,
-        "primary_source": primary_source,
-    }
+    start = date(year, month, 1)
+    end = (date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)) - timedelta(days=1)
+    data = _days(db, start, end)
+    return {"year": year, "month": month, "days": len(data), "panchangam": data,
+            "primary_source": data[0]["source"] if data else None}
 
 
 @router.get("/range")
-def panchangam_for_range(start: str, end: str):
-    """Get Panchangam for a date range.
-
-    Uses Prokerala API (authoritative) when available, falls back to local calculation.
-    Each day's data includes 'source' field indicating data origin.
-
-    Args:
-        start: Start date in YYYY-MM-DD format
-        end: End date in YYYY-MM-DD format
-    """
-    try:
-        start_date = date.fromisoformat(start)
-        end_date = date.fromisoformat(end)
-    except ValueError:
-        raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
-
-    if end_date < start_date:
+def panchangam_for_range(start: str, end: str, db: Session = Depends(get_db)):
+    s, e = _parse(start), _parse(end)
+    if e < s:
         raise HTTPException(400, "End date must be after start date")
-
-    # Limit range to 31 days
-    if (end_date - start_date).days > 31:
-        raise HTTPException(400, "Date range cannot exceed 31 days")
-
-    data = get_panchangam_range(start_date, end_date)
-
-    # Determine primary source used
-    sources = set(d.get("source", "unknown") for d in data if "source" in d)
-    primary_source = "prokerala_api" if "prokerala_api" in sources else (
-        "local_fallback" if "local_fallback" in sources else "unknown"
-    )
-
-    return {
-        "start": str(start_date),
-        "end": str(end_date),
-        "days": len(data),
-        "panchangam": data,
-        "primary_source": primary_source,
-    }
+    if (e - s).days > MAX_RANGE_DAYS:
+        raise HTTPException(400, f"Date range cannot exceed {MAX_RANGE_DAYS} days")
+    data = _days(db, s, e)
+    return {"start": str(s), "end": str(e), "days": len(data), "panchangam": data,
+            "primary_source": data[0]["source"] if data else None}

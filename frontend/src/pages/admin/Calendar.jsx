@@ -1,47 +1,65 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, X, Moon, Sun, Star, Sunrise, Sunset, AlertTriangle, Clock, Sparkles } from 'lucide-react'
-import { Flourish } from '../../components/common/UI.jsx'
-import { BookingsAPI, FestivalsAPI, TithiAPI, PanchangamAPI, ProkeralaAPI } from '../../api/client.js'
-import { fmtDate } from '../../components/admin/ui.jsx'
+import { ChevronLeft, ChevronRight, ChevronDown, X } from 'lucide-react'
+import { BookingsAPI, FestivalsAPI, PanchangamAPI, AlmanacAPI } from '../../api/client.js'
 import { Select } from '../../components/common/Field.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useLang } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { isAdminRole } from '../../auth/access.js'
+import { toast } from '../../components/common/Dialog.jsx'
+import TempleCalendar from './calendar/TempleCalendar.jsx'
 
-// ── Month-only calendar view ────────────────────────────────────────────────
-// The Day/Week toggle was removed: a Month-only calendar is preferred over a
-// toggle that does nothing (see task requirement #6). Events are driven by live
-// booking data, grouped onto their `scheduled_date` cells.
+// ── Admin Calendar ──────────────────────────────────────────────────────────
+// Loads the month (bookings, Festival Master, almanac Pournami/Amavasya/festivals,
+// Panchangam) and renders it as the "Temple traditional" month view
+// (calendar/TempleCalendar.jsx); a clicked day opens its detail in a popup.
 
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => tr(d))
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'].map(m => tr(m))
-const LEGEND = [
-  { label: tr('Confirmed'), color: '#059669' },
-  { label: tr('Pending'), color: '#d4a017' },
-  { label: tr('Completed'), color: '#2563eb' },
-  { label: tr('Cancelled'), color: '#dc2626' },
+
+// "Show" toggles — stored as the hidden ones in the URL (?hide=moon,panch)
+const LAYERS = [
+  ['bookings', 'Bookings'], ['moon', 'Pournami / Amavasya'], ['festivals', 'Festivals'], ['panch', 'Tithi & nakshatra'],
 ]
-const TITHI_CONFIG = {
-  Pournami: { label: tr('Pournami'), labelTe: 'పౌర్ణమి', color: '#f59e0b', bg: 'bg-gradient-to-r from-amber-200 to-yellow-300', text: 'text-amber-800', border: 'border-amber-400', highlight: true, glow: 'shadow-[0_0_8px_rgba(251,191,36,0.8)]' },
-  Amavasya: { label: tr('Amavasya'), labelTe: 'అమావాస్య', color: '#6b7280', bg: 'bg-gray-200', text: 'text-gray-700', border: 'border-gray-400' },
-  Ekadashi: { label: tr('Ekadashi'), labelTe: 'ఏకాదశి', color: '#8b5cf6', bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-300' },
-  Chaturthi: { label: tr('Chaturthi'), labelTe: 'చతుర్థి', color: '#ec4899', bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300' },
-  Pradosham: { label: tr('Pradosham'), labelTe: 'ప్రదోషం', color: '#3b82f6', bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
-}
-const EVENT_STYLE = {
-  Confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  Completed: 'bg-blue-50 text-blue-700 border-blue-200',
-  Cancelled: 'bg-red-50 text-red-700 border-red-200',
-}
-const DOT_COLOR = {
-  Confirmed: '#059669', Pending: '#d4a017', Completed: '#2563eb', Cancelled: '#dc2626',
+const UNASSIGNED = '__none'
+
+// Every booking scheduled in [from, to]. The list API returns at most 200 per page,
+// so keep asking until all are in (a busy month has ~300).
+async function fetchMonthBookings(from, to) {
+  const all = []
+  for (let page = 1; page <= 25; page++) {
+    const r = await BookingsAPI.list({ start: from, end: to, page, size: 200, sort_by: 'scheduled_date', sort_dir: 'asc' })
+    const items = Array.isArray(r?.items) ? r.items : []
+    all.push(...items)
+    if (!items.length || all.length >= (r?.total ?? 0)) break
+  }
+  return { items: all }
 }
 
-const isSameDay = (a, b) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-
+// Jump straight to any month: year arrows + 12 month buttons
+function MonthPicker({ year, month, onPick, onClose }) {
+  const [y, setY] = useState(year)
+  return (
+    <>
+      <div className="fixed inset-0 z-30" onClick={onClose} />
+      <div className="absolute z-40 top-full left-1/2 -translate-x-1/2 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gold-200 p-3">
+        <div className="flex items-center justify-between mb-2">
+          <button onClick={() => setY(y - 1)} className="p-1 rounded hover:bg-gold-50 text-maroon-700" title={tr('Previous year')}><ChevronLeft size={16} /></button>
+          <span className="font-bold text-maroon-700">{y}</span>
+          <button onClick={() => setY(y + 1)} className="p-1 rounded hover:bg-gold-50 text-maroon-700" title={tr('Next year')}><ChevronRight size={16} /></button>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {MONTHS.map((m, i) => (
+            <button key={i} onClick={() => onPick(y, i)}
+              className={`py-1.5 rounded-lg text-[0.75rem] font-semibold ${y === year && i === month ? 'bg-maroon-700 text-white' : 'hover:bg-gold-50 text-gray-700'}`}>
+              {m.slice(0, 3)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
 export default function Calendar() {
   const { lang } = useLang()
   const { user } = useAuth()
@@ -50,48 +68,59 @@ export default function Calendar() {
   const [current, setCurrent] = useState(() => new Date())
   const [bookings, setBookings] = useState([])
   const [festivals, setFestivals] = useState([])
-  const [tithis, setTithis] = useState([])
   const [panchangam, setPanchangam] = useState({}) // { day: panchangamData }
-  const [prokeralaFestivals, setProkeralaFestivals] = useState([]) // Festivals from Prokerala
-  const [prokeralaPournami, setProkeralaPournami] = useState([]) // Pournami days from Prokerala
+  const [panchError, setPanchError] = useState('')  // why the panchangam could not be loaded
+  const [pournamis, setPournamis] = useState([]) // Pournami days from the almanac engine
+  const [almanacFests, setAlmanacFests] = useState([]) // festival days from the almanac engine
+  const [confirming, setConfirming] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   // filters - persisted in URL for state preservation across navigation
-  const { service, setService, status, setStatus } = useFilterParams({ service: '', status: '' })
+  const { service, setService, status, setStatus, poojari, setPoojari, hide, setHide, setFilters } =
+    useFilterParams({ service: '', status: '', poojari: '', hide: '' })
+  const hidden = useMemo(() => new Set((hide || '').split(',').filter(Boolean)), [hide])
+  const show = { bookings: !hidden.has('bookings'), moon: !hidden.has('moon'), festivals: !hidden.has('festivals'), panch: !hidden.has('panch') }
+  const toggleLayer = (key) => {
+    const next = new Set(hidden)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    setHide([...next].join(','))
+  }
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState(null)
-  const [showTithis, setShowTithis] = useState(true)
-  const [showFestivals, setShowFestivals] = useState(true)
-  const [showPanchangam, setShowPanchangam] = useState(true)
-
   const year = current.getFullYear()
   const month = current.getMonth()
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      // Fetch bookings, festivals, tithis, panchangam, and Prokerala data in parallel
-      const [bookingsRes, festivalsRes, tithisRes, panchangamRes, prokeralaRes] = await Promise.all([
-        BookingsAPI.list({ size: 500 }),
+      // Fetch bookings, Festival Master, panchangam and almanac (Pournami / Amavasya / festivals) in parallel
+      const pad = (n) => String(n).padStart(2, '0')
+      const monthFrom = `${year}-${pad(month + 1)}-01`
+      const monthTo = `${year}-${pad(month + 1)}-${pad(new Date(year, month + 1, 0).getDate())}`
+      const [bookingsRes, festivalsRes, panchangamRes, almanacRes] = await Promise.all([
+        fetchMonthBookings(monthFrom, monthTo),
         FestivalsAPI.list().catch(() => ({ items: [] })),
-        TithiAPI.list({ year }).catch(() => ({ items: [] })),
-        PanchangamAPI.month(year, month + 1).catch(() => ({ panchangam: [] })),
-        ProkeralaAPI.festivals(year, month + 1).catch(() => ({ festivals: [], pournami: [] })),
+        PanchangamAPI.month(year, month + 1).catch((ex) => ({ panchangam: [], error: ex?.detail || 'unavailable' })),
+        AlmanacAPI.days(monthFrom, monthTo, 'all').catch(() => ({ items: [] })),
       ])
       setBookings(Array.isArray(bookingsRes?.items) ? bookingsRes.items : [])
       setFestivals(Array.isArray(festivalsRes?.items) ? festivalsRes.items : [])
-      setTithis(Array.isArray(tithisRes?.items) ? tithisRes.items : [])
       // Index panchangam by day for quick lookup
+      // Only real days are kept: an item without a tithi is not a panchangam, and is
+      // never shown as one (blank fields would look like data).
       const panchMap = {}
       if (Array.isArray(panchangamRes?.panchangam)) {
         for (const p of panchangamRes.panchangam) {
           const day = parseInt(p.date?.split('-')[2], 10)
-          if (day) panchMap[day] = p
+          if (day && p.tithi_name && !p.error) panchMap[day] = p
         }
       }
       setPanchangam(panchMap)
+      setPanchError(Object.keys(panchMap).length ? '' : (panchangamRes?.error || 'unavailable'))
       // Set Prokerala festivals and pournami
-      setProkeralaFestivals(Array.isArray(prokeralaRes?.festivals) ? prokeralaRes.festivals : [])
-      setProkeralaPournami(Array.isArray(prokeralaRes?.pournami) ? prokeralaRes.pournami : [])
+      const almanac = Array.isArray(almanacRes?.items) ? almanacRes.items : []
+      setPournamis(almanac.filter((d) => d.event_type === 'Pournami' || d.event_type === 'Amavasya'))
+      setAlmanacFests(almanac.filter((d) => d.event_type === 'Festival'))
     } catch (ex) {
       setError(ex?.detail || tr('Could not load calendar events.'))
       setBookings([])
@@ -112,8 +141,9 @@ export default function Calendar() {
     if (y !== year || m !== month + 1) return false
     if (service && b.seva_name !== service) return false
     if (status && b.status !== status) return false
+    if (poojari && (poojari === UNASSIGNED ? !!b.poojari_name : b.poojari_name !== poojari)) return false
     return true
-  }), [bookings, year, month, service, status])
+  }), [bookings, year, month, service, status, poojari])
 
   // Group events by day-of-month → { 5: [ev, ev], … }
   const byDay = useMemo(() => {
@@ -126,6 +156,8 @@ export default function Calendar() {
         title: b.seva_name || tr('Booking'),
         status: b.status,
         devotee: b.devotee_name,
+        mobile: b.mobile,
+        poojari: b.poojari_name,
         plan: b.plan_name,
         // The API sends money as text ("500.00"); convert so totals add instead of joining into NaN
         amount: Number(b.amount) || 0,
@@ -147,9 +179,13 @@ export default function Calendar() {
     return stats
   }, [byDay])
 
-  // Festivals falling on each day of the month (from database + Prokerala)
+  // Festivals falling on each day of the month (Festival Master + almanac)
   const festivalsByDay = useMemo(() => {
     const map = {}
+    // A Festival Master entry linked to an almanac festival is shown once — by the
+    // almanac's name — on the almanac's day.
+    const almanacOn = new Set(almanacFests.map((f) => `${f.event_date}|${f.rule_code}`))
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     // Database festivals (temple-specific)
     for (const f of festivals) {
       if (!f.start_date) continue
@@ -158,6 +194,7 @@ export default function Calendar() {
       // Check each day in the festival range
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         if (d.getFullYear() === year && d.getMonth() === month) {
+          if (f.almanac_code && almanacOn.has(`${iso(d)}|${f.almanac_code}`)) continue
           const day = d.getDate()
           ;(map[day] ||= []).push({
             name: f.name,
@@ -169,50 +206,64 @@ export default function Calendar() {
         }
       }
     }
-    // Prokerala festivals (Telugu calendar)
-    for (const f of prokeralaFestivals) {
-      if (!f.day && !f.date) continue
-      const day = f.day || parseInt(f.date?.split('-')[2], 10)
-      if (day && day >= 1 && day <= 31) {
-        // Avoid duplicates - check if festival with same name exists
-        const existing = map[day] || []
-        if (!existing.some(e => e.name?.toLowerCase() === f.name?.toLowerCase())) {
-          ;(map[day] ||= []).push({
-            name: f.name,
-            isSingle: true,
-            source: 'prokerala',
-          })
-        }
-      }
+    // Hindu festivals from the almanac engine (TTD panchangam rules)
+    for (const f of almanacFests) {
+      const [y, m, d] = String(f.event_date).split('-').map(Number)
+      if (y !== year || m !== month + 1) continue
+      const name = lang === 'te' && f.name_te ? f.name_te : f.name
+      const existing = map[d] || []
+      if (existing.some((e) => e.name?.toLowerCase() === f.name.toLowerCase())) continue
+      ;(map[d] ||= []).push({ name, isSingle: true, source: 'almanac', provisional: f.provisional, translated: true })
     }
+    // The day's own festival (almanac) leads; multi-day Festival Master windows follow
+    for (const d of Object.keys(map)) map[d].sort((a, b) => (a.source === 'almanac' ? 0 : 1) - (b.source === 'almanac' ? 0 : 1))
     return map
-  }, [festivals, prokeralaFestivals, year, month])
+  }, [festivals, almanacFests, year, month, lang])
 
-  // Tithis for each day of the month (from database + Prokerala Pournami)
+  // Pournami and Amavasya for each day of the month — from the almanac engine (TTD rule)
   const tithisByDay = useMemo(() => {
     const map = {}
-    // Database tithis
-    for (const t of tithis) {
-      if (!t.tithi_date) continue
-      const [y, m, d] = String(t.tithi_date).split('-').map(Number)
+    for (const p of pournamis) {
+      const [y, m, d] = String(p.event_date).split('-').map(Number)
       if (y === year && m === month + 1) {
-        map[d] = { type: t.tithi_type, name: t.name || t.tithi_type }
-      }
-    }
-    // Add Prokerala Pournami dates (if not already present)
-    for (const day of prokeralaPournami) {
-      if (!map[day]) {
-        map[day] = { type: 'Pournami', name: 'Pournami', source: 'prokerala' }
+        map[d] = { ...p, type: p.event_type, label: lang === 'te' && p.name_te ? p.name_te : p.name }
       }
     }
     return map
-  }, [tithis, prokeralaPournami, year, month])
+  }, [pournamis, year, month, lang])
 
-  // Service dropdown options come from all fetched bookings (not just the month).
+  // Administrator confirms a flagged (provisional) Pournami after checking the TTD calendar
+  const confirmPournami = async (p) => {
+    setConfirming(true)
+    try {
+      await AlmanacAPI.publish(p.id)
+      toast(tr('Pournami confirmed.'), 'success')
+      setPournamis((list) => list.map((x) => (x.id === p.id ? { ...x, status: 'PUBLISHED', provisional: false } : x)))
+    } catch (ex) {
+      toast(ex?.detail || tr('Could not confirm this Pournami.'), 'error')
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  // Pooja and poojari choices come from the month's bookings (the selected one is
+  // kept in the list even when this month has none, so it can be cleared).
   const serviceOptions = useMemo(
-    () => [...new Set(bookings.map((b) => b.seva_name).filter(Boolean))].sort(),
-    [bookings],
+    () => [...new Set([...bookings.map((b) => b.seva_name), service].filter(Boolean))].sort(),
+    [bookings, service],
   )
+  const poojariOptions = useMemo(
+    () => [...new Set([...bookings.map((b) => b.poojari_name), poojari !== UNASSIGNED && poojari].filter(Boolean))].sort(),
+    [bookings, poojari],
+  )
+  const activeFilters = [
+    service && ['Pooja', tr(service), () => setService('')],
+    status && ['Status', tr(status), () => setStatus('')],
+    poojari && ['Poojari', poojari === UNASSIGNED ? tr('Not assigned') : poojari, () => setPoojari('')],
+    ...LAYERS.filter(([k]) => hidden.has(k)).map(([k, label]) => ['Hidden', tr(label), () => toggleLayer(k)]),
+  ].filter(Boolean)
+  // One URL update: separate setters in the same click would overwrite each other
+  const clearAll = () => setFilters({ service: '', status: '', poojari: '', hide: '' })
 
   const leading = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -221,7 +272,12 @@ export default function Calendar() {
   const goMonth = (delta) => setCurrent(new Date(year, month + delta, 1))
   const goToday = () => setCurrent(new Date())
 
-  const selectedEvents = selectedDay ? byDay[selectedDay] || [] : []
+  // Everything the month view needs, from the data loaded above
+  const cal = {
+    year, month, today, cells, daysInMonth, byDay, dayStats, festivalsByDay, tithisByDay, panchangam,
+    selectedDay, setSelectedDay, lang, canSeeAmounts, isAdmin: isAdminRole(user), confirmPournami, confirming,
+    panchError, error, show,
+  }
 
   return (
     <div>
@@ -232,422 +288,73 @@ export default function Calendar() {
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="card p-3 flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
-          <button onClick={goToday} className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gold-50 text-maroon-700 hover:bg-gold-100"><T>Today</T></button>
-          <div className="flex items-center gap-2 text-sm">
-            <button onClick={() => goMonth(-1)} title={tr("Previous month")} className="text-gray-400 hover:text-maroon-700"><ChevronLeft size={18} /></button>
-            <span className="font-bold text-maroon-700 min-w-[8.125rem] text-center">{tr(MONTHS[month])} {year}</span>
-            <button onClick={() => goMonth(1)} title={tr("Next month")} className="text-gray-400 hover:text-maroon-700"><ChevronRight size={18} /></button>
+      {/* Toolbar: month navigation + filters */}
+      <div className="card p-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button onClick={goToday} className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gold-50 text-maroon-700 hover:bg-gold-100"><T>Today</T></button>
+            <div className="relative flex items-center gap-2 text-sm">
+              <button onClick={() => goMonth(-1)} title={tr("Previous month")} className="text-gray-400 hover:text-maroon-700"><ChevronLeft size={18} /></button>
+              <button onClick={() => setPickerOpen(!pickerOpen)} title={tr('Choose month')}
+                className="font-bold text-maroon-700 min-w-[8.125rem] text-center inline-flex items-center justify-center gap-1 rounded-md px-2 py-1 hover:bg-gold-50">
+                {tr(MONTHS[month])} {year} <ChevronDown size={14} />
+              </button>
+              <button onClick={() => goMonth(1)} title={tr("Next month")} className="text-gray-400 hover:text-maroon-700"><ChevronRight size={18} /></button>
+              {pickerOpen && <MonthPicker year={year} month={month} onClose={() => setPickerOpen(false)}
+                onPick={(y, m) => { setCurrent(new Date(y, m, 1)); setPickerOpen(false) }} />}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={service} onChange={(e) => setService(e.target.value)} className="input !w-auto !py-1.5 text-xs" aria-label={tr('Pooja')}>
+              <option value="">{tr("All Poojas")}</option>
+              {serviceOptions.map((s) => <option key={s} value={s}>{tr(s)}</option>)}
+            </Select>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-auto !py-1.5 text-xs" aria-label={tr('Status')}>
+              <option value="">{tr("All Status")}</option>
+              <option value="Confirmed">{tr("Confirmed")}</option><option value="Pending">{tr("Pending")}</option><option value="Completed">{tr("Completed")}</option><option value="Cancelled">{tr("Cancelled")}</option>
+            </Select>
+            <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input !w-auto !py-1.5 text-xs" aria-label={tr('Poojari')}>
+              <option value="">{tr("All Poojaris")}</option>
+              {poojariOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+              <option value={UNASSIGNED}>{tr("Not assigned")}</option>
+            </Select>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Select value={service} onChange={(e) => setService(e.target.value)} className="input !w-auto !py-1.5 text-xs">
-            <option value="">{tr("All Services")}</option>
-            {serviceOptions.map((s) => <option key={s} value={s}>{tr(s)}</option>)}
-          </Select>
-          <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-auto !py-1.5 text-xs">
-            <option value="">{tr("All Status")}</option>
-            <option value="Confirmed">{tr("Confirmed")}</option><option value="Pending">{tr("Pending")}</option><option value="Completed">{tr("Completed")}</option><option value="Cancelled">{tr("Cancelled")}</option>
-          </Select>
-        </div>
-      </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 mb-3 text-xs">
-        {LEGEND.map((l) => (
-          <span key={l.label} className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />{tr(l.label)}</span>
-        ))}
-        <span className="border-l border-gray-200 h-4 mx-1" />
-        <span className="flex items-center gap-1.5 px-2 py-0.5 bg-gradient-to-r from-amber-200 to-yellow-300 rounded-full text-amber-800 font-semibold shadow-sm">
-          <span>🌕</span> {tr('Pournami')}
-        </span>
-        <button
-          onClick={() => setShowTithis(!showTithis)}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition ${showTithis ? 'bg-amber-50 text-amber-700' : 'text-gray-400 hover:text-gray-600'}`}
-          title={tr('Toggle Tithi markers')}
-        >
-          <Moon size={12} /> <span>{tr('Tithis')}</span>
-        </button>
-        <button
-          onClick={() => setShowFestivals(!showFestivals)}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition ${showFestivals ? 'bg-rose-50 text-rose-700' : 'text-gray-400 hover:text-gray-600'}`}
-          title={tr('Toggle Festival highlights')}
-        >
-          <Star size={12} /> <span>{tr('Festivals')}</span>
-        </button>
-        {Object.keys(panchangam).length > 0 && (
-          <button
-            onClick={() => setShowPanchangam(!showPanchangam)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition ${showPanchangam ? 'bg-orange-50 text-orange-700' : 'text-gray-400 hover:text-gray-600'}`}
-            title={tr('Toggle Panchangam details')}
-          >
-            <Sparkles size={12} /> <span>{tr('Panchangam')}</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gold-100 text-[0.75rem]">
+          <span className="text-gray-500 font-semibold"><T>Show</T>:</span>
+          {LAYERS.map(([key, label]) => (
+            <button key={key} type="button" onClick={() => toggleLayer(key)} aria-pressed={show[key]}
+              className={`px-2.5 py-1 rounded-full border font-semibold transition ${show[key] ? 'bg-maroon-50 border-maroon-200 text-maroon-700' : 'bg-white border-gray-200 text-gray-400 line-through'}`}>
+              {show[key] ? '✓ ' : ''}{tr(label)}
+            </button>
+          ))}
+          <span className="ml-auto text-gray-600">
+            {loading ? tr('Loading events…') : `${tr('Showing')} ${monthBookings.length} ${tr(monthBookings.length === 1 ? 'booking' : 'bookings')}`}
+          </span>
+        </div>
+
+        {activeFilters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[0.75rem]">
+            {activeFilters.map(([kind, value, clear], i) => (
+              <span key={i} className="inline-flex items-center gap-1 rounded-full bg-gold-50 border border-gold-200 text-maroon-800 pl-2.5 pr-1 py-0.5">
+                {tr(kind)}: <b>{value}</b>
+                <button type="button" onClick={clear} className="p-0.5 rounded-full hover:bg-gold-100" aria-label={tr('Remove filter')}><X size={12} /></button>
+              </span>
+            ))}
+            <button type="button" onClick={clearAll} className="ml-1 font-semibold text-maroon-700 hover:underline"><T>Clear all</T></button>
+          </div>
         )}
-        <Flourish className="ml-auto hidden sm:flex" width="w-10" />
       </div>
 
-      {error && (
-        <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-2.5">{error}</div>
-      )}
+      {error && <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-2.5">{error}</div>}
 
-      {/* Grid */}
-      <div className="card overflow-x-auto">
-        <div className="min-w-[42rem] grid grid-cols-7 bg-maroon-deep text-cream/90 text-[0.6875rem] font-bold uppercase tracking-wide">
-          {DOW.map((d) => <div key={d} className="px-3 py-2.5 text-center">{tr(d)}</div>)}
-        </div>
-        <div className="min-w-[42rem] grid grid-cols-7">
-          {cells.map((day, i) => {
-            if (!day) return <div key={i} className="min-h-[6.875rem] border-b border-r border-gold-100 p-1.5 bg-gray-50/50" />
-            const events = byDay[day] || []
-            const stats = dayStats[day]
-            const dayFestivals = festivalsByDay[day] || []
-            const tithi = tithisByDay[day]
-            const panchang = panchangam[day]
-            const cellDate = new Date(year, month, day)
-            const isToday = isSameDay(cellDate, today)
-            const isSelected = selectedDay === day
-            const hasFestival = showFestivals && dayFestivals.length > 0
-            const tithiConf = showTithis && tithi ? TITHI_CONFIG[tithi.type] : null
-            const isPournami = tithiConf?.highlight
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setSelectedDay(isSelected ? null : day)}
-                className={`min-h-[6.875rem] border-b border-r border-gold-100 p-1.5 text-left transition relative ${
-                  isPournami ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 ring-2 ring-inset ring-amber-300' :
-                  hasFestival ? 'bg-gradient-to-br from-rose-50 to-orange-50' : ''
-                } ${isSelected ? 'bg-gold-50/60 ring-1 ring-inset ring-maroon-200' : 'hover:bg-gold-50/30'}`}
-              >
-                {/* Festival banner */}
-                {hasFestival && (
-                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-rose-500 to-orange-500 text-white text-[0.5rem] font-semibold px-1 py-0.5 truncate">
-                    {dayFestivals[0].name}
-                  </div>
-                )}
-
-                {/* Pournami banner */}
-                {isPournami && !hasFestival && (
-                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 text-amber-900 text-[0.5rem] font-bold px-1 py-0.5 flex items-center gap-1">
-                    <span>🌕</span>
-                    <span>{lang === 'te' ? 'పౌర్ణమి' : 'Pournami'}</span>
-                  </div>
-                )}
-
-                <div className={`flex items-center justify-between mb-1 ${hasFestival || isPournami ? 'mt-3' : ''}`}>
-                  <div className="flex items-center gap-1">
-                    <div className={`text-[0.6875rem] font-bold w-6 h-6 grid place-items-center rounded-full ${isToday ? 'bg-maroon-700 text-cream' : 'text-gray-500'}`}>{day}</div>
-                    {/* Tithi marker - colored dot with moon icon */}
-                    {tithiConf && (
-                      <div
-                        className={`flex items-center gap-0.5 rounded font-semibold ${tithiConf.bg} ${tithiConf.text} ${tithiConf.glow || ''} ${
-                          tithiConf.highlight
-                            ? 'px-1.5 py-1 text-[0.6rem] border-2 border-amber-400 animate-pulse'
-                            : 'px-1 py-0.5 text-[0.5rem]'
-                        }`}
-                        title={tithi.name}
-                      >
-                        <Moon size={tithiConf.highlight ? 12 : 8} className={tithiConf.highlight ? 'fill-amber-500' : ''} />
-                        {tithiConf.highlight && <span className="font-bold">🌕</span>}
-                      </div>
-                    )}
-                  </div>
-                  {events.length > 0 && (
-                    <div className="flex items-center gap-0.5 pr-0.5">
-                      {events.slice(0, 3).map((e, k) => (
-                        <span key={k} className="w-1.5 h-1.5 rounded-full" style={{ background: DOT_COLOR[e.status] || '#9ca3af' }} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Panchangam quick info (Nakshatra + Rahukalam) */}
-                {showPanchangam && panchang && (
-                  <div className="flex flex-wrap gap-1 mb-1">
-                    <span className="text-[0.5rem] px-1 py-0.5 bg-indigo-50 text-indigo-600 rounded truncate max-w-full" title={`${tr('Nakshatra')}: ${lang === 'te' ? panchang.nakshatra_name_te : panchang.nakshatra_name}`}>
-                      {lang === 'te' ? panchang.nakshatra_name_te : panchang.nakshatra_name?.split(' ')[0]}
-                    </span>
-                    <span className="text-[0.5rem] px-1 py-0.5 bg-red-50 text-red-600 rounded" title={`${tr('Rahukalam')}: ${panchang.rahukalam?.start} - ${panchang.rahukalam?.end}`}>
-                      <AlertTriangle size={7} className="inline mr-0.5" />{panchang.rahukalam?.start_24h}
-                    </span>
-                  </div>
-                )}
-
-                {/* Tithi name label */}
-                {tithiConf && tithi.name && (
-                  <div className={`text-[0.5rem] font-medium truncate mb-0.5 px-0.5 ${tithiConf.text}`}>{tithi.name}</div>
-                )}
-
-                <div className="space-y-1">
-                  {events.slice(0, showPanchangam ? 1 : 2).map((e, j) => (
-                    <div key={j} className={`text-[0.625rem] leading-tight rounded border px-1.5 py-1 truncate ${EVENT_STYLE[e.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                      {e.time && <span className="font-semibold">{e.time.replace(/\b(AM|PM)\b/, (w) => tr(w))}</span>} {tr(e.title)}
-                    </div>
-                  ))}
-                  {events.length > (showPanchangam ? 1 : 2) && <div className="text-[0.625rem] text-gray-400 px-1">+{events.length - (showPanchangam ? 1 : 2)} {tr('more')}</div>}
-                </div>
-
-                {/* Day stats (revenue) - hidden for Poojari */}
-                {canSeeAmounts && stats && stats.revenue > 0 && (
-                  <div className="absolute bottom-1 right-1 text-[0.5rem] text-emerald-600 font-semibold bg-emerald-50 px-1 rounded">
-                    ₹{stats.revenue >= 1000 ? Math.round(stats.revenue / 1000) + 'K' : Math.round(stats.revenue)}
-                  </div>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+      <TempleCalendar cal={cal} />
 
       {loading && <div className="mt-3 text-sm text-gray-400"><T>Loading events…</T></div>}
       {!loading && !error && monthBookings.length === 0 && (
         <div className="mt-3 text-sm text-gray-400">{tr('No events scheduled for')} {tr(MONTHS[month])} {year}.</div>
       )}
-
-      {/* Selected-day popup modal (Item 40) */}
-      {selectedDay && (() => {
-        const dayFests = festivalsByDay[selectedDay] || []
-        const dayTithi = tithisByDay[selectedDay]
-        const tithiConf = dayTithi ? TITHI_CONFIG[dayTithi.type] : null
-        const stats = dayStats[selectedDay]
-        const dayBookings = byDay[selectedDay] || []
-        const dayPanch = panchangam[selectedDay]
-        // Group by status for summary
-        const statusCounts = { Confirmed: 0, Pending: 0, Completed: 0, Cancelled: 0 }
-        const statusRevenue = { Confirmed: 0, Pending: 0, Completed: 0, Cancelled: 0 }
-        dayBookings.forEach(b => {
-          if (statusCounts[b.status] !== undefined) {
-            statusCounts[b.status]++
-            statusRevenue[b.status] += b.amount || 0
-          }
-        })
-        // Group by pooja type
-        const poojaBreakdown = {}
-        dayBookings.forEach(b => {
-          if (!poojaBreakdown[b.title]) poojaBreakdown[b.title] = { count: 0, revenue: 0 }
-          poojaBreakdown[b.title].count++
-          poojaBreakdown[b.title].revenue += b.amount || 0
-        })
-        const poojaList = Object.entries(poojaBreakdown).sort((a, b) => b[1].revenue - a[1].revenue)
-
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setSelectedDay(null)}>
-            <div className="absolute inset-0 bg-black/40" />
-            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              {/* Festival header banner */}
-              {dayFests.length > 0 && (
-                <div className="bg-gradient-to-r from-rose-500 to-orange-500 text-white px-5 py-3">
-                  <div className="flex items-center gap-2">
-                    <Star size={18} />
-                    <div>
-                      <div className="font-semibold">{dayFests.map(f => f.name).join(', ')}</div>
-                      <div className="text-xs text-white/80">{tr('Festival Day')}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Header with date and tithi */}
-              <div className={`flex items-center justify-between px-5 py-4 border-b border-gray-100 ${dayFests.length > 0 ? 'bg-rose-50' : 'bg-maroon-50'}`}>
-                <div>
-                  <h3 className="font-serif text-xl font-bold text-maroon-700">
-                    {fmtDate(new Date(year, month, selectedDay))}
-                  </h3>
-                  {tithiConf && dayTithi && (
-                    <div className={`inline-flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded text-xs font-semibold ${tithiConf.bg} ${tithiConf.text}`}>
-                      <Moon size={12} />
-                      <span>{dayTithi.name || tithiConf.label}</span>
-                    </div>
-                  )}
-                </div>
-                <button onClick={() => setSelectedDay(null)} className="w-8 h-8 grid place-items-center rounded-lg text-gray-400 hover:text-maroon-700 hover:bg-maroon-100"><X size={18} /></button>
-              </div>
-
-              <div className="p-5 overflow-y-auto max-h-[60vh]">
-                {/* Panchangam Panel */}
-                {dayPanch && (
-                  <div className="mb-5 bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-100">
-                    <h4 className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                      <Sparkles size={12} /> <T>Panchangam</T> <span className="text-orange-400 font-normal">({lang === 'te' ? dayPanch.vaara_te : dayPanch.vaara})</span>
-                    </h4>
-
-                    {/* Pancha Anga - 5 Elements in grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
-                      {/* Tithi */}
-                      <div className="bg-white/80 rounded-lg px-3 py-2">
-                        <div className="text-[0.6rem] text-gray-500 uppercase">{tr('Tithi')}</div>
-                        <div className="text-sm font-semibold text-gray-800">{lang === 'te' ? dayPanch.tithi_name_te : dayPanch.tithi_name}</div>
-                        <div className="text-[0.65rem] text-gray-500">{lang === 'te' ? dayPanch.paksha_te : dayPanch.paksha}</div>
-                      </div>
-                      {/* Nakshatra */}
-                      <div className="bg-white/80 rounded-lg px-3 py-2">
-                        <div className="text-[0.6rem] text-gray-500 uppercase">{tr('Nakshatra')}</div>
-                        <div className="text-sm font-semibold text-indigo-700">{lang === 'te' ? dayPanch.nakshatra_name_te : dayPanch.nakshatra_name}</div>
-                      </div>
-                      {/* Yoga */}
-                      <div className="bg-white/80 rounded-lg px-3 py-2">
-                        <div className="text-[0.6rem] text-gray-500 uppercase">{tr('Yoga')}</div>
-                        <div className="text-sm font-semibold text-purple-700">{lang === 'te' ? dayPanch.yoga_name_te : dayPanch.yoga_name}</div>
-                      </div>
-                      {/* Karana */}
-                      <div className="bg-white/80 rounded-lg px-3 py-2">
-                        <div className="text-[0.6rem] text-gray-500 uppercase">{tr('Karana')}</div>
-                        <div className="text-sm font-semibold text-teal-700">{lang === 'te' ? dayPanch.karana_name_te : dayPanch.karana_name}</div>
-                      </div>
-                      {/* Sunrise */}
-                      <div className="bg-white/80 rounded-lg px-3 py-2 flex items-center gap-2">
-                        <Sunrise size={14} className="text-amber-500" />
-                        <div>
-                          <div className="text-[0.6rem] text-gray-500 uppercase">{tr('Sunrise')}</div>
-                          <div className="text-sm font-semibold text-gray-800">{dayPanch.sunrise}</div>
-                        </div>
-                      </div>
-                      {/* Sunset */}
-                      <div className="bg-white/80 rounded-lg px-3 py-2 flex items-center gap-2">
-                        <Sunset size={14} className="text-orange-500" />
-                        <div>
-                          <div className="text-[0.6rem] text-gray-500 uppercase">{tr('Sunset')}</div>
-                          <div className="text-sm font-semibold text-gray-800">{dayPanch.sunset}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Timings - Auspicious & Inauspicious */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {/* Auspicious - Abhijit */}
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                        <div className="text-[0.6rem] text-emerald-600 uppercase flex items-center gap-1">
-                          <Sparkles size={10} /> {tr('Abhijit Muhurtam')}
-                        </div>
-                        <div className="text-sm font-semibold text-emerald-700">
-                          {dayPanch.abhijit_muhurtam?.start} - {dayPanch.abhijit_muhurtam?.end}
-                        </div>
-                        <div className="text-[0.6rem] text-emerald-600/70">{tr('Auspicious')}</div>
-                      </div>
-                      {/* Inauspicious - Rahukalam */}
-                      <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                        <div className="text-[0.6rem] text-red-600 uppercase flex items-center gap-1">
-                          <AlertTriangle size={10} /> {tr('Rahukalam')}
-                        </div>
-                        <div className="text-sm font-semibold text-red-700">
-                          {dayPanch.rahukalam?.start} - {dayPanch.rahukalam?.end}
-                        </div>
-                        <div className="text-[0.6rem] text-red-600/70">{tr('Inauspicious')}</div>
-                      </div>
-                      {/* Yamagandam */}
-                      <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-                        <div className="text-[0.6rem] text-orange-600 uppercase flex items-center gap-1">
-                          <Clock size={10} /> {tr('Yamagandam')}
-                        </div>
-                        <div className="text-sm font-semibold text-orange-700">
-                          {dayPanch.yamagandam?.start} - {dayPanch.yamagandam?.end}
-                        </div>
-                      </div>
-                      {/* Gulika Kalam */}
-                      <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                        <div className="text-[0.6rem] text-gray-600 uppercase flex items-center gap-1">
-                          <Clock size={10} /> {tr('Gulika Kalam')}
-                        </div>
-                        <div className="text-sm font-semibold text-gray-700">
-                          {dayPanch.gulika_kalam?.start} - {dayPanch.gulika_kalam?.end}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Day summary stats */}
-                {dayBookings.length > 0 && (
-                  <div className="mb-5">
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2"><T>Day Summary</T></h4>
-                    <div className={`grid ${canSeeAmounts ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
-                      <div className="bg-gradient-to-br from-maroon-50 to-maroon-100 rounded-lg p-3">
-                        <div className="text-2xl font-bold text-maroon-700">{dayBookings.length}</div>
-                        <div className="text-xs text-maroon-600">{tr('Total Bookings')}</div>
-                      </div>
-                      {canSeeAmounts && (
-                        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3">
-                          <div className="text-2xl font-bold text-emerald-700">₹{Math.round(stats?.revenue || 0).toLocaleString('en-IN')}</div>
-                          <div className="text-xs text-emerald-600">{tr('Total Revenue')}</div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Status breakdown */}
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {statusCounts.Confirmed > 0 && (
-                        <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full">{statusCounts.Confirmed} {tr('Confirmed')}</span>
-                      )}
-                      {statusCounts.Pending > 0 && (
-                        <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full">{statusCounts.Pending} {tr('Pending')}</span>
-                      )}
-                      {statusCounts.Completed > 0 && (
-                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">{statusCounts.Completed} {tr('Completed')}</span>
-                      )}
-                      {statusCounts.Cancelled > 0 && (
-                        <span className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded-full">{statusCounts.Cancelled} {tr('Cancelled')}</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Pooja breakdown */}
-                {poojaList.length > 0 && (
-                  <div className="mb-5">
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2"><T>By Pooja Type</T></h4>
-                    <div className="space-y-2">
-                      {poojaList.slice(0, 5).map(([name, data]) => (
-                        <div key={name} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                          <div>
-                            <span className="font-medium text-gray-800">{tr(name)}</span>
-                            <span className="text-gray-400 ml-2">×{data.count}</span>
-                          </div>
-                          {canSeeAmounts && <span className="font-semibold text-emerald-600">₹{Math.round(data.revenue).toLocaleString('en-IN')}</span>}
-                        </div>
-                      ))}
-                      {poojaList.length > 5 && (
-                        <div className="text-xs text-gray-400 text-center">+{poojaList.length - 5} {tr('more types')}</div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Detailed bookings list */}
-                {selectedEvents.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-6"><T>No poojas scheduled on this day.</T></p>
-                ) : (
-                  <>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2"><T>Booking Details</T></h4>
-                    <ul className="space-y-2">
-                      {selectedEvents.map((e, i) => (
-                        <li key={i} className={`rounded-lg border px-3 py-2.5 text-sm ${EVENT_STYLE[e.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold">{tr(e.title)}</div>
-                              {e.plan && <div className="text-xs opacity-70">{tr(e.plan)}</div>}
-                            </div>
-                            <span className="text-[0.6875rem] font-semibold whitespace-nowrap px-2 py-0.5 rounded-full bg-white/60">{tr(e.status)}</span>
-                          </div>
-                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-current/10 text-xs">
-                            <div className="flex items-center gap-3 opacity-80">
-                              <span>{e.devotee ? personName({ name: e.devotee }, lang) : '—'}</span>
-                              {e.time && <span>{e.time.replace(/\b(AM|PM)\b/, (w) => tr(w))}</span>}
-                            </div>
-                            {canSeeAmounts && e.amount > 0 && <span className="font-semibold">₹{Math.round(e.amount).toLocaleString('en-IN')}</span>}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )
-      })()}
     </div>
   )
 }

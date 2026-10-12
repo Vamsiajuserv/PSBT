@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarDays, HeartHandshake, HandHeart, HandCoins, Gavel, Flame, Recycle,
-  Calendar, Filter, RotateCcw, TrendingUp, ArrowRight, Clock, ChevronRight, BarChart3, Loader2,
+  Calendar, Filter, RotateCcw, TrendingUp, ArrowRight, Clock, ChevronRight, BarChart3, Loader2, Moon,
 } from 'lucide-react'
 import { Donut } from '../../components/common/UI.jsx'
 import { useAuth, useHasModule } from '../../auth/AuthContext.jsx'
@@ -11,7 +11,7 @@ import { DateField } from '../../components/common/Field.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
 import FitText from '../../components/common/FitText.jsx'
 import { KpiGrid } from '../../components/admin/ui.jsx'
-import { T, tr, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, stamp, clock12 } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
@@ -39,6 +39,8 @@ const ALERT_TEXT = {
   hundi_pending_deposit: '{count} verified collection(s) pending bank deposit',
   auction_open: '{count} auction(s) open — record the result when concluded',
   festival_upcoming: '{festival} begins {date} — confirm committee prices in the Festival Master',
+  almanac_review: '{count} almanac date(s) to confirm against the TTD calendar',
+  almanac_next_year: 'Review the {year} almanac: {count} date(s) to check against the TTD calendar',
 }
 
 function alertText(a) {
@@ -51,7 +53,7 @@ function alertText(a) {
   })
 }
 
-const ALERT_ROUTE = { hundi: '/admin/hundi', auction: '/admin/auction', donation: '/admin/donations', waste: '/admin/waste-sales' }
+const ALERT_ROUTE = { hundi: '/admin/hundi', auction: '/admin/auction', donation: '/admin/donations', waste: '/admin/waste-sales', almanac: '/admin/almanac' }
 
 function Kpi({ icon: Icon, iconBg, iconColor, title, sub, value, footLabel, footValue, to }) {
   const inner = (
@@ -91,7 +93,7 @@ function BarChart({ days = [] }) {
     <div className="mt-4">
       <div className="flex items-end justify-between gap-2 h-44">
         {days.map((d) => (
-          <div key={d.label} className="group flex-1 h-full flex flex-col justify-end items-center" title={`${d.label}: ${d.count}`}>
+          <div key={d.label} className="group flex-1 h-full flex flex-col justify-end items-center" title={`${stamp(d.label)}: ${d.count}`}>
             <div className="text-[0.6875rem] font-bold text-maroon-700 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">{d.count}</div>
             <div className="w-full max-w-[2.125rem] rounded-t bg-maroon-700 group-hover:bg-maroon-800 transition-colors" style={{ height: `${Math.max((d.count / max) * 100, d.count ? 3 : 0)}%` }} />
           </div>
@@ -281,7 +283,7 @@ export default function Dashboard() {
                   <div className="text-[0.6875rem] text-gray-600">{personName({ name: b.devotee }, lang)}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[0.6875rem] text-gray-600 flex items-center gap-1 justify-end"><Clock size={10} /> {String(b.time || '').replace(/\b(AM|PM)\b/, (w) => tr(w))}</div>
+                  <div className="text-[0.6875rem] text-gray-600 flex items-center gap-1 justify-end"><Clock size={10} /> {clock12(String(b.time || ''))}</div>
                   <span className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-emerald-50 text-emerald-700">{tr(b.status)}</span>
                 </div>
               </div>
@@ -348,7 +350,7 @@ export default function Dashboard() {
           <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Important Alerts</T></h3>
           <div className="mt-4 space-y-3">
             {(d?.alerts || []).map((a, i) => {
-              const map = { hundi: { icon: Calendar, c: '#d97706', bg: 'bg-amber-50' }, auction: { icon: Gavel, c: '#7c3aed', bg: 'bg-violet-50' }, donation: { icon: HeartHandshake, c: '#e11d48', bg: 'bg-rose-50' }, waste: { icon: Recycle, c: '#059669', bg: 'bg-emerald-50' } }
+              const map = { hundi: { icon: Calendar, c: '#d97706', bg: 'bg-amber-50' }, auction: { icon: Gavel, c: '#7c3aed', bg: 'bg-violet-50' }, donation: { icon: HeartHandshake, c: '#e11d48', bg: 'bg-rose-50' }, waste: { icon: Recycle, c: '#059669', bg: 'bg-emerald-50' }, almanac: { icon: Moon, c: '#b45309', bg: 'bg-amber-50' } }
               const m = map[a.type] || map.hundi
               const Icon = m.icon
               const to = ALERT_ROUTE[a.type] || '/admin/hundi'

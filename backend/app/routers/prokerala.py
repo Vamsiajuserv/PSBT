@@ -7,7 +7,9 @@ Uses the official Prokerala API (https://api.prokerala.com) for accurate:
 - Yoga
 - Karana
 - Sunrise/Sunset times
-- Festival information
+
+Pournami, Amavasya and festival days are NOT taken from here: they come from the
+almanac engine (app/almanac.py, docs/adr/0006). Prokerala has no festival endpoint.
 
 Authentication: OAuth 2.0 Client Credentials flow
 Free tier: 5,000 credits/month, 5 requests/minute
@@ -43,9 +45,10 @@ _max_cache_size = 500  # Maximum number of cached responses to prevent memory le
 PROKERALA_TOKEN_URL = "https://api.prokerala.com/token"
 PROKERALA_API_BASE = "https://api.prokerala.com/v2"
 
-# Temple location (Shirdi, Maharashtra)
-TEMPLE_LAT = 19.7660
-TEMPLE_LON = 74.4764
+# Panchangam reference location — Tirumala, as the temple follows the TTD panchangam.
+from ..almanac import TTD_TIRUMALA
+TEMPLE_LAT = TTD_TIRUMALA.lat
+TEMPLE_LON = TTD_TIRUMALA.lon
 TEMPLE_TIMEZONE = "Asia/Kolkata"
 
 
@@ -296,20 +299,6 @@ def _get_panchang(dt: date) -> Optional[Dict]:
     return result
 
 
-def _get_festivals(year: int, month: int) -> Optional[list]:
-    """Get festivals for a specific month.
-
-    NOTE: Prokerala v2 API does NOT have a festivals endpoint.
-    Festival data must come from the temple's Festival Master.
-    This function returns an empty list - the calendar combines this
-    with database festivals and Tithi-based special days (Pournami, Amavasya).
-    """
-    # Prokerala v2 doesn't have /astrology/festival endpoint
-    # Festivals are managed through the temple's Festival Master
-    # Tithi-based days (Pournami, Amavasya) come from panchang data
-    return []
-
-
 # ─── API Endpoints ───────────────────────────────────────────────────────────
 
 @router.get("/status")
@@ -320,7 +309,7 @@ def prokerala_status():
         "provider": "prokerala_api",
         "api_base": PROKERALA_API_BASE,
         "location": {
-            "name": "Shirdi Temple",
+            "name": TTD_TIRUMALA.name,
             "latitude": TEMPLE_LAT,
             "longitude": TEMPLE_LON,
             "timezone": TEMPLE_TIMEZONE,
@@ -420,9 +409,6 @@ def get_calendar(
             detail="Unable to fetch calendar data from Prokerala API. Please try again later."
         )
 
-    # Get festivals
-    festivals = _get_festivals(year, month) or []
-
     return {
         "year": year,
         "month": month,
@@ -430,90 +416,6 @@ def get_calendar(
         "days": days,
         "pournami": pournami,
         "amavasya": amavasya,
-        "festivals": festivals,
-        "source": "prokerala_api",
-    }
-
-
-@router.get("/festivals")
-def get_festivals_endpoint(
-    year: int = Query(default=None, description="Year (default: current year)"),
-    month: int = Query(default=None, ge=1, le=12, description="Month 1-12 (default: current month)")
-):
-    """Get festivals for a specific month.
-
-    NOTE: Prokerala v2 API does not provide festival data.
-    Festivals are managed through the temple's Festival Master screen.
-    Tithi-based special days (Pournami, Amavasya, Ekadashi) are derived
-    from the panchang data automatically.
-    """
-    now = datetime.now()
-    year = year or now.year
-    month = month or now.month
-
-    return {
-        "year": year,
-        "month": month,
-        "month_name": datetime(year, month, 1).strftime("%B"),
-        "festivals": [],
-        "source": "temple_database",
-        "note": "Festival data comes from Festival Master. Use /api/festivals for temple festivals.",
-    }
-
-
-@router.get("/pournami")
-def get_pournami(
-    year: int = Query(default=None, description="Year (default: current year)"),
-    count: int = Query(default=12, ge=1, le=24, description="Number of Pournami dates to return")
-):
-    """Get upcoming Pournami (Full Moon) dates for a year.
-
-    Scans each month to find Pournami dates.
-    If API is not configured or unavailable, returns an error - never fabricates data.
-    """
-    if not settings.prokerala_available:
-        raise HTTPException(
-            status_code=503,
-            detail="Prokerala API not configured. Set PROKERALA_CLIENT_ID and PROKERALA_CLIENT_SECRET."
-        )
-
-    year = year or datetime.now().year
-    all_pournami = []
-
-    for month in range(1, 13):
-        if len(all_pournami) >= count:
-            break
-
-        # Calculate date range for the month
-        start_date = date(year, month, 1)
-        if month == 12:
-            end_date = date(year + 1, 1, 1) - timedelta(days=1)
-        else:
-            end_date = date(year, month + 1, 1) - timedelta(days=1)
-
-        # Check each day for Pournami
-        current = start_date
-        while current <= end_date and len(all_pournami) < count:
-            day_data = _get_panchang(current)
-            if day_data:
-                tithi = day_data.get("tithi", {})
-                tithi_name = tithi.get("name", "").lower() if isinstance(tithi, dict) else ""
-
-                if "purnima" in tithi_name or "pournami" in tithi_name:
-                    all_pournami.append({
-                        "date": str(current),
-                        "month": month,
-                        "day": current.day,
-                        "month_name": datetime(year, month, 1).strftime("%B"),
-                        "tithi": tithi,
-                    })
-                    break  # Move to next month after finding Pournami
-
-            current += timedelta(days=1)
-
-    return {
-        "year": year,
-        "pournami_dates": all_pournami,
         "source": "prokerala_api",
     }
 
@@ -548,14 +450,9 @@ def get_today():
     is_pournami = "purnima" in tithi_name or "pournami" in tithi_name
     is_amavasya = "amavasya" in tithi_name or "amavasi" in tithi_name
 
-    # Get today's festivals
-    festivals = _get_festivals(today.year, today.month) or []
-    today_festivals = [f for f in festivals if f.get("date") == str(today)]
-
     return {
         "date": str(today),
         "day_info": day_data,
-        "festivals": today_festivals,
         "is_pournami": is_pournami,
         "is_amavasya": is_amavasya,
         "source": "prokerala_api",

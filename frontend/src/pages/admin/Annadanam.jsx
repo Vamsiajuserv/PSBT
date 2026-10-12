@@ -6,15 +6,16 @@ import {
 import { toast } from '../../components/common/Dialog.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
-import { Receipt } from '../../components/common/Receipt.jsx'
+import { Receipt, amountInWords } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { AnnadanamAPI, DevoteesAPI, SettingsAPI, FestivalsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, NumberField, Combobox } from '../../components/common/Field.jsx'
-import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, personName, useLang, getLang, stamp } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
+import { useTemple } from '../../lib/SiteContext.jsx'
 
 const RATE = 50
 const OCCASIONS = ['General', 'Birthday', 'Wedding Anniversary', 'Thanksgiving', 'In Memory', 'Festival Offering']
@@ -28,43 +29,38 @@ const fmtTime = (s) => {
 }
 const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI (QR)' : m)
 
-function toWords(n) {
-  n = Math.round(Number(n) || 0)
-  if (n === 0) return tr('Zero Rupees Only')
-  const a = ['', tr('One'), tr('Two'), tr('Three'), tr('Four'), tr('Five'), tr('Six'), tr('Seven'), tr('Eight'), tr('Nine'), tr('Ten'), tr('Eleven'), tr('Twelve'), tr('Thirteen'), tr('Fourteen'), tr('Fifteen'), tr('Sixteen'), tr('Seventeen'), tr('Eighteen'), tr('Nineteen')]
-  const b = ['', '', tr('Twenty'), tr('Thirty'), tr('Forty'), tr('Fifty'), tr('Sixty'), tr('Seventy'), tr('Eighty'), tr('Ninety')]
-  const two = (x) => (x < 20 ? a[x] : b[Math.floor(x / 10)] + (x % 10 ? ' ' + a[x % 10] : ''))
-  const three = (x) => (x >= 100 ? a[Math.floor(x / 100)] + ' ' + tr('Hundred') + (x % 100 ? ' ' + two(x % 100) : '') : two(x))
-  let out = ''
-  const crore = Math.floor(n / 10000000); n %= 10000000
-  const lakh = Math.floor(n / 100000); n %= 100000
-  const thou = Math.floor(n / 1000); n %= 1000
-  if (crore) out += three(crore) + ' ' + tr('Crore') + ' '
-  if (lakh) out += two(lakh) + ' ' + tr('Lakh') + ' '
-  if (thou) out += two(thou) + ' ' + tr('Thousand') + ' '
-  if (n) out += three(n) + ' '
-  return out.trim() + ' ' + tr('Rupees Only')
-}
+// Amount in words, in the screen's language (shared with the receipt's amount box).
+const toWords = (n) => amountInWords(n, getLang() === 'te')
 
 const emptyForm = (rate = RATE) => ({ devotee: null, persons: 1, rate, occasionChoice: 'General', occasion: 'General', scheduled_on: '', mode: 'Cash', txn_ref: '', paid_at: nowLocal() })
 
-// Print Annadanam receipt in new window
-function printAnnadanamReceipt(doc, toWordsFn) {
-  const fmtDateLocal = (d) => d ? new Date(d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : ''
+// Print Annadanam receipt in new window — in the screen's language, with the
+// temple's name and address from Admin → Settings (same source as <Receipt>).
+const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+function printAnnadanamReceipt(doc, toWordsFn, temple) {
+  const te = getLang() === 'te'
+  const L = (s) => escapeHtml(te ? tr(s) : s)
+  const fmtDateLocal = (d) => d ? stamp(new Date(d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })) : ''
   const modeText = doc.mode === 'UPI/QR Code' ? 'UPI / QR Code' : doc.mode
+  const templeEn = temple?.name || 'Shri Shirdi Sai Baba Temple'
+  const templeTe = temple?.nameTelugu || tr(templeEn)
+  const address = te ? (temple?.addressTe || tr(temple?.address || '')) : (temple?.address || '')
+  const donor = te ? personName({ name: doc.donor }, 'te') : doc.donor
   const html = `
     <!DOCTYPE html>
-    <html>
+    <html lang="${te ? 'te' : 'en'}">
     <head>
-      <title>Annadanam Receipt - ${doc.code}</title>
+      <meta charset="utf-8" />
+      <title>${L('Annadanam Receipt')} - ${escapeHtml(doc.code)}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Telugu:wght@400;600;700&display=swap" rel="stylesheet" />
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+        body { font-family: ${te ? "'Noto Sans Telugu', " : ''}'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
         .header { text-align: center; border-bottom: 2px solid #8b4513; padding-bottom: 15px; margin-bottom: 15px; }
         .icon { font-size: 50px; }
         .temple-name { font-size: 18px; font-weight: bold; color: #8b4513; margin: 8px 0; }
         .address { font-size: 11px; color: #666; }
-        .title-box { background: #8b4513; color: white; text-align: center; padding: 10px; margin: 15px 0; font-weight: bold; letter-spacing: 1px; }
+        .title-box { background: #8b4513; color: white; text-align: center; padding: 10px; margin: 15px 0; font-weight: bold; letter-spacing: ${te ? '0' : '1px'}; }
         .info-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 10px; }
         .info-label { color: #666; }
         .info-value { font-weight: 600; }
@@ -81,34 +77,34 @@ function printAnnadanamReceipt(doc, toWordsFn) {
     </head>
     <body>
       <div class="header">
-        <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" style="width: 70px; height: 70px; border-radius: 50%; margin-bottom: 10px; object-fit: cover;" onerror="this.style.display='none'" />
-        <div class="temple-name">Shri Shirdi Sai Baba Temple</div>
-        <div class="temple-name-te" style="font-size: 14px; margin-bottom: 5px;">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
-        <div class="address">Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana 500082</div>
-        <div class="address">☎ +91 040 2335 3589</div>
+        <img src="/images/temple-logo.png" alt="${escapeHtml(te ? templeTe : templeEn)}" style="width: 70px; height: 70px; border-radius: 50%; margin-bottom: 10px; object-fit: cover;" onerror="this.style.display='none'" />
+        <div class="temple-name">${escapeHtml(te ? templeTe : templeEn)}</div>
+        ${te ? '' : `<div class="temple-name-te" style="font-size: 14px; margin-bottom: 5px;">${escapeHtml(templeTe)}</div>`}
+        <div class="address">${escapeHtml(address)}</div>
+        <div class="address">☎ ${escapeHtml(temple?.phone || '+91 040 2335 3589')}</div>
       </div>
-      <div class="title-box">ANNADANAM RECEIPT</div>
+      <div class="title-box">${te ? L('Annadanam Receipt') : 'ANNADANAM RECEIPT'}</div>
       <div class="info-row">
-        <span><span class="info-label">Receipt No:</span> <span class="info-value">${doc.code}</span></span>
-        <span><span class="info-label">Date:</span> <span class="info-value">${fmtDateLocal(doc.paid_at || doc.created_at)}</span></span>
+        <span><span class="info-label">${L('Receipt No')}:</span> <span class="info-value">${escapeHtml(doc.code)}</span></span>
+        <span><span class="info-label">${L('Date')}:</span> <span class="info-value">${escapeHtml(fmtDateLocal(doc.paid_at || doc.created_at))}</span></span>
       </div>
       <div class="details">
-        <div class="detail-row"><span>Devotee</span><span>${doc.donor || '—'}</span></div>
-        <div class="detail-row"><span>Mobile</span><span>${doc.mobile || '—'}</span></div>
-        <div class="detail-row"><span>No. of Persons</span><span>${doc.plates || 1}</span></div>
-        <div class="detail-row"><span>Rate</span><span>₹${Number(doc.rate || 50).toLocaleString('en-IN')} / person</span></div>
-        <div class="detail-row"><span>Payment Mode</span><span>${modeText}</span></div>
-        ${doc.txn_ref ? `<div class="detail-row"><span>Transaction ID</span><span>${doc.txn_ref}</span></div>` : ''}
+        <div class="detail-row"><span>${L('Devotee')}</span><span>${escapeHtml(donor || '—')}</span></div>
+        <div class="detail-row"><span>${L('Mobile')}</span><span>${escapeHtml(doc.mobile || '—')}</span></div>
+        <div class="detail-row"><span>${L('No. of Persons')}</span><span>${escapeHtml(doc.plates || 1)}</span></div>
+        <div class="detail-row"><span>${L('Rate')}</span><span>₹${Number(doc.rate || 50).toLocaleString('en-IN')} ${te ? escapeHtml(tr('per person')) : '/ person'}</span></div>
+        <div class="detail-row"><span>${L('Payment Mode')}</span><span>${L(modeText)}</span></div>
+        ${doc.txn_ref ? `<div class="detail-row"><span>${L('Transaction ID')}</span><span>${escapeHtml(doc.txn_ref)}</span></div>` : ''}
       </div>
       <div class="amount-box">
-        <div class="amount-label">Total Amount</div>
+        <div class="amount-label">${L('Total Amount')}</div>
         <div class="amount-value">₹ ${Number(doc.amount || 0).toLocaleString('en-IN')}</div>
-        <div class="amount-words">${toWordsFn(doc.amount)}</div>
+        <div class="amount-words">${escapeHtml(toWordsFn(doc.amount))}</div>
       </div>
       <div class="footer">
-        || Om Shri Sai Ram ||<br/>
-        Thank you for your generous contribution to Annadanam.<br/>
-        This is a computer-generated receipt.
+        ${te ? '|| ఓం శ్రీ సాయి రామ్ ||' : '|| Om Shri Sai Ram ||'}<br/>
+        ${L('Thank you for your generous contribution to Annadanam.')}<br/>
+        ${L('This is a computer-generated receipt.')}
       </div>
     </body>
     </html>
@@ -117,11 +113,16 @@ function printAnnadanamReceipt(doc, toWordsFn) {
   win.document.write(html)
   win.document.close()
   win.focus()
-  setTimeout(() => { win.print(); win.close() }, 300)
+  // Print once the page (and its Telugu web font) has loaded.
+  const go = () => { win.print(); win.close() }
+  const fonts = win.document.fonts
+  if (fonts?.ready) fonts.ready.then(() => setTimeout(go, 150)).catch(() => setTimeout(go, 300))
+  else setTimeout(go, 300)
 }
 
 export default function Annadanam() {
   const { lang } = useLang()
+  const temple = useTemple()
   const { user } = useAuth()
   const canWrite = user?.role !== 'Accountant'
   // Only Admin, Committee, Accountant can see amounts in reports
@@ -382,7 +383,7 @@ export default function Annadanam() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setPrintDoc(a)} title={tr("View receipt on screen")} aria-label={tr("View receipt on screen")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
-                      <button onClick={() => printAnnadanamReceipt(a, toWords)} title={tr("Print receipt directly")} aria-label={tr("Print receipt directly")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
+                      <button onClick={() => printAnnadanamReceipt(a, toWords, temple)} title={tr("Print receipt directly")} aria-label={tr("Print receipt directly")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
                     </div>
                   </td>
                 </tr>
@@ -526,7 +527,7 @@ export default function Annadanam() {
             <div className="p-4">
               <Receipt title={tr("Annadanam Receipt")} titleTe="అన్నదానం రసీదు" no={printDoc.code} subNo={fmtDate(printDoc.paid_at || printDoc.created_at)} subNoLabel="Date" amount={printDoc.amount}
                 rows={[
-                  { en: 'Devotee', value: printDoc.donor },
+                  { en: 'Devotee', value: printDoc.donor, valueTe: personName({ name: printDoc.donor }, 'te') },
                   { en: 'Mobile', value: printDoc.mobile || '—' },
                   { en: 'No. of Persons', value: printDoc.plates },
                   { en: 'Rate', value: `₹${num(printDoc.rate || RATE)} / ${tr('person')}` },
@@ -536,7 +537,7 @@ export default function Annadanam() {
                 footerNote={toWords(printDoc.amount)} />
             </div>
             <div className="flex gap-2 justify-center px-4 py-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
-              <button onClick={() => printAnnadanamReceipt(printDoc, toWords)} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>
+              <button onClick={() => printAnnadanamReceipt(printDoc, toWords, temple)} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>
               <button onClick={() => setPrintDoc(null)} className="btn-outline"><T>Close</T></button>
             </div>
           </div>

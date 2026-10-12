@@ -8,8 +8,9 @@ from ..database import get_db
 from ..models import (User, Booking, Donation, HundiCollection, Auction, Annadanam,
                       WasteSale, AuditLog, Festival)
 from ..schemas import AuditOut
-from ..security import get_current_user, RequireModule
+from ..security import get_current_user, RequireModule, ADMIN_ROLES
 from ..helpers import fmt_ist_time, sort_expr, apply_column_filters
+from .almanac import pending_review_count, pending_review_count_for_year
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -185,6 +186,22 @@ def dashboard(start: str = "", end: str = "", day: str = "",
                        "params": {"festival": next_fest.name,
                                   "date": next_fest.start_date.strftime('%d %b %Y')},
                        "text": f"{next_fest.name} begins {next_fest.start_date.strftime('%d %b %Y')} — confirm committee prices in the Festival Master"})
+
+    # Flagged Pournami / Amavasya / festival days (close calls) awaiting the Administrator's check against TTD.
+    if user.role in ADMIN_ROLES:
+        pending_almanac = pending_review_count(db)     # the next four months
+        if pending_almanac:
+            alerts.append({"type": "almanac", "key": "almanac_review",
+                           "params": {"count": pending_almanac},
+                           "text": f"{pending_almanac} almanac date(s) to confirm against the TTD calendar"})
+        # From October, a reminder to review next year once the TTD calendar is out
+        if real_today.month >= 10:
+            nxt = real_today.year + 1
+            pending_next = pending_review_count_for_year(db, nxt)
+            if pending_next:
+                alerts.append({"type": "almanac", "key": "almanac_next_year",
+                               "params": {"count": pending_next, "year": nxt},
+                               "text": f"Review the {nxt} almanac: {pending_next} date(s) to check against the TTD calendar"})
 
     return {
         "range": {"start": s.isoformat(), "end": e.isoformat(), "label": range_label, "single": single},

@@ -7,13 +7,13 @@ import {
 import { PageHeader } from '../../components/common/UI.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
-import { PoojasAPI, DevoteesAPI, BookingsAPI, FestivalsAPI, TithiAPI, SettingsAPI } from '../../api/client.js'
+import { PoojasAPI, DevoteesAPI, BookingsAPI, FestivalsAPI, AlmanacAPI, SettingsAPI } from '../../api/client.js'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from '../../components/common/Dialog.jsx'
 import { T, tr, useLang, personName, stamp } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
 import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
-import { planValidUntil } from '../../lib/planTerms.js'
+import { planValidUntil, addDaysISO } from '../../lib/planTerms.js'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
 
 // ── Constants ──
@@ -37,11 +37,14 @@ const buildUpiUrl = (upiId, payeeName, amount, note = 'Temple Booking') => {
   return `upi://pay?${params.toString()}`
 }
 
+// Plans tied to Pournami (e.g. Sai Vratam) are booked only on almanac Pournami days.
+const isPournamiPlan = (item) => item?.tithi_type === 'Pournami'
+
 // Date and validity shown for a pooja in the live booking panel
 const cartLineWhen = (item) => {
   const from = item.scheduled_date || todayISO()
   const day = from === todayISO() ? tr('Today') : stamp(fmtDate(from))
-  const pournami = item.category === 'Monthly' ? ` (${tr('Pournami')})` : ''
+  const pournami = isPournamiPlan(item) ? ` (${tr('Pournami')})` : ''
   const end = planValidUntil(item, from)
   if (end === null) return `${day}${pournami} · ${tr('Lifetime')}`
   if (end !== from) return `${day}${pournami} – ${stamp(fmtDate(end))}`
@@ -115,7 +118,7 @@ export default function Counter() {
             flat.push({
               key: `${p.id}-${pl.id}`,
               pooja_id: p.id, pooja_name: p.name, name_te: p.name_te, category: p.category,
-              plan_id: pl.id, plan_name: pl.plan_name,
+              plan_id: pl.id, plan_name: pl.plan_name, tithi_type: pl.tithi_type,
               committee: !!pl.committee_decided,
               fee: pl.fee == null ? null : Number(pl.fee),
               duration_days: pl.duration_days, validity_type: pl.validity_type, validity_value: pl.validity_value,
@@ -149,8 +152,9 @@ export default function Counter() {
   // ── Pournami Dates ──
   const [pournamiDates, setPournamiDates] = useState([])
   useEffect(() => {
-    TithiAPI.upcoming('Pournami', 3)
-      .then((r) => setPournamiDates((r.dates || []).map((d) => d.date)))
+    const from = todayISO()
+    AlmanacAPI.pournamis(from, addDaysISO(from, 120))
+      .then((r) => setPournamiDates((r.items || []).filter((d) => d.event_date >= from).slice(0, 3)))
       .catch(() => setPournamiDates([]))
   }, [])
 
@@ -408,8 +412,8 @@ export default function Counter() {
       if (entry.category === 'Festival') {
         const fw = festivalFor(entry)
         if (fw?.date) scheduled_date = fw.date
-      } else if (entry.category === 'Monthly') {
-        if (pournamiDates.length > 0) scheduled_date = pournamiDates[0]
+      } else if (isPournamiPlan(entry)) {
+        if (pournamiDates.length > 0) scheduled_date = pournamiDates[0].event_date
       }
 
       setSelected(prev => [...prev, {
@@ -789,7 +793,7 @@ export default function Counter() {
                           <span className="text-[10px] text-gray-500">{tr(s.plan_name)}</span>
                           {s.category === 'Vehicle' && <Car size={10} className="text-gray-400" />}
                           {s.category === 'Festival' && <CalendarDays size={10} className="text-gray-400" />}
-                          {s.category === 'Monthly' && <Moon size={10} className="text-gray-400" />}
+                          {isPournamiPlan(s) && <Moon size={10} className="text-gray-400" />}
                         </div>
                       </div>
                       <span className="text-sm font-semibold text-amber-700 shrink-0">₹{Number(s.fee || 0).toLocaleString('en-IN')}</span>
@@ -1053,7 +1057,7 @@ function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, lang
   return (
     <div className="bg-gray-50 rounded-lg px-3 py-2.5">
       <div className="text-xs font-medium text-gray-800 mb-2 flex items-center gap-1.5">
-        {item.category === 'Monthly' && <Moon size={12} className="text-blue-600" />}
+        {isPournamiPlan(item) && <Moon size={12} className="text-blue-600" />}
         {item.category === 'Festival' && <CalendarDays size={12} className="text-amber-600" />}
         {item.category === 'Occasion' && <Flame size={12} className="text-orange-600" />}
         {item.category === 'Long-Term' && <ShieldCheck size={12} className="text-maroon-600" />}
@@ -1062,19 +1066,36 @@ function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, lang
       </div>
 
       <div className="space-y-2">
-        {/* Monthly: Pournami Dates */}
-        {item.category === 'Monthly' && (
+        {/* Pournami plans: only almanac Pournami days */}
+        {isPournamiPlan(item) && (
           <div>
             <label className="text-[10px] font-medium text-gray-600 mb-1 block flex items-center gap-1">
               <Moon size={10} /> <T>Pournami Date</T>
             </label>
-            <div className="flex flex-wrap gap-1.5">
-              {pournamiDates.map((d) => (
-                <button key={d} onClick={() => updateMeta('scheduled_date', d)} className={`px-2 py-1 rounded text-[10px] font-medium transition-all duration-150 ${item.scheduled_date === d ? 'bg-blue-600 text-white' : 'bg-white border border-blue-200 text-blue-700 hover:bg-blue-50'}`}>
-                  {stamp(fmtDate(d))}
-                </button>
-              ))}
-            </div>
+            {pournamiDates.length === 0 ? (
+              <div className="text-[10px] text-amber-700"><T>Pournami dates could not be loaded. Refresh the page.</T></div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {pournamiDates.map((d) => (
+                  <button key={d.event_date} onClick={() => updateMeta('scheduled_date', d.event_date)}
+                    title={`${lang === 'te' && d.name_te ? d.name_te : tr(d.name)}${d.provisional ? ` · ${tr('Provisional — awaiting confirmation against TTD')}` : ''}`}
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all duration-150 ${d.provisional ? 'border-dashed' : ''} ${item.scheduled_date === d.event_date ? 'bg-blue-600 text-white' : 'bg-white border border-blue-200 text-blue-700 hover:bg-blue-50'}`}>
+                    {stamp(fmtDate(d.event_date))}{d.provisional ? ' *' : ''}
+                  </button>
+                ))}
+              </div>
+            )}
+            {pournamiDates.some((d) => d.provisional) && (
+              <div className="text-[9px] text-gray-500 mt-1">* <T>Provisional — awaiting confirmation against TTD</T></div>
+            )}
+          </div>
+        )}
+
+        {/* Other monthly-category plans: any date from today */}
+        {item.category === 'Monthly' && !isPournamiPlan(item) && (
+          <div>
+            <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Date</T></label>
+            <DateField value={item.scheduled_date} min={todayISO()} onChange={(e) => updateMeta('scheduled_date', e.target.value)} className="!py-1.5 !text-xs" />
           </div>
         )}
 
@@ -1140,7 +1161,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
             {(bill._gothram || bill._nakshatram || bill._rasi) && (
               <TF label={tr("Sankalpam")} value={[bill._gothram, bill._nakshatram, bill._rasi].filter(Boolean).join(' · ')} wide />
             )}
-            {bill._beneficiary && <TF label={tr("In the name of")} value={bill._beneficiary} />}
+            {bill._beneficiary && <TF label={tr("In the name of")} value={personName({ name: bill._beneficiary }, lang)} />}
             {bill._participants?.length > 0 && (
               <TF label={tr("Participants")} value={bill._participants.map(p => personName({ name: p.name }, lang)).join(', ')} wide />
             )}

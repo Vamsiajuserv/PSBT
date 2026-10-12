@@ -10,6 +10,9 @@
 // fallback exists for development/testing scenarios where cookies may not work.
 // In production, all authentication happens via the secure HttpOnly cookie.
 
+// tr() is only called when an error occurs, after both modules have loaded, so
+// the circular import with LanguageContext (which imports TranslateAPI) is safe.
+import { tr } from '../i18n/LanguageContext.jsx'
 const TOKEN_KEY = 'psbt_token'
 
 // In production the built site calls the API at its absolute Azure URL
@@ -53,15 +56,15 @@ export function getErrorMessage(ex, fallback = 'An error occurred.') {
 // ── User-friendly error messages ──
 function getNetworkErrorMessage(error) {
   if (error.name === 'AbortError') {
-    return 'Request timed out. Please check your connection and try again.'
+    return tr('Request timed out. Please check your connection and try again.')
   }
   if (!navigator.onLine) {
-    return 'You appear to be offline. Please check your internet connection.'
+    return tr('You appear to be offline. Please check your internet connection.')
   }
   if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-    return 'Unable to connect to the server. Please check your connection or try again later.'
+    return tr('Unable to connect to the server. Please check your connection or try again later.')
   }
-  return 'A network error occurred. Please try again.'
+  return tr('A network error occurred. Please try again.')
 }
 
 function getHttpErrorMessage(status) {
@@ -176,7 +179,13 @@ async function request(path, { method = 'GET', body, auth = true, retries = 0 } 
 
   // Build user-friendly error message
   const detail = data?.detail || getHttpErrorMessage(res.status)
-  throw new ApiError(res.status, detail)
+  // Server messages are English; show them in the active language (pass-through in English).
+  // 422s carry a list of field errors — Pydantic prefixes our own validator
+  // messages with "Value error, ", which would otherwise miss the dictionary.
+  const shown = typeof detail === 'string' ? tr(detail)
+    : Array.isArray(detail) ? detail.map((d) => (d?.msg ? { ...d, msg: tr(String(d.msg).replace(/^Value error, /, '')) } : d))
+    : detail
+  throw new ApiError(res.status, shown)
 }
 
 export const api = {
@@ -381,7 +390,11 @@ export const TranslateAPI = {
 }
 
 // ── Public informational site (no auth required) ──
-export const PublicAPI = { site: () => request('/public/site', { auth: false }) }
+export const PublicAPI = {
+  site: () => request('/public/site', { auth: false }),
+  // Upcoming Pournami + festival days (almanac engine, TTD panchangam) for the devotee site
+  almanac: () => request('/public/almanac', { auth: false }),
+}
 
 export const DashboardAPI = { get: (params = {}) => api.get('/dashboard' + qs(params)) }
 export const ReportsAPI = {
@@ -422,15 +435,19 @@ export const NotificationsAPI = {
   templates: () => api.get('/notifications/templates'),
   test: (b) => api.post('/notifications/test', b),
 }
-export const TithiAPI = {
-  list: (params = {}) => api.get('/tithis' + qs(params)),
-  next: (tithi_type) => api.get('/tithis/next' + qs({ tithi_type })),
-  upcoming: (tithi_type = 'Pournami', count = 12) => api.get('/tithis/upcoming' + qs({ tithi_type, count })),
-  stats: () => api.get('/tithis/stats'),
-  create: (b) => api.post('/tithis', b),
-  update: (id, b) => api.put(`/tithis/${id}`, b),
-  remove: (id) => api.del(`/tithis/${id}`),
-  bulk: (items) => api.post('/tithis/bulk', { items }),
+
+// Pournami days from the almanac engine — the one source for Counter, Advance
+// Booking, Calendar and Festival Master. `provisional` = flagged, not yet confirmed.
+export const AlmanacAPI = {
+  pournamis: (from, to) => api.get('/almanac' + qs({ from, to })),
+  days: (from, to, event_type = 'all') => api.get('/almanac' + qs({ from, to, event_type })),
+  // Administrator: Almanac Review
+  events: (params = {}) => api.get('/almanac/events' + qs(params)),
+  publish: (id) => api.post(`/almanac/${id}/publish`, {}),
+  move: (id, event_date, reason) => api.put(`/almanac/${id}/date`, { event_date, reason }),
+  generate: (year) => api.post('/almanac/generate', { year }),
+  rules: () => api.get('/almanac/festival-rules'),
+  toggleRule: (code, active) => api.put(`/almanac/festival-rules/${code}`, { active }),
 }
 
 export const AnalyticsAPI = {
@@ -451,15 +468,6 @@ export const PanchangamAPI = {
   range: (start, end) => api.get('/panchangam/range' + qs({ start, end })),
 }
 
-export const ProkeralaAPI = {
-  status: () => api.get('/prokerala/status'),
-  panchang: (date) => api.get('/prokerala/panchang' + qs({ date })),
-  calendar: (year, month) => api.get('/prokerala/calendar' + qs({ year, month })),
-  festivals: (year, month) => api.get('/prokerala/festivals' + qs({ year, month })),
-  pournami: (year, count) => api.get('/prokerala/pournami' + qs({ year, count })),
-  today: () => api.get('/prokerala/today'),
-  clearCache: () => api.get('/prokerala/clear-cache'),
-}
 
 function qs(params) {
   const s = new URLSearchParams(

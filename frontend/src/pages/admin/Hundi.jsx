@@ -222,7 +222,7 @@ export default function Hundi() {
   async function rejectCollection(h) {
     const res = await promptDialog({
       title: `${tr('Flag a discrepancy')} — ${h.code}`,
-      message: `Counted amount: ₹${h.counted_amount}. The collection will be marked Rejected.`,
+      message: tr('Counted amount: ₹{amount}. The collection will be marked Rejected.').replace('{amount}', h.counted_amount),
       tone: 'danger', confirmLabel: tr('Reject Collection'),
       fields: [{ k: 'reason', label: tr('Reason'), required: true, placeholder: tr('What is wrong with this count?') }],
     })

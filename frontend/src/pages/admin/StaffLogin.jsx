@@ -67,10 +67,10 @@ export default function StaffLogin() {
       <div className="flex-1 grid lg:grid-cols-2">
         {/* Visual / brand panel */}
         <div className="relative hidden lg:flex flex-col justify-center items-center text-center px-12 bg-maroon-900 overflow-hidden">
-          {images?.about && <img src={images.about} alt="Temple" className="absolute inset-0 w-full h-full object-cover opacity-30" />}
+          {images?.about && <img src={images.about} alt={tr("Temple")} className="absolute inset-0 w-full h-full object-cover opacity-30" />}
           <div className="absolute inset-0 bg-gradient-to-t from-maroon-900 via-maroon-900/70 to-maroon-900/40" />
           <div className="relative text-cream">
-            <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" className="w-24 h-24 mx-auto drop-shadow-lg" />
+            <img src="/images/temple-logo.png" alt={tr("Shri Shirdi Sai Baba Temple")} className="w-24 h-24 mx-auto drop-shadow-lg" />
             <h1 className="font-serif text-3xl font-bold text-gold-200 mt-5 tracking-wide">{tr(temple?.name || 'Shri Shirdi Sai Baba Temple')}</h1>
             <p className="text-cream/70 text-sm mt-2">{tr(temple?.place || temple?.address || '')}</p>
             <Flourish className="mt-4" width="w-14" />

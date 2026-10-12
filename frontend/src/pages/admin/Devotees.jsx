@@ -70,8 +70,12 @@ const escapeHtml = (str) => {
 }
 
 // Print devotee data based on selected section
-function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true) {
-  const fmtDatePrint = (s) => s ? new Date(s).toLocaleDateString('en-GB', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric'}) : '—'
+function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true, lang = 'en') {
+  // Labels go through tr(); free-text values through esc(tr(..)) so known
+  // vocabulary (poojas, funds, statuses) prints in the active language too.
+  const L = (s) => escapeHtml(tr(s))
+  const V = (s) => escapeHtml(s ? tr(s) : '—')
+  const fmtDatePrint = (s) => s ? stamp(new Date(s).toLocaleDateString('en-GB', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric'})) : '—'
   const inrPrint = (n) => canSeeAmounts ? ('₹' + Number(n || 0).toLocaleString('en-IN')) : '—'
 
   const baseStyles = `
@@ -110,26 +114,30 @@ function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true
     }
   `
 
+  // In Telugu the temple's Telugu name is the heading (no English line above it).
+  const templeTitle = lang === 'te'
+    ? (temple?.nameTelugu || tr(temple?.name || 'Shri Shirdi Sai Baba Temple'))
+    : (temple?.name || 'Shri Shirdi Sai Baba Temple')
   const headerHtml = `
     <div class="header">
-      <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 8px; object-fit: cover;" onerror="this.style.display='none'" />
-      <div class="temple-name">${escapeHtml(temple?.name || 'Shri Shirdi Sai Baba Temple')}</div>
-      <div class="temple-name-te">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
-      <div class="temple-address">${escapeHtml(temple?.address || 'Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana')}</div>
+      <img src="/images/temple-logo.png" alt="${escapeHtml(templeTitle)}" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 8px; object-fit: cover;" onerror="this.style.display='none'" />
+      <div class="temple-name">${escapeHtml(templeTitle)}</div>
+      ${lang === 'te' ? '' : '<div class="temple-name-te">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>'}
+      <div class="temple-address">${escapeHtml((lang === 'te' && temple?.addressTe) || temple?.address || tr('Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana'))}</div>
     </div>
     <div class="devotee-info">
-      <div><strong>Name:</strong> ${escapeHtml(dev.name)}</div>
-      <div><strong>ID:</strong> ${escapeHtml(dev.code)}</div>
-      <div><strong>Phone:</strong> ${escapeHtml(dev.mobile)}</div>
-      <div><strong>Status:</strong> ${escapeHtml(dev.status)}</div>
+      <div><strong>${L('Name')}:</strong> ${escapeHtml(personName(dev, lang))}</div>
+      <div><strong>${L('ID')}:</strong> ${escapeHtml(dev.code)}</div>
+      <div><strong>${L('Phone')}:</strong> ${escapeHtml(dev.mobile)}</div>
+      <div><strong>${L('Status')}:</strong> ${V(dev.status)}</div>
     </div>
   `
 
   const footerHtml = `
     <div class="footer">
-      <div class="blessing">|| Om Shri Sai Ram ||</div>
-      <div class="footer-text">This is a computer-generated document.</div>
-      <div class="footer-text">Printed on: ${new Date().toLocaleDateString('en-GB', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true})}</div>
+      <div class="blessing">|| ${L('Om Shri Sai Ram')} ||</div>
+      <div class="footer-text">${L('This is a computer-generated document.')}</div>
+      <div class="footer-text">${L('Printed on')}: ${stamp(new Date().toLocaleDateString('en-GB', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true}))}</div>
     </div>
   `
 
@@ -140,14 +148,14 @@ function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true
     title = 'Devotee Summary'
     contentHtml = `
       <div class="section">
-        <div class="section-title">Activity Summary</div>
+        <div class="section-title">${L('Activity Summary')}</div>
         <table class="data-table">
-          <thead><tr><th>Category</th><th>Count</th><th>Amount</th></tr></thead>
+          <thead><tr><th>${L('Category')}</th><th>${L('Count')}</th><th>${L('Amount')}</th></tr></thead>
           <tbody>
-            <tr><td>Pooja Bookings</td><td>${stats?.bookings?.count || 0}</td><td class="amount">${inrPrint(stats?.bookings?.amount || 0)}</td></tr>
-            <tr><td>Donations</td><td>${stats?.donations?.count || 0}</td><td class="amount">${inrPrint(stats?.donations?.amount || 0)}</td></tr>
-            <tr><td>Annadanam</td><td>${stats?.annadanam?.count || 0} (${stats?.annadanam?.persons || 0} persons)</td><td class="amount">${inrPrint(stats?.annadanam?.amount || 0)}</td></tr>
-            <tr><td>Auction Purchases</td><td>${stats?.auction?.count || 0}</td><td class="amount">${inrPrint(stats?.auction?.amount || 0)}</td></tr>
+            <tr><td>${L('Pooja Bookings')}</td><td>${stats?.bookings?.count || 0}</td><td class="amount">${inrPrint(stats?.bookings?.amount || 0)}</td></tr>
+            <tr><td>${L('Donations')}</td><td>${stats?.donations?.count || 0}</td><td class="amount">${inrPrint(stats?.donations?.amount || 0)}</td></tr>
+            <tr><td>${L('Annadanam')}</td><td>${stats?.annadanam?.count || 0} (${stats?.annadanam?.persons || 0} ${L('persons')})</td><td class="amount">${inrPrint(stats?.annadanam?.amount || 0)}</td></tr>
+            <tr><td>${L('Auction Purchases')}</td><td>${stats?.auction?.count || 0}</td><td class="amount">${inrPrint(stats?.auction?.amount || 0)}</td></tr>
           </tbody>
         </table>
       </div>
@@ -158,22 +166,22 @@ function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true
     const totalAmount = bookings.reduce((sum, b) => sum + Number(b.amount || 0), 0)
     contentHtml = `
       <div class="section">
-        <div class="section-title">Pooja Booking History (${bookings.length} Records)</div>
+        <div class="section-title">${L('Pooja History')} (${bookings.length} ${L('Records')})</div>
         <table class="data-table">
-          <thead><tr><th>Booking ID</th><th>Pooja Name</th><th>Plan</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead>
+          <thead><tr><th>${L('Booking ID')}</th><th>${L('Pooja Name')}</th><th>${L('Plan')}</th><th>${L('Date')}</th><th>${L('Amount')}</th><th>${L('Status')}</th></tr></thead>
           <tbody>
-            ${bookings.length === 0 ? '<tr><td colspan="6" style="text-align:center;padding:20px;color:#666;">No pooja bookings found.</td></tr>' :
+            ${bookings.length === 0 ? `<tr><td colspan="6" style="text-align:center;padding:20px;color:#666;">${L('No pooja bookings found.')}</td></tr>` :
               bookings.map(b => `
                 <tr>
                   <td>${escapeHtml(b.booking_code)}</td>
-                  <td>${escapeHtml(b.pooja)}</td>
-                  <td>${escapeHtml(b.plan || '—')}</td>
+                  <td>${V(b.pooja)}</td>
+                  <td>${V(b.plan)}</td>
                   <td>${fmtDatePrint(b.scheduled_date)}</td>
                   <td class="amount">${inrPrint(b.amount)}</td>
-                  <td><span class="status status-${(b.status || '').toLowerCase()}">${escapeHtml(b.status)}</span></td>
+                  <td><span class="status status-${(b.status || '').toLowerCase()}">${V(b.status)}</span></td>
                 </tr>
               `).join('')}
-            ${bookings.length > 0 ? `<tr class="total-row"><td colspan="4" style="text-align:right;"><strong>Total (${bookings.length} bookings):</strong></td><td class="amount">${inrPrint(totalAmount)}</td><td></td></tr>` : ''}
+            ${bookings.length > 0 ? `<tr class="total-row"><td colspan="4" style="text-align:right;"><strong>${L('Total')} (${bookings.length} ${L('bookings')}):</strong></td><td class="amount">${inrPrint(totalAmount)}</td><td></td></tr>` : ''}
           </tbody>
         </table>
       </div>
@@ -184,23 +192,23 @@ function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true
     const totalAmount = donations.reduce((sum, d) => sum + Number(d.amount || 0), 0)
     contentHtml = `
       <div class="section">
-        <div class="section-title">Donation History (${donations.length} Records)</div>
+        <div class="section-title">${L('Donation History')} (${donations.length} ${L('Records')})</div>
         <table class="data-table">
-          <thead><tr><th>Receipt No.</th><th>Category</th><th>Type</th><th>Amount</th><th>Mode</th><th>80G</th><th>Date</th></tr></thead>
+          <thead><tr><th>${L('Receipt No.')}</th><th>${L('Category')}</th><th>${L('Type')}</th><th>${L('Amount')}</th><th>${L('Mode')}</th><th>80G</th><th>${L('Date')}</th></tr></thead>
           <tbody>
-            ${donations.length === 0 ? '<tr><td colspan="7" style="text-align:center;padding:20px;color:#666;">No donations found.</td></tr>' :
+            ${donations.length === 0 ? `<tr><td colspan="7" style="text-align:center;padding:20px;color:#666;">${L('No donations found.')}</td></tr>` :
               donations.map(d => `
                 <tr>
                   <td>${escapeHtml(d.receipt_no)}</td>
-                  <td>${escapeHtml(d.fund)}</td>
-                  <td>${escapeHtml(d.type)}</td>
+                  <td>${V(d.fund)}</td>
+                  <td>${V(d.type)}</td>
                   <td class="amount">${inrPrint(d.amount)}</td>
-                  <td>${escapeHtml(d.mode || '—')}</td>
-                  <td>${d.g80 ? 'Yes' : '—'}</td>
+                  <td>${V(d.mode)}</td>
+                  <td>${d.g80 ? L('Yes') : '—'}</td>
                   <td>${fmtDatePrint(d.date)}</td>
                 </tr>
               `).join('')}
-            ${donations.length > 0 ? `<tr class="total-row"><td colspan="3" style="text-align:right;"><strong>Total (${donations.length} donations):</strong></td><td class="amount">${inrPrint(totalAmount)}</td><td colspan="3"></td></tr>` : ''}
+            ${donations.length > 0 ? `<tr class="total-row"><td colspan="3" style="text-align:right;"><strong>${L('Total')} (${donations.length} ${L('donations')}):</strong></td><td class="amount">${inrPrint(totalAmount)}</td><td colspan="3"></td></tr>` : ''}
           </tbody>
         </table>
       </div>
@@ -214,45 +222,45 @@ function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true
     contentHtml = `
       ${annadanam.length > 0 ? `
       <div class="section">
-        <div class="section-title">Annadanam Sponsorships (${annadanam.length} Records)</div>
+        <div class="section-title">${L('Annadanam Sponsorships')} (${annadanam.length} ${L('Records')})</div>
         <table class="data-table">
-          <thead><tr><th>ID</th><th>Beneficiaries (Plates)</th><th>Occasion</th><th>Amount</th><th>Date</th></tr></thead>
+          <thead><tr><th>${L('ID')}</th><th>${L('Beneficiaries (Plates)')}</th><th>${L('Occasion')}</th><th>${L('Amount')}</th><th>${L('Date')}</th></tr></thead>
           <tbody>
             ${annadanam.map(a => `
               <tr>
                 <td>${escapeHtml(a.code)}</td>
                 <td>${a.plates}</td>
-                <td>${escapeHtml(a.occasion || '—')}</td>
+                <td>${V(a.occasion)}</td>
                 <td class="amount">${inrPrint(a.amount)}</td>
                 <td>${fmtDatePrint(a.date)}</td>
               </tr>
             `).join('')}
-            <tr class="total-row"><td colspan="3" style="text-align:right;"><strong>Total (${annadanam.length} sponsorships):</strong></td><td class="amount">${inrPrint(annadanamTotal)}</td><td></td></tr>
+            <tr class="total-row"><td colspan="3" style="text-align:right;"><strong>${L('Total')} (${annadanam.length} ${L('sponsorships')}):</strong></td><td class="amount">${inrPrint(annadanamTotal)}</td><td></td></tr>
           </tbody>
         </table>
       </div>
       ` : ''}
       ${auction.length > 0 ? `
       <div class="section">
-        <div class="section-title">Auction Purchases (${auction.length} Records)</div>
+        <div class="section-title">${L('Auction Purchases')} (${auction.length} ${L('Records')})</div>
         <table class="data-table">
-          <thead><tr><th>ID</th><th>Item</th><th>Winning Amount</th><th>Status</th><th>Date</th></tr></thead>
+          <thead><tr><th>${L('ID')}</th><th>${L('Item')}</th><th>${L('Winning Amount')}</th><th>${L('Status')}</th><th>${L('Date')}</th></tr></thead>
           <tbody>
             ${auction.map(a => `
               <tr>
                 <td>${escapeHtml(a.code)}</td>
-                <td>${escapeHtml(a.item)}</td>
+                <td>${V(a.item)}</td>
                 <td class="amount">${inrPrint(a.amount)}</td>
-                <td><span class="status status-${(a.status || '').toLowerCase()}">${escapeHtml(a.status)}</span></td>
+                <td><span class="status status-${(a.status || '').toLowerCase()}">${V(a.status)}</span></td>
                 <td>${fmtDatePrint(a.date)}</td>
               </tr>
             `).join('')}
-            <tr class="total-row"><td colspan="2" style="text-align:right;"><strong>Total (${auction.length} purchases):</strong></td><td class="amount">${inrPrint(auctionTotal)}</td><td colspan="2"></td></tr>
+            <tr class="total-row"><td colspan="2" style="text-align:right;"><strong>${L('Total')} (${auction.length} ${L('purchases')}):</strong></td><td class="amount">${inrPrint(auctionTotal)}</td><td colspan="2"></td></tr>
           </tbody>
         </table>
       </div>
       ` : ''}
-      ${annadanam.length === 0 && auction.length === 0 ? '<div class="section"><div class="section-title">Other Activities</div><p style="padding:20px;text-align:center;color:#666;">No other activities found.</p></div>' : ''}
+      ${annadanam.length === 0 && auction.length === 0 ? `<div class="section"><div class="section-title">${L('Other Activities')}</div><p style="padding:20px;text-align:center;color:#666;">${L('No other activities found.')}</p></div>` : ''}
     `
   }
 
@@ -260,7 +268,8 @@ function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true
     <!DOCTYPE html>
     <html>
     <head>
-      <title>${title} - ${escapeHtml(dev.code)}</title>
+      <meta charset="utf-8" />
+      <title>${L(title)} - ${escapeHtml(dev.code)}</title>
       <style>${baseStyles}</style>
     </head>
     <body>
@@ -387,6 +396,7 @@ export default function Devotees() {
     const errors = {}
     const nameResult = validateName(modal.data.name)
     if (!nameResult.valid) errors.name = nameResult.error
+    if (/[A-Za-z]/.test(modal.data.name_te || '')) errors.name_te = tr('Type the name in Telugu letters, or leave it blank.')
 
     const phoneResult = validatePhone(modal.data.mobile)
     if (!phoneResult.valid) errors.mobile = phoneResult.error
@@ -579,8 +589,9 @@ export default function Devotees() {
               </div>
               <div>
                 <label className="label"><T>Full Name (Telugu)</T></label>
-                <input className="input" placeholder={tr("Full Name")} value={modal.data.name_te || ''}
-                  onChange={(e) => setModal({ ...modal, data: { ...modal.data, name_te: sanitizeName(e.target.value) } })} />
+                <input className={`input ${fieldErrors.name_te ? 'border-red-400' : ''}`} lang="te" placeholder="ఉదా. విష్ణు" value={modal.data.name_te || ''}
+                  onChange={(e) => { setFieldErrors((p) => ({ ...p, name_te: null })); setModal({ ...modal, data: { ...modal.data, name_te: sanitizeName(e.target.value) } }) }} />
+                {fieldErrors.name_te && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.name_te}</div>}
               </div>
               <div className="sm:col-span-2">
                 <label className="label"><T>Mobile</T> *</label>
@@ -818,7 +829,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
         </div>
 
         <div className="px-4 py-2 border-t border-gray-100 flex gap-2 sticky bottom-0 bg-white print:hidden">
-          <button type="button" onClick={() => printDevoteeSection(dev, stats, temple, tab, { bookings, donations, annadanam, auction }, canSeeAmounts)} className="btn-outline flex-1 justify-center text-xs py-1.5"><Printer size={12} />{' '}<T>Print</T></button>
+          <button type="button" onClick={() => printDevoteeSection(dev, stats, temple, tab, { bookings, donations, annadanam, auction }, canSeeAmounts, lang)} className="btn-outline flex-1 justify-center text-xs py-1.5"><Printer size={12} />{' '}<T>Print</T></button>
           <button type="button" onClick={onClose} className="btn-maroon flex-1 justify-center text-xs py-1.5"><T>Close</T></button>
         </div>
 
@@ -828,10 +839,10 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
 
             {/* Temple Header - No Border */}
             <div style={{ padding: '15px 20px', marginBottom: '25px', textAlign: 'center' }}>
-              <img src="/images/temple-logo.png" alt="Shri Shirdi Sai Baba Temple" style={{ width: '70px', height: '70px', borderRadius: '50%', marginBottom: '10px', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
-              <div style={{ fontWeight: 'bold', fontSize: '22px', marginBottom: '3px' }}>{temple?.name || tr('Shri Shirdi Sai Baba Temple')}</div>
-              <div style={{ fontSize: '16px', marginBottom: '5px' }}>శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>
-              <div style={{ fontSize: '14px', color: '#333' }}>{temple?.address || tr('Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana')}</div>
+              <img src="/images/temple-logo.png" alt={tr("Shri Shirdi Sai Baba Temple")} style={{ width: '70px', height: '70px', borderRadius: '50%', marginBottom: '10px', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
+              <div style={{ fontWeight: 'bold', fontSize: '22px', marginBottom: '3px' }}>{lang === 'te' ? (temple?.nameTelugu || tr(temple?.name || 'Shri Shirdi Sai Baba Temple')) : (temple?.name || 'Shri Shirdi Sai Baba Temple')}</div>
+              {lang !== 'te' && <div style={{ fontSize: '16px', marginBottom: '5px' }}>శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</div>}
+              <div style={{ fontSize: '14px', color: '#333' }}>{(lang === 'te' && temple?.addressTe) || temple?.address || tr('Dwarkapuri Colony, Punjagutta, Hyderabad, Telangana')}</div>
             </div>
 
             {/* Devotee Details - Bordered with Title */}

@@ -78,11 +78,12 @@ from .database import Base, engine
 from .routers import (auth, devotees, sevas, bookings, donations, misc, users,
                       dashboard, poojas, payments, poojaris, waste, translate, schedules,
                       donation_master, pooja_history, reports, settings as settings_router, roles, masters,
-                      daily_closing, backup, notifications, public, refunds, tithi, analytics, panchangam,
-                      prokerala)
-from .migrate import run_migrations, repair_permissions
+                      daily_closing, backup, notifications, public, refunds, analytics, panchangam,
+                      prokerala, almanac)
+from .migrate import run_migrations, repair_permissions, retry_on_lock
 from .mock_refresh import run as refresh_mock_dates
 from .site_content import ensure_site_content
+from .routers.almanac import ensure_upcoming_years, link_festival_master_on_startup
 
 app = FastAPI(title=settings.APP_NAME, version="1.0.0")
 
@@ -112,9 +113,16 @@ app.add_middleware(
 def on_startup():
     # Create tables if they don't exist (idempotent) + add any new columns.
     Base.metadata.create_all(bind=engine)
-    run_migrations(engine)
+    # Retried on deadlock / lock timeout: the database is shared with other instances.
+    retry_on_lock(lambda: run_migrations(engine))
     repair_permissions(engine)
     ensure_site_content(engine)
+    # Keep this year + the next two Pournami years computed (no-op once they exist).
+    try:
+        ensure_upcoming_years()
+        link_festival_master_on_startup()
+    except Exception as exc:  # the calendar can still generate on demand
+        logger.warning("almanac generation skipped: %s", exc)
     # DEMO ONLY: roll the mock dataset's transaction dates forward so the demo's
     # "today"/"this-week" KPIs always have data. This bulk-rewrites Date/DateTime
     # columns across every transactional table (incl. the audit log), so it MUST
@@ -131,7 +139,14 @@ def on_startup():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": settings.APP_NAME}
+    # The almanac engine needs PyEphem; report it so a deploy missing the
+    # library is visible instead of silently computing nothing.
+    try:
+        import ephem  # noqa: F401
+        engine = "ok"
+    except ImportError:
+        engine = "missing (pip install -r requirements.txt)"
+    return {"status": "ok", "app": settings.APP_NAME, "almanac_engine": engine}
 
 
 app.include_router(auth.router)
@@ -165,7 +180,7 @@ app.include_router(refunds.router)
 app.include_router(backup.router)
 app.include_router(notifications.router)
 app.include_router(public.router)
-app.include_router(tithi.router)
 app.include_router(analytics.router)
 app.include_router(panchangam.router)
 app.include_router(prokerala.router)
+app.include_router(almanac.router)

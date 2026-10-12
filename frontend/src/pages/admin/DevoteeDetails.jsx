@@ -9,7 +9,7 @@ import { DevoteesAPI } from '../../api/client.js'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { Select, Combobox, DateField } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, stamp, teText, teAddress, clock12 } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
@@ -71,10 +71,14 @@ const CITIES = [
   'Bangalore', 'Chennai', 'Mumbai', 'Pune', 'Delhi', 'Kolkata',
 ]
 
+// A stored rasi ("Meena") reads through its labelled form ("Meena (Pisces)"),
+// which the dictionary holds — the bare word is also a given name.
+const rasiLabel = (v) => tr(RASHIS.find((r) => r.value === v)?.label || v)
+
 const STAT_CARDS = [
   { key: 'bookings', label: 'Pooja Bookings', icon: Flame, c: '#2563eb', bg: 'bg-blue-50', main: (s) => num(s.count), foot: (s) => inr(s.amount) },
   { key: 'donations', label: 'Donations', icon: HeartHandshake, c: '#059669', bg: 'bg-emerald-50', main: (s) => num(s.count), foot: (s) => inr(s.amount) },
-  { key: 'annadanam', label: 'Annadanam', icon: UtensilsCrossed, c: '#ea580c', bg: 'bg-orange-50', main: (s) => num(s.count), foot: (s) => `${num(s.persons)} persons` },
+  { key: 'annadanam', label: 'Annadanam', icon: UtensilsCrossed, c: '#ea580c', bg: 'bg-orange-50', main: (s) => num(s.count), foot: (s) => `${num(s.persons)} ${tr('persons')}` },
   { key: 'auction', label: 'Auction Purchases', icon: Gavel, c: '#7c3aed', bg: 'bg-violet-50', main: (s) => num(s.count), foot: (s) => inr(s.amount) },
 ]
 
@@ -91,7 +95,7 @@ function Table({ cols, children }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead><tr className="bg-gray-50/80 border-b border-gray-100">{cols.map((c) => <Th key={c}>{c}</Th>)}</tr></thead>
+        <thead><tr className="bg-gray-50/80 border-b border-gray-100">{cols.map((c) => <Th key={c}>{tr(c)}</Th>)}</tr></thead>
         <tbody className="divide-y divide-gray-100">{children}</tbody>
       </table>
     </div>
@@ -198,13 +202,13 @@ export default function DevoteeDetails() {
                 <span className="font-bold text-2xl text-gray-800">{personName(dev, lang)}</span>
                 <span className="text-xs font-mono font-semibold text-blue-700 bg-blue-50 rounded-full px-3 py-1">{dev.code}</span>
                 <span className={`text-xs font-semibold rounded-full px-3 py-1 ${dev.status === 'Active' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {dev.status}
+                  {tr(dev.status)}
                 </span>
               </div>
               <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-600">
                 <span className="flex items-center gap-2"><Phone size={15} className="text-maroon-500" /> {dev.mobile}</span>
                 {dev.email && <span className="flex items-center gap-2"><Mail size={15} className="text-maroon-500" /> {dev.email}</span>}
-                {dev.city && <span className="flex items-center gap-2"><MapPin size={15} className="text-maroon-500" /> {dev.city}</span>}
+                {dev.city && <span className="flex items-center gap-2"><MapPin size={15} className="text-maroon-500" /> {tr(dev.city)}</span>}
               </div>
             </div>
           </div>
@@ -219,12 +223,12 @@ export default function DevoteeDetails() {
           <div className="space-y-5">
             <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider"><T>Sankalpam Details</T></h4>
             <div className="grid grid-cols-3 gap-4">
-              <InfoCard icon={Star} label={tr("Gothram")} value={dev.gothram} color="amber" />
-              <InfoCard icon={Star} label={tr("Nakshatram")} value={dev.nakshatram} color="blue" />
-              <InfoCard icon={Star} label={tr("Rasi")} value={dev.rasi} color="purple" />
+              <InfoCard icon={Star} label={tr("Gothram")} value={dev.gothram && tr(dev.gothram)} color="amber" />
+              <InfoCard icon={Star} label={tr("Nakshatram")} value={dev.nakshatram && tr(dev.nakshatram)} color="blue" />
+              <InfoCard icon={Star} label={tr("Rasi")} value={dev.rasi && rasiLabel(dev.rasi)} color="purple" />
             </div>
             <div className="grid grid-cols-2 gap-4 pt-2">
-              <InfoCard icon={Cake} label={tr("Date of Birth")} value={dev.dob ? `${fmtDate(dev.dob)}${age ? ` (${age} yrs)` : ''}` : null} color="pink" />
+              <InfoCard icon={Cake} label={tr("Date of Birth")} value={dev.dob ? `${fmtDate(dev.dob)}${age ? ` (${age} ${tr('yrs')})` : ''}` : null} color="pink" />
               <InfoCard icon={FileText} label={tr("PAN Number")} value={dev.pan_number} color="gray" mono />
             </div>
           </div>
@@ -234,10 +238,10 @@ export default function DevoteeDetails() {
             <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider"><T>Activity & Preferences</T></h4>
             <div className="grid grid-cols-2 gap-4">
               <InfoCard icon={Calendar} label={tr("Registered On")} value={fmtDate(dev.registered_on)} color="emerald" />
-              <InfoCard icon={Clock} label={tr("Last Activity")} value={fmtDate(dev.last_visit)} badge={lastActivityType} color="blue" />
+              <InfoCard icon={Clock} label={tr("Last Activity")} value={fmtDate(dev.last_visit)} badge={lastActivityType && tr(lastActivityType)} color="blue" />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <InfoCard icon={Languages} label={tr("Preferred Language")} value={dev.preferred_language || 'English'} color="indigo" />
+              <InfoCard icon={Languages} label={tr("Preferred Language")} value={tr(dev.preferred_language || 'English')} color="indigo" />
               <InfoCard icon={Layers} label={tr("Total Transactions")} value={num(d.stats?.bookings?.count + d.stats?.donations?.count + d.stats?.annadanam?.count + d.stats?.auction?.count || 0)} color="maroon" />
             </div>
             {dev.address && (
@@ -246,7 +250,7 @@ export default function DevoteeDetails() {
                   <MapPin size={16} className="text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <div className="text-xs text-gray-400 mb-1"><T>Address</T></div>
-                    <div className="text-sm text-gray-700">{dev.address}</div>
+                    <div className="text-sm text-gray-700">{teAddress(dev.address)}</div>
                   </div>
                 </div>
               </div>
@@ -265,7 +269,7 @@ export default function DevoteeDetails() {
               confirmLabel: tr('Add Member'),
               fields: [
                 { k: 'name', label: tr('Name'), required: true },
-                { k: 'relation', label: tr('Relation'), placeholder: 'e.g. Son, Daughter, Wife' },
+                { k: 'relation', label: tr('Relation'), placeholder: tr('e.g. Son, Daughter, Wife') },
               ],
             })
             if (!res) return
@@ -281,7 +285,7 @@ export default function DevoteeDetails() {
               <span key={f.id} className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full pl-4 pr-2 py-2 text-sm text-gray-700">
                 <User size={14} className="text-gray-400" />
                 <span className="font-semibold">{personName(f, lang)}</span>
-                {f.relation && <span className="text-gray-400 text-xs bg-white px-2 py-0.5 rounded-full">{f.relation}</span>}
+                {f.relation && <span className="text-gray-400 text-xs bg-white px-2 py-0.5 rounded-full">{tr(f.relation)}</span>}
                 <button onClick={async () => {
                   if (!(await confirmDialog({ title: `${tr('Remove')} ${personName(f, lang)}?`, tone: 'danger', confirmLabel: tr('Remove') }))) return
                   try { await DevoteesAPI.removeFamily(dev.id, f.id); reload() }
@@ -350,9 +354,9 @@ export default function DevoteeDetails() {
               {d.bookings.map((b) => (
                 <tr key={b.booking_code} className="hover:bg-gray-50/60">
                   <td className="px-5 py-4 font-mono text-sm text-gray-500">{b.booking_code}</td>
-                  <td className="px-5 py-4 font-semibold text-gray-800">{b.pooja}</td>
+                  <td className="px-5 py-4 font-semibold text-gray-800">{tr(b.pooja)}</td>
                   <td className="px-5 py-4"><Badge tone={PLAN_TONE[b.plan]}>{b.plan || '—'}</Badge></td>
-                  <td className="px-5 py-4 text-gray-600 text-sm whitespace-nowrap">{fmtDate(b.scheduled_date)}{b.time_slot ? `, ${b.time_slot}` : ''}</td>
+                  <td className="px-5 py-4 text-gray-600 text-sm whitespace-nowrap">{fmtDate(b.scheduled_date)}{b.time_slot ? `, ${clock12(b.time_slot)}` : ''}</td>
                   <td className="px-5 py-4 font-semibold text-gray-800">{num(b.amount)}</td>
                   <td className="px-5 py-4"><Badge tone={STATUS_TONE[b.status]}>{b.status}</Badge></td>
                   <td className="px-5 py-4 font-mono text-sm text-gray-500">{b.ticket_no || '—'}</td>
@@ -368,10 +372,10 @@ export default function DevoteeDetails() {
               {d.donations.map((x) => (
                 <tr key={x.receipt_no} className="hover:bg-gray-50/60">
                   <td className="px-5 py-4 font-mono text-sm text-maroon-600">{x.receipt_no}</td>
-                  <td className="px-5 py-4 text-gray-700">{x.fund}</td>
+                  <td className="px-5 py-4 text-gray-700">{tr(x.fund)}</td>
                   <td className="px-5 py-4"><Badge tone="bg-blue-50 text-blue-700">{x.type}</Badge></td>
                   <td className="px-5 py-4 font-semibold text-emerald-700">{num(x.amount)}</td>
-                  <td className="px-5 py-4 text-gray-600">{x.mode}</td>
+                  <td className="px-5 py-4 text-gray-600">{x.mode ? tr(x.mode) : '—'}</td>
                   <td className="px-5 py-4">{x.g80 ? <Badge tone="bg-emerald-50 text-emerald-700"><T>Eligible</T></Badge> : '—'}</td>
                   <td className="px-5 py-4 text-gray-500 text-sm">{fmtDate(x.date)}</td>
                 </tr>
@@ -387,7 +391,7 @@ export default function DevoteeDetails() {
                   <td className="px-5 py-4 font-mono text-sm text-gray-500">{a.code}</td>
                   <td className="px-5 py-4 text-gray-700">{a.plates}</td>
                   <td className="px-5 py-4 font-semibold text-gray-800">{num(a.amount)}</td>
-                  <td className="px-5 py-4 text-gray-600">{a.occasion || '—'}</td>
+                  <td className="px-5 py-4 text-gray-600">{a.occasion ? tr(a.occasion) : '—'}</td>
                   <td className="px-5 py-4 text-gray-500 text-sm">{fmtDate(a.date)}</td>
                 </tr>
               ))}
@@ -400,7 +404,7 @@ export default function DevoteeDetails() {
               {d.auction.map((a) => (
                 <tr key={a.code} className="hover:bg-gray-50/60">
                   <td className="px-5 py-4 font-mono text-sm text-gray-500">{a.code}</td>
-                  <td className="px-5 py-4 font-semibold text-gray-800">{a.item}</td>
+                  <td className="px-5 py-4 font-semibold text-gray-800">{tr(a.item)}</td>
                   <td className="px-5 py-4 font-semibold text-violet-700">{num(a.amount)}</td>
                   <td className="px-5 py-4"><Badge tone={STATUS_TONE[a.status]}>{a.status}</Badge></td>
                   <td className="px-5 py-4 text-gray-500 text-sm">{fmtDate(a.date)}</td>
@@ -454,6 +458,7 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
     e.preventDefault()
     setErr('')
     if (!data.name?.trim() || !data.mobile?.trim()) { setErr(tr('Name and mobile are required.')); return }
+    if (/[A-Za-z]/.test(data.name_te || '')) { setErr(tr('Type the name in Telugu letters, or leave it blank.')); return }
     // Validate mobile number - must be exactly 10 digits for Indian numbers
     const mobileTrimmed = (data.mobile || '').trim()
     if (mobileTrimmed.length !== 10) {
@@ -470,7 +475,7 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
     setBusy(true)
     try {
       await DevoteesAPI.update(data.id, {
-        name: data.name, mobile: data.mobile, email: data.email, city: data.city,
+        name: data.name, name_te: data.name_te?.trim() || null, mobile: data.mobile, email: data.email, city: data.city,
         gothram: data.gothram, nakshatram: data.nakshatram, rasi: data.rasi,
         dob: data.dob || null, pan_number: data.pan_number || null,
         address: data.address, preferred_language: data.preferred_language || 'English', status: data.status || 'Active',
@@ -493,6 +498,10 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
             <div>
               <label className="label"><T>Full Name</T> *</label>
               <input className="input" value={data.name || ''} onChange={(e) => onChange({ ...data, name: sanitizeName(e.target.value) })} />
+            </div>
+            <div>
+              <label className="label"><T>Full Name (Telugu)</T></label>
+              <input className="input" lang="te" placeholder="ఉదా. విష్ణు" value={data.name_te || ''} onChange={(e) => onChange({ ...data, name_te: sanitizeName(e.target.value) })} />
             </div>
             <div>
               <label className="label"><T>Mobile</T> *</label>
@@ -541,7 +550,7 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
               <label className="label"><T>Rasi</T></label>
               <Select className="input" value={data.rasi || ''} onChange={(e) => onChange({ ...data, rasi: e.target.value })}>
                 <option value="">{tr("Select Rasi")}</option>
-                {RASHIS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {RASHIS.map(r => <option key={r.value} value={r.value}>{tr(r.label)}</option>)}
               </Select>
             </div>
           </div>
