@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   TrendingUp, TrendingDown, BarChart3, PieChart, Activity, ArrowUpRight, ArrowDownRight,
   Calendar, Filter, RotateCcw, Search, Flame, HandHeart, HandCoins, Gavel, Recycle, UtensilsCrossed,
@@ -208,12 +208,69 @@ function HorizontalBarChart({ items, maxItems = 10, color = '#8b1a1a' }) {
 }
 
 // ── Donut Chart ──
+// Centre text geometry, in the chart's 180×180 units. The hole is the ring's inner
+// radius (65 − 28/2 = 51); text keeps DONUT_CLEAR units of space from the ring.
+const DONUT_HOLE = 51
+const DONUT_CLEAR = 6
+const DONUT_MIN_FONT = 9        // below this a full amount is too small to read → short form
+
+// Largest font size (≤ base) at which a line of text fits inside the hole. The
+// text sits on `baseline`; its farthest edge from the centre (cap top or
+// descender) decides how wide the circle is there. Width scales with font size,
+// so `widthAtBase` (measured once at `base`) gives the width at any size.
+function fitDonutFont(widthAtBase, base, baseline, center = 90) {
+  const R = DONUT_HOLE - DONUT_CLEAR
+  for (let fs = base; fs >= 4; fs -= 0.25) {
+    const d = Math.max(Math.abs(baseline - 0.75 * fs - center), Math.abs(baseline + 0.25 * fs - center))
+    const room = d < R ? 2 * Math.sqrt(R * R - d * d) : 0
+    if (widthAtBase * (fs / base) <= room) return fs
+  }
+  return 4
+}
+
 function DonutChart({ segments, size = 180, label }) {
   const total = segments.reduce((s, seg) => s + seg.value, 0) || 1
   let cumulative = 0
   const radius = 65
   const strokeWidth = 28
   const circumference = 2 * Math.PI * radius
+
+  // Fit the centre text to the hole: measure it, shrink as needed, and fall back
+  // to the short form (₹1.0Cr) when the full amount would be unreadably small.
+  const caption = label || tr('Total')
+  const full = inr(total)
+  const short = '₹' + shortNum(total)
+  const LABEL_Y = 82, AMOUNT_Y = 103, LABEL_BASE = 11, AMOUNT_BASE = 16
+  // An empty, hidden <text> React never fills: measuring writes only into it, so
+  // the visible text nodes (and the hover <title>) stay React's alone.
+  const probeRef = useRef(null)
+  const [fit, setFit] = useState({ key: '', label: LABEL_BASE, amount: AMOUNT_BASE, compact: false })
+  const fitKey = `${caption}|${full}`
+  useLayoutEffect(() => {
+    let alive = true
+    const measure = () => {
+      const probe = probeRef.current
+      if (!alive || !probe || !probe.getComputedTextLength) return
+      const widthAt = (text, base, weight) => {
+        probe.setAttribute('font-size', base); probe.setAttribute('font-weight', weight); probe.textContent = text
+        return probe.getComputedTextLength()
+      }
+      const labelFs = fitDonutFont(widthAt(caption, LABEL_BASE, 400), LABEL_BASE, LABEL_Y)
+      let amountFs = fitDonutFont(widthAt(full, AMOUNT_BASE, 700), AMOUNT_BASE, AMOUNT_Y)
+      let compact = false
+      if (amountFs < DONUT_MIN_FONT && short !== full) {
+        compact = true
+        amountFs = fitDonutFont(widthAt(short, AMOUNT_BASE, 700), AMOUNT_BASE, AMOUNT_Y)
+      }
+      probe.textContent = ''
+      setFit({ key: fitKey, label: labelFs, amount: amountFs, compact })
+    }
+    measure()
+    // Web fonts change text widths once they load.
+    document.fonts?.ready?.then(measure).catch(() => {})
+    return () => { alive = false }
+  }, [fitKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const fitted = fit.key === fitKey
 
   return (
     <div className="flex flex-col items-center">
@@ -239,8 +296,12 @@ function DonutChart({ segments, size = 180, label }) {
             </circle>
           )
         })}
-        <text x="90" y="85" textAnchor="middle" className="text-[0.75rem] fill-gray-500">{label || tr('Total')}</text>
-        <text x="90" y="105" textAnchor="middle" className="text-[1rem] font-bold fill-gray-800">{inr(total)}</text>
+        <text ref={probeRef} x="0" y="0" visibility="hidden" aria-hidden="true" />
+        <text x="90" y={LABEL_Y} textAnchor="middle" fontSize={fitted ? fit.label : LABEL_BASE} className="fill-gray-500">{caption}</text>
+        <text x="90" y={AMOUNT_Y} textAnchor="middle" fontSize={fitted ? fit.amount : AMOUNT_BASE} className="font-bold fill-gray-800">
+          {fitted && fit.compact ? short : full}
+          <title>{full}</title>
+        </text>
       </svg>
       <div className="flex flex-wrap gap-3 justify-center mt-3">
         {segments.slice(0, 6).map((seg, i) => (

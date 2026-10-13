@@ -11,7 +11,7 @@ const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDi
 export default function WasteMaterialMaster() {
   return <MasterScreen config={{
     title: tr('Waste Material Master'), subtitle: tr('Configure the waste material types sold to vendors, with default unit and rate.'),
-    api: WasteMaterialsAPI, entity: 'material', addLabel: tr('Add New Material'), searchPlaceholder: tr('Search by name or code…'),
+    api: WasteMaterialsAPI, entity: 'material', addLabel: tr('Add New Material'), searchPlaceholder: tr('Search by material name or material ID…'),
     statCards: [
       { key: 'total', icon: Recycle, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Materials'), sub: tr('All waste materials') },
       { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: tr('Active'), sub: tr('In use') },

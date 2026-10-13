@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Setting
-from ..schemas import SettingsUpdateIn
+from ..schemas import SettingsUpdateIn, setting_too_long
 from ..security import RequireModule, require_admin, log_action, client_ip, ADMIN_ROLES, get_current_user
 from ..helpers import parse_time_slot
 from ..almanac import Location, TTD_TIRUMALA
@@ -200,6 +200,19 @@ def update_settings(body: SettingsUpdateIn, request: Request,
     now = datetime.now().strftime("%d %b %Y %I:%M %p")
     # Convert Pydantic model to dict, excluding unset fields
     body_dict = body.model_dump(exclude_unset=True)
+    # Keep only what changed. The page sends the whole settings object back,
+    # including records other modules keep here; an unchanged one must neither
+    # fail validation nor be rewritten under this user's name.
+    stored = {s.skey: s.svalue for s in db.query(Setting).all()}
+    current = {**DEFAULTS, **stored}
+    def _text(v):
+        return None if v is None else str(v)
+    body_dict = {k: v for k, v in body_dict.items()
+                 if k not in ("updated_by", "updated_at") and _text(v) != _text(current.get(k))}
+    for k, v in body_dict.items():
+        err = setting_too_long(k, v)
+        if err:
+            raise HTTPException(422, err)
     _validate_booking_settings(body_dict)
     _validate_panchang_settings(body_dict)
     body_dict["updated_by"] = getattr(user, "name", None) or user.username

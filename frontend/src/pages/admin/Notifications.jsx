@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   MessageSquare, Mail, Send, CheckCircle2, XCircle, MinusCircle, Ban, Info,
-  BellRing, Smartphone, ArrowUp, ArrowDown, ChevronsUpDown,
+  BellRing, Smartphone, ArrowUp, ArrowDown, ChevronsUpDown, Languages,
 } from 'lucide-react'
 import { PageTitle, StatTile, KpiGrid, Pill, Pager, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { NotificationsAPI } from '../../api/client.js'
@@ -26,6 +26,7 @@ const SORT_COLUMNS = [
 export default function Notifications() {
   const SIZE = 15
   const [channels, setChannels] = useState([])
+  const [language, setLanguage] = useState('')
   const [stats, setStats] = useState(null)
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
@@ -40,7 +41,7 @@ export default function Notifications() {
   const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(rows, SORT_COLUMNS, [], { manualSort: true })
 
   const loadConfig = useCallback(() => {
-    NotificationsAPI.config().then((c) => setChannels(c.channels)).catch(() => toast(tr('Failed to load notification config'), 'error'))
+    NotificationsAPI.config().then((c) => { setChannels(c.channels); setLanguage(c.language || '') }).catch(() => toast(tr('Failed to load notification config'), 'error'))
     NotificationsAPI.stats().then(setStats).catch(() => toast(tr('Failed to load notification stats'), 'error'))
   }, [])
   // Sorting runs on the server so it covers every log entry, not just the visible page.
@@ -60,6 +61,13 @@ export default function Notifications() {
   async function toggle(ch, enabled) {
     setBusy(ch)
     try { const r = await NotificationsAPI.updateConfig({ [ch]: enabled }); setChannels(r.channels) }
+    finally { setBusy('') }
+  }
+  async function changeLanguage(l) {
+    if (!l || l === language) return
+    setBusy('language')
+    try { const r = await NotificationsAPI.updateConfig({ language: l }); setLanguage(r.language); toast(tr('Message language saved.')) }
+    catch (ex) { toast(ex?.detail || tr('Failed'), 'error') }
     finally { setBusy('') }
   }
   async function sendTest(ch) {
@@ -100,6 +108,24 @@ export default function Notifications() {
           <span><T>No delivery provider is configured yet, so notifications are</T>{' '}<b><T>recorded but not sent</T></b>{' '}<T>(status “Skipped”). Set the provider credentials (</T><code className="text-[0.75rem]">SMTP_*</code>, <code className="text-[0.75rem]">SMS_API_*</code>, <code className="text-[0.75rem]">WHATSAPP_API_*</code>){' '}<T>in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.</T></span>
         </div>
       )}
+
+      {/* Devotee message language */}
+      <div className="mb-4 bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="w-11 h-11 rounded-full bg-maroon-50 grid place-items-center text-maroon-700 shrink-0"><Languages size={20} /></div>
+          <div className="min-w-0">
+            <div className="font-serif text-[1rem] font-bold text-maroon-800"><T>Message language</T></div>
+            <div className="text-[0.75rem] text-gray-500"><T>Language of the SMS, WhatsApp and email messages sent to devotees. Telugu SMS use more credits per message.</T></div>
+          </div>
+        </div>
+        <div className="sm:w-56">
+          <Select value={language} onChange={(e) => changeLanguage(e.target.value)} disabled={busy === 'language' || !language} aria-label={tr('Message language')}>
+            <option value="Telugu">{tr('Telugu')}</option>
+            <option value="English">{tr('English')}</option>
+            <option value="Both">{tr('Telugu + English')}</option>
+          </Select>
+        </div>
+      </div>
 
       {/* Channels */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

@@ -33,7 +33,7 @@ const NAME_TOKENS = {
   rajesh: 'రాజేష్', ramachandra: 'రామచంద్ర', ramakrishna: 'రామకృష్ణ', ramana: 'రమణ',
   ramesh: 'రమేష్', rama: 'రామ', ravi: 'రవి', sai: 'సాయి', sandeep: 'సందీప్',
   sita: 'సీత', seetha: 'సీత', sravani: 'శ్రావణి', sridevi: 'శ్రీదేవి',
-  sridhara: 'శ్రీధర', srinivas: 'శ్రీనివాస', srinivasa: 'శ్రీనివాస',
+  sridhara: 'శ్రీధర', srinivas: 'శ్రీనివాస్', srinivasa: 'శ్రీనివాస',
   subrahmanya: 'సుబ్రహ్మణ్య', sunitha: 'సునీత', suresh: 'సురేష్', swathi: 'స్వాతి',
   teja: 'తేజ', usha: 'ఉష', venkata: 'వెంకట', venkatesh: 'వెంకటేష్',
   venkateswarlu: 'వెంకటేశ్వర్లు', vijay: 'విజయ్', vishnu: 'విష్ణు',
@@ -42,6 +42,26 @@ const NAME_TOKENS = {
   uday: 'ఉదయ్', engine: 'ఇంజిన్', sashank: 'శశాంక్', balaji: 'బాలాజీ', sri: 'శ్రీ', traders: 'ట్రేడర్స్',
   deepak: 'దీపక్', kalyan: 'కళ్యాణ్', sunil: 'సునీల్', swapna: 'స్వప్న',
   bhaskar: 'భాస్కర్', jyothi: 'జ్యోతి', sailaja: 'శైలజ', vani: 'వాణి',
+  // long vowels and retroflex letters the Roman spelling doesn't show
+  raju: 'రాజు', nagaraju: 'నాగరాజు', raja: 'రాజా',
+  anand: 'ఆనంద్', ananda: 'ఆనంద', durga: 'దుర్గ', anjali: 'అంజలి',
+  satyanarayana: 'సత్యనారాయణ', satya: 'సత్య', hanumantha: 'హనుమంత', hanuman: 'హనుమాన్',
+  ramaiah: 'రామయ్య', subbaiah: 'సుబ్బయ్య', venkataiah: 'వెంకటయ్య', narasimha: 'నరసింహ',
+  nageswara: 'నాగేశ్వర', venkateswara: 'వెంకటేశ్వర', srikanth: 'శ్రీకాంత్', prakash: 'ప్రకాష్',
+  venkat: 'వెంకట్', sudha: 'సుధ', madhu: 'మధు', rajeswari: 'రాజేశ్వరి', vijaya: 'విజయ',
+  kamala: 'కమల', saraswathi: 'సరస్వతి', parvathi: 'పార్వతి', annapurna: 'అన్నపూర్ణ',
+  lalitha: 'లలిత', kavitha: 'కవిత', geetha: 'గీత', sangeetha: 'సంగీత', revathi: 'రేవతి',
+  sujatha: 'సుజాత', vasantha: 'వసంత', shankar: 'శంకర్', shiva: 'శివ', siva: 'శివ',
+  balakrishna: 'బాలకృష్ణ', mallikarjuna: 'మల్లికార్జున',
+  ashok: 'అశోక్', ajay: 'అజయ్', karthik: 'కార్తీక్', aditya: 'ఆదిత్య', rahul: 'రాహుల్',
+  sravan: 'శ్రావణ్', harika: 'హారిక', keerthi: 'కీర్తి', mounika: 'మౌనిక', bhargavi: 'భార్గవి',
+  pandu: 'పాండు', kondal: 'కొండల్', chandu: 'చందు', yadagiri: 'యాదగిరి', yellaiah: 'ఎల్లయ్య',
+  mohammed: 'మహమ్మద్', mohammad: 'మహమ్మద్', muhammad: 'మహమ్మద్', ali: 'అలీ',
+  sekhar: 'శేఖర్', sekar: 'శేఖర్', chandrasekhar: 'చంద్రశేఖర్', rajasekhar: 'రాజశేఖర్',
+  rakesh: 'రాకేష్', jagadish: 'జగదీష్', jagadeesh: 'జగదీష్', anusha: 'అనూష', bhanu: 'భాను',
+  damodar: 'దామోదర్', rajendra: 'రాజేంద్ర', ravindra: 'రవీంద్ర', siddharth: 'సిద్ధార్థ్',
+  sambasiva: 'సాంబశివ', sarada: 'శారద', sharada: 'శారద', tejaswini: 'తేజస్విని',
+  khan: 'ఖాన్', ahmed: 'అహ్మద్', joseph: 'జోసెఫ్', john: 'జాన్', mary: 'మేరీ',
   // surnames
   acharya: 'ఆచార్య', bhat: 'భట్', chowdary: 'చౌదరి', choudary: 'చౌదరి',
   devi: 'దేవి', goud: 'గౌడ్', gupta: 'గుప్తా', iyer: 'అయ్యర్', kadiyam: 'కడియం', naidu: 'నాయుడు',
@@ -70,19 +90,24 @@ const LETTER = {
 // ── Syllable rules ───────────────────────────────────────────────────────────
 const VOWEL_SIGN = {
   a: '', aa: 'ా', i: 'ి', ii: 'ీ', ee: 'ీ', u: 'ు', uu: 'ూ', oo: 'ూ',
-  e: 'ె', ae: 'ే', ai: 'ై', o: 'ొ', oa: 'ో', au: 'ౌ', ou: 'ౌ',
+  e: 'ే', ae: 'ే', ai: 'ై', o: 'ో', oa: 'ో', au: 'ౌ', ou: 'ౌ', ow: 'ౌ',
 }
 const VOWEL_LETTER = {
   a: 'అ', aa: 'ఆ', i: 'ఇ', ii: 'ఈ', ee: 'ఈ', u: 'ఉ', uu: 'ఊ', oo: 'ఊ',
-  e: 'ఎ', ae: 'ఏ', ai: 'ఐ', o: 'ఒ', oa: 'ఓ', au: 'ఔ', ou: 'ఔ',
+  e: 'ఏ', ae: 'ఏ', ai: 'ఐ', o: 'ఓ', oa: 'ఓ', au: 'ఔ', ou: 'ఔ', ow: 'ఔ',
 }
 const CONSONANT = {
-  kh: 'ఖ', gh: 'ఘ', ch: 'చ', chh: 'ఛ', jh: 'ఝ', th: 'త', dh: 'ద', ph: 'ఫ',
-  bh: 'భ', sh: 'శ', ss: 'ష', ng: 'ంగ', ny: 'ఞ', ksh: 'క్ష', jn: 'జ్ఞ',
-  k: 'క', g: 'గ', c: 'క', j: 'జ', t: 'ట', d: 'డ', n: 'న', p: 'ప', b: 'బ',
+  kh: 'ఖ', gh: 'ఘ', ch: 'చ', chh: 'ఛ', jh: 'ఝ', th: 'త', dh: 'ధ', ph: 'ఫ',
+  bh: 'భ', sh: 'శ', ss: 'ష', ng: 'ంగ', ksh: 'క్ష', jn: 'జ్ఞ',
+  sr: 'శ్ర', tr: 'త్ర', sw: 'స్వ',
+  k: 'క', g: 'గ', c: 'క', j: 'జ', t: 'ట', d: 'ద', n: 'న', p: 'ప', b: 'బ',
   m: 'మ', y: 'య', r: 'ర', l: 'ల', v: 'వ', w: 'వ', s: 'స', h: 'హ', z: 'జ', f: 'ఫ',
 }
 const VIRAMA = '్'
+const ANUSVARA = 'ం'
+// A nasal closing a syllable before these consonants is written as the
+// anusvara: Anjali అంజలి, Hanumantha హనుమంత, Sambasiva సాంబశివ.
+const NASAL_BEFORE = { n: /^(k|g|c|j|t|d|s)/, m: /^(b|p|s|h)/ }
 // Longest first, so `chh` wins over `ch` and `aa` over `a`.
 const CONS_KEYS = Object.keys(CONSONANT).sort((a, b) => b.length - a.length)
 const VOW_KEYS = Object.keys(VOWEL_SIGN).sort((a, b) => b.length - a.length)
@@ -90,24 +115,46 @@ const VOW_KEYS = Object.keys(VOWEL_SIGN).sort((a, b) => b.length - a.length)
 function transliterateToken(word) {
   // English orthography: a final 'y' is an 'i' sound (Validity, Notify), and a
   // final 'e' after a consonant is silent (Complete, Smoke).
-  const w = word.toLowerCase()
+  let w = word.toLowerCase()
     .replace(/([b-df-hj-np-tv-z])y$/, '$1i')
     .replace(/([b-df-hj-np-tv-xz])e$/, '$1')
+    // Subbaiah, Yellaiah, Kotaiah — the Telugu -య్య ending spelled the English way.
+    .replace(/a?iah$/, 'ayya')
+    // English `ui` after b/g is a plain i: Building, Guild.
+    .replace(/([bg])ui/, '$1i')
+    // Sri opens a name as శ్రీ (Sridhar, Srilatha); -akar is -ākar (Sudhakar, Divakar).
+    .replace(/^sri/, 'srii')
+    .replace(/akar$/, 'aakar')
+    // A final -ish is long in names: Girish గిరీష్, Satish సతీష్, Manish మనీష్.
+    .replace(/ish$/, 'iish')
   let out = ''
   let i = 0
   let atStart = true
+  let prev = ''
   while (i < w.length) {
     const cons = CONS_KEYS.find((c) => w.startsWith(c, i))
     if (cons) {
       i += cons.length
+      let letter = CONSONANT[cons]
+      // sh: శ opening a word (Shankar, Shiva), ష inside it (Suresh, Kishore).
+      if (cons === 'sh' && !atStart) letter = 'ష'
+      // n after r takes the retroflex ణ (Aruna, Pranav, Varun).
+      if (cons === 'n' && prev === 'r') letter = 'ణ'
+      // -eswar is -ēśvar: Eswar ఈశ్వర్, Nageswar నాగేశ్వర్, Rajeswari రాజేశ్వరి.
+      if (cons === 'sw' && w[i - 3] === 'e' && w.startsWith('ar', i)) letter = 'శ్వ'
+      prev = cons
       const vow = VOW_KEYS.find((v) => w.startsWith(v, i))
       if (vow) {
         i += vow.length
-        out += CONSONANT[cons] + VOWEL_SIGN[vow]
+        out += letter + VOWEL_SIGN[vow]
+      } else if (!atStart && NASAL_BEFORE[cons]?.test(w.slice(i))) {
+        out += ANUSVARA
+        // Dental after the anusvara: Hemant హేమంత్, Vasant వసంత్.
+        if (w[i] === 't' && w[i + 1] !== 'h') { w = w.slice(0, i) + 'th' + w.slice(i + 1) }
       } else {
         // No vowel: a consonant cluster mid-word, or a final consonant — both
         // take the virama so `Anil` reads అనిల్ rather than అనిల.
-        out += CONSONANT[cons] + VIRAMA
+        out += letter + VIRAMA
       }
       atStart = false
       continue
@@ -115,7 +162,10 @@ function transliterateToken(word) {
     const vow = VOW_KEYS.find((v) => w.startsWith(v, i))
     if (vow) {
       i += vow.length
-      out += atStart ? VOWEL_LETTER[vow] : VOWEL_SIGN[vow] || VOWEL_LETTER[vow]
+      // A consonant always takes the vowel after it, so a vowel reaching here
+      // opens the word or follows another vowel — the full letter either way
+      // (a sign stacked on a sign, బుి, is not valid Telugu).
+      out += VOWEL_LETTER[vow]
       atStart = false
       continue
     }
@@ -145,4 +195,7 @@ export function toTelugu(name) {
     }
     return transliterateToken(part)
   }).join('')
+    // "Srinivas Rao" is written శ్రీనివాస రావు — the given name takes its full
+    // vowel before Rao, as in Nageswara Rao and Venkateswara Rao.
+    .replace(/్(\s+రావు)/g, '$1')
 }

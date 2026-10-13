@@ -340,6 +340,7 @@ export const PoojarisAPI = {
   queue: (params = {}) => api.get('/poojaris/queue' + qs(params)),
   completeDue: (body = {}) => api.post('/poojaris/queue/complete-due', body),
   assign: (booking_id, poojari_id) => api.post('/poojaris/assign', { booking_id, poojari_id }),
+  setPerformer: (booking_id, performed_on, poojari_id) => api.post('/poojaris/performer', { booking_id, performed_on, poojari_id }),
   assignBulk: (booking_ids, poojari_id) => api.post('/poojaris/assign-bulk', { booking_ids, poojari_id }),
 }
 

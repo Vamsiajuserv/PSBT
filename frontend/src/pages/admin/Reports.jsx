@@ -129,14 +129,21 @@ export default function Reports() {
   useEffect(() => {
     ReportsAPI.catalog().then((r) => {
       setCats(r.categories)
-      const c0 = r.categories[0]
-      setCategory(c0.key); setReport(c0.reports[0])
+      // Keep a category/report already in the URL (refresh, back navigation);
+      // fall back to the first category only when it is missing or unknown.
+      const cat = r.categories.find((c) => c.key === category) || r.categories[0]
+      setCategory(cat.key)
+      setReport(cat.reports.includes(report) ? report : cat.reports[0])
     }).catch((ex) => setLoadErr(ex?.detail || tr("Couldn't load reports — check your connection and retry.")))
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- once, with the URL selection at mount
 
   const allReports = useMemo(() => cats.flatMap((c) => c.reports.map((rp) => ({ category: c.key, name: rp }))), [cats])
   const reportsInCat = useMemo(() => cats.find((c) => c.key === category)?.reports || [], [cats, category])
-  const filteredList = useMemo(() => allReports.filter((r) => r.name.toLowerCase().includes(rq.toLowerCase())), [allReports, rq])
+  // The list follows the Report Category filter; a search looks across every category.
+  const filteredList = useMemo(() => {
+    const q = rq.trim().toLowerCase()
+    return q ? allReports.filter((r) => r.name.toLowerCase().includes(q)) : allReports.filter((r) => r.category === category)
+  }, [allReports, rq, category])
 
   async function generate(rep = report, s = start, e = end) {
     if (!rep) { setLoadErr(tr('Please select a report.')); return }

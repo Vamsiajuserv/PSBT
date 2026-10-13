@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import {
-  Plus, Pencil, MoreVertical, X, Search, RotateCcw, Eye, EyeOff, Save, Info, Trash2,
+  Plus, Pencil, X, Search, RotateCcw, Eye, EyeOff, Save, Info, Trash2,
   Users as UsersIcon, UserCheck, UserX, ShieldCheck,
 } from 'lucide-react'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
@@ -30,7 +30,6 @@ export default function Users() {
   const [drawer, setDrawer] = useState(null)
   const [tab, setTab] = useState('details')
   const [showPw, setShowPw] = useState(false)
-  const [menu, setMenu] = useState(null)
   const [err, setErr] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(true)
@@ -125,7 +124,6 @@ export default function Users() {
   function openEdit(u) {
     setTab('details'); setErr('')
     setDrawer({ mode: 'edit', data: { id: u.id, name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, is_active: u.is_active, password: '', confirm: '', modules: (u.modules || '').split(',').filter(Boolean), poojari_id: u.poojari_id || '' } })
-    setMenu(null)
   }
   const setD = (patch) => setDrawer((d) => ({ ...d, data: { ...d.data, ...patch } }))
   const toggleMod = (k) => setDrawer((d) => { const has = d.data.modules.includes(k); return { ...d, data: { ...d.data, modules: has ? d.data.modules.filter((x) => x !== k) : [...d.data.modules, k] } } })
@@ -181,7 +179,7 @@ export default function Users() {
       setErr(errMsg)
     }
   }
-  async function remove(u) { setMenu(null); if (await confirmDialog({ title: tr('Delete user') + ` "${personName(u, lang)}"?`, message: tr('They will no longer be able to sign in.'), tone: 'danger', confirmLabel: tr('Delete') })) { try { await UsersAPI.remove(u.id); toast(tr('User deleted.')); load() } catch (ex) { toast(ex.detail || tr('Failed'), 'error') } } }
+  async function remove(u) { if (await confirmDialog({ title: tr('Delete user') + ` "${personName(u, lang)}"?`, message: tr('They will no longer be able to sign in.'), tone: 'danger', confirmLabel: tr('Delete') })) { try { await UsersAPI.remove(u.id); toast(tr('User deleted.')); load() } catch (ex) { toast(ex.detail || tr('Failed'), 'error') } } }
 
   return (
     <div>
@@ -256,6 +254,8 @@ export default function Users() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 relative">
                       {isAdmin && <button onClick={() => openEdit(u)} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Pencil size={15} /></button>}
+                      {/* Edit and Delete as icon buttons, like the other master screens (no ⋮ menu repeating Edit) */}
+                      {isAdmin && <button onClick={() => remove(u)} title={tr("Delete")} aria-label={tr("Delete")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-300"><Trash2 size={15} /></button>}
                       {isAdmin && u.twofa_enabled && <button onClick={async () => {
                         try {
                           const t = await UsersAPI.totp(u.id)
@@ -266,13 +266,6 @@ export default function Users() {
                           })
                         } catch (ex) { toast(ex?.detail || tr('Could not fetch the 2FA setup.'), 'error') }
                       }} title={tr("Show 2FA setup secret")} className="px-2 h-8 rounded-lg border border-amber-200 text-amber-700 text-[0.6875rem] font-bold hover:bg-amber-50"><T>2FA</T></button>}
-                      <button onClick={() => setMenu(menu === u.id ? null : u.id)} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700"><MoreVertical size={15} /></button>
-                      {menu === u.id && (
-                        <div className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-lg shadow-lg py-1 w-32 text-sm">
-                          {isAdmin && <button onClick={() => openEdit(u)} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 text-gray-600"><Pencil size={14} />{' '}<T>Edit</T></button>}
-                          {isAdmin && <button onClick={() => remove(u)} className="w-full text-left px-3 py-2 hover:bg-red-50 flex items-center gap-2 text-red-600"><Trash2 size={14} />{' '}<T>Delete</T></button>}
-                        </div>
-                      )}
                     </div>
                   </td>
                 </tr>

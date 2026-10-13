@@ -143,6 +143,7 @@ def _queue_item(b: Booking, rv: dict, perf: BookingPerformance | None, me: int |
         # the performance this row shows (today's in day mode, that day's in range mode)
         "performed_on": str(perf.performed_on) if perf else None,
         "performed_by_poojari": perf.poojari_name if perf else None,
+        "performed_by_poojari_id": perf.poojari_id if perf else None,
         "performed_by": perf.performed_by if perf else None,
         "performed_at": perf.performed_at.isoformat() if perf and perf.performed_at else None,
     }
@@ -287,6 +288,12 @@ class AssignIn(BaseModel):
     poojari_id: int | None = None
 
 
+class PerformerIn(BaseModel):
+    booking_id: int
+    performed_on: date
+    poojari_id: int | None = None
+
+
 class BulkAssignIn(BaseModel):
     booking_ids: list[int]
     poojari_id: int | None = None
@@ -327,6 +334,35 @@ def assign_bulk(body: BulkAssignIn, request: Request, db: Session = Depends(get_
                detail=f"Bulk assigned {p.name if p else 'none'} → {assigned} bookings", ip=client_ip(request))
     return {"ok": True, "assigned": assigned, "poojari_name": p.name if p else None,
             "skipped_expired": skipped_expired}
+
+
+@router.post("/performer")
+def set_performer(body: PerformerIn, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    """Record which poojari performed a pooja on a day. An administrator marking a
+    pooja performed on a poojari's behalf leaves the performance without one, and a
+    finished booking (quota used up) can no longer be assigned — this sets it after
+    the fact. Unlike /assign it works on past time slots: it corrects a record."""
+    perf = (db.query(BookingPerformance)
+            .filter(BookingPerformance.booking_id == body.booking_id,
+                    BookingPerformance.performed_on == body.performed_on).first())
+    if not perf:
+        raise HTTPException(404, "No performance recorded for this booking on that day.")
+    p = None
+    if body.poojari_id:
+        p = db.get(Poojari, body.poojari_id)
+        if not p:
+            raise HTTPException(404, "Poojari not found")
+    perf.poojari_id, perf.poojari_name = (p.id, p.name) if p else (None, None)
+    b = db.get(Booking, perf.booking_id)
+    # An unassigned booking is taken by whoever performed it — as when a poojari marks it.
+    if p and b and not b.poojari_id:
+        b.poojari_id, b.poojari_name = p.id, p.name
+    db.commit()
+    log_action(db, username=user.username, action="UPDATE", entity="Booking",
+               detail=f"Performed by {p.name if p else 'none'} → {b.booking_code if b else body.booking_id} ({body.performed_on})",
+               ip=client_ip(request))
+    return {"ok": True, "poojari_id": p.id if p else None, "poojari_name": p.name if p else None,
+            "booking_poojari_id": b.poojari_id if b else None, "booking_poojari_name": b.poojari_name if b else None}
 
 
 @router.post("/assign")

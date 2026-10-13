@@ -128,6 +128,7 @@ def create_donation(body: DonationCreate, request: Request,
             raise HTTPException(422, "Material donations require a quantity and a unit.")
         if float(data.get("amount") or 0) < 0:
             raise HTTPException(422, "Donation amount cannot be negative.")
+        data["mode"] = "-"   # no payment for goods (matches existing material rows)
     else:
         assert_positive(data.get("amount"), "Donation amount")
     # 80G tax exemption applies ONLY to Medical donations and requires a valid PAN.
@@ -161,7 +162,7 @@ def create_donation(body: DonationCreate, request: Request,
     dev = db.get(Devotee, d.devotee_id) if d.devotee_id else None
     from .. import notifications as notif
     notif.notify(db, "donation_received", {
-        "devotee": d.donor_name, "fund": d.fund, "amount": f"{float(d.amount or 0):.2f}",
+        "devotee": d.donor_name, "devotee_te": dev.name_te if dev else None, "fund": d.fund, "amount": f"{float(d.amount or 0):.2f}",
         "receipt": d.receipt_no,
     }, mobile=(dev.mobile if dev else None), email=(dev.email if dev else None),
         entity="Donation", entity_id=d.id, created_by=user.username)

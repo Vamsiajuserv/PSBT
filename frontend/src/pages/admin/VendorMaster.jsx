@@ -45,7 +45,7 @@ export default function VendorMaster() {
 
   return <MasterScreen key={materials.length} config={{
     title: tr('Vendor Master'), subtitle: tr('Maintain waste-material buyers / vendors and the materials they handle.'),
-    api, entity: 'vendor', addLabel: tr('Add New Vendor'), searchPlaceholder: tr('Search by name, code or phone…'),
+    api, entity: 'vendor', addLabel: tr('Add New Vendor'), searchPlaceholder: tr('Search by name, vendor ID or phone…'),
     statCards: [
       { key: 'total', icon: Truck, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Vendors'), sub: tr('All vendors') },
       { key: 'active', icon: UserCheck, color: '#059669', bg: 'bg-emerald-50', title: tr('Active'), sub: tr('Currently active') },

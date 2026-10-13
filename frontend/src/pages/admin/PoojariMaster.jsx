@@ -12,7 +12,7 @@ const api = {
 export default function PoojariMaster() {
   return <MasterScreen config={{
     title: tr('Poojari Master'), subtitle: tr("Maintain the temple's poojaris and their specializations."),
-    api, entity: 'poojari', addLabel: tr('Add New Poojari'), searchPlaceholder: tr('Search by name, code or phone…'),
+    api, entity: 'poojari', addLabel: tr('Add New Poojari'), searchPlaceholder: tr('Search by name, poojari ID or phone…'),
     statCards: [
       { key: 'total', icon: Users, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Poojaris'), sub: tr('All poojaris') },
       { key: 'active', icon: UserCheck, color: '#059669', bg: 'bg-emerald-50', title: tr('Active'), sub: tr('Currently active') },

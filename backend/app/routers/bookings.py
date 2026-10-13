@@ -32,11 +32,7 @@ def _booking_notify_sync(booking_id, event, username):
             if not b:
                 return
             dev = db.get(Devotee, b.devotee_id) if b.devotee_id else None
-            notif.notify(db, event, {
-                "devotee": b.devotee_name, "pooja": b.seva_name, "plan": b.plan_name or "",
-                "amount": f"{float(b.amount or 0):.2f}", "date": str(b.scheduled_date or ""),
-                "ticket": b.ticket_no or b.receipt_no or b.booking_code,
-            }, mobile=b.mobile or (dev.mobile if dev else None), email=(dev.email if dev else None),
+            notif.notify(db, event, notif.booking_ctx(db, b, dev), mobile=b.mobile or (dev.mobile if dev else None), email=(dev.email if dev else None),
                 entity="Booking", entity_id=b.id, created_by=username)
         finally:
             db.close()
@@ -135,6 +131,35 @@ def _find_overlapping_plan(db: Session, devotee_id, mobile, pooja_id, plan, star
     return q.first()
 
 
+def _find_covering_plan(db: Session, devotee_id, mobile, pooja_id, plan, day):
+    """An active per-day plan (Monthly, or an N-day plan) of the same pooja that
+    already performs it on `day`. A single-performance booking (Daily / One-Time)
+    on such a day would book the devotee twice for the same pooja, so it is
+    blocked the same way a second Monthly is."""
+    if not pooja_id or plan_terms(plan, day)[0] != 1:
+        return None
+    mobile = (mobile or "").strip()
+    who = [Booking.devotee_id == devotee_id] if devotee_id else []
+    if mobile:
+        who.append(Booking.mobile == mobile)
+    if not who:
+        return None
+    rows = db.query(Booking).filter(
+        Booking.pooja_id == pooja_id,
+        Booking.status.notin_(["Cancelled", "Completed"]),
+        or_(*who),
+        Booking.scheduled_date <= day,
+        Booking.valid_until >= day,
+        Booking.performances_allowed.isnot(None),
+    ).order_by(Booking.id).all()
+    for b in rows:
+        window = (b.valid_until - b.scheduled_date).days + 1
+        # one performance per day across the window, with performances left
+        if window > 1 and b.performances_allowed >= window and (b.performances_done or 0) < b.performances_allowed:
+            return b
+    return None
+
+
 def _check_date_and_slot(db: Session, start: date, slot: str | None, *, slot_from_settings=True) -> str | None:
     """Booking date must be today or later and within the admin's days-ahead limit;
     a slot must be one of the configured slots and, for today, not already over."""
@@ -223,6 +248,9 @@ def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_l
     if dup:
         until = f", valid until {dup.valid_until}" if dup.valid_until else ""
         raise HTTPException(409, f"This devotee already holds an active {plan.plan_name} booking for this pooja ({dup.booking_code}{until}).")
+    cover = _find_covering_plan(db, data.get("devotee_id"), data.get("mobile"), data.get("pooja_id"), plan, start)
+    if cover:
+        raise HTTPException(409, f"This devotee's active {cover.plan_name} booking ({cover.booking_code}, valid until {cover.valid_until}) already covers this pooja on {start}.")
 
     # No poojari chosen → take the one the Poojari Schedule assigns to this pooja/date.
     if not data.get("poojari_id"):
@@ -433,7 +461,19 @@ def check_duplicate(pooja_id: int, plan_id: int,
     start = scheduled_date or ist_today()
     dup = _find_overlapping_plan(db, devotee_id, mobile, pooja_id, plan, start)
     if not dup:
-        return {"has_duplicate": False}
+        cover = _find_covering_plan(db, devotee_id, mobile, pooja_id, plan, start)
+        if not cover:
+            return {"has_duplicate": False}
+        return {
+            "has_duplicate": True,
+            "covered_by": cover.plan_name,
+            "existing_booking": cover.booking_code,
+            "ticket_no": cover.ticket_no,
+            "plan_name": plan.plan_name if plan else None,
+            "booked_on": str(cover.scheduled_date) if cover.scheduled_date else None,
+            "valid_until": str(cover.valid_until) if cover.valid_until else None,
+            "message": f"This devotee's active {cover.plan_name} booking ({cover.booking_code}) already covers this pooja on {start}.",
+        }
     return {
         "has_duplicate": True,
         "existing_booking": dup.booking_code,

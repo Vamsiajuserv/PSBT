@@ -376,6 +376,9 @@ export default function Donations() {
                   colKey={col.key}
                   label={tr(col.label)}
                   type={col.type}
+                  // Number columns: left-aligned like their cells, so the figures sit directly under the
+                  // title (a right-aligned title is pushed left by its hidden sort icon).
+                  className={col.type === 'money' || col.type === 'num' ? '!text-left' : ''}
                   filterable={col.filterable}
                   filterOptions={col.filterOptions}
                   onSort={handleColumnClick}

@@ -109,7 +109,7 @@ COLUMN_MIGRATIONS = {
     "daily_closings": [
         ("opening_cash", "NUMERIC(14,2) DEFAULT 0"), ("refunds", "NUMERIC(14,2) DEFAULT 0"),
         ("expected_cash", "NUMERIC(14,2) DEFAULT 0"), ("actual_cash", "NUMERIC(14,2) DEFAULT 0"),
-        ("difference", "NUMERIC(14,2) DEFAULT 0"),
+        ("difference", "NUMERIC(14,2) DEFAULT 0"), ("denominations", "TEXT"),
     ],
     "backups": [
         ("encrypted", "BOOLEAN DEFAULT FALSE"),

@@ -566,6 +566,7 @@ class DailyClosing(Base):
     actual_cash = Column(Numeric(14, 2), default=0)
     difference = Column(Numeric(14, 2), default=0)
     breakdown = Column(Text, nullable=True)          # JSON per-head summary
+    denominations = Column(Text, nullable=True)      # JSON {"500": 40, "c5": 1, …} — the drawer count
     status = Column(String(20), default="Closed", nullable=False)
     notes = Column(Text, nullable=True)
     closed_by = Column(String(60), nullable=True)

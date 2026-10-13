@@ -10,7 +10,7 @@ const TYPE_TONE = { Cash: 'green', Coins: 'amber', 'Foreign Currency': 'blue', G
 export default function HundiItemMaster() {
   return <MasterScreen config={{
     title: tr('Hundi Item Master'), subtitle: tr('Configure item categories counted during hundi collection.'),
-    api: HundiItemsAPI, entity: 'item', addLabel: tr('Add New Item'), searchPlaceholder: tr('Search by name or code…'),
+    api: HundiItemsAPI, entity: 'item', addLabel: tr('Add New Item'), searchPlaceholder: tr('Search by item name or item ID…'),
     statCards: [
       { key: 'total', icon: Landmark, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Items'), sub: tr('All hundi items') },
       { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: tr('Active'), sub: tr('In use') },

@@ -251,7 +251,7 @@ export default function FestivalMaster() {
 
   const config = useMemo(() => ({
     title: tr('Festival Master'), subtitle: tr('Configure temple festivals and their associated poojas.'),
-    api: FestivalsAPI, entity: 'festival', addLabel: tr('Add New Festival'), searchPlaceholder: tr('Search by name or code…'),
+    api: FestivalsAPI, entity: 'festival', addLabel: tr('Add New Festival'), searchPlaceholder: tr('Search by festival name or festival ID…'),
     statCards: [
       { key: 'total', icon: CalendarDays, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Festivals'), sub: tr('All festivals') },
       { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: tr('Active'), sub: tr('Currently active') },

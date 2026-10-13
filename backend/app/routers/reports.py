@@ -112,9 +112,12 @@ def _daily_summary(db, model, amount_attr, start, end, mode_attr=None, cash_val=
     return buckets
 
 
-def rep_daily(db, model, amount_attr, start, end, mode_attr, label, subtitle, persons=False):
+def rep_daily(db, model, amount_attr, start, end, mode_attr, label, subtitle, persons=False, count_label=None):
+    """Day-wise summary. `count_label` names what the count column counts — each
+    report passes its own (donations are not bookings); the screen, PDF and Excel
+    all take their headers from here."""
     buckets = _daily_summary(db, model, amount_attr, start, end, mode_attr, count_persons=("plates" if persons else None))
-    cols = [T("date", "Date"), N("count", "No. of " + ("Records" if persons else "Bookings"))]
+    cols = [T("date", "Date"), N("count", count_label or ("No. of Records" if persons else "No. of Bookings"))]
     if persons:
         cols.append(N("persons", "Persons"))
     cols += [M("amount", "Collection Amount (₹)"), M("cash", "Cash (₹)"), M("upi", "UPI / QR Code (₹)")]
@@ -414,7 +417,8 @@ def generate(report, start, end, db):
 
     if report == "Daily Donation Summary":
         return rep_daily(db, Donation, "amount", start, end, "mode",
-                         "Daily Donation Summary", "Day-wise donation collection for the selected period.")
+                         "Daily Donation Summary", "Day-wise donation collection for the selected period.",
+                         count_label="No. of Donations")
 
     if report == "Donation Register":
         rows = _range(Donation, start, end, db)

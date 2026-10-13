@@ -22,8 +22,12 @@ const OCCASIONS = ['General', 'Birthday', 'Wedding Anniversary', 'Thanksgiving',
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
 // Parse datetime as UTC (server returns naive ISO without 'Z')
 const parseUTC = (s) => (s && String(s).includes('T')) ? new Date(String(s) + (String(s).endsWith('Z') ? '' : 'Z')) : null
-const fmtTime = (s) => {
-  const d = parseUTC(s)
+// paid_at is the IST clock time typed in the form, so show it as-is; only the
+// server's created_at (UTC) needs converting.
+const fmtTime = (paid, created) => {
+  const m = paid && String(paid).match(/T(\d{2}):(\d{2})/)
+  if (m) return clock12(new Date(2000, 0, 1, +m[1], +m[2]).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }))
+  const d = parseUTC(created)
   if (!d || isNaN(d.getTime())) return ''
   return clock12(d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }))
 }
@@ -357,6 +361,9 @@ export default function Annadanam() {
                   colKey={col.key}
                   label={tr(col.label)}
                   type={col.type}
+                  // Number columns: left-aligned like their cells, so the figures sit directly under the
+                  // title (a right-aligned title is pushed left by its hidden sort icon).
+                  className={col.type === 'money' || col.type === 'num' ? '!text-left' : ''}
                   filterable={col.filterable}
                   filterOptions={col.filterOptions}
                   onSort={handleColumnClick}
@@ -374,7 +381,7 @@ export default function Annadanam() {
               {displayRows.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50/60">
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{a.code}</td>
-                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.paid_at || a.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(a.paid_at || a.created_at)}</div></td>
+                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.paid_at || a.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(a.paid_at, a.created_at)}</div></td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: a.donor }, lang)}</td>
                   <td className="px-4 py-3 text-gray-600">{a.mobile || '—'}</td>
                   <td className="px-4 py-3 text-gray-700">{a.plates}</td>

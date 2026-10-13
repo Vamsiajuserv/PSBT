@@ -26,9 +26,18 @@ function pagesFor(page, count) {
   return out
 }
 
-const PLAN_TONE = {
-  Daily: 'bg-emerald-50 text-emerald-700', Monthly: 'bg-blue-50 text-blue-700',
-  'One-Time': 'bg-violet-50 text-violet-700', 'Life Long': 'bg-amber-50 text-amber-700',
+// Plan badge colour by kind, so every plan the master can hold is coloured —
+// not just the four named ones (Full Month, Yearly Thrice, 9-Day… were grey).
+const planTone = (name) => {
+  const n = (name || '').toLowerCase()
+  if (!n) return 'bg-gray-100 text-gray-500'
+  if (n.includes('life')) return 'bg-amber-50 text-amber-700'
+  if (n.includes('year')) return 'bg-indigo-50 text-indigo-700'
+  if (n.includes('month')) return 'bg-blue-50 text-blue-700'
+  if (n === 'daily') return 'bg-emerald-50 text-emerald-700'
+  const days = /^(\d+)-day$/.exec(n)
+  if (days && Number(days[1]) > 1) return 'bg-rose-50 text-rose-700'
+  return 'bg-violet-50 text-violet-700'   // One-Time, 1-Day
 }
 const STATUS_TONE = {
   Confirmed: 'bg-emerald-50 text-emerald-700', Pending: 'bg-amber-50 text-amber-700',
@@ -156,7 +165,7 @@ export default function Bookings() {
   const loadList = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
-      const d = await BookingsAPI.list({ q, pooja, plan, status, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'scheduled_date', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) })
+      const d = await BookingsAPI.list({ q, pooja, plan, status, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'created_at', sort_dir: sorts[0]?.direction || 'desc', col_filters: filtersToParam(filters) })
       setRows(d.items); setTotal(d.total)
     } catch (ex) {
       setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
@@ -388,7 +397,9 @@ export default function Bookings() {
                     filterValues={getFilterValues(col.key)}
                     onToggleFilter={toggleFilterValue}
                     onClearFilter={clearFilter}
-                    className="!bg-gray-50"
+                    // Amount: left-aligned like its cells, so the figures sit directly under the title
+                    // (a right-aligned title is pushed left by its hidden sort icon).
+                    className={col.key === 'amount' ? '!bg-gray-50 !text-left' : '!bg-gray-50'}
                   />
                 ))}
                 <th className="px-3 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
@@ -400,15 +411,15 @@ export default function Bookings() {
                   {canOperate && <td className="px-3 py-3.5">
                     <Checkbox checked={selected.has(b.id)} onChange={() => toggleSelect(b.id)} />
                   </td>}
-                  <td className="px-3 py-3.5 font-mono text-[0.75rem] text-gray-500">{b.booking_code}</td>
-                  <td className="px-3 py-3.5 font-semibold text-gray-800">{tr(b.seva_name)}</td>
-                  <td className="px-3 py-3.5 text-gray-700">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>
-                  <td className="px-3 py-3.5"><span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${PLAN_TONE[b.plan_name] || 'bg-gray-100 text-gray-500'}`}>{b.plan_name ? tr(b.plan_name) : '—'}</span></td>
-                  <td className="px-3 py-3.5 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDT(b.scheduled_date, b.time_slot)}</td>
-                  <td className="px-3 py-3.5 font-semibold text-gray-800">{Number(b.amount).toLocaleString('en-IN')}</td>
-                  <td className="px-3 py-3.5"><span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_TONE[b.status] || 'bg-gray-100 text-gray-500'}`}>{tr(b.status)}</span></td>
-                  <td className="px-3 py-3.5 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
-                  <td className="px-3 py-3.5 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.created_at)}</td>
+                  <td className="px-4 py-3.5 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{b.booking_code}</td>
+                  <td className="px-4 py-3.5 font-semibold text-gray-800">{tr(b.seva_name)}</td>
+                  <td className="px-4 py-3.5 text-gray-700 whitespace-nowrap">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>
+                  <td className="px-4 py-3.5">{/* -ml cancels the badge's own padding, so the plan name starts directly under the PLAN title (like Amount) */}<span className={`inline-flex -ml-2.5 px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold whitespace-nowrap ${planTone(b.plan_name)}`}>{b.plan_name ? tr(b.plan_name) : '—'}</span></td>
+                  <td className="px-4 py-3.5 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDT(b.scheduled_date, b.time_slot)}</td>
+                  <td className="px-4 py-3.5 font-semibold text-gray-800 tabular-nums whitespace-nowrap">{Number(b.amount).toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3.5">{/* -ml: status text starts directly under the STATUS title, like Plan */}<span className={`inline-flex -ml-2.5 px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold whitespace-nowrap ${STATUS_TONE[b.status] || 'bg-gray-100 text-gray-500'}`}>{tr(b.status)}</span></td>
+                  <td className="px-4 py-3.5 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{b.ticket_no || '—'}</td>
+                  <td className="px-4 py-3.5 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(b.created_at)}</td>
                   <td className="px-3 py-3.5">
                     <div className="flex items-center gap-1 sm:gap-2">
                       <button onClick={() => nav(`/admin/bookings/${b.id}`)} title={tr("View")} aria-label={`${tr("View booking")} ${b.booking_code}`} className="w-7 h-7 sm:w-8 sm:h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300 focus:outline-none focus:ring-2 focus:ring-maroon-500"><Eye size={14} aria-hidden="true" /></button>

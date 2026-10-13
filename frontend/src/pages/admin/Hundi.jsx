@@ -5,7 +5,7 @@ import {
   Package, CheckCircle2, Gem, Lock,
 } from 'lucide-react'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp, fmtLocalStamp } from '../../components/admin/ui.jsx'
 import { HundiAPI, HundiItemsAPI, DevoteesAPI, CommitteeAPI, SettingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
@@ -17,11 +17,23 @@ import { sanitizeItemName } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
+// Stored values stay as above; 'Notes' is shown as 'Currency Notes' because plain
+// 'Notes' means remarks elsewhere (గమనికలు), and Telugu needs a different word here.
+const DENOM_LABEL = { Notes: 'Currency Notes' }
 const VER_TONE = { Verified: 'green', 'Pending Verification': 'blue', Rejected: 'red' }
 const DEP_TONE = { Deposited: 'green', 'Pending Deposit': 'amber', 'N/A': 'gray' }
 const VAL_TONE = { 'In Store': 'green', 'Pending Custody': 'violet' }
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
 const today = () => nowLocal().slice(0, 10)
+// Counting Completed On must fall between the collection date and now. Same rules
+// (and wording) as the server, which checks again on save.
+const countingErr = (m) => {
+  const v = m?.counting_completed_on
+  if (!v) return ''
+  if (v > nowLocal()) return tr('Counting completed on cannot be in the future.')
+  if (m.collected_on && v.slice(0, 10) < m.collected_on) return tr('Counting cannot be completed before the collection date.')
+  return ''
+}
 const memberCount = (s) => (s ? s.split(',').filter((x) => x.trim()).length : 0)
 
 const emptyLine = () => ({ hundi_item_id: '', item_name: '', item_type: '', quantity: '', unit: '', value: '', remarks: '' })
@@ -62,6 +74,9 @@ export default function Hundi() {
     q: '', verification: '', deposit: '', start: '', end: '', page: 1,
   })
   const [saving, setSaving] = useState(false)
+  // An error the server returned for the collection date, shown under that field.
+  const [dateServerErr, setDateServerErr] = useState('')
+  const [countServerErr, setCountServerErr] = useState('')
 
   // State for all filtered records (for export when date filter applied)
   const [allFilteredData, setAllFilteredData] = useState([])
@@ -175,7 +190,7 @@ export default function Hundi() {
 
   // DEF-009: Use language-aware names for committee members
   const committeeNames = committee.map((c) => personName(c, lang))
-  const openCreate = () => setDrawer({ ...emptyForm(), bank_name: banks[0] || '' })
+  const openCreate = () => { setDateServerErr(''); setCountServerErr(''); setDrawer({ ...emptyForm(), bank_name: banks[0] || '' }) }
   const toggleMember = (name) => setDrawer((d) => ({ ...d, members: d.members.includes(name) ? d.members.filter((x) => x !== name) : [...d.members, name] }))
 
   // ── Item-wise counting register helpers ──
@@ -240,6 +255,17 @@ export default function Hundi() {
     if (saving) return
     const m = drawer
 
+    // A future collection date is shown under its field; stop before sending.
+    // The server keeps the same check as a backup.
+    if (m.collected_on && m.collected_on > today()) {
+      document.getElementById('hundi-collected-on')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+    if (countingErr(m)) {
+      document.getElementById('hundi-counting-on')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
     // Validate committee members - at least one must be selected
     const members = m.members.map((x) => x.trim()).filter(Boolean)
     if (members.length === 0) {
@@ -293,10 +319,17 @@ export default function Hundi() {
         committee_members: members,
       })
       setDrawer(null); load()
-    } catch (ex) { toast(ex.detail || tr('Could not save this collection.'), 'error') }
+    } catch (ex) {
+      if (/^counting/i.test(ex?.detail || '')) setCountServerErr(ex.detail)
+      else if (/collection date/i.test(ex?.detail || '')) setDateServerErr(ex.detail)
+      toast(ex.detail || tr('Could not save this collection.'), 'error')
+    }
     finally { setSaving(false) }
   }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
+  const countingOnErr = drawer ? (countingErr(drawer) || (countServerErr ? tr(countServerErr) : '')) : ''
+  const collectedOnErr = drawer && drawer.collected_on && drawer.collected_on > today()
+    ? tr('The collection date cannot be in the future.') : (dateServerErr ? tr(dateServerErr) : '')
 
   const ALL_EXPORT_COLS = [
     { key: 'code', label: tr('Hundi ID') },
@@ -385,6 +418,9 @@ export default function Hundi() {
                   colKey={col.key}
                   label={tr(col.label)}
                   type={col.type}
+                  // Number columns: left-aligned like their cells, so the figures sit directly under the
+                  // title (a right-aligned title is pushed left by its hidden sort icon).
+                  className={col.type === 'money' || col.type === 'num' ? '!text-left' : ''}
                   filterable={col.filterable}
                   filterOptions={col.filterOptions}
                   onSort={handleColumnClick}
@@ -448,7 +484,12 @@ export default function Hundi() {
             </div>
             <div className="px-6 py-5 space-y-6 flex-1">
               <DSection n="1" icon={FileText} title={tr("Collection Details")}>
-                <div><label className="label"><T>Collection Date *</T></label><DateField required className="input" value={drawer.collected_on} onChange={(e) => setM({ collected_on: e.target.value })} /></div>
+                <div id="hundi-collected-on"><label className="label"><T>Collection Date *</T></label>
+                  {/* max = today: future days are greyed out and the calendar can't move past this month */}
+                  <DateField required max={today()} className={`input ${collectedOnErr ? '!border-red-400 ring-1 ring-red-200' : ''}`} value={drawer.collected_on}
+                    onChange={(e) => { setDateServerErr(''); setM({ collected_on: e.target.value }) }} />
+                  {collectedOnErr && <div role="alert" className="text-[0.6875rem] text-red-600 mt-1">{collectedOnErr}</div>}
+                </div>
                 <div><label className="label"><T>Reference No.</T></label><input disabled className="input bg-gray-50" value={tr("Auto-generated on save")} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Auto generated</T></div></div>
               </DSection>
 
@@ -485,9 +526,14 @@ export default function Hundi() {
                     <span className="text-[0.9375rem] font-extrabold text-maroon-800 tabular-nums">{inr(lineTotal(drawer.lines))}</span>
                   </div>
                 </div>
-                <div><label className="label"><T>Counting Completed On *</T></label><DateTimeField required value={drawer.counting_completed_on} onChange={(e) => setM({ counting_completed_on: e.target.value })} /></div>
+                <div id="hundi-counting-on"><label className="label"><T>Counting Completed On *</T></label>
+                  {/* between the collection date and now: counting can't finish before the hundi was opened, or in the future */}
+                  <DateTimeField required min={drawer.collected_on || undefined} max={today()} className={countingOnErr ? '!border-red-400 ring-1 ring-red-200' : ''}
+                    value={drawer.counting_completed_on} onChange={(e) => { setCountServerErr(''); setM({ counting_completed_on: e.target.value }) }} />
+                  {countingOnErr && <div role="alert" className="text-[0.6875rem] text-red-600 mt-1">{countingOnErr}</div>}
+                </div>
                 <div><label className="label"><T>Denomination *</T></label>
-                  <Select className="input" value={drawer.denomination} onChange={(e) => setM({ denomination: e.target.value })}>{DENOMINATIONS.map((d) => <option key={d} value={d}>{tr(d)}</option>)}</Select></div>
+                  <Select className="input" value={drawer.denomination} onChange={(e) => setM({ denomination: e.target.value })}>{DENOMINATIONS.map((d) => <option key={d} value={d}>{tr(DENOM_LABEL[d] || d)}</option>)}</Select></div>
                 <div className="col-span-2"><label className="label"><T>Officer</T></label>
                   <Combobox
                     value={drawer.officer || ''}
@@ -549,7 +595,7 @@ export default function Hundi() {
             <div className="px-6 py-5 space-y-6 flex-1">
               <DSection n="1" icon={FileText} title={tr("Collection Details")}>
                 <VField label={tr("Collection Date")} value={fmtDate(view.collected_on)} />
-                <VField label={tr("Counting Completed")} value={fmtStamp(view.counting_completed_on)} />
+                <VField label={tr("Counting Completed")} value={fmtLocalStamp(view.counting_completed_on)} />
                 <VField label={tr("Total Amount Counted")} value={canSeeAmounts ? inr(view.counted_amount) : '—'} />
                 <VField label={tr("Committee Members")} value={`${memberCount(view.committee_members)} ${tr("Members")}`} />
                 <VField label={tr("Members")} value={view.committee_members ? view.committee_members.split(',').map((n) => personName({ name: n.trim() }, lang)).join(', ') : '—'} wide />

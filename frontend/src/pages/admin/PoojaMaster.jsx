@@ -10,7 +10,7 @@ import { Select, Toggle, NumberField, Combobox } from '../../components/common/F
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
-import { sanitizeName } from '../../lib/validation.js'
+import { sanitizeName, poojaFeeError } from '../../lib/validation.js'
 
 const CAT_OPTIONS = [
   { value: 'Daily', label: 'Daily Pooja' }, { value: 'Monthly', label: 'Monthly Pooja' },
@@ -126,6 +126,10 @@ export default function PoojaMaster() {
       if (!pl.frequency?.trim()) { toast(tr('Plan') + ` ${i + 1}: ` + tr('Frequency / Type is required.'), 'error'); return }
       if (pl.rate_type !== 'Committee' && (pl.fee === '' || pl.fee === null || pl.fee === undefined)) {
         toast(tr('Plan') + ` ${i + 1}: ` + tr('Rate amount is required (or select Committee Decided).'), 'error'); return
+      }
+      // Paise / negative amounts: the message is under that plan's Rate Amount field.
+      if (pl.rate_type !== 'Committee' && poojaFeeError(pl.fee)) {
+        document.getElementById(`plan-fee-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return
       }
       if (!pl.validity_type?.trim()) { toast(tr('Plan') + ` ${i + 1}: ` + tr('Validity Type is required.'), 'error'); return }
     }
@@ -347,7 +351,17 @@ export default function PoojaMaster() {
                             className="input"
                           />
                         </div>
-                        <div><label className="label"><T>Rate Amount (₹) *</T></label><NumberField required prefix="₹" placeholder={tr("Amount")} value={pl.fee} onChange={(e) => setPlan(i, { fee: e.target.value, rate_type: 'Fixed' })} /></div>
+                        <div id={`plan-fee-${i}`}><label className="label"><T>Rate Amount (₹) *</T></label>
+                          {(() => {
+                            // Shown once something is typed; an empty fee keeps its own "required" message on save.
+                            const err = pl.rate_type !== 'Committee' && String(pl.fee ?? '').trim() !== '' ? poojaFeeError(pl.fee) : ''
+                            return (<>
+                              <NumberField required prefix="₹" placeholder={tr("Amount")} value={pl.fee} onChange={(e) => setPlan(i, { fee: e.target.value, rate_type: 'Fixed' })}
+                                className={err ? '!border-red-400 ring-1 ring-red-200' : ''} />
+                              {err && <div role="alert" className="text-[0.6875rem] text-red-600 mt-1">{tr(err)}</div>}
+                            </>)
+                          })()}
+                        </div>
                         <div></div>
                         <div><label className="label"><T>Validity Type *</T></label><Select className="input" value={pl.validity_type} onChange={(e) => setPlan(i, { validity_type: e.target.value })}><option value="">{tr("Select")}</option>{VALIDITY_TYPES.map((v) => <option key={v}>{v}</option>)}</Select></div>
                         <div className="grid grid-cols-2 gap-2">

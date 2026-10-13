@@ -390,9 +390,14 @@ function CalendarPanel({ value, min, max, onPick }) {
   const [mode, setMode] = useState('days') // 'days' | 'years' (year-jump grid)
 
   const inRange = (s) => (!min || s >= min) && (!max || s <= max)
+  // Month/year jumps stay within min/max: a year jump from Nov 2025 with max in
+  // Oct 2026 lands on Oct 2026, not on a month where every day is disabled.
   const nav = (dy, dm) => setView(({ y, m }) => {
     const d = new Date(y + dy, m + dm, 1)
-    return { y: d.getFullYear(), m: d.getMonth() }
+    let ym = d.getFullYear() * 12 + d.getMonth()
+    if (max) ym = Math.min(ym, Number(max.slice(0, 4)) * 12 + Number(max.slice(5, 7)) - 1)
+    if (min) ym = Math.max(ym, Number(min.slice(0, 4)) * 12 + Number(min.slice(5, 7)) - 1)
+    return { y: Math.floor(ym / 12), m: ym % 12 }
   })
 
   // Check if navigation is allowed based on min/max

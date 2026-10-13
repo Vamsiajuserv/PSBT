@@ -94,11 +94,7 @@ def verify(body: VerifyIn, db: Session = Depends(get_db), user=Depends(pay_write
                 "payment_status": b.payment_status,
             }
             dev = db.get(Devotee, b.devotee_id) if b.devotee_id else None
-            notif.notify(db, "booking_confirmed", {
-                "devotee": b.devotee_name, "pooja": b.seva_name, "plan": b.plan_name or "",
-                "amount": f"{float(b.amount or 0):.2f}", "date": str(b.scheduled_date or ""),
-                "ticket": b.ticket_no or b.receipt_no or b.booking_code,
-            }, mobile=b.mobile or (dev.mobile if dev else None), email=(dev.email if dev else None),
+            notif.notify(db, "booking_confirmed", notif.booking_ctx(db, b, dev), mobile=b.mobile or (dev.mobile if dev else None), email=(dev.email if dev else None),
                 entity="Booking", entity_id=b.id, created_by=user.username)
     result = _dict(po)
     if booking_info:

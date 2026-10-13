@@ -359,7 +359,7 @@ export default function DevoteeDetails() {
                   <td className="px-5 py-4 text-gray-600 text-sm whitespace-nowrap">{fmtDate(b.scheduled_date)}{b.time_slot ? `, ${clock12(b.time_slot)}` : ''}</td>
                   <td className="px-5 py-4 font-semibold text-gray-800">{num(b.amount)}</td>
                   <td className="px-5 py-4"><Badge tone={STATUS_TONE[b.status]}>{b.status}</Badge></td>
-                  <td className="px-5 py-4 font-mono text-sm text-gray-500">{b.ticket_no || '—'}</td>
+                  <td className="px-5 py-4 font-mono text-sm text-gray-500 whitespace-nowrap">{b.ticket_no || '—'}</td>
                   <td className="px-5 py-4 text-gray-500 text-sm whitespace-nowrap">{fmtStamp(b.booked_on)}</td>
                 </tr>
               ))}

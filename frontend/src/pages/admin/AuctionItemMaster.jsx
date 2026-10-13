@@ -10,7 +10,7 @@ const CAT_TONE = { Jewellery: 'amber', Vessels: 'blue', Idols: 'violet', Cloth: 
 export default function AuctionItemMaster() {
   return <MasterScreen config={{
     title: tr('Auction Item Master'), subtitle: tr('Configure items available for temple auctions.'),
-    api: AuctionItemsAPI, entity: 'item', addLabel: tr('Add New Item'), searchPlaceholder: tr('Search by name or code…'),
+    api: AuctionItemsAPI, entity: 'item', addLabel: tr('Add New Item'), searchPlaceholder: tr('Search by item name or item ID…'),
     statCards: [
       { key: 'total', icon: Gavel, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Items'), sub: tr('All auction items') },
       { key: 'active', icon: CheckCircle2, color: '#059669', bg: 'bg-emerald-50', title: tr('Active'), sub: tr('Available for auction') },

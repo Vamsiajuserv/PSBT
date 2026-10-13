@@ -1,5 +1,6 @@
 """Pydantic v2 schemas for request/response bodies."""
 from datetime import date, datetime
+from datetime import date as _date
 from decimal import Decimal
 from enum import Enum
 from typing import Literal, Optional
@@ -419,12 +420,21 @@ class DonationCreate(BaseModel):
     amount: Decimal = Decimal(0)
     unit: Optional[str] = None
     quantity: Optional[Decimal] = None
-    mode: PaymentMode = PaymentMode.CASH
+    mode: Optional[PaymentMode] = PaymentMode.CASH   # None for Material (goods, no payment)
     txn_ref: Optional[str] = None
     pan: Optional[str] = None
     g80: bool = False
     notes: Optional[str] = None
     donated_on: Optional[date] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def material_has_no_payment(cls, data):
+        """Material donations are goods, not money: the form sends mode "-", which is
+        not a PaymentMode. Clear it (and any UTR) before validation; the router stores "-"."""
+        if isinstance(data, dict) and data.get("donation_type") == DonationType.MATERIAL.value:
+            data = {**data, "mode": None, "txn_ref": None}
+        return data
 
     @model_validator(mode='after')
     def validate_utr_for_upi(self):
@@ -690,16 +700,36 @@ class BulkQuickCreateBookingIn(BaseModel):
 
 # ── Daily Closing (Phase 1 Security: API-002) ────────────────────────────────
 
+# Notes and coins in circulation (₹2000 withdrawn — not counted). Keys: notes "500",
+# coins "c20". Value = face value in rupees.
+CASH_DENOMINATIONS = {"500": 500, "200": 200, "100": 100, "50": 50, "20": 20, "10": 10,
+                      "c20": 20, "c10": 10, "c5": 5, "c2": 2, "c1": 1}
+
+
 class DailyClosingCloseIn(BaseModel):
     """Close a day's transactions."""
-    date: Optional[date] = None
+    date: Optional[_date] = None   # field named "date" shadows the type, so use the alias
     actual_cash: Optional[Decimal] = Field(default=None, ge=0, le=100000000)  # Max 10 crore
+    # Drawer count by note/coin; when given, actual_cash is derived from it server-side.
+    denominations: Optional[dict[str, int]] = None
     notes: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("denominations")
+    @classmethod
+    def valid_denominations(cls, v):
+        if v is None:
+            return v
+        bad = [k for k in v if k not in CASH_DENOMINATIONS]
+        if bad:
+            raise ValueError(f"Unknown denomination(s): {', '.join(bad)}")
+        if any(c is None or c < 0 or c > 1000000 for c in v.values()):
+            raise ValueError("Each note/coin count must be between 0 and 10,00,000.")
+        return {k: int(c) for k, c in v.items() if c}
 
 
 class DailyClosingReopenIn(BaseModel):
     """Reopen a previously closed day (Admin only)."""
-    date: Optional[date] = None
+    date: Optional[_date] = None   # field named "date" shadows the type, so use the alias
 
 
 # ── Backup & Restore (Phase 1 Security: API-002) ─────────────────────────────
@@ -822,6 +852,7 @@ class NotificationConfigUpdateIn(BaseModel):
     SMS: Optional[bool] = None
     Email: Optional[bool] = None
     WhatsApp: Optional[bool] = None
+    language: Optional[Literal["Telugu", "English", "Both"]] = None
 
 
 class NotificationTestIn(BaseModel):
@@ -834,6 +865,16 @@ class NotificationTestIn(BaseModel):
 
 # Keys that can hold large content (HTML, JSON, etc.) - up to 100KB
 _LARGE_CONTENT_KEYS = {'site_content', 'about', 'description', 'receipt_footer_note'}
+
+
+def setting_too_long(key: str, value) -> str | None:
+    """The error for an over-long setting value, or None. Checked in the router
+    only on values that actually change, so an unchanged internal record (a sync
+    state, the site content) sent back with the form never blocks a save."""
+    max_len = 100000 if key in _LARGE_CONTENT_KEYS else 2000
+    if isinstance(value, str) and len(value) > max_len:
+        return f"Setting value too long (max {max_len} chars): {key}"
+    return None
 
 class SettingsUpdateIn(BaseModel):
     """Update temple settings - dynamic key-value pairs."""
@@ -852,10 +893,6 @@ class SettingsUpdateIn(BaseModel):
             if value is not None:
                 if not isinstance(value, (str, int, float, bool)):
                     raise ValueError(f"Setting value must be string, number, bool, or null: {key}")
-                if isinstance(value, str):
-                    max_len = 100000 if key in _LARGE_CONTENT_KEYS else 2000
-                    if len(value) > max_len:
-                        raise ValueError(f"Setting value too long (max {max_len} chars): {key}")
         return values
 
 

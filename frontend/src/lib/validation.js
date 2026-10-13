@@ -58,6 +58,17 @@ export function validateEmail(value) {
 }
 
 // ── Amount/Number Validation ──
+// ── Pooja price ──
+// 0 (a free pooja) or whole rupees from ₹1 — no paise (0.40 would be billed as 40
+// paise). Same rule as the server (_whole_rupees in routers/poojas.py). Returns the
+// English message, or '' when valid; callers translate it.
+export const POOJA_FEE_MSG = 'Enter a valid amount in whole rupees (minimum ₹1), or 0 for a free pooja.'
+export function poojaFeeError(value) {
+  const s = String(value ?? '').trim()
+  const n = Number(s)
+  return s === '' || !Number.isFinite(n) || n < 0 || !Number.isInteger(n) ? POOJA_FEE_MSG : ''
+}
+
 export function validateAmount(value, { min = 0, max = Infinity, required = false } = {}) {
   if (!value && value !== 0) {
     return required ? { valid: false, error: 'Amount is required' } : { valid: true, error: null }

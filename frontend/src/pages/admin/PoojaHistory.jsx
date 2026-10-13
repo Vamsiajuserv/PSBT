@@ -331,7 +331,7 @@ export default function PoojaHistory() {
                   <td className="px-4 py-3">{b.plan_name ? <Pill tone={PLAN_TONE[b.plan_name] || 'gray'}>{tr(b.plan_name)}</Pill> : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 text-gray-600">{b.poojari_name ? personName({ name: b.poojari_name }, lang) : '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(b.scheduled_date)}</div><div className="text-[0.6875rem] text-gray-400">{clock12(startOf(b.time_slot))}</div></td>
-                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{b.ticket_no || '—'}</td>
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{b.ticket_no || '—'}</td>
                   <td className="px-4 py-3"><StatusPill completion={b.completion} /></td>
                   <td className="px-4 py-3">
                     <button onClick={() => open(b.id)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>

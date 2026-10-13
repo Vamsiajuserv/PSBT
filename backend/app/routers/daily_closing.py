@@ -3,14 +3,15 @@ import json
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, WasteSale,
                       DailyClosing, Setting, Refund)
 from ..security import RequireModule, log_action, client_ip
-from ..schemas import DailyClosingCloseIn, DailyClosingReopenIn
+from ..schemas import DailyClosingCloseIn, DailyClosingReopenIn, CASH_DENOMINATIONS
+from ..helpers import ist_today
 
 router = APIRouter(prefix="/api/daily-closing", tags=["daily-closing"])
 read = RequireModule("Reports")
@@ -65,8 +66,9 @@ def _modules(db, on):
         # same-day cancel, double-count the reversal).
         _head(db, "Pooja Bookings", Booking, "amount", func.date(Booking.created_at), on, "payment_method",
               extra_filter=(Booking.payment_status == "Paid")),
+        # Material donations are goods, not money — they never reach the drawer or the bank.
         _head(db, "Donations", Donation, "amount", func.date(Donation.created_at), on, "mode",
-              extra_filter=(Donation.voided.isnot(True))),
+              extra_filter=and_(Donation.voided.isnot(True), Donation.donation_type != "Material")),
         _head(db, "Hundi Collections", HundiCollection, "counted_amount", func.date(HundiCollection.collected_on), on, force="cash"),
         _head(db, "Auction Receipts", Auction, "current_amount", func.date(Auction.auction_date), on, force="upi",
               extra_filter=(Auction.status == "Completed")),
@@ -112,20 +114,28 @@ def _summary(db, on):
 
 @router.get("/summary")
 def summary(day: date | None = None, db: Session = Depends(get_db), user=Depends(read)):
-    on = day or date.today()
+    on = day or ist_today()
+    # A future day has no collections yet and cannot be closed — don't present it
+    # as an "Open" day with a pre-computed cash position.
+    if on > ist_today():
+        raise HTTPException(422, "Future dates cannot be selected. Choose today or a past date.")
     s = _summary(db, on)
     existing = db.query(DailyClosing).filter(DailyClosing.closing_date == on).first()
     s["date"] = str(on)
     s["closed"] = bool(existing)
     s["closed_by"] = existing.closed_by if existing else None
     s["closed_at"] = existing.closed_at.isoformat() if existing and existing.closed_at else None
-    s["actual_cash"] = float(existing.actual_cash) if existing else s["expected_cash"]
+    # Open day: actual cash is unknown until staff count the drawer — never pre-fill it
+    # with the expected amount (that made every closing show a ₹0 difference).
+    s["actual_cash"] = float(existing.actual_cash) if existing else None
+    s["denominations"] = json.loads(existing.denominations) if existing and existing.denominations else None
+    s["closing_notes"] = existing.notes if existing else None
     return s
 
 
 @router.get("/stats")
 def stats(db: Session = Depends(get_db), user=Depends(read)):
-    today = date.today()
+    today = ist_today()
     month_start = today.replace(day=1)
     s = _summary(db, today)
     closings_month = db.query(func.count(DailyClosing.id)).filter(DailyClosing.closing_date >= month_start).scalar() or 0
@@ -148,20 +158,35 @@ def list_closings(db: Session = Depends(get_db), user=Depends(read)):
 def close_day(body: DailyClosingCloseIn, request: Request, db: Session = Depends(get_db),
               user=Depends(RequireModule("Reports", write=True))):
     # Phase 1 Security (API-002): Typed schema ensures validated input
-    on = body.date or date.today()
-    if on > date.today():
+    on = body.date or ist_today()
+    if on > ist_today():
         raise HTTPException(422, "A future day cannot be closed.")
+    # A missed past day is view-only for Accountant / Committee; only Admin may close it.
+    if on < ist_today() and user.role not in ("Admin", "Administrator"):
+        raise HTTPException(403, "Past days are view-only. Only Admin can close a missed day.")
+    if body.denominations:
+        # The note/coin count is the source of truth — recompute, never trust a client total.
+        counted = sum(CASH_DENOMINATIONS[k] * c for k, c in body.denominations.items())
+    elif body.actual_cash is not None:
+        counted = body.actual_cash
+    else:
+        raise HTTPException(422, "Enter the actual cash in hand (counted) before closing the day.")
     if db.query(DailyClosing).filter(DailyClosing.closing_date == on).first():
         raise HTTPException(409, "This day is already closed.")
     s = _summary(db, on)
-    actual = float(body.actual_cash) if body.actual_cash is not None else s["expected_cash"]
+    actual = float(counted)
+    if round(actual - s["expected_cash"], 2) != 0 and not (body.notes or "").strip():
+        raise HTTPException(422, "The counted cash does not match the expected cash. "
+                                 "Enter a closing note explaining the difference.")
     dc = DailyClosing(
         closing_date=on, total_amount=Decimal(str(s["total"]["total"])),
         cash_amount=Decimal(str(s["total"]["cash"])), upi_amount=Decimal(str(s["total"]["upi"])),
         txn_count=s["total"]["count"], opening_cash=Decimal(str(s["opening_cash"])),
         refunds=Decimal(str(s["refunds"])), expected_cash=Decimal(str(s["expected_cash"])),
         actual_cash=Decimal(str(actual)), difference=Decimal(str(actual - s["expected_cash"])),
-        breakdown=json.dumps(s["modules"]), notes=body.notes, closed_by=user.username)
+        breakdown=json.dumps(s["modules"]),
+        denominations=json.dumps(body.denominations) if body.denominations else None,
+        notes=body.notes, closed_by=user.username)
     db.add(dc); db.commit(); db.refresh(dc)
     log_action(db, username=user.username, action="UPDATE", entity="DailyClosing",
                detail=f"Closed {on} · ₹{s['total']['total']:.2f}", ip=client_ip(request))
@@ -177,7 +202,7 @@ def reopen_day(body: DailyClosingReopenIn, request: Request, db: Session = Depen
         raise HTTPException(403, "Only Admin can reopen a closed day.")
 
     # Phase 1 Security (API-002): Typed schema ensures validated date
-    on = body.date or date.today()
+    on = body.date or ist_today()
     existing = db.query(DailyClosing).filter(DailyClosing.closing_date == on).first()
     if not existing:
         raise HTTPException(404, "This day is not closed.")

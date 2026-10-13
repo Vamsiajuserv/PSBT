@@ -11,6 +11,43 @@ import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail
 
 // Generic list + drawer master screen.
 // config: { title, subtitle, api, statCards, columns, fields, searchPlaceholder, addLabel, entity, sortColumns }
+// Tick-list for a multiselect field. No inner scroll box: the list uses the panel's
+// space in two columns and the panel itself scrolls, so no option is cut off or
+// hidden below a fold. Long lists (Festival → Associated Poojas) get a search and
+// a selected count.
+const SEARCH_FROM = 9
+function MultiCheck({ options, value, onChange }) {
+  const [q, setQ] = useState('')
+  const needle = q.trim().toLowerCase()
+  const shown = needle ? options.filter((o) => tr(o.label).toLowerCase().includes(needle) || String(o.label).toLowerCase().includes(needle)) : options
+  const toggle = (v) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v])
+  return (
+    <div className="border border-gray-200 rounded-lg p-2">
+      {options.length >= SEARCH_FROM && (
+        <div className="flex items-center gap-2 mb-2">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('Search…')} aria-label={tr('Search…')}
+              className="input !py-1.5 !pl-8 !text-[0.8125rem]" />
+          </div>
+          <span className="shrink-0 text-[0.75rem] text-gray-500">{value.length} {tr('selected')}</span>
+          {value.length > 0 && <button type="button" onClick={() => onChange([])} className="shrink-0 text-[0.75rem] font-semibold text-gray-400 hover:text-red-600">{tr('Clear')}</button>}
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">
+        {shown.map((o) => (
+          <label key={o.value} className="flex items-start gap-2 text-[0.8125rem] text-gray-700 px-1 py-0.5 cursor-pointer">
+            <span className="mt-0.5 shrink-0"><Checkbox checked={value.includes(o.value)} onChange={() => toggle(o.value)} /></span>
+            <span className="min-w-0 break-words">{tr(o.label)}</span>
+          </label>
+        ))}
+      </div>
+      {options.length === 0 && <div className="text-[0.75rem] text-gray-400 px-1"><T>No options.</T></div>}
+      {options.length > 0 && shown.length === 0 && <div className="text-[0.75rem] text-gray-400 px-1">{tr('No matches')}</div>}
+    </div>
+  )
+}
+
 export default function MasterScreen({ config }) {
   const { title, subtitle, api, statCards = [], columns, fields, searchPlaceholder = 'Search…', addLabel = 'Add New', entity = 'record', sortColumns = [] } = config
   const { user } = useAuth()
@@ -37,7 +74,7 @@ export default function MasterScreen({ config }) {
     // The primary list call must be caught: if it throws, we surface a distinct
     // error state (not the "no records" empty state) so staff don't think the
     // records were deleted. Stats stay best-effort.
-    return Promise.all([api.list({ q, status }), api.stats().catch(() => null)])
+    return Promise.all([api.list({ q: q.trim(), status }), api.stats().catch(() => null)])   // "HITM-0011 " still finds HITM-0011
       .then(([d, s]) => {
         // Deduplicate items by ID to prevent duplicate rows
         const rawItems = d.items || d
@@ -221,12 +258,16 @@ export default function MasterScreen({ config }) {
       {drawer && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
-          <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
+          {/* Panel fits its content (ends right after Cancel / Save); max-h-full caps it at the
+              screen height, where it scrolls with the buttons sticky at the bottom. */}
+          <form onSubmit={save} className="relative w-full max-w-md bg-white max-h-full self-start rounded-bl-xl overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
               <h3 className="font-serif text-xl font-bold text-maroon-800">{drawer.mode === 'create' ? tr(addLabel) : tr(`Edit ${entity}`)}</h3>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
-            <div className="px-6 py-5 space-y-4 flex-1">
+            {/* Not flex-1: Cancel / Save follow the last field instead of sitting at the bottom of the
+                panel with a gap above them; they stay sticky when a long form scrolls. */}
+            <div className="px-6 py-5 space-y-4">
               {fields.map((f) => (
                 <div key={f.k} className={f.full ? '' : ''}>
                   <label className="label">{tr(f.label)}{f.required && ' *'}</label>
@@ -268,17 +309,7 @@ export default function MasterScreen({ config }) {
                   ) : f.type === 'custom' ? (
                     f.render ? f.render(drawer.data, setD) : null
                   ) : f.type === 'multiselect' ? (
-                    <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
-                      {(f.options || []).map((o) => {
-                        const on = (drawer.data[f.k] || []).includes(o.value)
-                        return (
-                          <label key={o.value} className="flex items-center gap-2 text-[0.8125rem] text-gray-700 px-1 py-0.5">
-                            <Checkbox checked={on} onChange={() => setD({ [f.k]: on ? drawer.data[f.k].filter((x) => x !== o.value) : [...(drawer.data[f.k] || []), o.value] })} /> {tr(o.label)}
-                          </label>
-                        )
-                      })}
-                      {(f.options || []).length === 0 && <div className="text-[0.75rem] text-gray-400 px-1"><T>No options.</T></div>}
-                    </div>
+                    <MultiCheck options={f.options || []} value={drawer.data[f.k] || []} onChange={(v) => setD({ [f.k]: v })} />
                   ) : (
                     <input required={f.required} className="input" placeholder={tr(f.placeholder)} value={drawer.data[f.k] || ''} onChange={(e) => setD({ [f.k]: e.target.value })} />
                   )}

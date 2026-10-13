@@ -623,7 +623,7 @@ export default function NewBooking() {
               {pooja?.category === 'Vehicle' && (
                 <div>
                   <label className="label"><T>Vehicle No</T> <span className="text-gray-400 font-normal">(<T>Optional</T>)</span></label>
-                  <input className="input" value={vehicleNo} maxLength={12} onChange={(e) => setVehicleNo(sanitizeVehicle(e.target.value))} placeholder="TS 09 AB 1234" />
+                  <input className="input" value={vehicleNo} maxLength={12} onChange={(e) => setVehicleNo(sanitizeVehicle(e.target.value))} placeholder={tr("e.g. TS 09 AB 1234")} />
                 </div>
               )}
             </div>

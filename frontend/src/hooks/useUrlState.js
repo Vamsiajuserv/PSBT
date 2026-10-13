@@ -60,29 +60,36 @@ export function useUrlState(defaults) {
     return result
   }, [searchParams])
 
+  // The params as of the latest update, not the latest render. react-router's
+  // functional setSearchParams hands every call the params from the last render,
+  // so two setters in one handler (setType(x); setStatus('')) did not compose —
+  // the second wrote back the old value of the first.
+  const latest = useRef(searchParams)
+  latest.current = searchParams
+
   // Update URL params (only includes non-default values to keep URLs clean)
   const setState = useCallback((updates) => {
-    setSearchParams((prev) => {
-      const newParams = new URLSearchParams(prev)
-      const defs = defaultsRef.current
+    const newParams = new URLSearchParams(latest.current)
+    const defs = defaultsRef.current
 
-      for (const [key, value] of Object.entries(updates)) {
-        const defaultValue = defs[key]
+    for (const [key, value] of Object.entries(updates)) {
+      const defaultValue = defs[key]
 
-        // Remove param if it matches default (keeps URLs clean)
-        if (value === defaultValue || value === '' || value === null || value === undefined) {
-          newParams.delete(key)
-        } else {
-          newParams.set(key, String(value))
-        }
+      // Remove param if it matches default (keeps URLs clean)
+      if (value === defaultValue || value === '' || value === null || value === undefined) {
+        newParams.delete(key)
+      } else {
+        newParams.set(key, String(value))
       }
+    }
 
-      return newParams
-    }, { replace: true }) // Use replace to avoid polluting browser history
+    latest.current = newParams
+    setSearchParams(newParams, { replace: true }) // Use replace to avoid polluting browser history
   }, [setSearchParams])
 
   // Reset all filters to defaults
   const resetState = useCallback(() => {
+    latest.current = new URLSearchParams()
     setSearchParams({}, { replace: true })
   }, [setSearchParams])
 

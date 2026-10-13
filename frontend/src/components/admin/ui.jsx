@@ -53,6 +53,15 @@ export const fmtStamp = (s) => {
   return `${dateStr}, ${clock12(timeStr)}`
 }
 
+// For date-times typed into a form (already IST clock time) — shown as-is, no UTC shift.
+export const fmtLocalStamp = (s) => {
+  const m = s && String(s).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+  if (!m) return '—'
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])
+  const dateStr = localiseMonth(d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))
+  return `${dateStr}, ${clock12(d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }))}`
+}
+
 const PILL_TONES = {
   green: 'bg-emerald-50 text-emerald-700', amber: 'bg-amber-50 text-amber-700',
   red: 'bg-red-50 text-red-700', blue: 'bg-blue-50 text-blue-700',

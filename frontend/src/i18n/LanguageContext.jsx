@@ -406,7 +406,7 @@ const UI_TE = {
   'Makara (Capricorn)': 'మకరం (మకరరాశి)', 'Kumbha (Aquarius)': 'కుంభం (కుంభరాశి)', 'Meena (Pisces)': 'మీనం (మీనరాశి)',
   'Select Rasi': 'రాశి ఎంచుకోండి', 'Select Gothram': 'గోత్రం ఎంచుకోండి', 'Select Nakshatram': 'నక్షత్రం ఎంచుకోండి',
   'PAN': 'పాన్', 'City': 'నగరం', 'Address': 'చిరునామా',
-  'e.g. ABCDE1234F': 'ఉదా. ABCDE1234F', 'Required for 80G receipts above ₹50,000': '₹50,000 పైన 80G రసీదులకు అవసరం',
+  'e.g. ABCDE1234F': 'ఉదా. ABCDE1234F', 'e.g. TS 09 AB 1234': 'ఉదా. TS 09 AB 1234', 'Required for 80G receipts above ₹50,000': '₹50,000 పైన 80G రసీదులకు అవసరం',
   'Mobile': 'మొబైల్', 'Refund': 'వాపసు', 'Refunds': 'వాపసులు',
   'Validity': 'చెల్లుబాటు', 'Persons': 'వ్యక్తులు', 'Occasion': 'సందర్భం',
   'Collection Date': 'వసూలు తేదీ', 'Denomination': 'డినామినేషన్',
@@ -613,7 +613,7 @@ const UI_TE = {
   'Life Long Plans': 'జీవితకాల ప్లాన్‌లు',
   'Material Categories': 'వస్తు వర్గాలు',
   'Material Donations': 'వస్తు విరాళాలు',
-  'No. of Bookings': 'బుకింగ్‌ల సంఖ్య',
+  'No. of Bookings': 'బుకింగ్‌ల సంఖ్య', 'No. of Donations': 'విరాళాల సంఖ్య',
   'Recent Registrations': 'ఇటీవలి నమోదులు',
   'Scheduled Auctions': 'షెడ్యూల్ చేయబడిన వేలాలు',
   'Result Recorded': 'ఫలితం నమోదైంది',
@@ -1122,7 +1122,7 @@ const UI_TE = {
   'Generated on': 'రూపొందించబడింది',
   'Print Report': 'రిపోర్ట్ ప్రింట్ చేయండి',
   'Time Slot': 'సమయ స్లాట్',
-  'Download CSV': 'CSV డౌన్లోడ్',
+  'Download CSV': 'సిఎస్‌వి డౌన్‌లోడ్',
   'Could not load the pooja queue.': 'పూజ క్యూ లోడ్ కాలేదు.',
   'Could not mark the pooja performed.': 'పూజను నిర్వహించినట్లు గుర్తించలేకపోయాము.',
   'Bulk action failed.': 'బల్క్ చర్య విఫలమైంది.',
@@ -1286,7 +1286,7 @@ const UI_TE = {
   'Mark as Completed (winner finalised)': 'పూర్తయినట్లు గుర్తించండి (విజేత ఖరారు)',
   'Generate, view and export reports for all temple activities.': 'అన్ని ఆలయ కార్యకలాపాలకు నివేదికలను రూపొందించండి, చూడండి మరియు ఎగుమతి చేయండి.',
   'Select a report': 'ఒక నివేదికను ఎంచుకోండి',
-  'Export Excel': 'Excel ఎగుమతి',
+  'Export Excel': 'ఎక్సెల్ ఎగుమతి',
   'Exporting…': 'ఎగుమతి అవుతోంది…',
   'Pooja Reports': 'పూజ నివేదికలు',
   'Donation Reports': 'విరాళ నివేదికలు',
@@ -1471,6 +1471,20 @@ const UI_TE = {
   'FAILED': 'విఫలమైంది',
   'SKIPPED': 'దాటవేయబడింది',
   'DISABLED': 'నిలిపివేయబడింది',
+  // Hundi item seeded on every install, and demo-data values
+  'Cash Notes': 'కరెన్సీ నోట్లు', 'Currency Notes': 'కరెన్సీ నోట్లు', 'General Pooja': 'సాధారణ పూజ',
+  'Thursday Annadanam': 'గురువారం అన్నదానం', 'Pournami Annadanam': 'పౌర్ణమి అన్నదానం',
+  'Message language': 'సందేశ భాష', 'Telugu + English': 'తెలుగు + ఇంగ్లీష్',
+  'Message language saved.': 'సందేశ భాష సేవ్ చేయబడింది.',
+  'Language of the SMS, WhatsApp and email messages sent to devotees. Telugu SMS use more credits per message.':
+    'భక్తులకు పంపే ఎస్ఎంఎస్, వాట్సాప్ మరియు ఈమెయిల్ సందేశాల భాష. తెలుగు ఎస్ఎంఎస్‌కు ఒక్కో సందేశానికి ఎక్కువ క్రెడిట్‌లు ఖర్చవుతాయి.',
+  // Status defaults the API stores (QUEUED/CREATED/DRAFT reach these via the title-case fallback)
+  'Queued': 'వరుసలో ఉంది', 'Created': 'సృష్టించబడింది', 'Draft': 'చిత్తు ప్రతి',
+  'Recorded': 'నమోదైంది', '2FA': '2ఎఫ్ఏ', 'Due': 'చేయవలసినది', 'Waste Sale': 'వ్యర్థ అమ్మకం',
+  'Unknown almanac festival': 'తెలియని పంచాంగ పండుగ',
+  'Panchangam calculation is unavailable on this server ({error}). Install the packages in requirements.txt.':
+    'ఈ సర్వర్‌లో పంచాంగ గణన అందుబాటులో లేదు ({error}). requirements.txt లోని ప్యాకేజీలను ఇన్‌స్టాల్ చేయండి.',
+  'Panchangam could not be calculated for {date}: {error}': '{date} కి పంచాంగం గణించలేకపోయాము: {error}',
   'in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.': 'నిజమైన డెలివరీని ప్రారంభించేందుకు బ్యాకెండ్ ఎన్విరాన్‌మెంట్‌లో — ప్రొవైడర్ అంగీకరించే వరకు ఏ సందేశమూ డెలివరీ అయినట్లు గుర్తించబడదు.',
   // Dialogs, toasts and row actions (auction / hundi / closing / notifications)
   'Record result': 'ఫలితాన్ని నమోదు చేయండి',
@@ -1534,6 +1548,7 @@ const UI_TE = {
   'Chairman': 'అధ్యక్షుడు',
   'Secretary': 'కార్యదర్శి',
   'Treasurer': 'కోశాధికారి',
+  'Vice Chairman': 'ఉపాధ్యక్షుడు', 'Joint Secretary': 'సంయుక్త కార్యదర్శి',
   'Member': 'సభ్యుడు',
   'selected.': 'ఎంపిక చేయబడ్డాయి.',
   'Select committee members who were present during counting.': 'లెక్కింపు సమయంలో హాజరైన కమిటీ సభ్యులను ఎంచుకోండి.',
@@ -2151,7 +2166,7 @@ const UI_TE = {
   'COMPLETED': 'పూర్తయింది',
   'CANCELLED': 'రద్దు చేయబడింది',
   'PENDING': 'పెండింగ్',
-  'Per Day': 'రోజుకు',
+  'Per Day': 'రోజుకు', 'Per Visit': 'ప్రతి సందర్శనకు',
   // ── Audit details written by the API ──
   'Temple settings updated': 'ఆలయ సెట్టింగ్‌లు నవీకరించబడ్డాయి',
   // ── Roles, descriptions and the module catalogue ──
@@ -2304,9 +2319,13 @@ const UI_TE = {
   // Long pooja descriptions (Pooja Master)
   "Abhishekam is a sacred ritual in which the idol of Shri Shirdi Sai Baba is ceremonially bathed with holy offerings such as milk, curd, honey, coconut water, sandalwood paste, and sacred water while Vedic hymns and prayers are chanted. This divine ceremony is performed to seek Baba's blessings for good health, prosperity, peace, protection, and spiritual well-being. Devotees participate with devotion and faith, praying for happiness, success, and the fulfillment of their wishes.":
     'అభిషేకం అనేది శ్రీ షిర్డీ సాయిబాబా విగ్రహానికి పాలు, పెరుగు, తేనె, కొబ్బరి నీరు, గంధం మరియు పవిత్ర జలంతో వేద మంత్రాల మధ్య పవిత్రంగా స్నానం చేయించే పవిత్ర కార్యక్రమం. ఆరోగ్యం, ఐశ్వర్యం, శాంతి, రక్షణ మరియు ఆధ్యాత్మిక క్షేమం కోసం బాబా ఆశీస్సులు పొందేందుకు ఈ దివ్య కార్యక్రమం నిర్వహిస్తారు. భక్తులు భక్తి విశ్వాసాలతో పాల్గొని, సంతోషం, విజయం మరియు కోరికల నెరవేర్పు కోసం ప్రార్థిస్తారు.',
+  "Abhishekam is a sacred ritual in which the idol of Sri Shirdi Sai Baba is ceremonially bathed with holy offerings such as milk, curd, honey, coconut water, sandalwood paste, and sacred water while Vedic hymns and prayers are chanted. This divine ceremony is performed to seek Baba's blessings for good health, prosperity, peace, protection, and spiritual well-being. Devotees participate with devotion and faith, praying for happiness, success, and the fulfillment of their wishes.":
+    'అభిషేకం అనేది శ్రీ షిర్డీ సాయిబాబా విగ్రహానికి పాలు, పెరుగు, తేనె, కొబ్బరి నీరు, గంధం మరియు పవిత్ర జలంతో వేద మంత్రాల మధ్య పవిత్రంగా స్నానం చేయించే పవిత్ర కార్యక్రమం. ఆరోగ్యం, ఐశ్వర్యం, శాంతి, రక్షణ మరియు ఆధ్యాత్మిక క్షేమం కోసం బాబా ఆశీస్సులు పొందేందుకు ఈ దివ్య కార్యక్రమం నిర్వహిస్తారు. భక్తులు భక్తి విశ్వాసాలతో పాల్గొని, సంతోషం, విజయం మరియు కోరికల నెరవేర్పు కోసం ప్రార్థిస్తారు.',
   "Ashtotharam (Archana) is a sacred ritual in which the 108 divine names of Shri Shirdi Sai Baba are chanted with devotion while offering flowers. It is performed to seek Baba's blessings for health, prosperity, peace, and spiritual well-being. Devotees participate with faith, praying for happiness, success, and fulfillment in life.":
     'అష్టోత్తరం (అర్చన) అనేది శ్రీ షిర్డీ సాయిబాబా 108 దివ్య నామాలను భక్తితో స్మరిస్తూ పుష్పాలు సమర్పించే పవిత్ర కార్యక్రమం. ఆరోగ్యం, ఐశ్వర్యం, శాంతి మరియు ఆధ్యాత్మిక క్షేమం కోసం బాబా ఆశీస్సులు పొందేందుకు దీనిని నిర్వహిస్తారు. భక్తులు విశ్వాసంతో పాల్గొని, జీవితంలో సంతోషం, విజయం మరియు పరిపూర్ణత కోసం ప్రార్థిస్తారు.',
   "Sahasranama Archana is a sacred ritual in which the 1,000 divine names of Shri Shirdi Sai Baba are chanted with deep devotion while offering flowers. This powerful worship is performed to seek Baba's blessings for good health, prosperity, peace, family well-being, and spiritual growth. Devotees participate with unwavering faith, praying for the fulfillment of their wishes, protection from difficulties, and divine grace in every aspect of life.":
+    'సహస్రనామ అర్చన అనేది శ్రీ షిర్డీ సాయిబాబా 1,000 దివ్య నామాలను గాఢ భక్తితో స్మరిస్తూ పుష్పాలు సమర్పించే పవిత్ర కార్యక్రమం. ఆరోగ్యం, ఐశ్వర్యం, శాంతి, కుటుంబ క్షేమం మరియు ఆధ్యాత్మిక అభివృద్ధి కోసం బాబా ఆశీస్సులు పొందేందుకు ఈ శక్తివంతమైన ఆరాధన నిర్వహిస్తారు. భక్తులు అచంచల విశ్వాసంతో పాల్గొని, కోరికల నెరవేర్పు, కష్టాల నుండి రక్షణ మరియు జీవితంలోని ప్రతి అంశంలో దైవానుగ్రహం కోసం ప్రార్థిస్తారు.',
+  "Sahasranama Archana is a sacred ritual in which the 1,000 divine names of Sri Shirdi Sai Baba are chanted with deep devotion while offering flowers. This powerful worship is performed to seek Baba's blessings for good health, prosperity, peace, family well-being, and spiritual growth. Devotees participate with unwavering faith, praying for the fulfillment of their wishes, protection from difficulties, and divine grace in every aspect of life.":
     'సహస్రనామ అర్చన అనేది శ్రీ షిర్డీ సాయిబాబా 1,000 దివ్య నామాలను గాఢ భక్తితో స్మరిస్తూ పుష్పాలు సమర్పించే పవిత్ర కార్యక్రమం. ఆరోగ్యం, ఐశ్వర్యం, శాంతి, కుటుంబ క్షేమం మరియు ఆధ్యాత్మిక అభివృద్ధి కోసం బాబా ఆశీస్సులు పొందేందుకు ఈ శక్తివంతమైన ఆరాధన నిర్వహిస్తారు. భక్తులు అచంచల విశ్వాసంతో పాల్గొని, కోరికల నెరవేర్పు, కష్టాల నుండి రక్షణ మరియు జీవితంలోని ప్రతి అంశంలో దైవానుగ్రహం కోసం ప్రార్థిస్తారు.',
   // Festival names. These also arrive from the Festival Master table (live
   // dates), which stores English only — so they need dictionary entries, not
@@ -2949,7 +2968,7 @@ const UI_TE = {
   'Filtered': 'ఫిల్టర్ చేయబడింది',
   'Filtered by': 'ఫిల్టర్ చేసినది',
   'Donations sustain the daily poojas, annadanam, free medical services and the upkeep of the temple.': 'విరాళాలు నిత్య పూజలు, అన్నదానం, ఉచిత వైద్య సేవలు మరియు ఆలయ నిర్వహణను కొనసాగిస్తాయి.',
-  'Enter the devotee / payer name.': 'భక్తుడు / చెల్లించే వ్యక్తి పేరు నమోదు చేయండి.',
+  'Please enter the devotee name.': 'దయచేసి భక్తుని పేరు నమోదు చేయండి.',
   'Adilabad': 'ఆదిలాబాద్',
   'Medak': 'మెదక్',
   'Rangareddy': 'రంగారెడ్డి',
@@ -2991,7 +3010,9 @@ const UI_TE = {
   'Vendor Master': 'వెండర్ మాస్టర్',
   'Maintain waste-material buyers / vendors and the materials they handle.': 'వ్యర్థ వస్తువుల కొనుగోలుదారులు / వెండర్లు మరియు వారు నిర్వహించే వస్తువులను నిర్వహించండి.',
   'Add New Vendor': 'కొత్త వెండర్‌ను జోడించండి',
-  'Search by name, code or phone…': 'పేరు, కోడ్ లేదా ఫోన్ ద్వారా వెతకండి…',
+  'Search by name, vendor ID or phone…': 'పేరు, విక్రేత ఐడి లేదా ఫోన్ ద్వారా వెతకండి…',
+  'Search by name, poojari ID or phone…': 'పేరు, పూజారి ఐడి లేదా ఫోన్ ద్వారా వెతకండి…',
+  'Search by name, member ID or phone…': 'పేరు, సభ్యుని ఐడి లేదా ఫోన్ ద్వారా వెతకండి…',
   'Total Vendors': 'మొత్తం వెండర్లు',
   'All vendors': 'అన్ని వెండర్లు',
   'Currently active': 'ప్రస్తుతం క్రియాశీలం',
@@ -3147,6 +3168,29 @@ const UI_TE = {
   'Could not reschedule this booking.': 'ఈ బుకింగ్‌ను రీషెడ్యూల్ చేయడం సాధ్యం కాలేదు.',
   'Could not complete this booking.': 'ఈ బుకింగ్‌ను పూర్తి చేయలేకపోయాము.',
   'Could not assign poojari.': 'పూజారిని కేటాయించలేకపోయాము.',
+  'Not entered': 'నమోదు చేయలేదు',
+  'Enter counted cash': 'లెక్కించిన నగదు నమోదు చేయండి',
+  'Enter the actual cash in hand (counted) before closing the day.': 'రోజు ముగించే ముందు చేతిలో ఉన్న వాస్తవ నగదు (లెక్కించినది) నమోదు చేయండి.',
+  'Future dates cannot be selected. Choose today or a past date.': 'భవిష్యత్ తేదీలు ఎంచుకోలేరు. ఈ రోజు లేదా గత తేదీని ఎంచుకోండి.',
+  'Cash Count (Actual Cash in Hand)': 'నగదు లెక్కింపు (చేతిలో ఉన్న వాస్తవ నగదు)',
+  'notes': 'నోట్లు',
+  'coins': 'నాణేలు',
+  'Excess': 'అధికం',
+  'Short': 'తక్కువ',
+  'Matched': 'సరిపోయింది',
+  '(Required — explain the difference)': '(తప్పనిసరి — తేడాను వివరించండి)',
+  'e.g. ₹160 given as change, receipt missing': 'ఉదా. ₹160 చిల్లరగా ఇచ్చారు, రసీదు లేదు',
+  'Count the cash in the drawer (number of each note / coin) before closing the day.': 'రోజు ముగించే ముందు డ్రాయర్‌లోని నగదును లెక్కించండి (ప్రతి నోటు / నాణెం సంఖ్య).',
+  'The counted cash does not match the expected cash. Enter a closing note explaining the difference.': 'లెక్కించిన నగదు అంచనా నగదుతో సరిపోలలేదు. తేడాను వివరిస్తూ ముగింపు గమనిక నమోదు చేయండి.',
+  'Past day — view only. Only Admin can close a missed day.': 'గత రోజు — చూడటానికి మాత్రమే. తప్పిపోయిన రోజును అడ్మిన్ మాత్రమే ముగించగలరు.',
+  'Cash Count': 'నగదు లెక్కింపు',
+  'Counted': 'లెక్కించినది',
+  'Expected': 'అంచనా',
+  'Difference': 'తేడా',
+  'View count': 'లెక్కింపు చూడండి',
+  'Hide count': 'లెక్కింపు దాచండి',
+  'Poojari removed — now Unassigned.': 'పూజారి తొలగించబడ్డారు — ఇప్పుడు కేటాయించనిది.',
+  'Shows poojas due on this day (Monthly / Yearly continue daily until expiry) — not bookings made today.': 'ఈ రోజు చేయవలసిన పూజలు (నెలవారీ / సంవత్సర పూజలు గడువు వరకు ప్రతిరోజూ) — ఈ రోజు చేసిన బుకింగ్‌లు కాదు.',
   'Assigning…': 'కేటాయిస్తోంది…',
   'Deselect All': 'అన్నీ ఎంపిక తొలగించు',
   'Full paid amount suggested.': 'పూర్తి చెల్లించిన మొత్తం సూచించబడింది.',
@@ -3330,6 +3374,31 @@ const UI_TE = {
   'Eligible': 'అర్హత ఉంది',
 
   // ── Counter Billing ──
+  // Master screens — search boxes name the same columns the list shows
+  'Search by item name or item ID…': 'వస్తువు పేరు లేదా వస్తువు ఐడి ద్వారా వెతకండి…',
+  'Search by material name or material ID…': 'పదార్థం పేరు లేదా పదార్థం ఐడి ద్వారా వెతకండి…',
+  'Search by festival name or festival ID…': 'పండుగ పేరు లేదా పండుగ ఐడి ద్వారా వెతకండి…',
+  // Festival Pricing — committee rate
+  'Enter a valid amount in whole rupees (minimum ₹1), or 0 for a free pooja.': 'సరైన మొత్తాన్ని పూర్తి రూపాయల్లో నమోదు చేయండి (కనీసం ₹1), లేదా ఉచిత పూజకు 0.',
+  'Whole rupees only. Use 0 for a free pooja.': 'పూర్తి రూపాయలు మాత్రమే. ఉచిత పూజకు 0 ఉపయోగించండి.',
+  // Daily Closing
+  'Past days are view-only. Only Admin can close a missed day.': 'గత రోజులు చూడటానికి మాత్రమే. తప్పిన రోజును అడ్మిన్ మాత్రమే ముగించగలరు.',
+  // Hundi — counting completed date/time
+  'Counting completed on cannot be in the future.': 'లెక్కింపు పూర్తయిన సమయం భవిష్యత్తులో ఉండకూడదు.',
+  'Counting cannot be completed before the collection date.': 'సేకరణ తేదీకి ముందు లెక్కింపు పూర్తి కాకూడదు.',
+  // Pooja Queue — finished poojas and recording who performed them
+  'All performances used — nothing left to assign.': 'అన్ని నిర్వహణలు పూర్తయ్యాయి — కేటాయించడానికి ఏమీ మిగలలేదు.',
+  'Performed by': 'నిర్వహించినవారు', 'Not recorded': 'నమోదు కాలేదు', 'marked by': 'గుర్తించినవారు',
+  'Performer cleared.': 'నిర్వహించినవారి వివరం తొలగించబడింది.',
+  'Could not save who performed it.': 'ఎవరు నిర్వహించారో సేవ్ చేయలేకపోయాము.',
+  'No performance recorded for this booking on that day.': 'ఆ రోజున ఈ బుకింగ్‌కు ఎలాంటి నిర్వహణ నమోదు కాలేదు.',
+  'Blocked — already covered in this cart': 'నిలిపివేయబడింది — ఈ కార్ట్‌లో ఇప్పటికే కవర్ అయింది',
+  'Already Covered in Cart - Blocked': 'కార్ట్‌లో ఇప్పటికే కవర్ అయింది - నిలిపివేయబడింది',
+  'Covered by the active {plan} plan': 'క్రియాశీల {plan} ప్లాన్‌లో ఇప్పటికే కవర్ అయింది',
+  'Covered by the {plan} plan in this cart': 'ఈ కార్ట్‌లోని {plan} ప్లాన్‌లో ఇప్పటికే కవర్ అయింది',
+  "This devotee's active {plan} booking ({code}, valid until {until}) already covers this pooja on {day}.":
+    'ఈ భక్తుని క్రియాశీల {plan} బుకింగ్ ({code}, {until} వరకు చెల్లుబాటు) {day} న ఈ పూజను ఇప్పటికే కవర్ చేస్తుంది.',
+  'Blocked — active plan exists': 'నిలిపివేయబడింది — క్రియాశీల ప్లాన్ ఉంది', 'Existing ticket': 'ఉన్న టికెట్',
   'Active Plan Exists - Blocked': 'క్రియాశీల ప్లాన్ ఇప్పటికే ఉంది - నిలిపివేయబడింది',
   'Added': 'జోడించబడింది',
   'Any special instructions...': 'ఏవైనా ప్రత్యేక సూచనలు...',
@@ -4232,8 +4301,6 @@ const UI_TE = {
   'Inactive material(s): {names}. Activate them in Waste Material Master first.': 'నిష్క్రియ పదార్థాలు: {names}. ముందుగా వ్యర్థ పదార్థాల మాస్టర్‌లో వాటిని సక్రియం చేయండి.',
   'Unknown material(s): {names}. Add them in Waste Material Master first.': 'తెలియని పదార్థాలు: {names}. ముందుగా వ్యర్థ పదార్థాల మాస్టర్‌లో వాటిని జోడించండి.',
   'Invalid verification code. {count} attempt(s) remaining.': 'చెల్లని ధృవీకరణ కోడ్. ఇంకా {count} ప్రయత్నం(లు) మిగిలి ఉన్నాయి.',
-  'Date range too large ({days} days). Maximum is {max} days. Please narrow your date range or use Monthly Trends for longer periods.':
-    'తేదీ పరిధి చాలా ఎక్కువ ({days} రోజులు). గరిష్ఠం {max} రోజులు. దయచేసి పరిధిని తగ్గించండి లేదా ఎక్కువ కాలానికి నెలవారీ ధోరణులను ఉపయోగించండి.',
   '{plan} poojas are performed on Pournami — {date} is not a Pournami day.': '{plan} పూజలు పౌర్ణమి నాడు నిర్వహిస్తారు — {date} పౌర్ణమి రోజు కాదు.',
   '{plan} poojas are performed on Pournami — {date} is not a Pournami day. {hint}': '{plan} పూజలు పౌర్ణమి నాడు నిర్వహిస్తారు — {date} పౌర్ణమి రోజు కాదు. {hint}',
   'The next Pournami is {date}.': 'తదుపరి పౌర్ణమి {date}.',

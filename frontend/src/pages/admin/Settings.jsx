@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Landmark, Settings as SettingsIcon, Users as UsersIcon, FileText, Shield,
   ChevronDown, ChevronRight, Save, Upload, CheckCircle2, Info, AlertTriangle, CalendarClock, Plus, X,
@@ -132,13 +132,17 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   const [loadErr, setLoadErr] = useState('')
   const [saveErr, setSaveErr] = useState('')
+  // What the server last returned — Save sends only the fields changed since,
+  // never the records other modules keep in the same settings table.
+  const loaded = useRef({})
+  const receive = useCallback((d) => { loaded.current = d || {}; setData(d) }, [])
 
   const loadSettings = useCallback(() => {
     setLoadErr('')
-    SettingsAPI.get().then(setData).catch((ex) => {
+    SettingsAPI.get().then(receive).catch((ex) => {
       setLoadErr(getErrorMessage(ex, tr("Couldn't load settings — check your connection and retry.")))
     })
-  }, [])
+  }, [receive])
   useEffect(() => { loadSettings() }, [loadSettings])
 
   const category = CATS.find((c) => c.key === cat)
@@ -148,8 +152,9 @@ export default function Settings() {
   async function save() {
     setSaveErr('')
     try {
-      const res = await SettingsAPI.update(data)
-      setData(res); setSaved(true); setTimeout(() => setSaved(false), 2500)
+      const changed = Object.fromEntries(Object.entries(data).filter(([k, v]) => v !== loaded.current[k]))
+      const res = await SettingsAPI.update(changed)
+      receive(res); setSaved(true); setTimeout(() => setSaved(false), 2500)
     } catch (ex) {
       setSaveErr(getErrorMessage(ex, tr('Could not save settings — check your connection and try again.')))
     }

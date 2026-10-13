@@ -8,7 +8,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
-import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
+import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail, poojaFeeError } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const DESIG_TONE = { Chairman: 'maroon', Secretary: 'blue', Treasurer: 'violet', Member: 'gray' }
@@ -83,7 +83,7 @@ function MembersTab() {
 
   const load = useCallback(() => {
     setLoading(true); setLoadErr('')
-    return Promise.all([CommitteeAPI.list({ q, status }), CommitteeAPI.stats().catch(() => null)])
+    return Promise.all([CommitteeAPI.list({ q: q.trim(), status }), CommitteeAPI.stats().catch(() => null)])
       .then(([d, s]) => {
         // Deduplicate items by ID to prevent duplicate rows
         const rawItems = d.items || d
@@ -149,7 +149,7 @@ function MembersTab() {
         <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <div className="relative flex-1 max-w-md">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search by name, code or phone…")} className="input !pl-9 w-full" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('Search by name, member ID or phone…')} className="input !pl-9 w-full" />
           </div>
           <div className="flex items-center gap-2">
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input !w-auto">
@@ -317,6 +317,8 @@ function MembersTab() {
 }
 
 // ── Festival Pricing Tab ─────────────────────────────────────────────────────
+// A pooja price is whole rupees: 0 (a free pooja) or ₹1 and above (shared rule).
+const feeError = (v) => { const e = poojaFeeError(v); return e ? tr(e) : '' }
 function FestivalPricingTab() {
   const { lang } = useLang()
   const { user } = useAuth()
@@ -367,9 +369,10 @@ function FestivalPricingTab() {
 
   const saveEdit = async () => {
     if (!editPlan) return
+    if (feeError(editFee)) return            // shown under the field
     setSaving(true)
     try {
-      await PoojasAPI.updateCommitteeFee(editPlan.id, Number(editFee) || 0)
+      await PoojasAPI.updateCommitteeFee(editPlan.id, Number(editFee))
       toast(tr('Price updated successfully.'))
       setEditPlan(null)
       load()
@@ -470,15 +473,19 @@ function FestivalPricingTab() {
                   value={editFee}
                   onChange={(e) => setEditFee(e.target.value)}
                   min={0}
+                  step={1}
                   placeholder="0"
-                  className="!text-lg"
+                  className={`!text-lg ${feeError(editFee) ? '!border-red-400 ring-1 ring-red-200' : ''}`}
                 />
+                {feeError(editFee)
+                  ? <div role="alert" className="text-[0.6875rem] text-red-600 mt-1">{feeError(editFee)}</div>
+                  : <div className="text-[0.6875rem] text-gray-400 mt-1"><T>Whole rupees only. Use 0 for a free pooja.</T></div>}
               </div>
             </div>
 
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setEditPlan(null)} className="btn-outline"><T>Cancel</T></button>
-              <button onClick={saveEdit} disabled={saving} className="btn-maroon disabled:opacity-60">
+              <button onClick={saveEdit} disabled={saving || !!feeError(editFee)} className="btn-maroon disabled:opacity-60">
                 {saving ? tr('Saving…') : tr('Update Price')}
               </button>
             </div>

@@ -34,17 +34,27 @@ def _pooja_dict(pj: Pooja, all_plans: bool = False) -> dict:
             "plans": [_plan_dict(p) for p in pj.plans if all_plans or p.active]}
 
 
+def _whole_rupees(value):
+    """A pooja price: None for no price (committee-decided), otherwise 0 (a free
+    pooja) or whole rupees from ₹1. Rejects paise (0.40 → billed as 40 paise),
+    negatives and non-numbers. Every place that sets a plan fee uses this."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    try:
+        amount = Decimal(str(value).strip())
+    except (decimal.InvalidOperation, ValueError, TypeError):
+        amount = None
+    if amount is None or not amount.is_finite() or amount < 0 or amount != amount.to_integral_value():
+        raise HTTPException(422, "Enter a valid amount in whole rupees (minimum ₹1), or 0 for a free pooja.")
+    return amount.quantize(Decimal("1"))
+
+
 def _add_plan(pl: dict) -> PoojaPlan:
     plan_name = (pl.get("plan_name") or "").strip()
     if not plan_name:
         raise HTTPException(400, "Plan name is required")
     # Safely convert fee and validity_value
-    fee = None
-    if pl.get("fee") not in (None, ""):
-        try:
-            fee = Decimal(str(pl["fee"]))
-        except (ValueError, TypeError, decimal.InvalidOperation):
-            raise HTTPException(400, "Invalid fee value")
+    fee = _whole_rupees(pl.get("fee"))
     validity_value = None
     if pl.get("validity_value") not in (None, ""):
         try:
@@ -163,7 +173,7 @@ def update_pooja(pid: int, body: dict, request: Request, db: Session = Depends(g
             if "committee_decided" in item:
                 pl.committee_decided = bool(item["committee_decided"])
             if "fee" in item:
-                pl.fee = Decimal(str(item["fee"])) if item["fee"] not in (None, "") else None
+                pl.fee = _whole_rupees(item["fee"])
             for f in ("validity_type", "validity_unit", "tithi_type"):
                 if f in item:
                     setattr(pl, f, item[f])
@@ -192,7 +202,7 @@ def update_plan(plan_id: int, body: dict, request: Request, db: Session = Depend
     if not pl:
         raise HTTPException(404, "Plan not found")
     if "fee" in body:
-        pl.fee = Decimal(str(body["fee"])) if body["fee"] not in (None, "") else None
+        pl.fee = _whole_rupees(body["fee"])
     if "committee_decided" in body:
         pl.committee_decided = bool(body["committee_decided"])
     if "frequency" in body:
@@ -274,8 +284,10 @@ def update_committee_fee(plan_id: int, body: dict, request: Request,
     fee = body.get("fee")
     if fee is None:
         raise HTTPException(400, "Fee is required.")
-
-    pl.fee = Decimal(str(fee)) if fee not in (None, "", 0) else Decimal("0")
+    amount = _whole_rupees(fee)
+    if amount is None:                         # blank — a committee rate must be set
+        raise HTTPException(422, "Enter a valid amount in whole rupees (minimum ₹1), or 0 for a free pooja.")
+    pl.fee = amount
     db.commit()
 
     pooja = db.get(Pooja, pl.pooja_id)

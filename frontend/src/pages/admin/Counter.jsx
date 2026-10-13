@@ -13,7 +13,7 @@ import { toast } from '../../components/common/Dialog.jsx'
 import { T, tr, useLang, personName, stamp } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
 import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
-import { planValidUntil, addDaysISO } from '../../lib/planTerms.js'
+import { planValidUntil, planSpan, addDaysISO } from '../../lib/planTerms.js'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
 
 // ── Constants ──
@@ -346,6 +346,9 @@ export default function Counter() {
 
   // All duplicates are now blocked - no confirmation/bypass allowed
   const noDuplicates = dupWarnings.length === 0
+  // Blocked cart lines by lineId, so the cart row itself is marked — the cart can
+  // hold the same pooja on two plans (Daily + Monthly) and only one is blocked.
+  const blockedLines = useMemo(() => new Map(dupWarnings.map((w) => [w.lineId, w])), [dupWarnings])
 
   const selectedKey = selected.map(c => `${c.pooja_id}-${c.plan_id}-${c.scheduled_date}`).join(',')
   const mobileFor10 = mobile.trim().length === 10 ? mobile.trim() : null
@@ -353,27 +356,47 @@ export default function Counter() {
   // Check duplicates for long-term items
   useEffect(() => {
     if ((!devotee?.id && !mobileFor10) || !selected.length) { setDupWarnings([]); setDupChecking(false); return }
-    const longTermItems = selected.filter((x) => x.category === 'Monthly' || x.category === 'Long-Term' || /monthly|life|year/i.test(x.plan_name || ''))
-    if (!longTermItems.length) { setDupWarnings([]); setDupChecking(false); return }
+    // Every item is checked: long-term plans against the devotee's active plan of
+    // the same kind, single-day ones (Daily) against an active Monthly / N-day plan
+    // that already performs the pooja on that date.
+    const itemsToCheck = selected
 
     let cancelled = false
     setDupChecking(true)
     const checkAll = async () => {
       const warnings = []
-      for (const item of longTermItems) {
+      for (const item of itemsToCheck) {
         try {
           const res = await BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobileFor10, pooja_id: item.pooja_id, plan_id: item.plan_id, scheduled_date: item.scheduled_date })
           if (res.has_duplicate) {
             warnings.push({
               lineId: item.lineId,
               pooja_name: item.pooja_name,
+              name_te: item.name_te,
               plan_name: item.plan_name,
+              covered_by: res.covered_by,
               existing_ticket: res.ticket_no || res.existing_booking,
               booked_on: res.booked_on,
               valid_until: res.valid_until || calcExpiry(res.booked_on, item.plan_name),
             })
           }
         } catch { /* ignore */ }
+      }
+      // The same overlap inside this cart: a Daily item on a day a Monthly item
+      // for the same pooja (also in the cart) will already perform it.
+      // planSpan().days: 1 = a single performance (Daily), >1 = once a day for that
+      // many days (Monthly, N-day); Yearly and Life Long plans have no days.
+      for (const item of selected) {
+        if (planSpan(item).days !== 1 || !item.scheduled_date || warnings.some((w) => w.lineId === item.lineId)) continue
+        const cover = selected.find((m) => m.lineId !== item.lineId && m.pooja_id === item.pooja_id
+          && planSpan(m).days > 1 && m.scheduled_date
+          && m.scheduled_date <= item.scheduled_date && item.scheduled_date <= planValidUntil(m, m.scheduled_date))
+        if (cover) {
+          warnings.push({
+            lineId: item.lineId, pooja_name: item.pooja_name, name_te: item.name_te, plan_name: item.plan_name,
+            covered_by: cover.plan_name, in_cart: true, valid_until: planValidUntil(cover, cover.scheduled_date),
+          })
+        }
       }
       if (cancelled) return
       setDupWarnings(warnings)
@@ -475,7 +498,7 @@ export default function Counter() {
   const checkout = async () => {
     setError('')
     if (!canBill) { setError(tr('View-only access.')); return }
-    if (!name.trim()) { setError(tr('Enter the devotee / payer name.')); return }
+    if (!name.trim()) { setError(tr('Please enter the devotee name.')); return }
     // Validate mobile number - must be exactly 10 digits for Indian numbers
     const mobileTrimmed = mobile.trim()
     if (countryCode === '+91') {
@@ -878,23 +901,27 @@ export default function Counter() {
                 <div className="text-xs text-gray-400"><T>Tick poojas on the left</T></div>
               ) : (
                 <div className="space-y-1.5">
-                  {selected.map((item) => (
-                    <div key={item.lineId} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                  {selected.map((item) => {
+                    const blocked = blockedLines.has(item.lineId)
+                    return (
+                    <div key={item.lineId} className={`flex items-center justify-between rounded-lg px-3 py-2 ${blocked ? 'bg-red-50 border border-red-300' : 'bg-gray-50'}`}>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-gray-800 truncate">{lang === 'te' && item.name_te ? item.name_te : item.pooja_name} <span className="text-xs text-gray-500 font-normal">· {tr(item.plan_name)}</span></div>
+                        <div className={`text-sm font-medium truncate ${blocked ? 'text-red-800' : 'text-gray-800'}`}>{lang === 'te' && item.name_te ? item.name_te : tr(item.pooja_name)} <span className={`text-xs font-normal ${blocked ? 'text-red-600' : 'text-gray-500'}`}>· {tr(item.plan_name)}</span></div>
                         <div className="text-[11px] text-gray-500 flex items-center gap-1">
                           <CalendarDays size={11} className="shrink-0" />{cartLineWhen(item)}
                           {item.category === 'Vehicle' && item.vehicle_no && <span className="text-amber-600">· {item.vehicle_no}</span>}
                         </div>
+                        {blocked && <div className="text-[11px] font-semibold text-red-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{blockedLines.get(item.lineId).in_cart ? tr('Blocked — already covered in this cart') : tr('Blocked — active plan exists')}</div>}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-sm font-semibold text-gray-700">₹{Number(item.amount || 0).toLocaleString('en-IN')}</span>
-                        <button onClick={() => removeSelected(item.lineId)} aria-label={tr('Remove')} className="w-6 h-6 rounded bg-white border border-gray-200 grid place-items-center text-gray-400 hover:text-red-500 hover:border-red-300">
+                        <button onClick={() => removeSelected(item.lineId)} aria-label={tr('Remove')} className={`w-6 h-6 rounded bg-white border grid place-items-center hover:text-red-500 hover:border-red-300 ${blocked ? 'border-red-300 text-red-500' : 'border-gray-200 text-gray-400'}`}>
                           <X size={12} />
                         </button>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -907,9 +934,24 @@ export default function Counter() {
                     <div className="flex items-start gap-1.5">
                       <AlertTriangle size={14} className="shrink-0 mt-0.5 text-red-600" />
                       <div className="text-xs flex-1">
-                        <div className="font-semibold text-red-800"><T>Active Plan Exists - Blocked</T></div>
-                        <div className="text-red-700">{w.pooja_name}</div>
-                        <div className="text-[11px] text-red-600 mt-0.5"><T>Remove this item from cart to proceed</T></div>
+                        <div className="font-semibold text-red-800">{w.in_cart ? tr('Already Covered in Cart - Blocked') : tr('Active Plan Exists - Blocked')}</div>
+                        <div className="text-red-700 font-medium">{lang === 'te' && w.name_te ? w.name_te : tr(w.pooja_name)}{w.plan_name ? ` · ${tr(w.plan_name)}` : ''}</div>
+                        {w.covered_by && (
+                          <div className="text-[11px] text-red-700 mt-0.5">
+                            {w.in_cart ? tr(`Covered by the ${w.covered_by} plan in this cart`) : tr(`Covered by the active ${w.covered_by} plan`)}
+                          </div>
+                        )}
+                        {(w.existing_ticket || w.valid_until) && (
+                          <div className="text-[11px] text-red-600 mt-0.5">
+                            {w.existing_ticket && <>{tr('Existing ticket')}: <span className="font-mono">{w.existing_ticket}</span></>}
+                            {w.existing_ticket && w.valid_until && ' · '}
+                            {w.valid_until && <>{tr('Valid until')}: {/^\d{4}-\d{2}-\d{2}/.test(w.valid_until) ? stamp(fmtDate(w.valid_until)) : w.valid_until}</>}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between gap-2 mt-1">
+                          <span className="text-[11px] text-red-600"><T>Remove this item from cart to proceed</T></span>
+                          <button type="button" onClick={() => removeSelected(w.lineId)} className="shrink-0 px-2 py-0.5 rounded border border-red-300 bg-white text-[11px] font-semibold text-red-700 hover:bg-red-100"><T>Remove</T></button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -931,7 +973,7 @@ export default function Counter() {
                       <input
                         value={item.vehicle_no || ''}
                         onChange={(e) => updateItemMeta(item.lineId, 'vehicle_no', sanitizeVehicle(e.target.value))}
-                        placeholder={tr("TS 09 AB 1234")}
+                        placeholder={tr("e.g. TS 09 AB 1234")}
                         className="input !text-sm !py-1 w-full"
                         maxLength={12}
                       />

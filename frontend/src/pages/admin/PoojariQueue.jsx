@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Clock, User, Phone, CheckCircle2, Repeat, Flame, Loader2, Download, Printer, X,
-  ArrowUp, ArrowDown, ChevronsUpDown, Undo2, AlertTriangle, UserCheck, Users as UsersIcon, RefreshCw,
+  ArrowUp, ArrowDown, ChevronsUpDown, Undo2, AlertTriangle, UserCheck, Users as UsersIcon, RefreshCw, Info,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
@@ -23,6 +23,7 @@ const SORT_COLUMNS = [
   { key: 'performed_on', label: 'Performed On', type: 'date' },
 ]
 const REFRESH_MS = 60000   // today's queue refreshes itself so new counter bookings appear
+const HOLD_MS = 2500       // a reassigned card stays in place this long before moving to its new group
 
 const ist = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const todayISO = () => ist(new Date())
@@ -46,6 +47,11 @@ const DATE_PRESETS = [
 ]
 
 const isDue = (i) => !i.done_today && i.status === 'Confirmed' && (i.remaining === null || i.remaining > 0)
+// Every performance used up — nothing left to perform or assign.
+const isFinished = (i) => i.status === 'Completed' || i.remaining === 0
+// A finished pooja nobody is assigned to is done, not "Unassigned": it gets its own
+// group at the end instead of sitting among the poojas anyone can still perform.
+const doneGroup = (rows) => ({ key: 'done', title: tr('Completed'), hint: tr('All performances used — nothing left to assign.'), icon: CheckCircle2, rows })
 
 export default function PoojariQueue() {
   const { lang } = useLang()
@@ -72,6 +78,8 @@ export default function PoojariQueue() {
   const [updatedAt, setUpdatedAt] = useState(null)
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [poojaris, setPoojaris] = useState([])
+  const [held, setHeld] = useState({})        // bookingId → { key, name } of the group it was in before reassignment
+  const [flashId, setFlashId] = useState(null) // card highlighted after reassignment
 
   const { sortedRows, sorts, handleColumnClick, clearSorts, getSortIndex, getSortDirection } = useSortableTable(data?.items || [], SORT_COLUMNS, [])
 
@@ -111,26 +119,34 @@ export default function PoojariQueue() {
     if (!isQueueMode) return [{ key: 'all', rows: sortedRows }]
     if (isPoojari && linked) {
       const mine = sortedRows.filter((r) => r.assigned_to_me)
-      const open = sortedRows.filter((r) => !r.poojari_id)
+      const open = sortedRows.filter((r) => !r.poojari_id && !isFinished(r))
+      const done = sortedRows.filter((r) => !r.poojari_id && isFinished(r))
       const others = sortedRows.filter((r) => r.poojari_id && !r.assigned_to_me)
       return [
         { key: 'mine', title: tr('Assigned to you'), icon: UserCheck, rows: mine, empty: tr('Nothing assigned to you for this day.') },
         { key: 'open', title: tr('Unassigned'), hint: tr('Anyone can perform these — performing one assigns it to you.'), icon: AlertTriangle, rows: open },
         ...(show === 'all' ? [{ key: 'others', title: tr('Other poojaris'), icon: UsersIcon, rows: others }] : []),
+        doneGroup(done),
       ].filter((g) => g.rows.length || g.key === 'mine')
     }
     if (isPoojari) return [{ key: 'all', rows: sortedRows }]
     // Administrator / other staff: the whole temple, grouped by poojari
     const byPoojari = new Map()
+    const done = []
     for (const r of sortedRows) {
-      const k = r.poojari_id ? String(r.poojari_id) : ''
-      if (!byPoojari.has(k)) byPoojari.set(k, { key: k || 'open', poojariId: r.poojari_id, title: r.poojari_name || tr('Unassigned'), icon: r.poojari_id ? User : AlertTriangle, rows: [] })
+      // A just-reassigned card is grouped where it was until its hold expires
+      const h = held[r.id]
+      const k = h ? h.key : (r.poojari_id ? String(r.poojari_id) : '')
+      if (!k && isFinished(r)) { done.push(r); continue }
+      const pid = k ? Number(k) : null
+      const pname = h ? h.name : r.poojari_name
+      if (!byPoojari.has(k)) byPoojari.set(k, { key: k || 'open', poojariId: pid, title: pname || tr('Unassigned'), icon: pid ? User : AlertTriangle, rows: [] })
       byPoojari.get(k).rows.push(r)
     }
     const open = byPoojari.get('')
     const named = [...byPoojari.values()].filter((g) => g.poojariId).sort((a, b) => a.title.localeCompare(b.title))
-    return [...(open ? [open] : []), ...named]
-  }, [sortedRows, isQueueMode, isPoojari, linked, show])
+    return [...(open ? [open] : []), ...named, ...(done.length ? [doneGroup(done)] : [])]
+  }, [sortedRows, isQueueMode, isPoojari, linked, show, held])
 
   const visible = groups.flatMap((g) => g.rows)
   const dueMine = items.filter((i) => isDue(i) && i.assigned_to_me).length
@@ -177,11 +193,49 @@ export default function PoojariQueue() {
     }
   }
 
+  // Who performed it — recorded after the fact (an administrator marked it on a
+  // poojari's behalf). Updates the card in place; an unassigned booking also moves
+  // to that poojari's group, as when the poojari marks it themselves.
+  async function setPerformer(b, poojariId) {
+    setBusyId(b.id)
+    try {
+      const r = await PoojarisAPI.setPerformer(b.id, b.performed_on, poojariId ? Number(poojariId) : null)
+      // The performance log has a row per performance (key = id-date): only this
+      // row's performer changes; the booking's poojari changes on all its rows.
+      setData((d) => d && ({ ...d, items: d.items.map((i) => i.id !== b.id ? i : {
+        ...i,
+        ...((i.key ?? i.id) === (b.key ?? b.id) ? { performed_by_poojari_id: r.poojari_id, performed_by_poojari: r.poojari_name } : {}),
+        poojari_id: r.booking_poojari_id, poojari_name: r.booking_poojari_name,
+        assigned_to_me: !!d.poojari_id && r.booking_poojari_id === d.poojari_id,
+      }) }))
+      toast(r.poojari_name ? `${tr('Performed by')} ${personName({ name: r.poojari_name }, lang)} ✓` : tr('Performer cleared.'))
+    } catch (e) {
+      toast(getErrorMessage(e, tr('Could not save who performed it.')), 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  // After a reassignment the card stays in its old group for a moment (showing the new
+  // name, highlighted) before moving to its new group — otherwise it jumps away
+  // silently and the assignment looks like it did nothing.
   async function reassign(b, poojariId) {
     setBusyId(b.id)
     try {
-      await PoojarisAPI.assign(b.id, poojariId ? Number(poojariId) : null)
-      await load({ silent: true })
+      const r = await PoojarisAPI.assign(b.id, poojariId ? Number(poojariId) : null)
+      const newId = poojariId ? Number(poojariId) : null
+      const newName = r?.poojari_name || null
+      setHeld((h) => ({ ...h, [b.id]: { key: b.poojari_id ? String(b.poojari_id) : '', name: b.poojari_name } }))
+      setFlashId(b.id)
+      setData((d) => d && ({ ...d, items: d.items.map((i) => (i.id === b.id ? { ...i, poojari_id: newId, poojari_name: newName } : i)) }))
+      toast(newName ? `${tr('Assigned to')} ${personName({ name: newName }, lang)} ✓` : tr('Poojari removed — now Unassigned.'))
+      setTimeout(() => {
+        setHeld((h) => { const { [b.id]: _, ...rest } = h; return rest })
+        // Follow the card to its new group
+        setTimeout(() => document.getElementById(`qcard-${b.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+        setTimeout(() => setFlashId((f) => (f === b.id ? null : f)), 2500)
+        load({ silent: true })
+      }, HOLD_MS)
     } catch (e) {
       toast(getErrorMessage(e, tr('Could not assign poojari.')), 'error')
     } finally {
@@ -231,6 +285,13 @@ export default function PoojariQueue() {
     <div>
       <PageHeader title={isPoojari ? tr('My Poojas') : tr('Pooja Queue')}
         subtitle={`${tr('Welcome back,')} ${name}${role && !name.includes(role) ? ` (${tr(role)})` : ''}`} />
+
+      {isQueueMode && (
+        <p className="mb-3 text-[0.75rem] text-gray-500 flex items-center gap-1.5">
+          <Info size={13} className="shrink-0" />
+          <T>Shows poojas due on this day (Monthly / Yearly continue daily until expiry) — not bookings made today.</T>
+        </p>
+      )}
 
       {isPoojari && data && !linked && (
         <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[0.8125rem] text-amber-800 flex items-start gap-2">
@@ -334,7 +395,7 @@ export default function PoojariQueue() {
               <section key={g.key}>
                 {g.title && (
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    {g.icon && <g.icon size={15} className={g.key === 'open' ? 'text-amber-600' : 'text-maroon-700'} />}
+                    {g.icon && <g.icon size={15} className={g.key === 'open' ? 'text-amber-600' : g.key === 'done' ? 'text-emerald-600' : 'text-maroon-700'} />}
                     <h2 className="font-semibold text-gray-800">{g.poojariId ? personName({ name: g.title }, lang) : g.title}</h2>
                     <span className="text-[0.75rem] text-gray-500">{g.rows.length} · {groupDue} {tr('to perform')}</span>
                     {g.hint && <span className="text-[0.75rem] text-gray-500">— {g.hint}</span>}
@@ -350,6 +411,7 @@ export default function PoojariQueue() {
                     {g.rows.map((b) => (
                       <QueueCard key={b.key || b.id} b={b} lang={lang} user={user} isAdmin={isAdmin}
                         isQueueMode={isQueueMode} isToday={isToday} busy={busyId === b.id} poojaris={poojaris}
+                        flash={flashId === b.id} onSetPerformer={setPerformer}
                         onPerform={markPerformed} onUndo={undo} onReassign={reassign} />
                     ))}
                   </div>
@@ -409,7 +471,7 @@ export default function PoojariQueue() {
                       <td className="px-3 py-2 text-gray-800">{tr(r.pooja)}{r.plan ? ` · ${tr(r.plan)}` : ''}</td>
                       <td className="px-3 py-2 text-gray-700">{personName({ name: r.devotee_name, name_te: r.devotee_name_te }, lang)}</td>
                       <td className="px-3 py-2 text-gray-600">{r.mobile || '—'}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-gray-600">{r.ticket_no || r.booking_code}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-600 whitespace-nowrap">{r.ticket_no || r.booking_code}</td>
                       <td className="px-3 py-2 text-gray-700">{poojariOf(r) ? personName({ name: poojariOf(r) }, lang) : '—'}</td>
                       <td className="px-3 py-2"><span className={`text-xs font-medium ${statusOf(r) === 'Pending' ? 'text-amber-600' : 'text-emerald-700'}`}>{tr(statusOf(r))}</span></td>
                     </tr>
@@ -434,15 +496,15 @@ export default function PoojariQueue() {
   )
 }
 
-function QueueCard({ b, lang, user, isAdmin, isQueueMode, isToday, busy, poojaris, onPerform, onUndo, onReassign }) {
+function QueueCard({ b, lang, user, isAdmin, isQueueMode, isToday, busy, poojaris, flash, onPerform, onUndo, onReassign, onSetPerformer }) {
   const performed = !!b.performed_on
-  const finished = b.status === 'Completed' || b.remaining === 0
+  const finished = isFinished(b)
   const isDone = performed || finished
   const canUndo = isQueueMode && isToday && b.done_today && (isAdmin || b.performed_by === user?.username)
   const who = b.performed_by_poojari ? personName({ name: b.performed_by_poojari }, lang) : null
 
   return (
-    <div className={`bg-white rounded-xl border shadow-sm p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${isDone ? 'border-emerald-300 bg-gradient-to-r from-emerald-50/70 to-white' : 'border-gray-200'}`}>
+    <div id={`qcard-${b.id}`} className={`bg-white rounded-xl border shadow-sm p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-shadow duration-500 ${isDone ? 'border-emerald-300 bg-gradient-to-r from-emerald-50/70 to-white' : 'border-gray-200'} ${flash ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}`}>
       <div className={`w-24 shrink-0 rounded-lg p-2 text-center ${isDone ? 'bg-emerald-100' : 'bg-maroon-50'}`}>
         {!isQueueMode ? (
           <>
@@ -465,7 +527,7 @@ function QueueCard({ b, lang, user, isAdmin, isQueueMode, isToday, busy, poojari
         <div className="text-[0.8125rem] text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
           <span className="flex items-center gap-1"><User size={12} /> {personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</span>
           {b.mobile && <span className="flex items-center gap-1"><Phone size={12} /> {b.mobile}</span>}
-          <span className="text-maroon-600 font-mono text-[0.75rem] bg-maroon-50 px-1.5 py-0.5 rounded">#{b.ticket_no || b.booking_code}</span>
+          <span className="text-maroon-600 font-mono text-[0.75rem] bg-maroon-50 px-1.5 py-0.5 rounded whitespace-nowrap">#{b.ticket_no || b.booking_code}</span>
         </div>
         {(b.gothram || b.nakshatram || b.beneficiary_name) && (
           <div className="text-[0.6875rem] text-gray-500 mt-0.5">
@@ -490,7 +552,20 @@ function QueueCard({ b, lang, user, isAdmin, isQueueMode, isToday, busy, poojari
             </span>
           )}
         </div>
-        {performed && (who || b.performed_at) && (
+        {performed && isAdmin && onSetPerformer ? (
+          <div className="text-[0.6875rem] text-emerald-700 mt-1 flex flex-wrap items-center gap-1.5">
+            <span>{tr('Performed by')}</span>
+            <div className="w-40">
+              <Select className="input !py-0.5 !text-[0.75rem]" value={b.performed_by_poojari_id ? String(b.performed_by_poojari_id) : ''} disabled={busy}
+                onChange={(e) => onSetPerformer(b, e.target.value)} aria-label={tr('Performed by')}>
+                <option value="">{tr('Not recorded')}</option>
+                {poojaris.map((p) => <option key={p.id} value={String(p.id)}>{personName(p, lang)}</option>)}
+              </Select>
+            </div>
+            {b.performed_at && <span>· {fmtTime(b.performed_at)}</span>}
+            {!b.performed_by_poojari_id && b.performed_by && <span className="text-gray-500">· {tr('marked by')} {b.performed_by}</span>}
+          </div>
+        ) : performed && (who || b.performed_at) && (
           <div className="text-[0.6875rem] text-emerald-700 mt-1">
             {tr('Performed')}{who ? ` ${tr('by')} ${who}` : ''}{b.performed_at ? ` · ${fmtTime(b.performed_at)}` : ''}
           </div>

@@ -1,5 +1,5 @@
 """Hundi, Auction and Annadanam routers (grouped)."""
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import case, func
@@ -12,7 +12,7 @@ from ..schemas import (HundiCreate, HundiOut, HundiRejectIn, HundiDepositIn, Hun
                        AnnadanamCreate, AnnadanamOut)
 from ..helpers import validate_pagination, sort_expr, apply_column_filters
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
-from ..helpers import next_code_seq, assert_positive, assert_txn_date_open
+from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, ist_now, IST_OFFSET
 
 # ── Hundi ────────────────────────────────────────────────────────────────────
 hundi_router = APIRouter(prefix="/api/hundi", tags=["hundi"])
@@ -195,6 +195,18 @@ def create_hundi(body: HundiCreate, request: Request,
         raise HTTPException(422, "Provide the counted amount or an item-wise breakdown.")
     assert_positive(data.get("counted_amount"), "Counted amount")
     assert_txn_date_open(db, data.get("collected_on"), label="collection date")
+    # Counting happens after the hundi is opened and cannot be finished in the future.
+    # The form sends local (IST) time; a few minutes' slack covers a counter PC clock
+    # running slightly ahead of the server.
+    counted_at = data.get("counting_completed_on")
+    if counted_at is not None:
+        if counted_at.tzinfo is not None:
+            counted_at = counted_at.astimezone(IST_OFFSET).replace(tzinfo=None)
+            data["counting_completed_on"] = counted_at
+        if counted_at > ist_now() + timedelta(minutes=5):
+            raise HTTPException(422, "Counting completed on cannot be in the future.")
+        if data.get("collected_on") and counted_at.date() < data["collected_on"]:
+            raise HTTPException(422, "Counting cannot be completed before the collection date.")
     # Determine if there are valuables in this collection
     cash_total, valuables_total = _calc_cash_valuables(item_lines)
     has_valuables = valuables_total > 0
@@ -696,7 +708,7 @@ def create_annadanam(body: AnnadanamCreate, request: Request,
     from .. import notifications as notif
     dev = db.get(Devotee, a.devotee_id) if a.devotee_id else None
     notif.notify(db, "annadanam_received", {
-        "devotee": a.donor, "persons": a.plates, "amount": f"{float(a.amount or 0):.2f}",
+        "devotee": a.donor, "devotee_te": dev.name_te if dev else None, "persons": a.plates, "amount": f"{float(a.amount or 0):.2f}",
         "receipt": a.code,
     }, mobile=a.mobile or (dev.mobile if dev else None), email=(dev.email if dev else None),
         entity="Annadanam", entity_id=a.id, created_by=user.username)

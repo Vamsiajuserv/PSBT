@@ -21,7 +21,7 @@ def _channels(db):
 
 @router.get("/config")
 def get_config(db: Session = Depends(get_db), admin=Depends(require_admin)):
-    return {"channels": _channels(db),
+    return {"channels": _channels(db), "language": notif.message_language(db), "languages": notif.LANGUAGES,
             "events": [{"key": k, "label": v} for k, v in notif.EVENTS.items() if k != "test"]}
 
 
@@ -38,10 +38,13 @@ def update_config(body: NotificationConfigUpdateIn, request: Request, db: Sessio
         if ch in body_dict:
             notif.set_channel_enabled(db, ch, bool(body_dict[ch]), by=admin.username)
             changed.append(f"{ch}={'on' if body_dict[ch] else 'off'}")
+    if body.language:
+        notif.set_message_language(db, body.language, by=admin.username)
+        changed.append(f"language={body.language}")
     db.commit()
     log_action(db, username=admin.username, action="UPDATE", entity="NotificationConfig",
                detail=", ".join(changed) or "no change", ip=client_ip(request))
-    return {"channels": _channels(db)}
+    return {"channels": _channels(db), "language": notif.message_language(db)}
 
 
 @router.get("/stats")
@@ -87,7 +90,8 @@ def logs(q: str = "", channel: str = "", status: str = "", event: str = "",
 @router.get("/templates")
 def templates(admin=Depends(require_admin)):
     return {"events": [{"key": k, "label": v,
-                        "channels": {ch: notif.TEMPLATES.get(k, {}).get(ch) for ch in notif.CHANNELS}}
+                        "channels": {ch: notif.TEMPLATES.get(k, {}).get(ch) for ch in notif.CHANNELS},
+                        "channels_te": {ch: notif.TEMPLATES_TE.get(k, {}).get(ch) for ch in notif.CHANNELS}}
                        for k, v in notif.EVENTS.items()]}
 
 
