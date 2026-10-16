@@ -4,13 +4,38 @@ import {
   LayoutDashboard, Users as UsersIcon, Flame, HandHeart, Landmark, Gavel,
   UtensilsCrossed, Recycle, FileBarChart, ShieldCheck, Settings as SettingsIcon,
   Menu, LogOut, Bell, Calendar, Clock, ChevronDown, ChevronRight, ChevronLeft, KeyRound, Wallet,
-  Receipt, ClipboardList, ScanLine, TrendingUp,
+  Receipt, ClipboardList, ScanLine, TrendingUp, Boxes,
 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey, keyOf } from '../../auth/access.js'
 import { useLang, T, tr, clock12, personName } from '../../i18n/LanguageContext.jsx'
 import { getFontScale, setFontScale } from '../../lib/fontScale.js'
 import ChangePasswordModal from './ChangePasswordModal.jsx'
+import { StoresAPI } from '../../api/client.js'
+
+// Stores & Inventory badges: donations / custodies still waiting for ID tagging, and pieces
+// that came back unsold. Refreshed on every page change and whenever stock changes
+// ('stores:changed'), so neither can be forgotten.
+const PENDING_TO = '/admin/stores/pending'
+const UNSOLD_TO = '/admin/stores/unsold'
+const OPEN_SALE_TO = '/admin/stores/open-sale'
+function useStoresBadges(user, pathname) {
+  const [counts, setCounts] = useState({})
+  const allowed = canAccessKey(user, keyOf(PENDING_TO))
+  useEffect(() => {
+    if (!allowed) return undefined
+    let alive = true
+    const load = () => Promise.all([StoresAPI.pendingCount().catch(() => null), StoresAPI.unsoldCount().catch(() => null), StoresAPI.openSaleCount().catch(() => null)])
+      .then(([p, u, o]) => alive && setCounts({ [PENDING_TO]: p?.total || 0, [UNSOLD_TO]: u?.total || 0, [OPEN_SALE_TO]: o?.total || 0 }))
+    load()
+    window.addEventListener('stores:changed', load)
+    return () => { alive = false; window.removeEventListener('stores:changed', load) }
+  }, [allowed, pathname])
+  return allowed ? counts : {}
+}
+const Badge = ({ n, title }) => (n > 0
+  ? <span title={title} className="shrink-0 min-w-[1.25rem] h-5 px-1.5 rounded-full bg-gold-400 text-maroon-900 text-[0.6875rem] font-bold grid place-items-center">{n}</span>
+  : null)
 
 const NAV = [
   { to: '/admin', label: tr('Dashboard'), icon: LayoutDashboard, end: true },
@@ -54,11 +79,26 @@ const NAV = [
   },
   { to: '/admin/annadanam', label: tr('Annadanam Management'), icon: UtensilsCrossed },
   {
-    label: tr('Waste Material Sales'), icon: Recycle,
+    label: tr('Stores & Inventory'), icon: Boxes,
     children: [
-      { to: '/admin/waste-sales', label: tr('Waste Sales') },
+      { to: '/admin/stores/register', label: tr('Stock Register') },
+      { to: '/admin/stores/pending', label: tr('Pending Tagging') },
+      { to: '/admin/stores/unsold', label: tr('Unsold Items') },
+      { to: '/admin/stores/open-sale', label: tr('Open Sale') },
+      { to: '/admin/stores/consumables', label: tr('Consumables Stock') },
+      { to: '/admin/stores/manual', label: tr('Manual Entries') },
+      { to: '/admin/stores/item', label: tr('Item History') },
+      { to: '/admin/stores/report', label: tr('Stock Report') },
+      { to: '/admin/stores/check', label: tr('Stock Check') },
+      { to: '/admin/stores/locations', label: tr('Store Locations') },
+    ],
+  },
+  {
+    label: tr('Other Material Sales'), icon: Recycle,
+    children: [
+      { to: '/admin/waste-sales', label: tr('Other Sales') },
       { to: '/admin/vendors', label: tr('Vendor Master') },
-      { to: '/admin/waste-materials', label: tr('Waste Material Master') },
+      { to: '/admin/waste-materials', label: tr('Other Material Master') },
     ],
   },
   { to: '/admin/reports', label: tr('Reports'), icon: FileBarChart },
@@ -116,6 +156,8 @@ function SidebarNav({ onNavigate, collapsed }) {
   const location = useLocation()
   const { user } = useAuth()
   const { t } = useLang()
+  const storesBadges = useStoresBadges(user, location.pathname)
+  const badgeFor = (to) => storesBadges[to] || 0
 
   const nav = NAV.map((n) => {
     if (n.children) {
@@ -184,6 +226,7 @@ function SidebarNav({ onNavigate, collapsed }) {
               >
                 <Icon size={collapsed ? 16 : 18} className="shrink-0" />
                 <span className={`text-left transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
+                {!collapsed && !isOpen && <Badge n={n.children.reduce((s, c) => s + badgeFor(c.to), 0)} title={t('Waiting for action')} />}
                 <span className={`shrink-0 transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
                   {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 </span>
@@ -199,7 +242,8 @@ function SidebarNav({ onNavigate, collapsed }) {
                       }
                     >
                       <span className="w-1 h-1 rounded-full bg-current opacity-60 shrink-0" />
-                      <span className="min-w-0 break-words leading-snug">{t(c.label)}</span>
+                      <span className="min-w-0 flex-1 break-words leading-snug">{t(c.label)}</span>
+                      <Badge n={badgeFor(c.to)} title={c.to === UNSOLD_TO ? t('Unsold pieces in store') : c.to === OPEN_SALE_TO ? t('Pieces on Open Sale') : t('Waiting to be tagged')} />
                     </NavLink>
                   ))}
                 </div>
@@ -313,9 +357,9 @@ export default function AdminLayout() {
               <button onClick={() => setLang('en')} title={tr("English")} aria-label={tr("English")} aria-pressed={lang === 'en'} className={`px-2 py-1 outline-none transition-none ${lang === 'en' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>EN</button>
               <button onClick={() => setLang('te')} title="తెలుగు" aria-label={tr("Switch to Telugu")} aria-pressed={lang === 'te'} className={`px-2 py-1 font-telugu outline-none transition-none ${lang === 'te' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>తెలుగు</button>
             </div>
-            <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label={tr("Notifications")} className="text-[#E5B94F] hover:text-[#FFF1C7] focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:ring-offset-1 focus:ring-offset-[#5A071A] rounded-full p-1">
+            {canAccessKey(user, 'notifications') && <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label={tr("Notifications")} className="text-[#E5B94F] hover:text-[#FFF1C7] focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:ring-offset-1 focus:ring-offset-[#5A071A] rounded-full p-1">
               <Bell size={18} />
-            </button>
+            </button>}
             <FontSizeToggle />
             <div className="flex items-center gap-2 pl-2 lg:pl-3 border-l border-[#D4AF37]/30">
               <div className="w-9 h-9 rounded-full bg-[#D4AF37] text-[#4A0515] grid place-items-center text-xs font-bold shadow-sm">{initials}</div>

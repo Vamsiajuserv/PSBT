@@ -13,6 +13,7 @@ import { Select } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
+import { confirmDialog } from '../../components/common/Dialog.jsx'
 
 const MOD_ICON = {
   Devotees: UsersIcon, Sevas: Flame, Bookings: Flame, Donations: HeartHandshake,
@@ -74,7 +75,12 @@ export default function RoleAccess() {
 
   function pick(id) { RolesAPI.get(id).then((r) => { setSel(r); setMods(r.modules || []); setSaved(false) }) }
   const toggle = (k) => setMods((m) => (m.includes(k) ? m.filter((x) => x !== k) : [...m, k]))
-  async function save() { const r = await RolesAPI.update(sel.id, { modules: mods }); setSel(r); setRoles((rs) => rs.map((x) => (x.id === r.id ? { ...x, modules: r.modules, assigned_users: r.assigned_users } : x))); setSaved(true); setTimeout(() => setSaved(false), 2500) }
+  async function save() {
+    // Saving a role copies its module list onto every user who has that role — say so first
+    const n = sel.users?.length ?? sel.assigned_users ?? 0
+    if (n > 0 && !(await confirmDialog({ title: `${tr('Update access for')} ${tr(sel.name)}`, confirmLabel: tr('Save Changes'),
+      message: `${tr('This will update module access for')} ${n} ${tr(sel.name)} ${n === 1 ? tr('user') : tr('users')}. ${tr('Any extra access given to an individual user with this role will be replaced.')}` }))) return
+    const r = await RolesAPI.update(sel.id, { modules: mods }); setSel(r); setRoles((rs) => rs.map((x) => (x.id === r.id ? { ...x, modules: r.modules, assigned_users: r.assigned_users } : x))); setSaved(true); setTimeout(() => setSaved(false), 2500) }
 
   const filtered = roles.filter((r) => {
     if (q && !r.name.toLowerCase().includes(q.toLowerCase())) return false

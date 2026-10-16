@@ -44,7 +44,7 @@ const LABELS = {
   hundi: 'Hundi',
   auction: 'Auctions',
   annadanam: 'Annadanam',
-  waste: 'Waste Sales',
+  waste: 'Other Sales',
 }
 
 // ── Summary Card ──
@@ -484,7 +484,7 @@ export default function Analytics() {
   // Payment mode donut
   const paymentSegments = paymentModes?.summary ? [
     { label: 'Cash', value: paymentModes.summary.cash.amount, color: '#059669' },
-    { label: 'UPI', value: paymentModes.summary.upi.amount, color: '#3b82f6' },
+    { label: 'Online', value: paymentModes.summary.upi.amount, color: '#3b82f6' },
   ] : []
 
   return (
@@ -648,7 +648,7 @@ export default function Analytics() {
                 <div className="font-bold text-emerald-800">{paymentModes.summary.cash.pct}%</div>
               </div>
               <div className="bg-blue-50 rounded-lg p-3 text-center">
-                <div className="text-[0.75rem] text-blue-700"><T>UPI</T></div>
+                <div className="text-[0.75rem] text-blue-700"><T>Online</T></div>
                 <div className="font-bold text-blue-800">{paymentModes.summary.upi.pct}%</div>
               </div>
             </div>

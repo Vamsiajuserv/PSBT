@@ -1,17 +1,19 @@
 """Hundi, Auction and Annadanam routers (grouped)."""
+import json
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import case, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..models import HundiCollection, HundiCollectionItem, Auction, Annadanam
-from ..schemas import (HundiCreate, HundiOut, HundiRejectIn, HundiDepositIn, HundiStoreIn,
-                       AuctionCreate, AuctionOut, AuctionUpdateIn, AuctionRejectIn, AuctionPaymentIn,
+from ..models import HundiCollection, HundiCollectionItem, Auction, Annadanam, CommitteeMember, StoreLocation
+from ..schemas import (HundiCreate, HundiOut, HundiRejectIn, HundiResubmitIn, HundiDepositIn, HundiStoreIn,
+                       AuctionCreate, AuctionOut, AuctionResultIn, AuctionEditIn, AuctionReauctionIn,
+                       AuctionRejectIn, AuctionPaymentIn,
                        AnnadanamCreate, AnnadanamOut)
 from ..helpers import validate_pagination, sort_expr, apply_column_filters
-from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
+from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip, ADMIN_ROLES
 from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, ist_now, IST_OFFSET
 
 # ── Hundi ────────────────────────────────────────────────────────────────────
@@ -22,6 +24,64 @@ h_write = RequireModule("Hundi", write=True)
 # Item types classification for cash vs valuables tracking
 CASH_TYPES = {"Cash", "Coins"}
 VALUABLES_TYPES = {"Gold", "Silver", "Jewellery", "Valuables", "Foreign Currency"}
+
+
+# A count is verified once this many of its assigned committee members approve it.
+REQUIRED_APPROVALS = 2
+
+
+def _resolve_members(db: Session, ids: list[int], names: list[str]) -> list[CommitteeMember]:
+    """The Committee Member Master records for a count, in the order chosen. Ids are
+    authoritative; names are matched only for collections recorded before ids were kept."""
+    if ids:
+        found = {m.id: m for m in db.query(CommitteeMember).filter(CommitteeMember.id.in_(ids))}
+        return [found[i] for i in dict.fromkeys(ids) if i in found]
+    wanted = [n.strip() for n in names if n and n.strip()]
+    if not wanted:
+        return []
+    found = {m.name: m for m in db.query(CommitteeMember).filter(CommitteeMember.name.in_(wanted))}
+    return [found[n] for n in dict.fromkeys(wanted) if n in found]
+
+
+def _assigned_ids(db: Session, h: HundiCollection) -> list[int]:
+    ids = [int(x) for x in (h.committee_member_ids or "").split(",") if x.strip().isdigit()]
+    if ids:
+        return ids
+    return [m.id for m in _resolve_members(db, [], (h.committee_members or "").split(","))]
+
+
+def _approvals(h: HundiCollection) -> list[dict]:
+    try:
+        v = json.loads(h.approvals or "[]")
+    except ValueError:
+        return []
+    return v if isinstance(v, list) else []
+
+
+def _check_counted_at(counted_at, collected_on):
+    """Counting happens after the hundi is opened and cannot be finished in the future.
+    The form sends local (IST) time; a few minutes' slack covers a counter PC clock
+    running slightly ahead of the server. Returns the value as naive IST."""
+    if counted_at is None:
+        return None
+    if counted_at.tzinfo is not None:
+        counted_at = counted_at.astimezone(IST_OFFSET).replace(tzinfo=None)
+    if counted_at > ist_now() + timedelta(minutes=5):
+        raise HTTPException(422, "Counting completed on cannot be in the future.")
+    if collected_on and counted_at.date() < collected_on:
+        raise HTTPException(422, "Counting cannot be completed before the collection date.")
+    return counted_at
+
+
+def _assert_assigned_member(db: Session, h: HundiCollection, user) -> int:
+    """A Committee login may act on a count only if it is linked to one of the
+    members assigned to that count. Returns the linked member id."""
+    if not user.committee_member_id:
+        raise HTTPException(403, "Your login is not linked to a committee member. "
+                                 "Ask the administrator to link it in User Management.")
+    if user.committee_member_id not in _assigned_ids(db, h):
+        raise HTTPException(403, "Only the committee members assigned to this count can approve or reject it.")
+    return user.committee_member_id
 
 
 def _calc_cash_valuables(items: list) -> tuple[Decimal, Decimal]:
@@ -184,8 +244,15 @@ def create_hundi(body: HundiCreate, request: Request,
               "deposited_on", "bank_ref", "bank_name", "status",
               "valuables_status", "store_location", "valuables_custodian", "valuables_stored_on"):
         data.pop(k, None)
-    members = data.pop("committee_members", []) or []
-    joined = ", ".join(m for m in members if m)
+    member_ids = data.pop("committee_member_ids", []) or []
+    names = data.pop("committee_members", []) or []
+    assigned = _resolve_members(db, member_ids, names)
+    if any(not m.active for m in assigned):
+        raise HTTPException(422, "An inactive committee member cannot be assigned to a count.")
+    if len(assigned) < REQUIRED_APPROVALS:
+        raise HTTPException(422, f"Select at least {REQUIRED_APPROVALS} committee members from the "
+                                 "Committee Member Master — they must approve this count.")
+    joined = ", ".join(m.name for m in assigned)
     item_lines = data.pop("items", []) or []
     # When an item-wise breakdown is supplied, the counted total is the sum of the
     # lines — the server is the source of truth, not a free-typed amount.
@@ -198,21 +265,14 @@ def create_hundi(body: HundiCreate, request: Request,
     # Counting happens after the hundi is opened and cannot be finished in the future.
     # The form sends local (IST) time; a few minutes' slack covers a counter PC clock
     # running slightly ahead of the server.
-    counted_at = data.get("counting_completed_on")
-    if counted_at is not None:
-        if counted_at.tzinfo is not None:
-            counted_at = counted_at.astimezone(IST_OFFSET).replace(tzinfo=None)
-            data["counting_completed_on"] = counted_at
-        if counted_at > ist_now() + timedelta(minutes=5):
-            raise HTTPException(422, "Counting completed on cannot be in the future.")
-        if data.get("collected_on") and counted_at.date() < data["collected_on"]:
-            raise HTTPException(422, "Counting cannot be completed before the collection date.")
+    data["counting_completed_on"] = _check_counted_at(data.get("counting_completed_on"), data.get("collected_on"))
     # Determine if there are valuables in this collection
     cash_total, valuables_total = _calc_cash_valuables(item_lines)
     has_valuables = valuables_total > 0
     has_cash = cash_total > 0
     h = HundiCollection(code=f"HUN-{year}-{str(seq).zfill(5)}", created_by=user.username,
                         committee_members=joined, committee_member=joined,
+                        committee_member_ids=",".join(str(m.id) for m in assigned), approvals="[]",
                         verification_status="Pending Verification",
                         deposit_status="Pending Deposit" if has_cash else "N/A",
                         valuables_status="Pending Custody" if has_valuables else None,
@@ -232,32 +292,56 @@ def create_hundi(body: HundiCreate, request: Request,
 @hundi_router.put("/{hid}/verify", response_model=HundiOut)
 def verify_hundi(hid: int, request: Request, db: Session = Depends(get_db),
                  user=Depends(RequireRole("Committee"))):
-    """Committee (or Administrator) attests a counted collection. Deliberately a
-    separate act from recording it — the counter cannot verify its own count."""
+    """Approve a counted collection. Only the committee members assigned to the count
+    may approve it, and it becomes Verified once REQUIRED_APPROVALS of them have.
+    An Administrator may override and verify it at once. Deliberately a separate act
+    from recording it — the person who recorded the count cannot approve it."""
     h = db.get(HundiCollection, hid)
     if not h:
         raise HTTPException(404, "Hundi collection not found")
     if h.verification_status == "Verified":
         raise HTTPException(409, "This collection is already verified.")
-    if not (h.committee_members or "").strip():
-        raise HTTPException(422, "Record the committee members present at the count before verifying.")
+    if h.verification_status == "Rejected":
+        raise HTTPException(409, "A rejected collection cannot be approved.")
     if h.created_by and user.username == h.created_by:
         raise HTTPException(403, "The person who recorded the collection cannot verify it — a different committee member must attest.")
+    now = datetime.now(timezone.utc)
+    approvals = _approvals(h)
+
+    if user.role in ADMIN_ROLES:
+        h.verified_by = f"{user.name or user.username} (Admin override)"
+        detail = f"Verified {h.code} ₹{h.counted_amount} — admin override ({len(approvals)} member approval(s) recorded)"
+    else:
+        member_id = _assert_assigned_member(db, h, user)
+        if any(a.get("member_id") == member_id for a in approvals):
+            raise HTTPException(409, "You have already approved this collection.")
+        member = db.get(CommitteeMember, member_id)
+        approvals.append({"member_id": member_id, "name": member.name if member else user.name,
+                          "username": user.username, "at": now.isoformat()})
+        h.approvals = json.dumps(approvals)
+        # Collections recorded before the two-member rule may have only one member assigned.
+        required = min(REQUIRED_APPROVALS, len(_assigned_ids(db, h)))
+        if len(approvals) < required:
+            db.commit(); db.refresh(h)
+            log_action(db, username=user.username, action="UPDATE", entity="Hundi",
+                       detail=f"Approved {h.code} ({len(approvals)}/{required})", ip=client_ip(request))
+            return h
+        h.verified_by = " & ".join(a["name"] for a in approvals)
+        detail = f"Verified {h.code} ₹{h.counted_amount} — approved by {h.verified_by}"
+
     h.verification_status = "Verified"
-    h.verified_by = user.name or user.username
-    h.verified_on = datetime.now(timezone.utc)
+    h.verified_on = now
     h.status = "Verified"
     db.commit(); db.refresh(h)
-    log_action(db, username=user.username, action="UPDATE", entity="Hundi",
-               detail=f"Verified {h.code} ₹{h.counted_amount}", ip=client_ip(request))
+    log_action(db, username=user.username, action="UPDATE", entity="Hundi", detail=detail, ip=client_ip(request))
     return h
 
 
 @hundi_router.put("/{hid}/reject", response_model=HundiOut)
 def reject_hundi(hid: int, body: HundiRejectIn, request: Request, db: Session = Depends(get_db),
                  user=Depends(RequireRole("Committee"))):
-    """Committee flags a counted collection as having a discrepancy instead of
-    attesting it — previously verification was attest-or-nothing.
+    """An assigned committee member (or Administrator) flags a counted collection as
+    having a discrepancy instead of approving it.
 
     API-003: Uses typed HundiRejectIn schema for input validation.
     """
@@ -266,6 +350,12 @@ def reject_hundi(hid: int, body: HundiRejectIn, request: Request, db: Session = 
         raise HTTPException(404, "Hundi collection not found")
     if h.verification_status == "Verified":
         raise HTTPException(409, "An already-verified collection cannot be rejected.")
+    if h.verification_status == "Rejected":
+        raise HTTPException(409, "This collection is already rejected.")
+    if user.role not in ADMIN_ROLES:
+        member_id = _assert_assigned_member(db, h, user)
+        if any(a.get("member_id") == member_id for a in _approvals(h)):
+            raise HTTPException(409, "You have already approved this collection, so you cannot reject it.")
     reason = body.reason.strip()
     h.verification_status = "Rejected"
     h.status = "Rejected"
@@ -273,6 +363,49 @@ def reject_hundi(hid: int, body: HundiRejectIn, request: Request, db: Session = 
     db.commit(); db.refresh(h)
     log_action(db, username=user.username, action="UPDATE", entity="Hundi",
                detail=f"Rejected {h.code}: {reason[:80]}", ip=client_ip(request))
+    return h
+
+
+@hundi_router.put("/{hid}/resubmit", response_model=HundiOut)
+def resubmit_hundi(hid: int, body: HundiResubmitIn, request: Request, db: Session = Depends(get_db),
+                   user=Depends(require_admin)):
+    """Administrator corrects a REJECTED count (item lines / amounts) and sends it back
+    for approval. The assigned members stay the same; their earlier approvals are
+    cleared, so two of them must approve the corrected count afresh."""
+    h = db.get(HundiCollection, hid)
+    if not h:
+        raise HTTPException(404, "Hundi collection not found")
+    if h.verification_status != "Rejected":
+        raise HTTPException(409, "Only a rejected collection can be corrected and resubmitted.")
+    # The count belongs to its collection day — a closed day's totals must not change.
+    assert_txn_date_open(db, h.collected_on, label="collection date")
+    lines = [li.model_dump() for li in body.items]
+    if any(Decimal(str(li.get("value") or 0)) <= 0 for li in lines):
+        raise HTTPException(422, "All item values must be greater than zero.")
+    if body.counting_completed_on is not None:
+        h.counting_completed_on = _check_counted_at(body.counting_completed_on, h.collected_on)
+    if body.denomination:
+        h.denomination = body.denomination
+    old_amount = h.counted_amount
+    h.items.clear()
+    for li in lines:
+        h.items.append(HundiCollectionItem(
+            hundi_item_id=li.get("hundi_item_id"), item_name=li.get("item_name"),
+            item_type=li.get("item_type"), quantity=li.get("quantity"),
+            unit=li.get("unit"), value=li.get("value") or 0, remarks=li.get("remarks")))
+    h.counted_amount = sum((Decimal(str(li.get("value") or 0)) for li in lines), Decimal("0"))
+    cash_total, valuables_total = _calc_cash_valuables(lines)
+    h.deposit_status = "Pending Deposit" if cash_total > 0 else "N/A"
+    h.valuables_status = "Pending Custody" if valuables_total > 0 else None
+    h.verification_status = h.status = "Pending Verification"
+    h.verified_by = h.verified_on = None
+    h.approvals = "[]"
+    h.notes = (f"{(h.notes + ' | ') if h.notes else ''}Corrected by {user.name or user.username}: "
+               f"₹{old_amount} → ₹{h.counted_amount} — Reason: {body.note}")
+    db.commit(); db.refresh(h)
+    log_action(db, username=user.username, action="UPDATE", entity="Hundi",
+               detail=f"Corrected & resubmitted {h.code}: ₹{old_amount} → ₹{h.counted_amount} — {body.note[:120]}",
+               ip=client_ip(request))
     return h
 
 
@@ -328,9 +461,15 @@ def store_hundi_valuables(hid: int, body: HundiStoreIn, request: Request, db: Se
         raise HTTPException(409, "Valuables from this collection are already in store custody.")
     if h.valuables_status is None:
         raise HTTPException(409, "This collection has no valuables to store.")
+    # The custody location must be one of the Store Locations, so the vault the valuables went
+    # to is the same place their tagged pieces are tracked and stock-checked at.
+    loc = (db.query(StoreLocation).filter(func.lower(StoreLocation.name) == (body.store_location or "").strip().lower(),
+                                          StoreLocation.active.is_(True)).first())
+    if not loc:
+        raise HTTPException(422, "Choose the store location from the list (Stores → Store Locations).")
     h.valuables_stored_on = body.stored_on if body.stored_on else date.today()
     assert_txn_date_open(db, h.valuables_stored_on, label="custody date")
-    h.store_location = body.store_location
+    h.store_location = loc.name
     h.valuables_custodian = body.custodian
     h.custody_receipt = body.custody_receipt
     h.valuables_status = "In Store"
@@ -350,6 +489,9 @@ def store_hundi_valuables(hid: int, body: HundiStoreIn, request: Request, db: Se
 auction_router = APIRouter(prefix="/api/auctions", tags=["auction"])
 a_read = RequireModule("Auction")
 a_write = RequireModule("Auction", write=True)
+# Money is collected at the counter: Counter Staff (and Administrator) only — never the
+# Committee, which approves the result.
+a_pay = RequireRole("Counter Staff")
 
 
 @auction_router.get("/stats")
@@ -365,6 +507,7 @@ def auction_stats(db: Session = Depends(get_db), user=Depends(a_read)):
     return {
         "total": db.query(func.count(Auction.id)).filter(Auction.status != "Void").scalar() or 0,
         "scheduled": c("Scheduled"), "in_progress": c("In Progress"), "completed": c("Completed"),
+        "unsold": c("Unsold"),
         # Verification stats
         "pending_verification": vc("Pending"),
         "verified": vc("Verified"),
@@ -401,10 +544,12 @@ def list_auctions(q: str = "", status: str = "",
     INF-001: Added pagination validation to prevent unbounded result sets.
     """
     page, size = validate_pagination(page, size)
-    query = db.query(Auction)
+    query = db.query(Auction).options(selectinload(Auction.pieces), selectinload(Auction.sales))
     if q:
         like = f"%{q}%"
-        query = query.filter((Auction.code.ilike(like)) | (Auction.item.ilike(like)) | (Auction.winner.ilike(like)))
+        from ..models import AuctionPiece
+        query = query.filter((Auction.code.ilike(like)) | (Auction.item.ilike(like)) | (Auction.winner.ilike(like))
+                             | Auction.pieces.any(AuctionPiece.tag_id.ilike(like)))   # a piece ID finds its lot
     if status:
         query = query.filter(Auction.status == status)
     if verification:
@@ -435,6 +580,47 @@ def list_auctions(q: str = "", status: str = "",
             "items": [AuctionOut.model_validate(r).model_dump() for r in rows]}
 
 
+# Auction workflow:  Scheduled → In Progress → Sold ("Completed") or Unsold → Committee
+# approves/rejects → Sold: payment collected (record locked) · Unsold: re-auctioned as a
+# new auction for the same item. Counter Staff and Committee run the auction; only the
+# Committee approves or rejects; only the Administrator edits details (with a reason).
+RESULT_STATES = ("Completed", "Unsold")
+
+
+def _au_log(au: Auction, user, action: str, detail: str = "") -> None:
+    """Append one entry to the auction's change history (shown in View details)."""
+    try:
+        hist = json.loads(au.history or "[]")
+    except ValueError:
+        hist = []
+    hist.append({"at": datetime.now(timezone.utc).isoformat(), "by": getattr(user, "name", None) or user.username,
+                 "action": action, "detail": detail})
+    au.history = json.dumps(hist)
+
+
+def _get_auction(db: Session, aid: int) -> Auction:
+    au = db.get(Auction, aid)
+    if not au:
+        raise HTTPException(404, "Auction not found")
+    if au.status == "Void":
+        raise HTTPException(409, "A voided auction cannot be changed.")
+    if au.payment_status in ("Paid", "Partially Paid"):
+        raise HTTPException(409, "Payment is already collected — this auction is locked.")
+    return au
+
+
+def _check_sold(au: Auction) -> None:
+    """A sold auction names its winner and a winning bid at or above the base price."""
+    if not (au.winner or "").strip():
+        raise HTTPException(422, "A sold auction must record the winning bidder.")
+    if Decimal(str(au.current_amount or 0)) < Decimal(str(au.base_amount or 0)):
+        raise HTTPException(422, "The highest/winning bid cannot be below the base amount.")
+
+
+def _inr(v) -> str:
+    return f"₹{Decimal(str(v or 0)):,.0f}"
+
+
 @auction_router.post("", response_model=AuctionOut, status_code=201)
 def create_auction(body: AuctionCreate, request: Request,
                    db: Session = Depends(get_db), user=Depends(a_write)):
@@ -442,16 +628,17 @@ def create_auction(body: AuctionCreate, request: Request,
     seq = next_code_seq(db, "auction", db.query(func.max(Auction.id)).scalar() or 0)
     data = body.model_dump()
     assert_positive(data.get("base_amount"), "Base amount")
+    # Results are recorded afterwards (Record Result), so they go to the committee.
+    if data.get("status") not in ("Scheduled", "In Progress"):
+        raise HTTPException(422, "A new auction starts as Scheduled — record its result once it is held.")
     if data.get("current_amount") is None:
         data["current_amount"] = data.get("base_amount") or 0
     # A bid can never be below the base (reserve) price.
     if Decimal(str(data["current_amount"])) < Decimal(str(data["base_amount"])):
         raise HTTPException(422, "The highest/winning bid cannot be below the base amount.")
-    # A completed auction must name its winning bidder.
-    if (data.get("status") or "").strip() == "Completed" and not (data.get("winner") or "").strip():
-        raise HTTPException(422, "A completed auction must record the winning bidder.")
     assert_txn_date_open(db, data.get("auction_date"), allow_future=True, label="auction date")
     au = Auction(code=f"AUC-{year}-{str(seq).zfill(4)}", created_by=user.username, **data)
+    _au_log(au, user, "Created", f"Base {_inr(au.base_amount)}")
     db.add(au); db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="CREATE", entity="Auction",
                detail=au.item, ip=client_ip(request))
@@ -459,114 +646,164 @@ def create_auction(body: AuctionCreate, request: Request,
 
 
 @auction_router.put("/{aid}", response_model=AuctionOut)
-def update_auction(aid: int, body: AuctionUpdateIn, request: Request,
-                   db: Session = Depends(get_db), user=Depends(a_write)):
-    """Record the auction lifecycle — bids, highest amount, winner, closing.
-    Previously auctions could only be created, so committee decisions (highest
-    bid, winner, completion) had nowhere to be recorded.
-
-    API-006: Uses typed AuctionUpdateIn schema for input validation.
-    """
-    au = db.get(Auction, aid)
-    if not au:
-        raise HTTPException(404, "Auction not found")
-    if au.status == "Void":
-        raise HTTPException(409, "A voided auction cannot be edited")
-    # Update only fields that are provided (not None)
-    if body.item is not None:
-        au.item = body.item
-    if body.description is not None:
-        au.description = body.description
-    if body.start_time is not None:
-        au.start_time = body.start_time
-    if body.notes is not None:
-        au.notes = body.notes
-    if body.winner is not None:
-        au.winner = body.winner
-    if body.status is not None:
-        au.status = body.status
+def record_result(aid: int, body: AuctionResultIn, request: Request,
+                  db: Session = Depends(get_db), user=Depends(a_write)):
+    """Record the auction's result — bids so far (In Progress), Sold or Unsold. A Sold or
+    Unsold result goes to the committee for approval. It can be recorded again (corrected)
+    until the committee approves it; after that only the Administrator can edit."""
+    au = _get_auction(db, aid)
+    if au.from_stock:
+        raise HTTPException(409, "This is a lot auction from stock — record the result per buyer.")
+    if au.status in RESULT_STATES and au.verification_status == "Verified":
+        raise HTTPException(409, "The committee has already approved this result — ask the administrator to edit it.")
+    if body.status in RESULT_STATES and au.auction_date and au.auction_date > date.today():
+        raise HTTPException(422, "Cannot record result for a future-dated auction. The auction must have occurred first.")
     if body.bids is not None:
         au.bids = body.bids
-    if body.devotee_id is not None:
-        au.devotee_id = body.devotee_id
-    if body.auction_date is not None:
-        au.auction_date = body.auction_date
-    if body.base_amount is not None:
-        assert_positive(body.base_amount, "Base amount")
-        au.base_amount = body.base_amount
-    if body.current_amount is not None:
-        au.current_amount = body.current_amount
-    if au.current_amount is not None and au.base_amount is not None and \
-            Decimal(str(au.current_amount)) < Decimal(str(au.base_amount)):
-        raise HTTPException(422, "The highest/winning bid cannot be below the base amount.")
-    if (au.status or "") == "Completed" and not (au.winner or "").strip():
-        raise HTTPException(422, "A completed auction must record the winning bidder.")
-    # Cannot record result for a future-dated auction
-    if (au.status or "") == "Completed" and au.auction_date and au.auction_date > date.today():
-        raise HTTPException(422, "Cannot record result for a future-dated auction. The auction must have occurred first.")
+    if body.notes is not None:
+        au.notes = body.notes
+    if body.status == "Unsold":
+        au.winner, au.devotee_id, au.current_amount = None, None, 0
+        summary = f"Unsold ({au.bids or 0} bids)"
+    else:
+        if body.current_amount is not None:
+            au.current_amount = body.current_amount
+        if body.winner is not None:
+            au.winner = body.winner.strip() or None
+        if body.devotee_id is not None:
+            au.devotee_id = body.devotee_id
+        if body.status == "Completed":
+            _check_sold(au)
+            summary = f"Sold to {au.winner} for {_inr(au.current_amount)} ({au.bids or 0} bids)"
+        else:
+            if au.current_amount is not None and Decimal(str(au.current_amount)) < Decimal(str(au.base_amount or 0)):
+                raise HTTPException(422, "The highest/winning bid cannot be below the base amount.")
+            summary = f"Bids so far: {_inr(au.current_amount)}"
+    au.status = body.status
+    if body.status in RESULT_STATES:
+        # A (re-)recorded result always goes (back) to the committee.
+        au.verification_status = "Pending"
+        au.verified_by = au.verified_at = None
+        au.result_by = user.username
+    _au_log(au, user, "Result recorded" if body.status in RESULT_STATES else "Bid recorded", summary)
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
-               detail=f"{au.code} {au.status} ₹{au.current_amount}", ip=client_ip(request))
+               detail=f"{au.code} {summary}", ip=client_ip(request))
+    return au
+
+
+@auction_router.put("/{aid}/edit", response_model=AuctionOut)
+def edit_auction(aid: int, body: AuctionEditIn, request: Request,
+                 db: Session = Depends(get_db), user=Depends(require_admin)):
+    """Administrator corrects an auction's details any time before payment, with a
+    mandatory reason. Changing an approved result (winner / amount / bids) sends it back
+    to the committee for approval."""
+    au = _get_auction(db, aid)
+    fields = ("item", "description", "base_amount", "auction_date", "start_time", "notes",
+              "winner", "current_amount", "bids")
+    data = body.model_dump(exclude_unset=True)
+    changes = []
+    for f in fields:
+        if f not in data or data[f] is None:
+            continue
+        new, old = data[f], getattr(au, f)
+        if isinstance(new, str):
+            new = new.strip()
+        same = (Decimal(str(old or 0)) == Decimal(str(new))) if f in ("base_amount", "current_amount") else old == new
+        if not same:
+            changes.append((f, old, new))
+    if not changes:
+        raise HTTPException(422, "Nothing was changed.")
+    if au.from_stock and any(f in ("winner", "current_amount", "bids", "base_amount") for f, _, _ in changes):
+        raise HTTPException(422, "A lot auction's buyers, amounts and base price are corrected through Record Result "
+                                 "(the committee rejects the result first).")
+    if any(f in ("winner", "current_amount") for f, _, _ in changes) and au.status not in RESULT_STATES:
+        raise HTTPException(422, "Record the result first — the winner and amount are set by Record Result.")
+    for f, _, new in changes:
+        setattr(au, f, new)
+    if "base_amount" in data and data["base_amount"] is not None:
+        assert_positive(au.base_amount, "Base amount")
+    if au.status == "Completed":
+        _check_sold(au)
+    labels = {"item": "Item", "description": "Description", "base_amount": "Base", "auction_date": "Date",
+              "start_time": "Time", "notes": "Notes", "winner": "Winner", "current_amount": "Amount", "bids": "Bids"}
+    fmt = lambda f, v: _inr(v) if f in ("base_amount", "current_amount") else (v if v not in (None, "") else "—")
+    detail = "; ".join(f"{labels[f]}: {fmt(f, o)} → {fmt(f, n)}" for f, o, n in changes) + f" — Reason: {body.reason}"
+    result_changed = any(f in ("winner", "current_amount", "bids") for f, _, _ in changes)
+    if result_changed and au.status in RESULT_STATES and au.verification_status == "Verified":
+        au.verification_status = "Pending"
+        au.verified_by = au.verified_at = None
+        detail += " (sent back for committee approval)"
+    _au_log(au, user, "Edited by admin", detail)
+    db.commit(); db.refresh(au)
+    log_action(db, username=user.username, action="UPDATE", entity="Auction",
+               detail=f"Edited {au.code}: {detail[:200]}", ip=client_ip(request))
     return au
 
 
 @auction_router.delete("/{aid}", status_code=204)
 def delete_auction(aid: int, request: Request,
                    db: Session = Depends(get_db), user=Depends(require_admin)):
-    au = db.get(Auction, aid)
-    if not au:
-        raise HTTPException(404, "Auction not found")
+    au = _get_auction(db, aid)   # a paid auction has a receipt — it cannot be voided
+    if au.from_stock:
+        from .auction_lots import release_pieces
+        release_pieces(db, au, user, "Auction voided")
     au.status = "Void"   # soft-void: keep the record, drop it from collections
+    _au_log(au, user, "Voided")
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
                detail=f"Voided {au.item}", ip=client_ip(request))
     db.commit()
 
 
+def _pending_result(db: Session, aid: int, user) -> Auction:
+    au = _get_auction(db, aid)
+    if au.status not in RESULT_STATES:
+        raise HTTPException(409, "Record the auction result (Sold or Unsold) before the committee decides.")
+    if au.verification_status != "Pending":
+        raise HTTPException(409, f"This result is already {au.verification_status.lower()}.")
+    if user.username in (au.created_by, au.result_by):
+        raise HTTPException(403, "The person who created the auction or recorded its result cannot approve or reject it.")
+    return au
+
+
 @auction_router.post("/{aid}/verify", response_model=AuctionOut)
 def verify_auction(aid: int, request: Request,
                    db: Session = Depends(get_db), user=Depends(RequireRole("Committee"))):
-    """Committee (or Administrator) verifies a completed auction result.
-    Only Completed auctions with a winner can be verified."""
-    au = db.get(Auction, aid)
-    if not au:
-        raise HTTPException(404, "Auction not found")
-    if au.status != "Completed":
-        raise HTTPException(409, "Only completed auctions can be verified.")
-    if not (au.winner or "").strip():
-        raise HTTPException(422, "The auction must have a winner before verification.")
-    if au.verification_status == "Verified":
-        raise HTTPException(409, "This auction is already verified.")
-    if au.created_by and user.username == au.created_by:
-        raise HTTPException(403, "The person who recorded the auction cannot verify it.")
+    """Committee approves a Sold or Unsold result."""
+    au = _pending_result(db, aid, user)
+    if au.from_stock:
+        from .auction_lots import apply_outcome
+        outcome = apply_outcome(db, au, user)
+    else:
+        if au.status == "Completed":
+            _check_sold(au)
+        outcome = f"Sold to {au.winner} for {_inr(au.current_amount)}" if au.status == "Completed" else "Unsold"
     au.verification_status = "Verified"
     au.verified_by = user.name or user.username
     au.verified_at = datetime.now(timezone.utc)
     au.rejection_reason = None
+    _au_log(au, user, "Approved", outcome)
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
-               detail=f"Verified {au.code} ₹{au.current_amount} winner: {au.winner}", ip=client_ip(request))
+               detail=f"Verified {au.code}: {outcome}", ip=client_ip(request))
     return au
 
 
 @auction_router.post("/{aid}/reject", response_model=AuctionOut)
 def reject_auction(aid: int, body: AuctionRejectIn, request: Request,
                    db: Session = Depends(get_db), user=Depends(RequireRole("Committee"))):
-    """Committee rejects a completed auction — e.g., discrepancy in bid amount or winner.
+    """Committee rejects a Sold or Unsold result (e.g. wrong winner or amount). The result
+    can then be recorded again and comes back for approval.
 
     API-007: Uses typed AuctionRejectIn schema for input validation.
     """
-    au = db.get(Auction, aid)
-    if not au:
-        raise HTTPException(404, "Auction not found")
-    if au.status != "Completed":
-        raise HTTPException(409, "Only completed auctions can be rejected.")
-    if au.verification_status == "Verified":
-        raise HTTPException(409, "An already-verified auction cannot be rejected.")
+    au = _pending_result(db, aid, user)
     reason = body.reason.strip()
     au.verification_status = "Rejected"
     au.rejection_reason = reason
     au.verified_by = user.name or user.username
     au.verified_at = datetime.now(timezone.utc)
+    _au_log(au, user, "Rejected", reason)
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
                detail=f"Rejected {au.code}: {reason[:80]}", ip=client_ip(request))
@@ -575,23 +812,20 @@ def reject_auction(aid: int, body: AuctionRejectIn, request: Request,
 
 @auction_router.post("/{aid}/payment", response_model=AuctionOut)
 def collect_auction_payment(aid: int, body: AuctionPaymentIn, request: Request,
-                            db: Session = Depends(get_db), user=Depends(a_write)):
-    """Record payment collection from the auction winner.
-    Only verified auctions can have payment collected.
+                            db: Session = Depends(get_db), user=Depends(a_pay)):
+    """Record payment collection from the auction winner. Only a sold auction the
+    committee has approved can be paid; once paid the auction is locked.
 
     API-008: Uses typed AuctionPaymentIn schema for input validation.
     """
-    au = db.get(Auction, aid)
-    if not au:
-        raise HTTPException(404, "Auction not found")
-    if au.verification_status != "Verified":
-        raise HTTPException(409, "Payment can only be collected for verified auctions.")
-    if au.payment_status == "Paid":
-        raise HTTPException(409, "Payment has already been collected for this auction.")
+    au = _get_auction(db, aid)
+    if au.from_stock:
+        raise HTTPException(409, "This is a lot auction — collect payment from each buyer separately.")
+    if au.status != "Completed" or au.verification_status != "Verified":
+        raise HTTPException(409, "Payment can only be collected for a sold auction approved by the committee.")
     # Validation is handled by AuctionPaymentIn schema
     # Generate receipt number
     year = date.today().year
-    from ..helpers import next_code_seq
     seq = next_code_seq(db, "auction_receipt", db.query(func.max(Auction.id)).filter(Auction.receipt_no.isnot(None)).scalar() or 0)
     au.payment_status = "Paid"
     au.payment_mode = body.mode
@@ -599,10 +833,60 @@ def collect_auction_payment(aid: int, body: AuctionPaymentIn, request: Request,
     au.receipt_no = f"AUCR-{year}-{str(seq).zfill(4)}"
     au.paid_at = datetime.now(timezone.utc)
     au.paid_by = user.username
+    _au_log(au, user, "Payment collected", f"{au.receipt_no} {_inr(au.current_amount)} {au.payment_mode}")
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction",
                detail=f"Payment {au.receipt_no} ₹{au.current_amount} {au.payment_mode}", ip=client_ip(request))
     return au
+
+
+@auction_router.post("/{aid}/reauction", response_model=AuctionOut, status_code=201)
+def reauction(aid: int, body: AuctionReauctionIn, request: Request,
+              db: Session = Depends(get_db), user=Depends(a_write)):
+    """Schedule a new auction for an item whose Unsold result the committee approved.
+    The original stays as history, linked both ways."""
+    orig = _get_auction(db, aid)
+    if orig.status != "Unsold" or orig.verification_status != "Verified":
+        raise HTTPException(409, "Only an Unsold auction approved by the committee can be re-auctioned.")
+    if orig.reauctioned_to:
+        raise HTTPException(409, f"This item is already re-auctioned as {orig.reauctioned_to}.")
+    if orig.from_stock:
+        from .auction_lots import create_lot
+        from ..models import StockItem
+        # Only pieces still in store from this auction (one may since be written off or re-auctioned)
+        piece_ids = [i.id for i in db.query(StockItem).filter(
+            StockItem.id.in_([p.stock_item_id for p in orig.pieces]), StockItem.status == "In Store",
+            StockItem.last_auction_code == orig.code).all()]
+        if not piece_ids:
+            raise HTTPException(409, "None of this lot's pieces are still in store to re-auction.")
+        per_piece = body.base_amount if body.base_amount is not None else orig.pieces[0].base_price
+        new = create_lot(db, user, orig.stock_category_id, piece_ids, per_piece, body.auction_date, body.start_time,
+                         orig.description, body.notes or f"Re-auction of {orig.code}", reauction_of=orig.code)
+        orig.reauctioned_to = new.code
+        _au_log(orig, user, "Re-auctioned", f"as {new.code} on {body.auction_date} — base {_inr(per_piece)} each")
+        db.commit(); db.refresh(new)
+        log_action(db, username=user.username, action="CREATE", entity="Auction",
+                   detail=f"{new.code} re-auction of {orig.code}", ip=client_ip(request))
+        return new
+    if body.auction_date < date.today():
+        raise HTTPException(422, "The re-auction date cannot be in the past.")
+    assert_txn_date_open(db, body.auction_date, allow_future=True, label="auction date")
+    base = body.base_amount if body.base_amount is not None else orig.base_amount
+    assert_positive(base, "Base amount")
+    seq = next_code_seq(db, "auction", db.query(func.max(Auction.id)).scalar() or 0)
+    new = Auction(code=f"AUC-{date.today().year}-{str(seq).zfill(4)}", item=orig.item,
+                  description=orig.description, base_amount=base, current_amount=base, bids=0,
+                  status="Scheduled", auction_date=body.auction_date, start_time=body.start_time,
+                  notes=body.notes or f"Re-auction of {orig.code}", reauction_of=orig.code,
+                  created_by=user.username)
+    _au_log(new, user, "Created", f"Re-auction of {orig.code} (unsold at {_inr(orig.base_amount)}) — base {_inr(base)}")
+    db.add(new); db.flush()
+    orig.reauctioned_to = new.code
+    _au_log(orig, user, "Re-auctioned", f"as {new.code} on {body.auction_date} — base {_inr(base)}")
+    db.commit(); db.refresh(new)
+    log_action(db, username=user.username, action="CREATE", entity="Auction",
+               detail=f"{new.code} re-auction of {orig.code}", ip=client_ip(request))
+    return new
 
 
 # ── Annadanam ────────────────────────────────────────────────────────────────

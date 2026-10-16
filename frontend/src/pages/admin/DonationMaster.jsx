@@ -2,9 +2,9 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { Plus, Pencil, Trash2, X, Save, RotateCcw, Search, Info, HandHeart, Coins, Package, Users, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
 import { PageTitle, StatTile, KpiGrid, Pill, num } from '../../components/admin/ui.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
-import { DonationCategoriesAPI } from '../../api/client.js'
+import { DonationCategoriesAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { Select } from '../../components/common/Field.jsx'
+import { Select, NumberField } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName } from '../../lib/validation.js'
@@ -58,12 +58,16 @@ export default function DonationMaster() {
   // Sorting
   const { sortedRows, sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection } = useSortableTable(filtered, SORT_COLUMNS, [{ key: 'name', direction: 'asc' }])
 
+  // Gold and silver default to "tracked only" until the admin chooses otherwise (same rule as the server)
+  const canAuction = (d) => (d.auctionable != null ? d.auctionable
+    : !(/gold|silver/i.test(d.name || '') || ['GLD', 'SLV'].includes((d.id_prefix || '').toUpperCase())))
   function setType2(t) {
-    setDrawer((d) => ({ ...d, data: { ...d.data, type: t, unit: t === 'Cash' ? 'Amount' : t === 'Material' ? 'Grams' : null, quantity_required: t === 'Material' } }))
+    setDrawer((d) => ({ ...d, data: { ...d.data, type: t, unit: t === 'Cash' ? 'Amount' : t === 'Material' ? 'Grams' : null, quantity_required: t === 'Material',
+      tracking: t === 'Material' ? (d.data.tracking || 'Quantity') : null } }))
   }
   async function save(e) {
     e.preventDefault()
-    const d = drawer.data
+    const d = drawer.data.tracking === 'Tagged' ? { ...drawer.data, auctionable: canAuction(drawer.data) } : drawer.data
     try {
       if (drawer.mode === 'create') {
         await DonationCategoriesAPI.create(d)
@@ -74,10 +78,14 @@ export default function DonationMaster() {
       }
       setDrawer(null); load()
     } catch (ex) {
-      toast(ex?.detail || tr('Could not save the category. Please check the details and try again.'), 'error')
+      toast(tr(getErrorMessage(ex, 'Could not save the category. Please check the details and try again.')), 'error')
     }
   }
-  async function remove(c) { if (await confirmDialog({ title: tr('Delete category') + ` "${c.name}"?`, message: tr('This cannot be undone.'), tone: 'danger', confirmLabel: tr('Delete') })) { await DonationCategoriesAPI.remove(c.id); toast(tr('Category deleted.')); load() } }
+  async function remove(c) {
+    if (!(await confirmDialog({ title: tr('Delete category') + ` "${c.name}"?`, message: tr('This cannot be undone.'), tone: 'danger', confirmLabel: tr('Delete') }))) return
+    try { await DonationCategoriesAPI.remove(c.id); toast(tr('Category deleted.')); load() }
+    catch (ex) { toast(tr(getErrorMessage(ex, 'Could not delete the category.')), 'error') }
+  }
 
   async function resetCategories() {
     if (await confirmDialog({
@@ -91,7 +99,7 @@ export default function DonationMaster() {
         toast(result.message || tr('Categories reset successfully.'))
         load()
       } catch (ex) {
-        toast(ex?.detail || tr('Could not reset categories. Please try again.'), 'error')
+        toast(tr(getErrorMessage(ex, 'Could not reset categories. Please try again.')), 'error')
       }
     }
   }
@@ -185,7 +193,10 @@ export default function DonationMaster() {
                   <td className="px-5 py-3.5 font-mono text-[0.75rem] text-gray-500">{c.code}</td>
                   <td className="px-5 py-3.5 font-semibold text-gray-800">{tr(c.name)}</td>
                   <td className="px-5 py-3.5"><Pill tone={TYPE_TONE[c.type]}>{c.type}</Pill></td>
-                  <td className="px-5 py-3.5 text-gray-600">{c.unit ? tr(c.unit) : '-'}</td>
+                  <td className="px-5 py-3.5 text-gray-600">{c.unit ? tr(c.unit) : '-'}
+                    {c.type === 'Material' && c.tracking && (
+                      <div className="mt-1"><Pill tone={c.tracking === 'Tagged' ? 'violet' : 'blue'}>{c.tracking === 'Tagged' ? `${tr('Tagged')} · ${c.id_prefix || '?'}` : tr('Quantity')}</Pill>{c.tracking === 'Tagged' && c.auctionable === false && <> <Pill tone="gray">{tr('No auction')}</Pill></>}</div>
+                    )}</td>
                   <td className="px-5 py-3.5"><Pill tone={c.quantity_required ? 'green' : 'red'}>{c.quantity_required ? tr('Yes') : tr('No')}</Pill></td>
                   <td className="px-5 py-3.5"><Pill tone={c.active ? 'green' : 'gray'}>{c.active ? tr('Active') : tr('Inactive')}</Pill></td>
                   <td className="px-5 py-3.5">
@@ -242,6 +253,33 @@ export default function DonationMaster() {
                 ))}</div>
                 {dtype !== 'Material' && <div className="text-[0.6875rem] text-gray-400 mt-1">{tr('Quantity is not required for')} {tr(dtype.toLowerCase())} {tr('donation categories.')}</div>}
               </div>
+              {dtype === 'Material' && (
+                <div className="border border-violet-100 bg-violet-50/40 rounded-lg p-3 space-y-3">
+                  <div className="text-[0.8125rem] font-semibold text-violet-800"><T>Stores & Inventory</T></div>
+                  <div><label className="label"><T>Tracking *</T></label>
+                    <div className="flex flex-wrap gap-5 mt-1">{[['Tagged', 'Tagged piece (ID sticker per piece)'], ['Quantity', 'Quantity (received, used, remaining)']].map(([v, l]) => (
+                      <label key={v} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="tracking" className="accent-maroon-700" checked={(drawer.data.tracking || 'Quantity') === v} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, tracking: v } })} /> {tr(l)}</label>
+                    ))}</div></div>
+                  {(drawer.data.tracking || 'Quantity') === 'Quantity' && (
+                    <div><label className="label"><T>Low-stock warning at</T></label>
+                      <NumberField min="0" step="0.001" value={drawer.data.low_stock_level ?? ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, low_stock_level: e.target.value } })} placeholder={tr('e.g. 10')} />
+                      <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Consumables Stock shows "Low" when the balance falls to this level.</T></div></div>
+                  )}
+                  {drawer.data.tracking === 'Tagged' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><label className="label"><T>ID prefix *</T></label>
+                        <input required className="input font-mono uppercase" maxLength={6} value={drawer.data.id_prefix || ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, id_prefix: e.target.value.replace(/[^a-zA-Z]/g, '').toUpperCase() } })} placeholder="PAN" />
+                        <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('IDs')}: {(drawer.data.id_prefix || 'PAN')}-00001, -00002…</div></div>
+                      <div><label className="label"><T>Default value per piece ₹</T></label>
+                        <NumberField min="0" step="1" value={drawer.data.default_value ?? ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, default_value: e.target.value } })} /></div>
+                      <div className="col-span-2"><label className="label"><T>Can be auctioned?</T></label>
+                        <div className="flex flex-wrap gap-5 mt-1">{[[true, 'Yes — auction / Open Sale allowed'], [false, 'No — tracked only (gold, silver)']].map(([v, l]) => (
+                          <label key={String(v)} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="auctionable" className="accent-maroon-700" checked={canAuction(drawer.data) === v} onChange={() => setDrawer({ ...drawer, data: { ...drawer.data, auctionable: v } })} /> {tr(l)}</label>
+                        ))}</div></div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div><label className="label"><T>Status *</T></label><Select className="input" value={drawer.data.active ? tr('Active') : tr('Inactive')} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, active: e.target.value === 'Active' } })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">

@@ -79,7 +79,7 @@ from .routers import (auth, devotees, sevas, bookings, donations, misc, users,
                       dashboard, poojas, payments, poojaris, waste, translate, schedules,
                       donation_master, pooja_history, reports, settings as settings_router, roles, masters,
                       daily_closing, backup, notifications, public, refunds, analytics, panchangam,
-                      prokerala, almanac)
+                      prokerala, almanac, stores, consumables, auction_lots, stock_report, open_sale)
 from .migrate import run_migrations, repair_permissions, retry_on_lock
 from .mock_refresh import run as refresh_mock_dates
 from .site_content import ensure_site_content
@@ -184,3 +184,8 @@ app.include_router(analytics.router)
 app.include_router(panchangam.router)
 app.include_router(prokerala.router)
 app.include_router(almanac.router)
+app.include_router(stores.router)
+app.include_router(consumables.router)
+app.include_router(auction_lots.router)
+app.include_router(stock_report.router)
+app.include_router(open_sale.router)

@@ -16,7 +16,7 @@
 // <DialogHost /> must be mounted once (done in App.jsx).
 import React, { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react'
-import { Checkbox, DateField, NumberField } from './Field.jsx'
+import { Checkbox, DateField, NumberField, Select, Combobox } from './Field.jsx'
 import { useLang } from '../../i18n/LanguageContext.jsx'
 
 let host = null // set by DialogHost on mount
@@ -182,6 +182,14 @@ function Modal({ dlg, finish }) {
                       <label className="label">{t(f.label)}{f.required && ' *'}</label>
                       {f.type === 'date' ? (
                         <DateField value={vals[f.k]} min={f.min} max={f.max} required={f.required}
+                          onChange={(e) => setVals((v) => ({ ...v, [f.k]: e.target.value }))} />
+                      ) : f.type === 'select' ? (
+                        <Select className="input" value={vals[f.k]} onChange={(e) => setVals((v) => ({ ...v, [f.k]: e.target.value }))}>
+                          <option value="">{t(f.placeholder || 'Select')}</option>
+                          {(f.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </Select>
+                      ) : f.type === 'combobox' ? (
+                        <Combobox className="input" value={vals[f.k]} options={f.options || []} placeholder={f.placeholder}
                           onChange={(e) => setVals((v) => ({ ...v, [f.k]: e.target.value }))} />
                       ) : f.type === 'number' ? (
                         <NumberField

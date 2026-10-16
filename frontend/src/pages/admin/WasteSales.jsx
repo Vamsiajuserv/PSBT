@@ -33,7 +33,7 @@ const fmtTime = (paid, created) => {
   if (!d || isNaN(d.getTime())) return ''
   return clock12(d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }))
 }
-const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI (QR)' : m)
+const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'Online' : m)
 const unitShort = (u) => { const m = /\(([^)]+)\)/.exec(u || ''); return m ? m[1] : (u || '').toLowerCase() }
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -90,7 +90,7 @@ export default function WasteSales() {
     { key: 'material', label: 'Material Type', type: 'text' },
     { key: 'weight_kg', label: 'Quantity', type: 'num' },
     { key: 'amount', label: 'Amount (₹)', type: 'money' },
-    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', 'UPI/QR Code'] },
+    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', { value: 'UPI/QR Code', label: 'Online' }] },
     { key: 'verification_status', label: 'Verification', type: 'text', filterable: true, filterOptions: ['Verified', 'Pending', 'Rejected'] },
   ]
 
@@ -224,7 +224,7 @@ export default function WasteSales() {
       .catch(() => toast(tr('Failed to load vendors'), 'error'))
     WasteMaterialsAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setMaterials(arr) })
-      .catch(() => toast(tr('Failed to load waste materials'), 'error'))
+      .catch(() => toast(tr('Failed to load other materials'), 'error'))
     CommitteeAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setCommittee(arr.filter((c) => c.active)) })
       .catch(() => toast(tr('Failed to load committee members'), 'error'))
@@ -331,12 +331,13 @@ export default function WasteSales() {
   const EXPORT_COLS = canSeeAmounts ? ALL_EXPORT_COLS : ALL_EXPORT_COLS.filter(c => c.type !== 'money')
   // Use allFilteredData when date filter applied (ALL records), otherwise use current page
   const dataForExport = (start || end) ? allFilteredData : displayRows
-  const exportRows = canSeeAmounts ? dataForExport : dataForExport.map(r => ({ ...r, rate: null, amount: null }))
+  const labelled = dataForExport.map(r => ({ ...r, mode: r.mode === 'UPI/QR Code' ? 'Online' : r.mode }))
+  const exportRows = canSeeAmounts ? labelled : labelled.map(r => ({ ...r, rate: null, amount: null }))
   const exportTotal = canSeeAmounts ? { code: 'Total', amount: dataForExport.reduce((s, r) => s + Number(r.amount || 0), 0) } : null
   return (
     <div>
-      <PageTitle title={tr("Waste Material Sales Management")} subtitle={tr("Record waste material sales, accept payments and generate receipt.")}
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Waste Material Sales Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openNewSale} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Waste Material Sale</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
+      <PageTitle title={tr("Other Material Sales Management")} subtitle={tr("Record other material sales, accept payments and generate receipt.")}
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Other Material Sales Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openNewSale} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Other Material Sale</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       {user?.role !== 'Counter Staff' && (
         <KpiGrid>
@@ -369,7 +370,7 @@ export default function WasteSales() {
           </div>
           <div className="w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
-            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("UPI / QR Code")}</option></Select>
+            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("Online")}</option></Select>
           </div>
           <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button onClick={() => { setFilters({ q: '', material: '', mode: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
@@ -449,7 +450,7 @@ export default function WasteSales() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Record Waste Material Sale</T></h3>
+              <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Record Other Material Sale</T></h3>
                 <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Enter sale details, accept payment and generate receipt.</T></p></div>
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
@@ -575,12 +576,12 @@ export default function WasteSales() {
                 <label className="label"><T>Payment Mode *</T></label>
                 <div className="flex gap-6 mt-1 mb-4">
                   {['Cash', 'UPI/QR Code'].map((mo) => (
-                    <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setM({ mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'UPI / QR Code' : mo)}</label>
+                    <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setM({ mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'Online' : mo)}</label>
                   ))}
                 </div>
                 {drawer.mode === 'UPI/QR Code' && (
-                  <div className="mb-4"><label className="label"><T>UPI Transaction ID / UTR *</T></label>
-                    <div className="relative"><input required className="input pr-9" placeholder={tr("Enter UPI transaction ID / UTR")} value={drawer.txn_ref} onChange={(e) => setM({ txn_ref: e.target.value })} />
+                  <div className="mb-4"><label className="label"><T>Online Transaction ID / UTR *</T></label>
+                    <div className="relative"><input required className="input pr-9" placeholder={tr("Enter online transaction ID / UTR")} value={drawer.txn_ref} onChange={(e) => setM({ txn_ref: e.target.value })} />
                       {drawer.txn_ref && <span className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-emerald-500 text-white grid place-items-center"><Check size={12} /></span>}</div>
                   </div>
                 )}
@@ -619,7 +620,7 @@ export default function WasteSales() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={() => setPrintDoc(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg my-auto">
             <div id="print-area">
-              <Receipt title={tr("Waste Material Sale Receipt")} titleTe="వ్యర్థ పదార్థ విక్రయ రసీదు" no={printDoc.code} subNo={fmtDate(printDoc.paid_at || printDoc.created_at)} subNoLabel="Date" amount={printDoc.amount}
+              <Receipt title={tr("Other Material Sale Receipt")} titleTe="ఇతర పదార్థ విక్రయ రసీదు" no={printDoc.code} subNo={fmtDate(printDoc.paid_at || printDoc.created_at)} subNoLabel="Date" amount={printDoc.amount}
                 rows={[
                   { en: 'Buyer', value: printDoc.buyer_name, valueTe: buyerLabel(printDoc.buyer_name) },
                   { en: 'Mobile', value: printDoc.mobile || '—' },
@@ -650,7 +651,7 @@ export default function WasteSales() {
             <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 grid place-items-center"><CheckCircle size={20} /></div>
               <div>
-                <h3 className="font-serif text-lg font-bold text-gray-800"><T>Verify Waste Sale</T></h3>
+                <h3 className="font-serif text-lg font-bold text-gray-800"><T>Verify Other Sale</T></h3>
                 <p className="text-[0.8125rem] text-gray-500">{verifyModal.code}</p>
               </div>
             </div>
@@ -678,7 +679,7 @@ export default function WasteSales() {
             <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 grid place-items-center"><XCircle size={20} /></div>
               <div>
-                <h3 className="font-serif text-lg font-bold text-gray-800"><T>Reject Waste Sale</T></h3>
+                <h3 className="font-serif text-lg font-bold text-gray-800"><T>Reject Other Sale</T></h3>
                 <p className="text-[0.8125rem] text-gray-500">{rejectModal.code}</p>
               </div>
             </div>

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (User, Booking, Donation, HundiCollection, Auction, Annadanam,
-                      WasteSale, AuditLog, Festival)
+                      WasteSale, OpenSale, AuditLog, Festival)
 from ..schemas import AuditOut
 from ..security import get_current_user, RequireModule, ADMIN_ROLES
 from ..helpers import fmt_ist_time, sort_expr, apply_column_filters
@@ -86,6 +86,9 @@ def dashboard(start: str = "", end: str = "", day: str = "",
     auction_amt = csum(Auction.current_amount, Auction)
     waste_amt = csum(WasteSale.amount, WasteSale)
     waste_weight = csum(WasteSale.weight_kg, WasteSale)
+    _os_rng = (func.date(OpenSale.sold_at) >= s, func.date(OpenSale.sold_at) <= e)
+    _os_amt = float(db.query(func.coalesce(func.sum(OpenSale.amount), 0)).filter(*_os_rng).scalar() or 0)
+    _os_count = int(db.query(func.count(OpenSale.id)).filter(*_os_rng).scalar() or 0)
     annadanam_count = ccount(Annadanam)
     annadanam_beneficiaries = int(db.query(func.coalesce(func.sum(Annadanam.plates), 0))
                                   .filter(*_rng(Annadanam)).scalar() or 0)
@@ -106,7 +109,8 @@ def dashboard(start: str = "", end: str = "", day: str = "",
         {"label": "Annadanam Sponsors", "count": annadanam_count, "amount": csum(Annadanam.amount, Annadanam)},
         {"label": "Hundi Collection", "count": ccount(HundiCollection), "amount": hundi_amt},
         {"label": "Auction Sales", "count": ccount(Auction), "amount": auction_amt},
-        {"label": "Waste Material Sales", "count": ccount(WasteSale), "amount": waste_amt},
+        {"label": "Other Material Sales", "count": ccount(WasteSale), "amount": waste_amt},
+        {"label": "Open Sale (Stores)", "count": _os_count, "amount": _os_amt},
     ]
 
     # ── Bookings bar chart across the range (daily buckets; capped for readability) ──
@@ -250,19 +254,24 @@ def reports_summary(start: date | None = None, end: date | None = None,
     }
 
 
+# RATE_LIMIT rows are internal request counters for the rate limiter (helpers.enforce_rate_limit),
+# not user activity — keep them out of the Audit Trail.
+_NOT_RATE_LIMIT = AuditLog.action != "RATE_LIMIT"
+
+
 @router.get("/audit", response_model=list[AuditOut])
 def audit(limit: int = 100, db: Session = Depends(get_db),
           user=Depends(RequireModule("Audit"))):
-    return db.query(AuditLog).order_by(AuditLog.id.desc()).limit(limit).all()
+    return db.query(AuditLog).filter(_NOT_RATE_LIMIT).order_by(AuditLog.id.desc()).limit(limit).all()
 
 
 @router.get("/audit/stats")
 def audit_stats(db: Session = Depends(get_db), user=Depends(RequireModule("Audit"))):
     today = date.today()
-    total = db.query(func.count(AuditLog.id)).scalar() or 0
-    today_c = db.query(func.count(AuditLog.id)).filter(func.date(AuditLog.ts) == today).scalar() or 0
+    total = db.query(func.count(AuditLog.id)).filter(_NOT_RATE_LIMIT).scalar() or 0
+    today_c = db.query(func.count(AuditLog.id)).filter(_NOT_RATE_LIMIT, func.date(AuditLog.ts) == today).scalar() or 0
     logins = db.query(func.count(AuditLog.id)).filter(AuditLog.action == "LOGIN").scalar() or 0
-    users = db.query(func.count(func.distinct(AuditLog.username))).scalar() or 0
+    users = db.query(func.count(func.distinct(AuditLog.username))).filter(_NOT_RATE_LIMIT).scalar() or 0
     return {"total": total, "today": today_c, "logins": logins, "users": users}
 
 
@@ -282,7 +291,7 @@ def audit_search(q: str = "", action: str = "", entity: str = "", username: str 
                  sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
                  page: int = 1, size: int = 20,
                  db: Session = Depends(get_db), user=Depends(RequireModule("Audit"))):
-    query = db.query(AuditLog)
+    query = db.query(AuditLog).filter(_NOT_RATE_LIMIT)
     if q:
         like = f"%{q}%"
         query = query.filter((AuditLog.detail.ilike(like)) | (AuditLog.username.ilike(like)) | (AuditLog.entity.ilike(like)))

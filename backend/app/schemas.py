@@ -59,7 +59,8 @@ class HundiDepositStatus(str, Enum):
 class AuctionStatus(str, Enum):
     SCHEDULED = "Scheduled"
     IN_PROGRESS = "In Progress"
-    COMPLETED = "Completed"
+    COMPLETED = "Completed"   # sold — winner recorded
+    UNSOLD = "Unsold"         # no valid bid; may be re-auctioned once the committee approves
     VOID = "Void"
 
 
@@ -132,6 +133,7 @@ class UserOut(ORM):
     role: str
     modules: str
     poojari_id: Optional[int] = None
+    committee_member_id: Optional[int] = None
     is_active: bool
     twofa_enabled: bool
     last_login: Optional[datetime] = None
@@ -151,6 +153,7 @@ class UserCreate(BaseModel):
     is_active: bool = True
     twofa_enabled: bool = False
     poojari_id: Optional[int] = None   # Poojari role: link to the Poojari Master ("My Poojas")
+    committee_member_id: Optional[int] = None   # Committee role: link to the Committee Member Master (hundi approval)
 
     @field_validator('password')
     @classmethod
@@ -168,6 +171,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     poojari_id: Optional[int] = None
+    committee_member_id: Optional[int] = None
     name: Optional[str] = None
     name_te: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -505,6 +509,7 @@ class HundiCreate(BaseModel):
     denomination: str = "Mixed"
     officer: Optional[str] = None
     committee_members: list[str] = []                      # names present at counting
+    committee_member_ids: list[int] = []                   # Committee Member Master ids (≥2) who must approve
     notes: Optional[str] = None
     verification_status: HundiVerificationStatus = HundiVerificationStatus.PENDING
     verified_by: Optional[str] = None
@@ -525,10 +530,30 @@ class HundiOut(ORM):
     denomination: str
     officer: Optional[str] = None
     committee_members: Optional[str] = None
+    committee_member_ids: list[int] = []
+    approvals: list[dict] = []        # [{member_id, name, username, at}] — 2 approvals verify the count
     notes: Optional[str] = None
     verification_status: str = "Pending Verification"
     verified_by: Optional[str] = None
     verified_on: Optional[datetime] = None
+
+    @field_validator("committee_member_ids", mode="before")
+    @classmethod
+    def _ids_csv(cls, v):
+        if isinstance(v, str):
+            return [int(x) for x in v.split(",") if x.strip().isdigit()]
+        return v or []
+
+    @field_validator("approvals", mode="before")
+    @classmethod
+    def _approvals_json(cls, v):
+        if isinstance(v, str):
+            import json
+            try:
+                v = json.loads(v)
+            except ValueError:
+                return []
+        return v if isinstance(v, list) else []
     # Cash deposit (bank)
     deposit_status: str = "Pending Deposit"
     bank_name: Optional[str] = None
@@ -544,6 +569,7 @@ class HundiOut(ORM):
     # Items and status
     items: list[HundiItemLineOut] = []
     status: str
+    created_by: Optional[str] = None
 
 
 class AuctionCreate(BaseModel):
@@ -559,6 +585,61 @@ class AuctionCreate(BaseModel):
     start_time: Optional[str] = None
     notes: Optional[str] = None
     closes_on: Optional[date] = None
+
+
+class AuctionPieceOut(ORM):
+    id: int
+    stock_item_id: int
+    tag_id: str
+    base_price: Decimal
+    result: str
+    sale_id: Optional[int] = None
+    sold_amount: Optional[Decimal] = None
+
+
+class AuctionSaleOut(ORM):
+    id: int
+    buyer_name: str
+    buyer_mobile: Optional[str] = None
+    amount: Decimal
+    payment_status: str
+    payment_mode: Optional[str] = None
+    payment_ref: Optional[str] = None
+    receipt_no: Optional[str] = None
+    paid_at: Optional[datetime] = None
+    paid_by: Optional[str] = None
+
+
+class AuctionStockCreate(BaseModel):
+    """A lot auction of tagged pieces from the Stock Register."""
+    category_id: int
+    piece_ids: list[int] = Field(..., min_length=1, max_length=500)
+    base_price: Decimal = Field(..., gt=0, le=100000000)        # reserve price per piece
+    auction_date: date
+    start_time: str = Field(..., min_length=1, max_length=20)
+    description: Optional[str] = Field(default=None, max_length=500)
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+
+class LotLineIn(BaseModel):
+    buyer_name: str = Field(..., min_length=1, max_length=120)
+    buyer_mobile: Optional[str] = Field(default=None, max_length=20)
+    piece_ids: list[int] = Field(..., min_length=1)            # AuctionPiece ids
+    amount: Decimal = Field(..., gt=0, le=100000000)
+
+    @field_validator("buyer_name")
+    @classmethod
+    def _name(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Enter the buyer's name.")
+        return v
+
+
+class LotResultIn(BaseModel):
+    """Result of a lot auction: one line per buyer; pieces on no line are unsold."""
+    lines: list[LotLineIn] = Field(default_factory=list, max_length=500)
+    bids: Optional[int] = Field(default=None, ge=0, le=10000)
 
 
 class AuctionOut(ORM):
@@ -587,7 +668,27 @@ class AuctionOut(ORM):
     receipt_no: Optional[str] = None
     paid_at: Optional[datetime] = None
     paid_by: Optional[str] = None
+    created_by: Optional[str] = None
+    result_by: Optional[str] = None
+    reauction_of: Optional[str] = None
+    reauctioned_to: Optional[str] = None
+    history: list[dict] = []
+    from_stock: bool = False
+    stock_category_id: Optional[int] = None
+    pieces: list[AuctionPieceOut] = []
+    sales: list[AuctionSaleOut] = []
     created_at: Optional[datetime] = None
+
+    @field_validator("history", mode="before")
+    @classmethod
+    def _history_json(cls, v):
+        if isinstance(v, str):
+            import json
+            try:
+                v = json.loads(v)
+            except ValueError:
+                return []
+        return v if isinstance(v, list) else []
 
 
 class AnnadanamCreate(BaseModel):
@@ -791,6 +892,22 @@ class HundiRejectIn(BaseModel):
     reason: str = Field(..., min_length=1, max_length=500)
 
 
+class HundiResubmitIn(BaseModel):
+    """Administrator corrects a rejected hundi count and sends it back for approval."""
+    items: list[HundiItemLine] = Field(..., min_length=1)
+    counting_completed_on: Optional[datetime] = None
+    denomination: Optional[str] = None
+    note: str = Field(..., max_length=500)   # mandatory: why the count was corrected
+
+    @field_validator("note")
+    @classmethod
+    def _reason_required(cls, v):
+        v = (v or "").strip()
+        if len(v) < 5:
+            raise ValueError("Enter the reason for the correction (at least 5 characters).")
+        return v
+
+
 class HundiDepositIn(BaseModel):
     """Record bank deposit of cash from a hundi collection."""
     deposited_on: Optional[date] = None
@@ -808,19 +925,48 @@ class HundiStoreIn(BaseModel):
 
 # ── Auction Operations (API-002-REG: API-006 to API-008) ──────────────────────
 
-class AuctionUpdateIn(BaseModel):
-    """Update auction details during lifecycle."""
-    item: Optional[str] = Field(default=None, max_length=200)
-    description: Optional[str] = Field(default=None, max_length=500)
-    base_amount: Optional[Decimal] = Field(default=None, ge=0, le=100000000)
+class AuctionResultIn(BaseModel):
+    """Record an auction's result: bids so far (In Progress), Sold (Completed) or Unsold."""
+    status: Literal["In Progress", "Completed", "Unsold"]
     current_amount: Optional[Decimal] = Field(default=None, ge=0, le=100000000)
     bids: Optional[int] = Field(default=None, ge=0, le=10000)
     winner: Optional[str] = Field(default=None, max_length=200)
-    status: Optional[str] = Field(default=None, max_length=40)
+    devotee_id: Optional[int] = None
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+
+def _reason_text(v):
+    v = (v or "").strip()
+    if len(v) < 5:
+        raise ValueError("Enter the reason for the change (at least 5 characters).")
+    return v
+
+
+class AuctionEditIn(BaseModel):
+    """Administrator corrects an auction's details (before payment) — reason mandatory."""
+    item: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=500)
+    base_amount: Optional[Decimal] = Field(default=None, ge=0, le=100000000)
     auction_date: Optional[date] = None
     start_time: Optional[str] = Field(default=None, max_length=20)
     notes: Optional[str] = Field(default=None, max_length=500)
-    devotee_id: Optional[int] = None
+    winner: Optional[str] = Field(default=None, max_length=200)
+    current_amount: Optional[Decimal] = Field(default=None, ge=0, le=100000000)
+    bids: Optional[int] = Field(default=None, ge=0, le=10000)
+    reason: str = Field(..., max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def _reason_required(cls, v):
+        return _reason_text(v)
+
+
+class AuctionReauctionIn(BaseModel):
+    """Schedule a new auction for an Unsold item."""
+    auction_date: date
+    start_time: str = Field(..., min_length=1, max_length=20)
+    base_amount: Optional[Decimal] = Field(default=None, gt=0, le=100000000)
+    notes: Optional[str] = Field(default=None, max_length=500)
 
 
 class AuctionRejectIn(BaseModel):

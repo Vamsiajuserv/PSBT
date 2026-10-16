@@ -19,6 +19,12 @@ MIGRATION_LOCK_TIMEOUT = "10s"
 
 COLUMN_MIGRATIONS = {
     "waste_vendors": [("name_te", "VARCHAR(160)")],
+    "donation_categories": [
+        ("tracking", "VARCHAR(20)"), ("id_prefix", "VARCHAR(10)"), ("default_value", "NUMERIC(12,2)"),
+        ("low_stock_level", "NUMERIC(12,3)"), ("auctionable", "BOOLEAN"),
+    ],
+    "stock_items": [("last_auction_code", "VARCHAR(30)"), ("unsold_count", "INTEGER DEFAULT 0 NOT NULL"),
+                    ("open_sale_price", "NUMERIC(12,2)"), ("open_sale_by", "VARCHAR(120)"), ("open_sale_at", "TIMESTAMP")],
     "committee_members": [("name_te", "VARCHAR(160)")],
     "bookings": [
         ("pooja_id", "INTEGER"), ("plan_id", "INTEGER"), ("category", "VARCHAR(40)"),
@@ -64,6 +70,8 @@ COLUMN_MIGRATIONS = {
         ("valuables_status", "VARCHAR(30)"), ("store_location", "VARCHAR(160)"),
         ("valuables_custodian", "VARCHAR(120)"), ("valuables_stored_on", "DATE"),
         ("custody_receipt", "VARCHAR(200)"),
+        # Two-member committee approval
+        ("committee_member_ids", "TEXT"), ("approvals", "TEXT"),
     ],
     "auctions": [
         ("devotee_id", "INTEGER"), ("description", "TEXT"), ("auction_date", "DATE"),
@@ -77,6 +85,10 @@ COLUMN_MIGRATIONS = {
         ("payment_mode", "VARCHAR(30)"), ("payment_ref", "VARCHAR(60)"),
         ("receipt_no", "VARCHAR(30)"), ("paid_at", "TIMESTAMP"), ("paid_by", "VARCHAR(60)"),
         ("winner_mobile", "VARCHAR(20)"),
+        # Sold / Unsold workflow, re-auction links and change history
+        ("result_by", "VARCHAR(60)"), ("reauction_of", "VARCHAR(30)"),
+        ("reauctioned_to", "VARCHAR(30)"), ("history", "TEXT"),
+        ("from_stock", "BOOLEAN DEFAULT FALSE NOT NULL"), ("stock_category_id", "INTEGER"),
     ],
     "devotees": [
         ("name_te", "VARCHAR(160)"),
@@ -100,6 +112,7 @@ COLUMN_MIGRATIONS = {
     ],
     "users": [
         ("name_te", "VARCHAR(160)"), ("mobile", "VARCHAR(20)"), ("poojari_id", "INTEGER"),
+        ("committee_member_id", "INTEGER"),
         ("must_change_password", "BOOLEAN DEFAULT FALSE"),  # DEF-012: Existing users don't need to change password
         ("password_changed_at", "TIMESTAMP"),  # Session invalidation: tokens issued before this are rejected
     ],
@@ -299,6 +312,34 @@ def run_migrations(engine) -> None:
             "UPDATE users SET modules = modules || ',Counter' "
             "WHERE role = 'Committee' AND modules NOT LIKE '%Counter%'"
         ))
+        # Stores & Inventory: grant the new Stores module (view for all four; write is
+        # governed by security.WRITE_MATRIX). Idempotent: skips rows that already have it.
+        for code, role in (("ADMINISTRATOR", "Administrator"), ("COUNTER_STAFF", "Counter Staff"),
+                           ("COMMITTEE", "Committee"), ("ACCOUNTANT", "Accountant")):
+            conn.execute(text("UPDATE roles SET modules = modules || ',Stores' "
+                              "WHERE code = :c AND modules NOT LIKE '%Stores%'"), {"c": code})
+            conn.execute(text("UPDATE users SET modules = modules || ',Stores' "
+                              "WHERE role = :r AND modules NOT LIKE '%Stores%'"), {"r": role})
+        # Material categories start tracked: valuables, cloth and utensils as Tagged pieces,
+        # everything else (oil, ghee, rice, flowers…) as Quantity. Only fills empty settings,
+        # so whatever the admin chooses in Donation Master is never overwritten.
+        for pattern, prefix in (("%gold%", "GLD"), ("%silver%", "SLV"), ("%utensil%", "UTN"),
+                                ("%cloth%", "CLT"), ("%vastr%", "CLT"), ("%pancha%", "PAN"), ("%saree%", "SAR")):
+            conn.execute(text("UPDATE donation_categories SET tracking = 'Tagged', id_prefix = :p "
+                              "WHERE type = 'Material' AND tracking IS NULL AND LOWER(name) LIKE :n"),
+                         {"p": prefix, "n": pattern})
+        conn.execute(text("UPDATE donation_categories SET tracking = 'Quantity' "
+                          "WHERE type = 'Material' AND tracking IS NULL"))
+        # Gold and silver are tracked only — never auctioned or sold at the counter. Fills only
+        # unset values, so a later choice in Donation Master is kept.
+        conn.execute(text("UPDATE donation_categories SET auctionable = FALSE WHERE auctionable IS NULL "
+                          "AND (id_prefix IN ('GLD', 'SLV') OR LOWER(name) LIKE '%gold%' OR LOWER(name) LIKE '%silver%')"))
+        conn.execute(text("UPDATE donation_categories SET auctionable = TRUE WHERE auctionable IS NULL"))
+        # Consumables count donations only from this date (set once, when the module goes
+        # live); stock already in the store is entered as an opening-balance manual entry.
+        conn.execute(text("INSERT INTO settings (skey, svalue, updated_by) "
+                          "SELECT 'consumables_start_date', CAST(CURRENT_DATE AS TEXT), 'system' "
+                          "WHERE NOT EXISTS (SELECT 1 FROM settings WHERE skey = 'consumables_start_date')"))
         # Staff email is optional (login uses username), so allow NULL. No-op once done.
         conn.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
         # Vendor material types now hold a multi-select from the Waste Material Master,
@@ -350,11 +391,11 @@ _OLD_TO_NEW = {
 # Canonical per-role module sets, keyed by role code (source of truth for repair).
 _ROLE_CANON = {
     "ADMINISTRATOR": ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction",
-                      "Annadanam", "Counter", "Reports", "Users", "Audit"],
-    "COUNTER_STAFF": ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter"],
+                      "Annadanam", "Counter", "Stores", "Reports", "Users", "Audit"],
+    "COUNTER_STAFF": ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Stores"],
     "POOJARI": ["Sevas", "Bookings"],
-    "ACCOUNTANT": ["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"],
-    "COMMITTEE": ["Hundi", "Auction", "Reports", "Counter"],
+    "ACCOUNTANT": ["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Stores", "Reports"],
+    "COMMITTEE": ["Hundi", "Auction", "Reports", "Counter", "Stores"],
 }
 _CANON = set(_ROLE_CANON["ADMINISTRATOR"])
 

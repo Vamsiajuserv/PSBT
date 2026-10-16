@@ -16,7 +16,7 @@ export default function VendorMaster() {
   useEffect(() => {
     WasteMaterialsAPI.list()
       .then((r) => setMaterials(Array.isArray(r) ? r : (r.items || [])))
-      .catch(() => toast(tr('Failed to load waste materials'), 'error'))
+      .catch(() => toast(tr('Failed to load other materials'), 'error'))
   }, [])
 
   const byName = useMemo(() => new Map(materials.map((m) => [m.name.toLowerCase(), m])), [materials])
@@ -44,7 +44,7 @@ export default function VendorMaster() {
   ], [materials, legacy, lang]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return <MasterScreen key={materials.length} config={{
-    title: tr('Vendor Master'), subtitle: tr('Maintain waste-material buyers / vendors and the materials they handle.'),
+    title: tr('Vendor Master'), subtitle: tr('Maintain other-material buyers / vendors and the materials they handle.'),
     api, entity: 'vendor', addLabel: tr('Add New Vendor'), searchPlaceholder: tr('Search by name, vendor ID or phone…'),
     statCards: [
       { key: 'total', icon: Truck, color: '#8a1c1c', bg: 'bg-maroon-50', title: tr('Total Vendors'), sub: tr('All vendors') },

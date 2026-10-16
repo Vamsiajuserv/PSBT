@@ -23,13 +23,14 @@ const OVERVIEW_ICONS = {
   'Annadanam Sponsors': { icon: Flame, c: '#ea580c', bg: 'bg-orange-50' },
   'Hundi Collection': { icon: HandCoins, c: '#d97706', bg: 'bg-amber-50' },
   'Auction Sales': { icon: Gavel, c: '#7c3aed', bg: 'bg-violet-50' },
-  'Waste Material Sales': { icon: Recycle, c: '#059669', bg: 'bg-emerald-50' },
+  'Other Material Sales': { icon: Recycle, c: '#059669', bg: 'bg-emerald-50' },
+  'Open Sale (Stores)': { icon: Gavel, c: '#7c3aed', bg: 'bg-violet-50' },
 }
 
 const OVERVIEW_ROUTE = {
   'Pooja Bookings': '/admin/bookings', 'Donations Received': '/admin/donations',
   'Annadanam Sponsors': '/admin/annadanam', 'Hundi Collection': '/admin/hundi',
-  'Auction Sales': '/admin/auction', 'Waste Material Sales': '/admin/waste-sales',
+  'Auction Sales': '/admin/auction', 'Other Material Sales': '/admin/waste-sales', 'Open Sale (Stores)': '/admin/stores/open-sale',
 }
 // Alerts arrive as a key plus values, so the sentence is built in the reader's
 // language instead of being assembled as English on the server. `text` is the
@@ -228,7 +229,7 @@ export default function Dashboard() {
           value={t ? inr(t.auction.amount) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Annadanam') && <Kpi to="/admin/annadanam" icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Annadanam Sponsors")}
           value={t ? num(t.annadanam.count) : '—'} footLabel={tr("Beneficiaries")} footValue={t ? num(t.annadanam.beneficiaries) : '—'} />}
-        {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Waste Material Sales")}
+        {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Other Material Sales")}
           value={t ? num(t.waste.count) : '—'} footLabel={tr("Total Weight")} footValue={t ? `${num(t.waste.weight)} ${tr("Kg")}` : '—'} />}
       </KpiGrid>}
 

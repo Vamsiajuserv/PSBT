@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, WasteSale,
-                      DailyClosing, Setting, Refund)
+                      DailyClosing, Setting, Refund, OpenSale)
 from ..security import RequireModule, log_action, client_ip
 from ..schemas import DailyClosingCloseIn, DailyClosingReopenIn, CASH_DENOMINATIONS
 from ..helpers import ist_today
@@ -73,8 +73,10 @@ def _modules(db, on):
         _head(db, "Auction Receipts", Auction, "current_amount", func.date(Auction.auction_date), on, force="upi",
               extra_filter=(Auction.status == "Completed")),
         _head(db, "Annadanam Donations", Annadanam, "amount", func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)), on, "mode"),
-        _head(db, "Waste Material Sales", WasteSale, "amount", func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)), on, "mode",
+        _head(db, "Other Material Sales", WasteSale, "amount", func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)), on, "mode",
               extra_filter=(WasteSale.status == "Paid")),
+        # Stores & Inventory: pieces sold in Open Sale (counter money, cash or online)
+        _head(db, "Open Sale (Stores)", OpenSale, "amount", func.date(OpenSale.sold_at), on, "payment_mode"),
         {"name": "Accommodation Receipts", "cash": 0.0, "upi": 0.0, "total": 0.0, "count": 0, "cash_cnt": 0, "upi_cnt": 0},
         {"name": "Other Receipts", "cash": 0.0, "upi": 0.0, "total": 0.0, "count": 0, "cash_cnt": 0, "upi_cnt": 0},
     ]
@@ -130,6 +132,10 @@ def summary(day: date | None = None, db: Session = Depends(get_db), user=Depends
     s["actual_cash"] = float(existing.actual_cash) if existing else None
     s["denominations"] = json.loads(existing.denominations) if existing and existing.denominations else None
     s["closing_notes"] = existing.notes if existing else None
+    # Stores & Inventory reminder: the day's material donations whose pieces have no IDs yet.
+    # A warning only — the day can still be closed; they stay in Pending Tagging.
+    from .stores import untagged_donations
+    s["untagged_material"] = untagged_donations(db, on)
     return s
 
 

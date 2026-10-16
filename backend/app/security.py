@@ -36,7 +36,7 @@ def get_token_from_request(request: Request) -> Optional[str]:
 
 # Module keys (mirror the frontend access matrix)
 MODULES = ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction",
-           "Annadanam", "Counter", "Reports", "Users", "Audit"]
+           "Annadanam", "Counter", "Stores", "Reports", "Users", "Audit"]
 
 
 def hash_password(pw: str) -> str:
@@ -162,7 +162,10 @@ ADMIN_ROLES = frozenset({"Admin", "Administrator"})
 # (Reports write). Master editing lives behind Sevas/Bookings/Hundi/Auction/
 # Donations write; day-close behind Reports write; billing behind Counter write.
 WRITE_MATRIX = {
-    "Counter Staff": {"Devotees", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"},
+    # Auction: create, record result, collect payment and re-auction — never approve/reject
+    # (verify/reject are Committee-only via RequireRole).
+    # Stores: tag pieces, move them, enter manual stock (verified by the Committee).
+    "Counter Staff": {"Devotees", "Bookings", "Donations", "Hundi", "Annadanam", "Counter", "Auction", "Stores"},
     "Poojari": {"Bookings"},                 # may mark bookings complete only
     "Accountant": {"Reports"},               # daily closing only — reconciles cash, never collects it
     "Committee": {"Hundi", "Auction", "Reports"},  # hundi verification, auction decisions, daily closing

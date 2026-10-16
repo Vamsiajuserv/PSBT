@@ -9,7 +9,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { DevoteesAPI, PoojasAPI, BookingsAPI, PoojarisAPI, FestivalsAPI, AlmanacAPI, SettingsAPI } from '../../api/client.js'
 import { fmtDate } from '../../components/admin/ui.jsx'
 import { TicketShell } from '../../components/admin/BookingTicket.jsx'
-import { toast } from '../../components/common/Dialog.jsx'
+import { toast, confirmDialog } from '../../components/common/Dialog.jsx'
 import { Select, DateField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
 import { T, tr, clock12, useLang, personName } from '../../i18n/LanguageContext.jsx'
@@ -252,12 +252,13 @@ export default function NewBooking() {
   // ── Active plan check (renewals that start after the current plan ends are allowed) ──
   const [dupWarning, setDupWarning] = useState(null)
   const [dupChecking, setDupChecking] = useState(false)
+  const [sameDayWarn, setSameDayWarn] = useState(null)   // same pooja already booked that day — confirm, not block
   useEffect(() => {
-    if (!devotee?.id || !pooja?.id || !plan?.id || !schedDate) { setDupWarning(null); setDupChecking(false); return }
+    if (!devotee?.id || !pooja?.id || !plan?.id || !schedDate) { setDupWarning(null); setSameDayWarn(null); setDupChecking(false); return }
     let cancelled = false
     setDupChecking(true)
     BookingsAPI.checkDuplicate({ devotee_id: devotee.id, mobile: devotee.mobile, pooja_id: pooja.id, plan_id: plan.id, scheduled_date: schedDate })
-      .then((res) => { if (!cancelled) setDupWarning(res.has_duplicate ? res : null) })
+      .then((res) => { if (!cancelled) { setDupWarning(res.has_duplicate ? res : null); setSameDayWarn(!res.has_duplicate && res.same_day ? res.same_day : null) } })
       .catch(() => { if (!cancelled) setDupWarning(null) })
       .finally(() => { if (!cancelled) setDupChecking(false) })
     return () => { cancelled = true }
@@ -335,6 +336,8 @@ export default function NewBooking() {
     if (method === 'UPI/QR Code' && ref && !/^[A-Za-z0-9]{6,40}$/.test(ref)) {
       setError(tr('UTR must contain only letters and numbers.')); return
     }
+    if (sameDayWarn && !(await confirmDialog({ title: tr('Already booked'), confirmLabel: tr('Book again'),
+      message: tr(sameDayWarn.message) + '\n\n' + tr('Book this pooja again?') }))) return
     setBusy(true)
     try {
       const res = await BookingsAPI.quickCreate({
@@ -369,7 +372,7 @@ export default function NewBooking() {
     setPoojariId(''); setVehicleNo(''); setMethod('Cash'); setUtr(''); setTicket(null); setError('')
   }
 
-  const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI / QR Code' : m)
+  const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'Online' : m)
   const sankalpamText = [gothram, nakshatram, rasi].filter(Boolean).join(' · ')
   const poojariName = personName(poojaris.find((p) => String(p.id) === String(poojariId)), lang)
 
@@ -554,6 +557,12 @@ export default function NewBooking() {
                 </div>
               )}
 
+              {!dupWarning && sameDayWarn && (
+                <div className="mt-4 rounded-xl px-4 py-3 flex items-start gap-3 bg-amber-50 border border-amber-300">
+                  <AlertTriangle size={18} className="text-amber-700 shrink-0 mt-0.5" />
+                  <div className="text-[0.8125rem] text-amber-800"><b><T>Already booked</T>:</b> {tr(sameDayWarn.message)} <T>You will be asked to confirm.</T></div>
+                </div>
+              )}
               {dupWarning && (
                 <div className="mt-4 rounded-xl px-4 py-3.5 flex items-start gap-3 bg-red-50 border-2 border-red-400">
                   <AlertTriangle size={20} className="text-red-700 shrink-0 mt-0.5" />

@@ -74,6 +74,16 @@ const AuditTrail = lazy(() => import('./pages/admin/AuditTrail.jsx'))
 const DailyClosing = lazy(() => import('./pages/admin/DailyClosing.jsx'))
 const BackupRestore = lazy(() => import('./pages/admin/BackupRestore.jsx'))
 const Notifications = lazy(() => import('./pages/admin/Notifications.jsx'))
+const StockRegister = lazy(() => import('./pages/admin/stores/StockRegister.jsx'))
+const PendingTagging = lazy(() => import('./pages/admin/stores/PendingTagging.jsx'))
+const ManualEntries = lazy(() => import('./pages/admin/stores/ManualEntries.jsx'))
+const ItemHistory = lazy(() => import('./pages/admin/stores/ItemHistory.jsx'))
+const ConsumablesStock = lazy(() => import('./pages/admin/stores/Consumables.jsx'))
+const StockReport = lazy(() => import('./pages/admin/stores/StockReport.jsx'))
+const StockCheck = lazy(() => import('./pages/admin/stores/StockCheck.jsx'))
+const UnsoldItems = lazy(() => import('./pages/admin/stores/UnsoldItems.jsx'))
+const OpenSale = lazy(() => import('./pages/admin/stores/OpenSale.jsx'))
+const StoreLocations = lazy(() => import('./pages/admin/stores/StoreLocations.jsx'))
 
 // Per-route module guard. RequireAuth (on the parent) has already ensured a user
 // exists; this sends a signed-in staff member who lacks the screen's module back
@@ -169,7 +179,18 @@ export default function App() {
         <Route path="audit" element={<Guard k="audit"><AuditTrail /></Guard>} />
         <Route path="daily-closing" element={<Guard k="daily-closing"><DailyClosing /></Guard>} />
         <Route path="backup" element={<Guard k="backup"><BackupRestore /></Guard>} />
-        <Route path="notifications" element={<Notifications />} />
+        <Route path="notifications" element={<Guard k="notifications"><Notifications /></Guard>} />
+        <Route path="stores/register" element={<Guard k="stores/register"><StockRegister /></Guard>} />
+        <Route path="stores/pending" element={<Guard k="stores/pending"><PendingTagging /></Guard>} />
+        <Route path="stores/manual" element={<Guard k="stores/manual"><ManualEntries /></Guard>} />
+        <Route path="stores/consumables" element={<Guard k="stores/consumables"><ConsumablesStock /></Guard>} />
+        <Route path="stores/report" element={<Guard k="stores/report"><StockReport /></Guard>} />
+        <Route path="stores/check" element={<Guard k="stores/check"><StockCheck /></Guard>} />
+        <Route path="stores/unsold" element={<Guard k="stores/unsold"><UnsoldItems /></Guard>} />
+        <Route path="stores/open-sale" element={<Guard k="stores/open-sale"><OpenSale /></Guard>} />
+        <Route path="stores/item" element={<Guard k="stores/item"><ItemHistory /></Guard>} />
+        <Route path="stores/item/:tag" element={<Guard k="stores/item"><ItemHistory /></Guard>} />
+        <Route path="stores/locations" element={<Guard k="stores/locations"><StoreLocations /></Guard>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

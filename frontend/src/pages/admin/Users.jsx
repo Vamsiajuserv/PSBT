@@ -6,7 +6,7 @@ import {
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, KpiGrid, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
-import { UsersAPI, RolesAPI, PoojarisAPI } from '../../api/client.js'
+import { UsersAPI, RolesAPI, PoojarisAPI, CommitteeAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Checkbox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { alertDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
@@ -17,7 +17,7 @@ import { useFilterParams } from '../../hooks/useUrlState.js'
 const AVATAR_TONES = ['bg-maroon-700', 'bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600']
 const initials = (n) => (n || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
 const tone = (n) => AVATAR_TONES[(n || '').length % AVATAR_TONES.length]
-const emptyUser = () => ({ name: '', email: '', mobile: '', role: '', is_active: true, password: '', confirm: '', modules: [], poojari_id: '' })
+const emptyUser = () => ({ name: '', email: '', mobile: '', role: '', is_active: true, password: '', confirm: '', modules: [], poojari_id: '', committee_member_id: '' })
 
 export default function Users() {
   const { lang } = useLang()
@@ -46,6 +46,12 @@ export default function Users() {
   const [poojariList, setPoojariList] = useState([])
   useEffect(() => {
     PoojarisAPI.master().then((r) => setPoojariList(r.items || [])).catch(() => setPoojariList([]))
+  }, [])
+  // Committee Member Master records — a Committee login is linked to one so it can
+  // approve the hundi counts that member is assigned to.
+  const [committeeList, setCommitteeList] = useState([])
+  useEffect(() => {
+    CommitteeAPI.list().then((r) => setCommitteeList(r.items || [])).catch(() => setCommitteeList([]))
   }, [])
 
   const load = () => {
@@ -78,7 +84,7 @@ export default function Users() {
   }, [])
 
   const filtered = useMemo(() => rows.filter((u) => {
-    if (q && !`${personName(u, lang)} ${u.email} ${u.mobile || ''}`.toLowerCase().includes(q.toLowerCase())) return false
+    if (q && !`${personName(u, lang)} ${u.username} ${u.email} ${u.mobile || ''}`.toLowerCase().includes(q.toLowerCase())) return false
     if (role && u.role !== role) return false
     if (status === 'Active' && !u.is_active) return false
     if (status === 'Inactive' && u.is_active) return false
@@ -90,7 +96,8 @@ export default function Users() {
 
   // Sortable table columns with filtering support
   const sortColumns = useMemo(() => [
-    { key: 'name', label: 'User Name', type: 'text' },
+    { key: 'name', label: 'Full Name', type: 'text' },
+    { key: 'username', label: 'Username', type: 'text' },
     { key: 'email', label: 'Email / Mobile', type: 'text' },
     { key: 'role', label: 'Role', type: 'text', filterable: true, filterOptions: roles },
     { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['Active', 'Inactive'] },
@@ -123,7 +130,7 @@ export default function Users() {
   }
   function openEdit(u) {
     setTab('details'); setErr('')
-    setDrawer({ mode: 'edit', data: { id: u.id, name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, is_active: u.is_active, password: '', confirm: '', modules: (u.modules || '').split(',').filter(Boolean), poojari_id: u.poojari_id || '' } })
+    setDrawer({ mode: 'edit', data: { id: u.id, name: u.name, email: u.email, mobile: u.mobile || '', role: u.role, is_active: u.is_active, password: '', confirm: '', modules: (u.modules || '').split(',').filter(Boolean), poojari_id: u.poojari_id || '', committee_member_id: u.committee_member_id || '' } })
   }
   const setD = (patch) => setDrawer((d) => ({ ...d, data: { ...d.data, ...patch } }))
   const toggleMod = (k) => setDrawer((d) => { const has = d.data.modules.includes(k); return { ...d, data: { ...d.data, modules: has ? d.data.modules.filter((x) => x !== k) : [...d.data.modules, k] } } })
@@ -162,7 +169,8 @@ export default function Users() {
     if ((drawer.mode === 'create' || d.password) && d.password !== d.confirm) { setErr(tr('Passwords do not match.')); return }
     try {
       const payload = { name: d.name, email: d.email?.trim() || null, mobile: d.mobile?.trim() || null, role: d.role, is_active: d.is_active, modules: d.modules,
-        poojari_id: d.role === 'Poojari' && d.poojari_id ? Number(d.poojari_id) : null }
+        poojari_id: d.role === 'Poojari' && d.poojari_id ? Number(d.poojari_id) : null,
+        committee_member_id: d.role === 'Committee' && d.committee_member_id ? Number(d.committee_member_id) : null }
       if (drawer.mode === 'create') await UsersAPI.create({ ...payload, password: d.password })
       else await UsersAPI.update(d.id, { ...payload, ...(d.password ? { password: d.password } : {}) })
       setDrawer(null); load()
@@ -247,6 +255,7 @@ export default function Users() {
                       {u.role === 'Administrator' && <span className="text-[0.625rem] font-semibold text-maroon-700 bg-maroon-50 rounded px-1.5 py-0.5"><T>Admin</T></span>}
                     </div>
                   </td>
+                  <td className="px-4 py-3 font-mono text-[0.8125rem] text-gray-700 whitespace-nowrap">{u.username}</td>
                   <td className="px-4 py-3"><div className="text-gray-700 text-[0.8125rem]">{u.email}</div><div className="text-[0.6875rem] text-gray-400">{u.mobile || '—'}</div></td>
                   <td className="px-4 py-3 text-gray-600">{tr(u.role)}</td>
                   <td className="px-4 py-3"><Pill tone={u.is_active ? 'green' : 'red'}>{u.is_active ? tr('Active') : tr('Inactive')}</Pill></td>
@@ -270,7 +279,7 @@ export default function Users() {
                   </td>
                 </tr>
               ))}
-              {filteredSortedRows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No users found.")} />}
+              {filteredSortedRows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty={tr("No users found.")} />}
             </tbody>
           </table>
         </div>
@@ -347,6 +356,15 @@ export default function Users() {
                         {poojariList.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)} ({p.code}){p.active ? '' : ` · ${tr('Inactive')}`}</option>)}
                       </Select>
                       <div className="text-[0.7rem] text-gray-400 mt-0.5"><T>Bookings assigned to this poojari appear in this user's "My Poojas".</T></div>
+                    </div>
+                  )}
+                  {drawer.data.role === 'Committee' && (
+                    <div><label className="label"><T>Linked Committee Member *</T></label>
+                      <Select required className="input" value={drawer.data.committee_member_id} onChange={(e) => setD({ committee_member_id: e.target.value })}>
+                        <option value="">{tr('Select Committee Member')}</option>
+                        {committeeList.map((c) => <option key={c.id} value={c.id}>{personName(c, lang)} ({c.code}){c.active ? '' : ` · ${tr('Inactive')}`}</option>)}
+                      </Select>
+                      <div className="text-[0.7rem] text-gray-400 mt-0.5"><T>This user can approve the hundi collections this committee member is assigned to.</T></div>
                     </div>
                   )}
                   <div><label className="label"><T>Status *</T></label><Select className="input" value={drawer.data.is_active ? 'Active' : 'Inactive'} onChange={(e) => setD({ is_active: e.target.value === 'Active' })}><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>

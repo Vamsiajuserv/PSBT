@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, WasteSale,
+from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, WasteSale, OpenSale,
                       Festival, Devotee, PoojaPlan, Pooja, Refund, BookingPerformance)
 from ..security import RequireModule, client_ip
 from ..helpers import mask_pan, enforce_rate_limit, fmt_ist_datetime
@@ -66,8 +66,8 @@ CATALOG = [
         "Hundi Bank Deposits",
         "Auction Summary",
         "Auction Register",
-        "Waste Sales Register",
-        "Waste Sales Summary",
+        "Other Sales Register",
+        "Other Sales Summary",
     ]},
     {"key": "general", "label": "General Reports", "reports": [
         "Daily Cash Collection",
@@ -120,7 +120,7 @@ def rep_daily(db, model, amount_attr, start, end, mode_attr, label, subtitle, pe
     cols = [T("date", "Date"), N("count", count_label or ("No. of Records" if persons else "No. of Bookings"))]
     if persons:
         cols.append(N("persons", "Persons"))
-    cols += [M("amount", "Collection Amount (₹)"), M("cash", "Cash (₹)"), M("upi", "UPI / QR Code (₹)")]
+    cols += [M("amount", "Collection Amount (₹)"), M("cash", "Cash (₹)"), M("upi", "Online (₹)")]
     rows, tot = [], {"count": 0, "persons": 0, "amount": 0.0, "cash": 0.0, "upi": 0.0}
     for d, b in buckets.items():
         rows.append({"date": d.strftime("%d %b %Y"), **b})
@@ -184,6 +184,17 @@ def _is_cash(mode) -> bool:
     return (mode or "Cash").strip().lower() == "cash"
 
 
+def _open_sales(db, start, end):
+    """Open Sale (Stores) receipts in [start, end] — same day rule as Daily Closing."""
+    return db.query(OpenSale).filter(func.date(OpenSale.sold_at).between(start, end)).order_by(OpenSale.id).all()
+
+
+def mode_label(mode) -> str:
+    """Display name for a stored payment mode: UPI / QR Code payments read as "Online"."""
+    mode = mode or "Cash"
+    return "Online" if mode in ("UPI", "UPI/QR Code") else mode
+
+
 def _collection_rows(db, start, end, key_of, base_of):
     """Group paid bookings + their refunds by key_of(booking) into rows carrying
     count / completed / cancelled / amount / refunds / net."""
@@ -244,10 +255,10 @@ def generate(report, start, end, db):
                 for d, v in sorted(days.items())]
         return {
             "title": "Daily Pooja Summary",
-            "subtitle": "Day-wise paid pooja bookings (cash / UPI), refunds paid out and net collection — matches Daily Closing.",
+            "subtitle": "Day-wise paid pooja bookings (cash / online), refunds paid out and net collection — matches Daily Closing.",
             "columns": [
                 T("date", "Date"), N("count", "Paid Bookings"), N("completed", "Completed"),
-                N("cancelled", "Cancelled"), M("cash", "Cash (₹)"), M("upi", "UPI (₹)"),
+                N("cancelled", "Cancelled"), M("cash", "Cash (₹)"), M("upi", "Online (₹)"),
                 M("amount", "Collected (₹)"), M("refunds", "Refunds (₹)"), M("net", "Net (₹)"),
             ],
             "rows": rows,
@@ -272,7 +283,7 @@ def generate(report, start, end, db):
                 "scheduled": b.scheduled_date.strftime("%d %b %Y") if b.scheduled_date else "-",
                 "slot": b.time_slot or "-",
                 "poojari": b.poojari_name or "-",
-                "mode": mode,
+                "mode": mode_label(mode),
                 "txn_ref": b.payment_ref or "-",
                 "amount": amt,
                 "status": b.status or "-",
@@ -430,7 +441,7 @@ def generate(report, start, end, db):
             "category": d.fund or "-",
             "notes": d.notes or "-",
             "amount": float(d.amount or 0),
-            "mode": d.mode or "Cash",
+            "mode": mode_label(d.mode),
             "txn_ref": d.txn_ref or "-",
             "g80": "Yes" if d.g80 else "No",
         } for d in rows]
@@ -494,7 +505,7 @@ def generate(report, start, end, db):
             "mobile": a.mobile or "-",
             "persons": a.plates or 0,
             "amount": float(a.amount or 0),
-            "mode": a.mode or "Cash",
+            "mode": mode_label(a.mode),
             "occasion": a.occasion or "-",
         } for a in rows]
         total = {"receipt": "Total", "date": "", "sponsor": "", "mobile": "",
@@ -669,7 +680,7 @@ def generate(report, start, end, db):
             ],
             "rows": data, "total": total
         }
-    if report == "Waste Sales Register":
+    if report == "Other Sales Register":
         rows = _range(WasteSale, start, end, db)
         data = [{
             "receipt": s.code or "-",
@@ -679,7 +690,7 @@ def generate(report, start, end, db):
             "qty": float(s.weight_kg or 0),
             "rate": float(s.rate or 0),
             "amount": float(s.amount or 0),
-            "mode": s.mode or "Cash",
+            "mode": mode_label(s.mode),
             "status": s.status or "-",
         } for s in rows]
         total = {
@@ -688,8 +699,8 @@ def generate(report, start, end, db):
             "amount": sum(r["amount"] for r in data), "mode": "", "status": ""
         }
         return {
-            "title": "Waste Sales Register",
-            "subtitle": "Waste material sales ledger with vendor details.",
+            "title": "Other Sales Register",
+            "subtitle": "Other material sales ledger with vendor details.",
             "columns": [
                 T("receipt", "Receipt#"), T("date", "Date"), T("vendor", "Vendor"),
                 T("material", "Material"), N("qty", "Qty (kg)"), M("rate", "Rate (₹)"),
@@ -698,7 +709,7 @@ def generate(report, start, end, db):
             "rows": data, "total": total
         }
 
-    if report == "Waste Sales Summary":
+    if report == "Other Sales Summary":
         # Group by material type
         rows = _range(WasteSale, start, end, db)
         agg = OrderedDict()
@@ -714,8 +725,8 @@ def generate(report, start, end, db):
             "qty": sum(r["qty"] for r in data), "amount": sum(r["amount"] for r in data)
         }
         return {
-            "title": "Waste Sales Summary",
-            "subtitle": "Material-wise waste sales summary.",
+            "title": "Other Sales Summary",
+            "subtitle": "Material-wise other sales summary.",
             "columns": [
                 T("material", "Material"), N("count", "Transactions"),
                 N("qty", "Total Qty (kg)"), M("amount", "Amount (₹)")
@@ -732,7 +743,7 @@ def generate(report, start, end, db):
 
         def add(dobj, ref, head, party, mode, utr, amt, is_cash):
             tx.append({"_d": dobj, "date": dobj.strftime("%d %b %Y") if dobj else "-", "ref": ref or "-",
-                       "head": head, "party": party or "-", "mode": mode or "-", "utr": utr or "-",
+                       "head": head, "party": party or "-", "mode": mode_label(mode) if mode else "-", "utr": utr or "-",
                        "cash": (amt if is_cash else 0.0), "online": (0.0 if is_cash else amt),
                        "amount": amt})
         for b in db.query(Booking).filter(*_paid_booking_filter(start, end)).all():
@@ -749,7 +760,10 @@ def generate(report, start, end, db):
         for s in db.query(WasteSale).filter(
                 func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end), WasteSale.status != "Void").all():
             dt = (s.paid_at or s.created_at)
-            add(dt.date() if dt else None, s.code, "Waste Sale", s.vendor_name, s.mode, s.txn_ref, float(s.amount or 0), s.mode == "Cash")
+            add(dt.date() if dt else None, s.code, "Other Sale", s.vendor_name, s.mode, s.txn_ref, float(s.amount or 0), s.mode == "Cash")
+        for s in _open_sales(db, start, end):
+            add((s.sold_at.date() if s.sold_at else None), s.receipt_no, "Open Sale (Stores)", s.buyer_name, s.payment_mode, s.payment_ref,
+                float(s.amount or 0), s.payment_mode == "Cash")
         for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end)).all():
             add(h.collected_on, h.code, "Hundi Collection", "Hundi (Anonymous)", "Cash", None, float(h.counted_amount or 0), True)
         tx.sort(key=lambda r: r["_d"] or date.min, reverse=True)
@@ -759,10 +773,10 @@ def generate(report, start, end, db):
                  "cash": sum(r["cash"] for r in tx), "online": sum(r["online"] for r in tx),
                  "amount": sum(r["amount"] for r in tx)}
         return {"title": "Daily Cash Collection",
-                "subtitle": "Counter collections (Cash and Online/UPI with UTR) across all heads for the selected period.",
+                "subtitle": "Counter collections (Cash and Online with UTR) across all heads for the selected period.",
                 "columns": [T("date", "Date"), T("ref", "Receipt / Ref No."), T("head", "Head"), T("party", "Party"),
                             T("mode", "Payment Mode"), T("utr", "UTR / Txn Ref"), M("cash", "Cash (₹)"),
-                            M("online", "UPI / Online (₹)"), M("amount", "Total (₹)")],
+                            M("online", "Online (₹)"), M("amount", "Total (₹)")],
                 "rows": tx, "total": total}
 
     if report == "Festival Collection":
@@ -829,14 +843,18 @@ def generate(report, start, end, db):
                 func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end), WasteSale.status != "Void").all():
             dt = (s.paid_at or s.created_at)
             rows.append({"_d": dt, "receipt": s.code, "date": dt.strftime("%d %b %Y") if dt else "-",
-                         "type": "Waste Sale", "party": s.vendor_name, "amount": float(s.amount or 0), "mode": s.mode})
+                         "type": "Other Sale", "party": s.vendor_name, "amount": float(s.amount or 0), "mode": s.mode})
+        for s in _open_sales(db, start, end):
+            dt = (s.sold_at.date() if s.sold_at else None)
+            rows.append({"_d": s.sold_at, "receipt": s.receipt_no, "date": dt.strftime("%d %b %Y") if dt else "-",
+                         "type": "Open Sale (Stores)", "party": s.buyer_name, "amount": float(s.amount or 0), "mode": s.payment_mode})
         rows.sort(key=lambda r: r["_d"] or datetime.min, reverse=True)
         for r in rows:
             r.pop("_d", None)
         total = {"receipt": "Total", "date": "", "type": "", "party": "",
                  "amount": sum(r["amount"] for r in rows), "mode": ""}
         return {"title": "Receipt Register",
-                "subtitle": "All receipts issued across pooja, donation, annadanam and waste sales.",
+                "subtitle": "All receipts issued across pooja, donation, annadanam and other sales.",
                 "columns": [T("receipt", "Receipt No."), T("date", "Date"), T("type", "Type"), T("party", "Party"),
                             M("amount", "Amount (₹)"), T("mode", "Payment Mode")],
                 "rows": rows, "total": total}
@@ -849,7 +867,7 @@ def generate(report, start, end, db):
             m = 1 if m == 12 else m + 1
             y = y + 1 if m == 1 else y
         buckets = OrderedDict((mk, {"pooja": 0.0, "donation": 0.0, "hundi": 0.0,
-                                    "auction": 0.0, "annadanam": 0.0, "waste": 0.0}) for mk in months)
+                                    "auction": 0.0, "annadanam": 0.0, "waste": 0.0, "open_sale": 0.0}) for mk in months)
 
         def bump(dobj, key, amt):
             mk = dobj.strftime("%Y-%m") if dobj else None
@@ -873,8 +891,10 @@ def generate(report, start, end, db):
                 func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end), WasteSale.status != "Void").all():
             dt = (s.paid_at or s.created_at)
             bump(dt.date() if dt else None, "waste", float(s.amount or 0))
+        for s in _open_sales(db, start, end):
+            bump((s.sold_at.date() if s.sold_at else None), "open_sale", float(s.amount or 0))
         rows, tot = [], {"pooja": 0.0, "donation": 0.0, "hundi": 0.0, "auction": 0.0,
-                         "annadanam": 0.0, "waste": 0.0, "total": 0.0}
+                         "annadanam": 0.0, "waste": 0.0, "open_sale": 0.0, "total": 0.0}
         for mk, v in buckets.items():
             row_total = sum(v.values())
             label = datetime.strptime(mk + "-01", "%Y-%m-%d").strftime("%b %Y")
@@ -889,7 +909,7 @@ def generate(report, start, end, db):
             "columns": [
                 T("month", "Month"), M("pooja", "Pooja (₹)"), M("donation", "Donations (₹)"),
                 M("hundi", "Hundi (₹)"), M("auction", "Auction (₹)"), M("annadanam", "Annadanam (₹)"),
-                M("waste", "Waste (₹)"), M("total", "Total (₹)")
+                M("waste", "Other Sales (₹)"), M("open_sale", "Open Sale (₹)"), M("total", "Total (₹)")
             ],
             "rows": rows, "total": total
         }
@@ -926,6 +946,7 @@ def generate(report, start, end, db):
         waste_count = db.query(WasteSale).filter(
             func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end),
             WasteSale.status != "Void").count()
+        osales = _open_sales(db, start, end)
 
         data = [
             {"head": "Pooja Bookings", "count": pooja_count, "amount": pooja_amt},
@@ -933,7 +954,8 @@ def generate(report, start, end, db):
             {"head": "Hundi Collections", "count": hundi_count, "amount": hundi_amt},
             {"head": "Auctions", "count": auction_count, "amount": auction_amt},
             {"head": "Annadanam", "count": annadanam_count, "amount": annadanam_amt},
-            {"head": "Waste Sales", "count": waste_count, "amount": waste_amt},
+            {"head": "Other Sales", "count": waste_count, "amount": waste_amt},
+            {"head": "Open Sale (Stores)", "count": len(osales), "amount": sum(float(s.amount or 0) for s in osales)},
         ]
         total = {
             "head": "Grand Total",
@@ -949,8 +971,8 @@ def generate(report, start, end, db):
 
     if report == "Payment Mode Analysis":
         # Analyze payment modes across all heads
-        modes = {"Cash": 0.0, "UPI": 0.0, "Card": 0.0, "Bank Transfer": 0.0, "Cheque": 0.0, "Online": 0.0}
-        mode_counts = {"Cash": 0, "UPI": 0, "Card": 0, "Bank Transfer": 0, "Cheque": 0, "Online": 0}
+        modes = {"Cash": 0.0, "Card": 0.0, "Bank Transfer": 0.0, "Cheque": 0.0, "Online": 0.0}
+        mode_counts = {"Cash": 0, "Card": 0, "Bank Transfer": 0, "Cheque": 0, "Online": 0}
 
         for b in db.query(Booking).filter(*_paid_booking_filter(start, end)).all():
             m = b.payment_method or "Cash"
@@ -984,6 +1006,11 @@ def generate(report, start, end, db):
             modes[m] = modes.get(m, 0) + float(s.amount or 0)
             mode_counts[m] = mode_counts.get(m, 0) + 1
 
+        for s in _open_sales(db, start, end):
+            m = "Cash" if s.payment_mode == "Cash" else "Online"
+            modes[m] += float(s.amount or 0)
+            mode_counts[m] += 1
+
         # Add Hundi as cash
         for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end)).all():
             modes["Cash"] += float(h.counted_amount or 0)
@@ -991,7 +1018,7 @@ def generate(report, start, end, db):
 
         total_amt = sum(modes.values())
         data = []
-        for m in ["Cash", "UPI", "Card", "Bank Transfer", "Cheque", "Online"]:
+        for m in ["Cash", "Card", "Bank Transfer", "Cheque", "Online"]:
             if modes.get(m, 0) > 0 or mode_counts.get(m, 0) > 0:
                 pct = (modes[m] / total_amt * 100) if total_amt > 0 else 0
                 data.append({
@@ -1022,9 +1049,10 @@ def generate(report, start, end, db):
 @router.get("/generate")
 def generate_report(report: str, request: Request, start: date | None = None, end: date | None = None,
                     db: Session = Depends(get_db), user=Depends(read)):
-    # Phase 1 Security (API-004): Rate limit report generation (max 20 per minute per user)
+    # Phase 1 Security (API-004): Rate limit report generation (max 60 per minute per user —
+    # the Reports screen regenerates on every report change, so 20 blocked normal browsing)
     # Reports can be heavy queries, so rate limiting prevents DoS via repeated report generation
-    enforce_rate_limit(db, f"report_generate:{user.username}", limit=20, window_minutes=1,
+    enforce_rate_limit(db, f"report_generate:{user.username}", limit=60, window_minutes=1,
                        ip=client_ip(request))
     end = end or date.today()
     start = start or end.replace(day=1)

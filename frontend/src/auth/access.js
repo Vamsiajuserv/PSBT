@@ -49,6 +49,18 @@ export const ACCESS = {
   'daily-closing': { module: 'Reports' },
   audit: { module: 'Audit' },
 
+  // ── Stores & Inventory (Stores module: Counter Staff, Committee, Accountant) ──
+  'stores/register': { module: 'Stores' },
+  'stores/pending': { module: 'Stores' },
+  'stores/consumables': { module: 'Stores' },
+  'stores/unsold': { module: 'Stores' },
+  'stores/open-sale': { module: 'Stores' },
+  'stores/report': { module: 'Stores' },
+  'stores/check': { module: 'Stores' },
+  'stores/manual': { module: 'Stores' },
+  'stores/item': { module: 'Stores' },
+  'stores/locations': { adminOnly: true },
+
   // ── Poojari workflow screens (Poojari + Administrator) ──
   'my-poojas': { module: 'Bookings', roles: ['Poojari'] },
   'verify-ticket': { module: 'Bookings', roles: ['Poojari'] },

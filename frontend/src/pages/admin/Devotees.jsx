@@ -290,7 +290,8 @@ export default function Devotees() {
   const { lang } = useLang()
   const { user } = useAuth()
   const isAdmin = isAdminRole(user)
-  const canWrite = isAdmin // Only Admin can add/edit devotees
+  // Counter Staff and Administrator add / edit devotees (server: Devotees write). Delete stays Administrator-only.
+  const canWrite = isAdmin || user?.role === 'Counter Staff'
   // Only Admin, Committee, Accountant can see amounts in reports
   const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   const [rows, setRows] = useState([])
@@ -556,7 +557,7 @@ export default function Devotees() {
                   <td className="px-4 py-3.5">
                     <div className="flex gap-1">
                       <button type="button" onClick={() => openDetail(d.id)} title={tr("View details")} aria-label={`${tr("View details for")} ${personName(d, lang)}`} className="w-6 h-6 grid place-items-center rounded border border-gray-200 text-gray-600 hover:text-maroon-700 hover:border-maroon-300 hover:bg-maroon-50 transition-colors"><Eye size={13} aria-hidden="true" /></button>
-                      {isAdmin && <button type="button" onClick={() => { setSaveErr(''); setModal({ mode: 'edit', data: { ...d } }) }} title={tr("Edit devotee")} aria-label={`${tr("Edit")} ${personName(d, lang)}`} className="w-6 h-6 grid place-items-center rounded border border-gray-200 text-gray-600 hover:text-maroon-700 hover:border-maroon-300 hover:bg-maroon-50 transition-colors"><Pencil size={13} aria-hidden="true" /></button>}
+                      {canWrite && <button type="button" onClick={() => { setSaveErr(''); setModal({ mode: 'edit', data: { ...d } }) }} title={tr("Edit devotee")} aria-label={`${tr("Edit")} ${personName(d, lang)}`} className="w-6 h-6 grid place-items-center rounded border border-gray-200 text-gray-600 hover:text-maroon-700 hover:border-maroon-300 hover:bg-maroon-50 transition-colors"><Pencil size={13} aria-hidden="true" /></button>}
                     </div>
                   </td>
                 </tr>

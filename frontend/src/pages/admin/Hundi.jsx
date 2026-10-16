@@ -2,16 +2,18 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Plus, X, Eye, Search, RotateCcw, Calendar, Info, ChevronDown, Trash2, Upload,
   HandCoins, IndianRupee, Landmark, CalendarClock, FileText, Calculator, Users, ShieldCheck, Building2,
-  Package, CheckCircle2, Gem, Lock,
+  Package, CheckCircle2, Gem, Lock, XCircle,
 } from 'lucide-react'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp, fmtLocalStamp } from '../../components/admin/ui.jsx'
-import { HundiAPI, HundiItemsAPI, DevoteesAPI, CommitteeAPI, SettingsAPI } from '../../api/client.js'
+import { HundiAPI, HundiItemsAPI, DevoteesAPI, CommitteeAPI, SettingsAPI, StoresAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { isAdminRole } from '../../auth/access.js'
+import { TagItemsDrawer, canWriteStores } from './stores/shared.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, Checkbox, NumberField, Combobox } from '../../components/common/Field.jsx'
-import { promptDialog, toast } from '../../components/common/Dialog.jsx'
+import { promptDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeItemName } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
@@ -35,6 +37,10 @@ const countingErr = (m) => {
   return ''
 }
 const memberCount = (s) => (s ? s.split(',').filter((x) => x.trim()).length : 0)
+// A count is verified once this many of its assigned committee members approve it
+// (backend REQUIRED_APPROVALS). Older counts with a single member need just that one.
+const REQUIRED_APPROVALS = 2
+const approvalsNeeded = (h) => Math.min(REQUIRED_APPROVALS, (h.committee_member_ids || []).length || REQUIRED_APPROVALS)
 
 const emptyLine = () => ({ hundi_item_id: '', item_name: '', item_type: '', quantity: '', unit: '', value: '', remarks: '' })
 const lineTotal = (lines) => lines.reduce((s, l) => s + Number(l.value || 0), 0)
@@ -50,7 +56,16 @@ export default function Hundi() {
   const { user } = useAuth()
   const { lang } = useLang()
   const canWrite = user?.role !== 'Accountant'
-  const canVerify = ['Committee', 'Administrator', 'Admin'].includes(user?.role)
+  const isAdmin = isAdminRole(user)
+  // Only the committee members assigned to a count may approve or reject it; an
+  // Administrator may override. A Committee login acts through its linked member.
+  const myMemberId = user?.role === 'Committee' ? user?.committee_member_id : null
+  const isAssigned = (h) => !!myMemberId && (h.committee_member_ids || []).includes(myMemberId)
+  const hasApproved = (h) => (h.approvals || []).some((a) => a.member_id === myMemberId)
+  const canApprove = (h) => h.verification_status === 'Pending Verification' && h.created_by !== user?.username
+    && (isAdmin || (isAssigned(h) && !hasApproved(h)))
+  // A member who has already approved has attested the count — they cannot also reject it.
+  const canReject = (h) => h.verification_status === 'Pending Verification' && (isAdmin || (isAssigned(h) && !hasApproved(h)))
   // Only Admin, Committee, Accountant can see amounts in reports
   const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
   const SIZE = 15
@@ -65,6 +80,8 @@ export default function Hundi() {
   const [committee, setCommittee] = useState([])
   const [banks, setBanks] = useState([])
   const [itemMaster, setItemMaster] = useState([])
+  // Stores & Inventory: once valuables are in custody, tag each piece
+  const [tagSource, setTagSource] = useState(null)
 
   // filters - persisted in URL for state preservation across navigation
   const {
@@ -190,8 +207,23 @@ export default function Hundi() {
 
   // DEF-009: Use language-aware names for committee members
   const committeeNames = committee.map((c) => personName(c, lang))
+  // Admin: correct a rejected count's items and send it back to the same members for approval
+  const openResubmit = (h) => {
+    setDateServerErr(''); setCountServerErr('')
+    setDrawer({
+      ...emptyForm(), resubmit: h, note: '',
+      collected_on: h.collected_on || today(),
+      counting_completed_on: h.counting_completed_on ? String(h.counting_completed_on).slice(0, 16) : nowLocal(),
+      denomination: h.denomination || 'Mixed', officer: h.officer || '',
+      members: h.committee_member_ids || [],
+      lines: (h.items || []).length ? h.items.map((it) => ({
+        hundi_item_id: it.hundi_item_id || '', item_name: it.item_name || '', item_type: it.item_type || '',
+        quantity: it.quantity ?? '', unit: it.unit || '', value: it.value ?? '', remarks: it.remarks || '',
+      })) : [emptyLine()],
+    })
+  }
   const openCreate = () => { setDateServerErr(''); setCountServerErr(''); setDrawer({ ...emptyForm(), bank_name: banks[0] || '' }) }
-  const toggleMember = (name) => setDrawer((d) => ({ ...d, members: d.members.includes(name) ? d.members.filter((x) => x !== name) : [...d.members, name] }))
+  const toggleMember = (id) => setDrawer((d) => ({ ...d, members: d.members.includes(id) ? d.members.filter((x) => x !== id) : [...d.members, id] }))
 
   // ── Item-wise counting register helpers ──
   const setLine = (i, patch) => setDrawer((d) => ({ ...d, lines: d.lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) }))
@@ -221,17 +253,26 @@ export default function Hundi() {
   }
   async function storeValuables(h) {
     const valAmt = h.valuables_amount || 0
+    // Custody goes to one of the Store Locations — the same place the tagged pieces are tracked
+    const locs = await StoresAPI.locations().then((r) => (r.items || []).filter((l) => l.active)).catch(() => [])
+    if (!locs.length) { toast(tr('Add a store location first (Stores → Store Locations).'), 'error'); return }
     const res = await promptDialog({
       title: `${tr('Record Valuables Store Custody')} — ${h.code}`,
       message: `${tr('Valuables amount')}: ${inr(valAmt)}`,
       confirmLabel: tr('Record Custody'),
       fields: [
-        { k: 'store_location', label: tr('Store Location'), defaultValue: '', placeholder: tr('e.g. Main Vault, Locker A') },
-        { k: 'custodian', label: tr('Custodian Name'), defaultValue: '', placeholder: tr('Committee member holding custody') },
+        { k: 'store_location', label: tr('Store Location'), type: 'select', required: true, defaultValue: '',
+          options: locs.map((l) => ({ value: l.name, label: tr(l.name) })) },
+        { k: 'custodian', label: tr('Custodian Name'), type: 'combobox', defaultValue: '', placeholder: tr('Committee member holding custody'),
+          options: committee.map((c) => ({ value: c.name, label: personName(c, lang) })) },
       ],
     })
     if (!res) return
-    try { await HundiAPI.store(h.id, { store_location: res.store_location.trim() || null, custodian: res.custodian.trim() || null, stored_on: today() }); toast(tr('Valuables stored in custody.')); load() }
+    try {
+      await HundiAPI.store(h.id, { store_location: res.store_location.trim() || null, custodian: res.custodian.trim() || null, stored_on: today() })
+      toast(tr('Valuables stored in custody.')); load()
+      if (canWriteStores(user)) setTagSource({ type: 'Hundi', id: h.id })
+    }
     catch (ex) { toast(ex.detail || tr('Could not record custody.'), 'error') }
   }
   async function rejectCollection(h) {
@@ -246,7 +287,22 @@ export default function Hundi() {
     catch (ex) { toast(ex.detail || tr('Could not reject this collection.'), 'error') }
   }
   async function verify(h) {
-    try { await HundiAPI.verify(h.id); toast(tr('Collection verified.')); load() }
+    if (isAdmin) {
+      const ok = await confirmDialog({
+        title: `${tr('Verify (Admin Override)')} — ${h.code}`,
+        message: tr('This verifies the collection without waiting for the assigned committee members ({done}/{need} approved).')
+          .replace('{done}', (h.approvals || []).length).replace('{need}', approvalsNeeded(h)),
+        confirmLabel: tr('Verify'),
+      })
+      if (!ok) return
+    }
+    try {
+      const r = await HundiAPI.verify(h.id)
+      toast(r.verification_status === 'Verified' ? tr('Collection verified.')
+        : tr('Approval recorded ({done}/{need}). Waiting for another committee member.')
+          .replace('{done}', (r.approvals || []).length).replace('{need}', approvalsNeeded(r)))
+      load()
+    }
     catch (ex) { toast(ex.detail || tr('Could not verify this collection.'), 'error') }
   }
 
@@ -266,10 +322,12 @@ export default function Hundi() {
       return
     }
 
-    // Validate committee members - at least one must be selected
-    const members = m.members.map((x) => x.trim()).filter(Boolean)
-    if (members.length === 0) {
-      toast(tr('Please select at least one committee member who was present during counting.'), 'error')
+    // At least two committee members must be selected — they approve this count.
+    // (A resubmitted count keeps its original members.)
+    const chosen = committee.filter((c) => m.members.includes(c.id))
+    if (!m.resubmit && chosen.length < REQUIRED_APPROVALS) {
+      document.getElementById('hundi-committee')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      toast(tr('Please select at least 2 committee members who were present during counting.'), 'error')
       return
     }
 
@@ -306,6 +364,26 @@ export default function Hundi() {
     }
 
     setSaving(true)
+    if (m.resubmit) {
+      if ((m.note || '').trim().length < 5) {
+        document.getElementById('hundi-reason')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        toast(tr('Enter the reason for the correction (at least 5 characters).'), 'error')
+        setSaving(false)
+        return
+      }
+      try {
+        await HundiAPI.resubmit(m.resubmit.id, {
+          items, counting_completed_on: m.counting_completed_on || null,
+          denomination: m.denomination || null, note: m.note.trim(),
+        })
+        toast(tr('Corrected and sent back for committee approval.'))
+        setDrawer(null); load()
+      } catch (ex) {
+        if (/^counting/i.test(ex?.detail || '')) setCountServerErr(ex.detail)
+        toast(tr(getErrorMessage(ex, 'Could not resubmit this collection.')).replace(/^Value error, /, ''), 'error')
+      } finally { setSaving(false) }
+      return
+    }
     try {
       // Verification/deposit fields are server-controlled (always born Pending) —
       // only the actual collection data is sent.
@@ -316,7 +394,8 @@ export default function Hundi() {
         denomination: m.denomination || null,
         officer: m.officer || null,
         items,
-        committee_members: members,
+        committee_member_ids: chosen.map((c) => c.id),
+        committee_members: chosen.map((c) => c.name),
       })
       setDrawer(null); load()
     } catch (ex) {
@@ -420,7 +499,7 @@ export default function Hundi() {
                   type={col.type}
                   // Number columns: left-aligned like their cells, so the figures sit directly under the
                   // title (a right-aligned title is pushed left by its hidden sort icon).
-                  className={col.type === 'money' || col.type === 'num' ? '!text-left' : ''}
+                  className={`!px-3 ${col.type === 'money' || col.type === 'num' ? '!text-left' : ''}`}
                   filterable={col.filterable}
                   filterOptions={col.filterOptions}
                   onSort={handleColumnClick}
@@ -432,32 +511,41 @@ export default function Hundi() {
                   onClearFilter={clearFilter}
                 />
               ))}
-              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
+              <th className="px-3 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {displayRows.map((h) => (
                 <tr key={h.id} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{h.code}</td>
-                  <td className="px-4 py-3 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDate(h.collected_on)}</td>
-                  <td className="px-4 py-3 font-semibold text-blue-700">{canSeeAmounts ? (h.cash_amount > 0 ? inr(h.cash_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
-                  <td className="px-4 py-3 font-semibold text-violet-700">{canSeeAmounts ? (h.valuables_amount > 0 ? inr(h.valuables_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
-                  <td className="px-4 py-3"><Pill tone={VER_TONE[h.verification_status] || 'gray'}>{tr(h.verification_status)}</Pill></td>
-                  <td className="px-4 py-3">{h.deposit_status && h.deposit_status !== 'N/A' ? <Pill tone={DEP_TONE[h.deposit_status] || 'gray'}>{tr(h.deposit_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-3">{h.valuables_status ? <Pill tone={VAL_TONE[h.valuables_status] || 'gray'}>{tr(h.valuables_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button onClick={() => setView(h)} title={tr("View details")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
-                      {canVerify && h.verification_status === 'Pending Verification' && (
-                        <>
-                          <button onClick={() => verify(h)} title={tr("Verify collection")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-emerald-200 text-emerald-700 text-[0.78125rem] font-semibold hover:bg-emerald-50"><CheckCircle2 size={15} />{' '}<T>Verify</T></button>
-                          <button onClick={() => rejectCollection(h)} title={tr("Flag a discrepancy")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-red-200 text-red-600 text-[0.78125rem] font-semibold hover:bg-red-50"><T>Reject</T></button>
-                        </>
+                  <td className="px-3 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{h.code}</td>
+                  <td className="px-3 py-3 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDate(h.collected_on)}</td>
+                  <td className="px-3 py-3 font-semibold text-blue-700">{canSeeAmounts ? (h.cash_amount > 0 ? inr(h.cash_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
+                  <td className="px-3 py-3 font-semibold text-violet-700">{canSeeAmounts ? (h.valuables_amount > 0 ? inr(h.valuables_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
+                  <td className="px-3 py-3">
+                    <Pill tone={VER_TONE[h.verification_status] || 'gray'}>{tr(h.verification_status)}</Pill>
+                    {h.verification_status === 'Pending Verification' && (
+                      <div className="text-[0.6875rem] text-gray-500 mt-1 whitespace-nowrap">{(h.approvals || []).length}/{approvalsNeeded(h)} {tr('approved')}</div>
+                    )}
+                  </td>
+                  <td className="px-3 py-3">{h.deposit_status && h.deposit_status !== 'N/A' ? <Pill tone={DEP_TONE[h.deposit_status] || 'gray'}>{tr(h.deposit_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-3 py-3">{h.valuables_status ? <Pill tone={VAL_TONE[h.valuables_status] || 'gray'}>{tr(h.valuables_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-3 py-3">
+                    {/* Icon-only actions (tooltip names each one) so the column stays narrow — no horizontal scroll */}
+                    <div className="flex items-center gap-1.5 flex-nowrap">
+                      <IconAction onClick={() => setView(h)} label={tr("View details")} icon={Eye} tone="border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300" />
+                      {canApprove(h) && (isAdmin
+                        ? <IconAction onClick={() => verify(h)} label={tr("Verify (Override)")} icon={ShieldCheck} tone="border-emerald-200 text-emerald-700 hover:bg-emerald-50" />
+                        : <IconAction onClick={() => verify(h)} label={tr("Approve")} icon={CheckCircle2} tone="border-emerald-200 text-emerald-700 hover:bg-emerald-50" />)}
+                      {canReject(h) && (
+                        <IconAction onClick={() => rejectCollection(h)} label={tr("Reject")} icon={XCircle} tone="border-red-200 text-red-600 hover:bg-red-50" />
+                      )}
+                      {isAdmin && h.verification_status === 'Rejected' && (
+                        <IconAction onClick={() => openResubmit(h)} label={tr("Correct & Resubmit")} icon={RotateCcw} tone="border-amber-300 text-amber-700 hover:bg-amber-50" />
                       )}
                       {canWrite && h.verification_status === 'Verified' && h.deposit_status === 'Pending Deposit' && h.cash_amount > 0 && (
-                        <button onClick={() => depositCollection(h)} title={tr("Record cash bank deposit")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-blue-200 text-blue-700 text-[0.78125rem] font-semibold hover:bg-blue-50"><Landmark size={15} />{' '}<T>Bank Deposit</T></button>
+                        <IconAction onClick={() => depositCollection(h)} label={tr("Bank Deposit")} icon={Landmark} tone="border-blue-200 text-blue-700 hover:bg-blue-50" />
                       )}
                       {canWrite && h.verification_status === 'Verified' && h.valuables_status === 'Pending Custody' && h.valuables_amount > 0 && (
-                        <button onClick={() => storeValuables(h)} title={tr("Record valuables store custody")} className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-violet-200 text-violet-700 text-[0.78125rem] font-semibold hover:bg-violet-50"><Lock size={15} />{' '}<T>Store Custody</T></button>
+                        <IconAction onClick={() => storeValuables(h)} label={tr("Store Custody")} icon={Lock} tone="border-violet-200 text-violet-700 hover:bg-violet-50" />
                       )}
                     </div>
                   </td>
@@ -478,19 +566,30 @@ export default function Hundi() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawer(null)} />
           <form onSubmit={save} className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-              <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Record New Hundi Collection</T></h3>
-                <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Record hundi collection, counting, verification and deposit details.</T></p></div>
+              {drawer.resubmit ? (
+                <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Correct & Resubmit</T></h3>
+                  <p className="text-[0.8125rem] text-gray-500 mt-0.5 font-mono">{drawer.resubmit.code}</p></div>
+              ) : (
+                <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Record New Hundi Collection</T></h3>
+                  <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Record hundi collection, counting, verification and deposit details.</T></p></div>
+              )}
               <button type="button" onClick={() => setDrawer(null)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 space-y-6 flex-1">
+              {drawer.resubmit && (
+                <div className="bg-red-50/70 border border-red-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-700 flex items-start gap-2">
+                  <Info size={15} className="text-red-500 shrink-0 mt-0.5" />
+                  <span><b><T>Rejected</T>:</b> {(drawer.resubmit.notes || '').split(' | ').filter((x) => /^Rejected by/.test(x)).slice(-1)[0] || '—'}</span>
+                </div>
+              )}
               <DSection n="1" icon={FileText} title={tr("Collection Details")}>
                 <div id="hundi-collected-on"><label className="label"><T>Collection Date *</T></label>
                   {/* max = today: future days are greyed out and the calendar can't move past this month */}
-                  <DateField required max={today()} className={`input ${collectedOnErr ? '!border-red-400 ring-1 ring-red-200' : ''}`} value={drawer.collected_on}
+                  <DateField required max={today()} disabled={!!drawer.resubmit} className={`input ${collectedOnErr ? '!border-red-400 ring-1 ring-red-200' : ''}`} value={drawer.collected_on}
                     onChange={(e) => { setDateServerErr(''); setM({ collected_on: e.target.value }) }} />
                   {collectedOnErr && <div role="alert" className="text-[0.6875rem] text-red-600 mt-1">{collectedOnErr}</div>}
                 </div>
-                <div><label className="label"><T>Reference No.</T></label><input disabled className="input bg-gray-50" value={tr("Auto-generated on save")} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Auto generated</T></div></div>
+                <div><label className="label"><T>Reference No.</T></label><input disabled className="input bg-gray-50" value={drawer.resubmit ? drawer.resubmit.code : tr("Auto-generated on save")} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Auto generated</T></div></div>
               </DSection>
 
               <DSection n="2" icon={Calculator} title={tr("Counting Details")}>
@@ -536,53 +635,69 @@ export default function Hundi() {
                   <Select className="input" value={drawer.denomination} onChange={(e) => setM({ denomination: e.target.value })}>{DENOMINATIONS.map((d) => <option key={d} value={d}>{tr(DENOM_LABEL[d] || d)}</option>)}</Select></div>
                 <div className="col-span-2"><label className="label"><T>Officer</T></label>
                   <Combobox
+                    disabled={!!drawer.resubmit}
                     value={drawer.officer || ''}
                     onChange={(e) => setM({ officer: e.target.value })}
                     options={committeeNames}
                     placeholder={tr("Select or type name")}
                     className="input"
                   /></div>
+                {drawer.resubmit && (
+                  <div id="hundi-reason" className="col-span-2"><label className="label"><T>Reason for Correction *</T></label>
+                    <textarea required minLength={5} maxLength={500} rows={2} className="input" value={drawer.note || ''} onChange={(e) => setM({ note: e.target.value })} placeholder={tr('e.g. Recounted notes — short by ₹500')} />
+                    <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Shown to the committee members and kept in the audit trail.</T></div></div>
+                )}
               </DSection>
 
               <div>
-                <div className="flex items-center gap-2 mb-3 text-maroon-700">
+                <div id="hundi-committee" className="flex items-center gap-2 mb-3 text-maroon-700">
                   <span className="w-5 h-5 rounded-full bg-maroon-700 text-cream text-[0.6875rem] grid place-items-center font-bold">3</span>
-                  <span className="font-semibold text-[0.84375rem]"><T>Committee Members (Present During Counting)</T></span>
+                  <span className="font-semibold text-[0.84375rem]"><T>Committee Members (Present During Counting)</T> *</span>
                 </div>
+                {drawer.resubmit ? (
+                  <div className="border border-gray-200 rounded-lg px-3 py-2.5 text-[0.8125rem] text-gray-700 bg-gray-50">
+                    {(drawer.resubmit.committee_members || '').split(',').map((n) => personName({ name: n.trim() }, lang)).join(', ') || '—'}
+                    <div className="text-[0.6875rem] text-gray-500 mt-1"><T>The same members approve the corrected count again (earlier approvals are cleared).</T></div>
+                  </div>
+                ) : (<>
                 <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-52 overflow-y-auto">
                   {committee.length === 0 && <div className="px-3 py-2.5 text-[0.75rem] text-gray-400"><T>No active committee members found.</T></div>}
                   {committee.map((c) => (
                     <label key={c.id} className="flex items-center gap-2.5 px-3 py-2 text-[0.8125rem] text-gray-700 hover:bg-gray-50 cursor-pointer">
-                      <Checkbox checked={drawer.members.includes(c.name)} onChange={() => toggleMember(c.name)} />
+                      <Checkbox checked={drawer.members.includes(c.id)} onChange={() => toggleMember(c.id)} />
                       <span className="flex-1">{personName(c, lang)}</span>
                       {c.designation && <span className="text-[0.6875rem] text-gray-400">{tr(c.designation)}</span>}
                     </label>
                   ))}
                 </div>
-                <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2 mt-3"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Select committee members who were present during counting.</T>{' '}{drawer.members.length} {tr('selected.')}</div>
+                <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2 mt-3"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Select at least 2 committee members who were present during counting. Any 2 of them must approve this count.</T>{' '}{drawer.members.length} {tr('selected.')}</div>
+                </>)}
               </div>
 
               {/* Verification & deposit are deliberately NOT set here: the server records
                   every new collection as Pending Verification; a different committee member
                   verifies it from the list, and the bank deposit is recorded after
                   verification via the Deposit action. */}
+              {!drawer.resubmit && (
               <div className="bg-amber-50/70 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2">
                 <Info size={15} className="text-amber-600 shrink-0 mt-0.5" />
                 <span>
                   <T>New collections are recorded as</T>{' '}<b>&nbsp;{tr('Pending Verification')}&nbsp;</b>.{' '}
-                  <T>A different committee member verifies from the list; the bank deposit is recorded after verification (Deposit action).</T>
+                  <T>Two of the selected committee members approve it from the list; the bank deposit and store custody are recorded after it is verified.</T>
                 </span>
               </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <><T>Save Collection</T>{' '}<ChevronDown size={14} /></>}</button>
+              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{drawer.resubmit ? <T>Resubmit for Approval</T> : <T>Save Collection</T>}{' '}<ChevronDown size={14} /></>}</button>
             </div>
           </form>
         </div>
       )}
 
       {/* ── View drawer (read-only) ── */}
+      {tagSource && <TagItemsDrawer source={tagSource} onClose={() => setTagSource(null)} />}
       {view && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => setView(null)} />
@@ -628,6 +743,19 @@ export default function Hundi() {
               )}
               <DSection n="2" icon={ShieldCheck} title={tr("Verification")}>
                 <VField label={tr("Status")} value={<Pill tone={VER_TONE[view.verification_status]}>{tr(view.verification_status)}</Pill>} />
+                <VField label={tr("Approvals")} value={`${(view.approvals || []).length}/${approvalsNeeded(view)}`} />
+                {(view.approvals || []).map((a, i) => (
+                  <VField key={a.member_id ?? i} label={`${tr('Approved By')} ${i + 1}`} value={`${personName({ name: a.name }, lang)} · ${fmtStamp(a.at)}`} wide />
+                ))}
+                {/* Reject / correction trail, so the members re-approving see why the count changed */}
+                {(view.notes || '').split(' | ').some((x) => /^(Rejected|Corrected) by /.test(x)) && (
+                  <VField label={tr("History")} wide value={
+                    <ul className="space-y-1">
+                      {(view.notes || '').split(' | ').filter((x) => /^(Rejected|Corrected) by /.test(x)).map((x, i) => (
+                        <li key={i} className={/^Rejected/.test(x) ? 'text-red-700' : 'text-amber-800'}>{x}</li>
+                      ))}
+                    </ul>} />
+                )}
                 <VField label={tr("Verified By")} value={view.verified_by ? personName({ name: view.verified_by }, lang) : '—'} />
                 <VField label={tr("Verified On")} value={view.verified_on ? fmtStamp(view.verified_on) : '—'} wide />
               </DSection>
@@ -659,6 +787,14 @@ export default function Hundi() {
         </div>
       )}
     </div>
+  )
+}
+
+// Square icon button for a row action; the label shows as a tooltip and is read by screen readers.
+function IconAction({ onClick, label, icon: Icon, tone }) {
+  return (
+    <button type="button" onClick={onClick} title={label} aria-label={label}
+      className={`w-8 h-8 shrink-0 grid place-items-center rounded-lg border ${tone}`}><Icon size={15} /></button>
   )
 }
 

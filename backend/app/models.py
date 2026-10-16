@@ -32,6 +32,9 @@ class User(Base):
     # For Poojari logins: the master Poojari record this user acts as, so their
     # queue can be filtered to their own assigned poojas. Null for other roles.
     poojari_id = Column(Integer, ForeignKey("poojaris.id"), nullable=True)
+    # For Committee logins: the Committee Member Master record this user acts as, so
+    # only the members assigned to a hundi count can approve it. Null for other roles.
+    committee_member_id = Column(Integer, ForeignKey("committee_members.id"), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     twofa_enabled = Column(Boolean, default=False, nullable=False)
     totp_secret = Column(String(64), nullable=True)
@@ -262,6 +265,14 @@ class DonationCategory(Base):
     description = Column(Text, nullable=True)
     active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+    # Stores & Inventory (Material categories only): how received goods are tracked.
+    # "Tagged" — one ID per piece (PAN-00001…), stickered, auctioned piece by piece;
+    # "Quantity" — a running balance (received, used, remaining). NULL for cash/sponsorship.
+    tracking = Column(String(20), nullable=True)
+    id_prefix = Column(String(10), nullable=True)            # PAN, GLD, SLV… (IDs run per prefix)
+    default_value = Column(Numeric(12, 2), nullable=True)    # suggested ₹ value per piece
+    low_stock_level = Column(Numeric(12, 3), nullable=True)  # Quantity items: warn at or below this balance
+    auctionable = Column(Boolean, nullable=True)             # Tagged items: False = tracked only, never auctioned / sold (gold, silver)
 
 
 # ── Hundi collections ────────────────────────────────────────────────────────
@@ -277,6 +288,8 @@ class HundiCollection(Base):
     officer = Column(String(120), nullable=True)
     committee_member = Column(String(160), nullable=True)   # committee witness(es) — legacy
     committee_members = Column(Text, nullable=True)          # comma-separated names present at counting
+    committee_member_ids = Column(Text, nullable=True)       # CSV of Committee Member ids assigned to approve
+    approvals = Column(Text, nullable=True)                  # JSON list of {member_id, name, username, at}
     notes = Column(Text, nullable=True)                     # item breakdown: coins/foreign/jewellery
     # Verification
     verification_status = Column(String(30), default="Pending Verification", nullable=False)  # Verified | Pending Verification
@@ -353,6 +366,17 @@ class Auction(Base):
     receipt_no = Column(String(30), nullable=True)             # AUCR-2026-0001
     paid_at = Column(DateTime, nullable=True)
     paid_by = Column(String(60), nullable=True)                # staff who collected payment
+    result_by = Column(String(60), nullable=True)              # login that recorded the Sold / Unsold result
+    reauction_of = Column(String(30), nullable=True)           # code of the Unsold auction this one re-auctions
+    reauctioned_to = Column(String(30), nullable=True)         # Unsold auction: code of its re-auction
+    history = Column(Text, nullable=True)                      # JSON list of {at, by, action, detail}
+    # Lot auctions from Stores & Inventory: a set of tagged pieces sold to one or more buyers.
+    from_stock = Column(Boolean, default=False, nullable=False)
+    stock_category_id = Column(Integer, ForeignKey("donation_categories.id"), nullable=True)
+    pieces = relationship("AuctionPiece", back_populates="auction", cascade="all, delete-orphan",
+                          order_by="AuctionPiece.id")
+    sales = relationship("AuctionSale", back_populates="auction", cascade="all, delete-orphan",
+                         order_by="AuctionSale.id")
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -765,3 +789,181 @@ class AlmanacEvent(Base):
 
     # Two festivals may share a day (e.g. Vijayadashami and a Pournami), never the same one twice.
     __table_args__ = (UniqueConstraint("event_type", "event_date", "name", name="uq_almanac_type_date_name"),)
+
+
+
+# ── Stores & Inventory ───────────────────────────────────────────────────────
+class StoreLocation(Base):
+    """Where tagged pieces and consumables are kept (Main Vault, Locker 1, Rack 2…)."""
+    __tablename__ = "store_locations"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False)    # LOC-0001
+    name = Column(String(120), nullable=False)
+    loc_type = Column(String(30), nullable=True)              # Valuables | Cloth | Consumables | General
+    custodian = Column(String(120), nullable=True)
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class ManualStockEntry(Base):
+    """Stock that arrives without a donation receipt (old stock, temple purchase…).
+    It counts only after a Committee member verifies it; its pieces are then tagged."""
+    __tablename__ = "manual_stock_entries"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False)    # MSE-0001
+    category_id = Column(Integer, ForeignKey("donation_categories.id"), nullable=False)
+    item_name = Column(String(120), nullable=False)           # category name snapshot
+    quantity = Column(Numeric(12, 3), nullable=False)         # pieces, or grams for gold/silver
+    unit = Column(String(30), nullable=True)
+    source = Column(String(60), nullable=False)               # Old stock in store | Temple purchase | …
+    donor_name = Column(String(120), nullable=True)
+    donor_mobile = Column(String(20), nullable=True)
+    location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)
+    reason = Column(Text, nullable=False)
+    status = Column(String(30), default="Pending Verification", nullable=False)  # | Verified | Rejected
+    verified_by = Column(String(120), nullable=True)
+    verified_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    created_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class StockItem(Base):
+    """One tagged piece (a pancha, a silver lamp…) from the day it arrives until it leaves."""
+    __tablename__ = "stock_items"
+
+    id = Column(Integer, primary_key=True)
+    tag_id = Column(String(20), unique=True, nullable=False, index=True)   # PAN-00001 (never reused)
+    category_id = Column(Integer, ForeignKey("donation_categories.id"), nullable=False)
+    item_name = Column(String(120), nullable=False)           # category name snapshot
+    description = Column(String(200), nullable=True)          # "Pancha, silk border"
+    details = Column(String(120), nullable=True)              # size / colour
+    weight_g = Column(Numeric(12, 3), nullable=True)          # gold / silver
+    purity = Column(String(20), nullable=True)                # 22 ct, 92.5%…
+    est_value = Column(Numeric(12, 2), nullable=True)
+    location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)
+    status = Column(String(20), default="In Store", nullable=False, index=True)  # In Store | In Auction | In Open Sale | Sold | Written Off
+    source_type = Column(String(20), nullable=False)          # Donation | Hundi | Manual
+    source_ref = Column(String(30), nullable=True, index=True)  # RCPT-… / HUN-… / MSE-…
+    donation_id = Column(Integer, ForeignKey("donations.id"), nullable=True)
+    hundi_id = Column(Integer, ForeignKey("hundi_collections.id"), nullable=True)
+    hundi_line_id = Column(Integer, ForeignKey("hundi_collection_items.id"), nullable=True)
+    manual_entry_id = Column(Integer, ForeignKey("manual_stock_entries.id"), nullable=True)
+    donor_name = Column(String(120), nullable=True)
+    donor_mobile = Column(String(20), nullable=True)
+    received_on = Column(Date, nullable=True)
+    sold_amount = Column(Numeric(12, 2), nullable=True)
+    last_auction_code = Column(String(30), nullable=True)     # AUC-… the piece was last put in
+    unsold_count = Column(Integer, default=0, nullable=False)  # auctions it came back unsold from
+    # Open Sale: the Committee fixes the price; Counter Staff / Administrator sell at it
+    open_sale_price = Column(Numeric(12, 2), nullable=True)
+    open_sale_by = Column(String(120), nullable=True)         # committee member who set the price
+    open_sale_at = Column(DateTime, nullable=True)
+    created_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class StockMovement(Base):
+    """Every change to a tagged piece — the piece's full history."""
+    __tablename__ = "stock_movements"
+
+    id = Column(Integer, primary_key=True)
+    item_id = Column(Integer, ForeignKey("stock_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    action = Column(String(30), nullable=False)               # Tagged | Moved | Written off | …
+    detail = Column(Text, nullable=True)
+    by = Column(String(120), nullable=True)
+    at = Column(DateTime, server_default=func.now())
+
+
+class ConsumableUse(Base):
+    """Quantity items (oil, ghee, rice…) taken out of stock for temple use. The balance is
+    received (donations from the start date + verified manual entries) minus these."""
+    __tablename__ = "consumable_uses"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False)    # USE-0001
+    category_id = Column(Integer, ForeignKey("donation_categories.id"), nullable=False, index=True)
+    quantity = Column(Numeric(12, 3), nullable=False)
+    purpose = Column(String(80), nullable=False)              # Nithya Pooja, Annadanam…
+    issued_to = Column(String(120), nullable=True)
+    used_on = Column(Date, nullable=False)
+    notes = Column(Text, nullable=True)
+    status = Column(String(20), default="Active", nullable=False)   # Active | Cancelled
+    cancel_reason = Column(Text, nullable=True)
+    cancelled_by = Column(String(120), nullable=True)
+    created_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class AuctionSale(Base):
+    """One buyer's purchase in a lot auction: which pieces, for how much, and their payment."""
+    __tablename__ = "auction_sales"
+
+    id = Column(Integer, primary_key=True)
+    auction_id = Column(Integer, ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
+    buyer_name = Column(String(120), nullable=False)
+    buyer_mobile = Column(String(20), nullable=True)
+    amount = Column(Numeric(12, 2), nullable=False)
+    payment_status = Column(String(20), default="Pending", nullable=False)   # Pending | Paid
+    payment_mode = Column(String(30), nullable=True)
+    payment_ref = Column(String(60), nullable=True)
+    receipt_no = Column(String(30), nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+    paid_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    auction = relationship("Auction", back_populates="sales")
+
+
+class AuctionPiece(Base):
+    """A tagged piece put in a lot auction, its reserve price and its outcome."""
+    __tablename__ = "auction_pieces"
+
+    id = Column(Integer, primary_key=True)
+    auction_id = Column(Integer, ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
+    stock_item_id = Column(Integer, ForeignKey("stock_items.id"), nullable=False, index=True)
+    tag_id = Column(String(20), nullable=False)               # snapshot for display
+    base_price = Column(Numeric(12, 2), nullable=False)
+    result = Column(String(20), default="Pending", nullable=False)   # Pending | Sold | Unsold
+    sale_id = Column(Integer, ForeignKey("auction_sales.id", ondelete="SET NULL"), nullable=True)
+    sold_amount = Column(Numeric(12, 2), nullable=True)
+
+    auction = relationship("Auction", back_populates="pieces")
+
+
+class StockCheck(Base):
+    """A physical count of one store location: which expected pieces were found."""
+    __tablename__ = "stock_checks"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False)    # CHK-0001
+    location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=False)
+    location_name = Column(String(120), nullable=False)
+    expected = Column(Integer, nullable=False)
+    found = Column(Integer, nullable=False)
+    missing_tags = Column(Text, nullable=True)                # comma-separated IDs not found
+    notes = Column(Text, nullable=True)
+    checked_by = Column(String(120), nullable=True)
+    created_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class OpenSale(Base):
+    """A piece sold at the counter in Open Sale, at the price the Committee fixed."""
+    __tablename__ = "open_sales"
+
+    id = Column(Integer, primary_key=True)
+    receipt_no = Column(String(30), unique=True, nullable=False)   # OSR-2026-0001
+    stock_item_id = Column(Integer, ForeignKey("stock_items.id"), nullable=False, index=True)
+    tag_id = Column(String(20), nullable=False)
+    item_name = Column(String(200), nullable=False)
+    buyer_name = Column(String(120), nullable=False)
+    buyer_mobile = Column(String(20), nullable=True)
+    amount = Column(Numeric(12, 2), nullable=False)
+    payment_mode = Column(String(30), nullable=False)          # Cash | UPI/QR Code
+    payment_ref = Column(String(60), nullable=True)
+    price_set_by = Column(String(120), nullable=True)
+    sold_by = Column(String(60), nullable=True)
+    sold_at = Column(DateTime, server_default=func.now())

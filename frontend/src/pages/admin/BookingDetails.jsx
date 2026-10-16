@@ -15,7 +15,7 @@ import { T, tr, trLocal, personName, useLang, teText } from '../../i18n/Language
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Shri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
-const modeLabel = (m) => tr(m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'UPI / QR Code' : (m || 'Cash'))
+const modeLabel = (m) => tr(m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'Online' : (m || 'Cash'))
 function durDays(pl) {
   const n = (pl?.plan_name || '').toLowerCase()
   if (n.includes('life')) return null

@@ -1233,7 +1233,7 @@ export function Combobox({
         onClick={() => setOpen((o) => !o)}
         className={`input flex items-center justify-between gap-2 text-left disabled:bg-gray-50 disabled:text-gray-400 ${open ? 'ring-2 ring-gold-400 border-transparent' : ''} ${className}`}
       >
-        <span className={`truncate ${displayValue ? 'text-gray-800' : 'text-gray-400'}`}>
+        <span className={`truncate ${displayValue && !disabled ? 'text-gray-800' : disabled ? 'text-gray-500' : 'text-gray-400'}`}>
           {displayValue ? t(displayValue) : (t(placeholder) || t('Select or type…'))}
         </span>
         <ChevronDown size={15} className={`shrink-0 text-maroon-700/50 transition-transform ${open ? 'rotate-180' : ''}`} />

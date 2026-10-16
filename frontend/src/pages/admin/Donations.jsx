@@ -16,6 +16,7 @@ import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountry
 import { T, tr, clock12, stamp, personName, useLang, teTerm } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
+import { TagItemsDrawer, canWriteStores } from './stores/shared.jsx'
 
 const TYPE_LABEL = { Cash: 'Cash Donation', Material: 'Material Donation', Sponsorship: 'Sponsorship' }
 const MODES = ['Cash', 'UPI/QR Code']
@@ -48,6 +49,8 @@ export default function Donations() {
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState(null)
   const [cats, setCats] = useState([])
+  // Stores & Inventory: after a material donation in a Tagged category, tag its pieces
+  const [tagSource, setTagSource] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [printDoc, setPrintDoc] = useState(null)
   // Row 🖨 prints straight away: the receipt renders invisibly (print-only), prints, then closes.
@@ -87,7 +90,7 @@ export default function Donations() {
     { key: 'donation_type', label: 'Donation Type', type: 'text', filterable: true, filterOptions: ['Cash', 'Material', 'Sponsorship'] },
     { key: 'category_name', label: 'Category', type: 'text' },
     { key: 'amount', label: 'Amount / Material', type: 'money' },
-    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', 'UPI/QR Code'] },
+    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', { value: 'UPI/QR Code', label: 'Online' }] },
     { key: 'donated_on', label: 'Donated On', type: 'date' },
     { key: 'receipt_no', label: 'Receipt No.', type: 'text' },
   ]
@@ -249,7 +252,7 @@ export default function Donations() {
     if (m.donation_type !== 'Material' && m.mode === 'UPI/QR Code') {
       const trimmedUtr = (m.txn_ref || '').trim()
       if (!trimmedUtr) {
-        setPanErr(tr('UTR / Transaction ID is required for UPI payments.'))
+        setPanErr(tr('UTR / Transaction ID is required for online payments.'))
         return
       }
       if (trimmedUtr.length < 12) {
@@ -282,6 +285,10 @@ export default function Donations() {
       const created = await DonationsAPI.create(payload)
       setDrawer(null); setDq(''); setDevResults([]); setPanErr(''); load()
       if (print) setPrintDoc(created)
+      const cat = cats.find((c) => c.name === created.fund)
+      if (created.donation_type === 'Material' && cat?.tracking === 'Tagged' && canWriteStores(user)) {
+        setTagSource({ type: 'Donation', id: created.id })   // opens once the receipt is closed
+      }
     } catch (err) {
       setPanErr(getErrorMessage(err, tr('Could not save the donation. Please try again.')))
     } finally {
@@ -305,7 +312,7 @@ export default function Donations() {
   const exportRows = dataForExport.map((d) => ({
     ...d, g80x: d.g80 ? 'Yes' : 'No',
     amount: canSeeAmounts ? (d.donation_type === 'Material' ? (Number(d.amount) > 0 ? d.amount : null) : d.amount) : null,
-    mode: d.donation_type === 'Material' ? '—' : d.mode,
+    mode: d.donation_type === 'Material' ? '—' : (d.mode === 'UPI/QR Code' ? 'Online' : d.mode),
   }))
   const exportTotal = canSeeAmounts ? { receipt_no: 'Total', amount: dataForExport.reduce((s, d) => s + Number(d.amount || 0), 0) } : null
   return (
@@ -400,7 +407,7 @@ export default function Donations() {
                   <td className="px-4 py-3 text-gray-600">{tr(TYPE_LABEL[d.donation_type] || d.donation_type)}</td>
                   <td className="px-4 py-3 text-gray-600">{teTerm(d.fund)}{d.g80 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-bold bg-emerald-50 text-emerald-700 align-middle">80G</span>}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? amountCell(d) : '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{d.donation_type !== 'Material' && d.mode && d.mode !== '-' ? tr(d.mode) : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-3 text-gray-600">{d.donation_type !== 'Material' && d.mode && d.mode !== '-' ? tr(d.mode === 'UPI/QR Code' ? 'Online' : d.mode) : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(d.donated_on)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(d.created_at)}</div></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{d.receipt_no}</td>
                   <td className="px-4 py-3">
@@ -514,12 +521,12 @@ export default function Donations() {
                 <>
                   <div><label className="label"><T>Payment Mode *</T></label>
                     <div className="flex gap-6 mt-1">{MODES.map((mo) => (
-                      <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setDrawer({ ...drawer, mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'UPI / QR Code' : mo)}</label>
+                      <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setDrawer({ ...drawer, mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'Online' : mo)}</label>
                     ))}</div>
                   </div>
                   {drawer.mode === 'UPI/QR Code'
                     ? <div><label className="label"><T>UTR / Transaction ID</T></label><input className="input" placeholder={tr("Enter UTR / transaction reference")} value={drawer.txn_ref} onChange={(e) => setDrawer({ ...drawer, txn_ref: e.target.value })} /></div>
-                    : <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>UTR / Transaction ID is required only for UPI / QR Code payments.</T></div>}
+                    : <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>UTR / Transaction ID is required only for online payments.</T></div>}
                 </>
               )}
 
@@ -553,6 +560,7 @@ export default function Donations() {
         </div>
       )}
 
+      {tagSource && !printDoc && <TagItemsDrawer source={tagSource} onClose={() => setTagSource(null)} />}
       {printDoc && (
         <div className={`fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal ${directPrint ? 'opacity-0 pointer-events-none print:opacity-100' : ''}`} onClick={() => setPrintDoc(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg my-auto">
@@ -562,14 +570,16 @@ export default function Donations() {
                   { en: 'Donor', value: printDoc.donor_name, valueTe: personName({ name: printDoc.donor_name, name_te: printDoc.donor_name_te }, 'te') },
                   { en: 'Category', value: printDoc.fund, valueTe: te(printDoc.fund) || teTerm(printDoc.fund) },
                   { en: 'Type', value: TYPE_LABEL[printDoc.donation_type], valueTe: te(printDoc.donation_type) },
-                  ...(printDoc.donation_type === 'Material' && printDoc.quantity ? [{ en: 'Quantity', value: `${num(printDoc.quantity)} ${printDoc.unit || ''}` }] : [{ en: 'Payment Mode', value: printDoc.mode }]),
+                  ...(printDoc.donation_type === 'Material' && printDoc.quantity ? [{ en: 'Quantity', value: `${num(printDoc.quantity)} ${printDoc.unit || ''}` }] : [{ en: 'Payment Mode', value: printDoc.mode === 'UPI/QR Code' ? 'Online' : printDoc.mode }]),
                   ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref }] : []),
                   { en: 'Tax Exemption', value: printDoc.g80 ? tr('Eligible (80G)') : '—' },
                 ]}
                 footerNote={printDoc.g80 ? tr('Eligible for 80G tax exemption.') : undefined} />
             </div>
             <div className="flex gap-2 justify-center mt-4 no-print">
-              <button onClick={() => window.print()} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>
+              {/* window.print() returns once the print dialog closes; if pieces must be tagged,
+                  close the receipt so Tag Items opens straight away */}
+              <button onClick={() => { window.print(); if (tagSource) setPrintDoc(null) }} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>
               <button onClick={() => setPrintDoc(null)} className="btn-outline"><T>Close</T></button>
             </div>
           </div>

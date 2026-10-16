@@ -30,7 +30,7 @@ const OCCASIONS = [
 const STEPS = [
   { icon: MapPin, title: 'Visit the Counter', desc: 'Come to the temple counter or call the office.' },
   { icon: CalendarDays, title: 'Choose Date & Plates', desc: 'Pick the day and the number of plates.' },
-  { icon: ReceiptText, title: 'Pay & Get Receipt', desc: 'Pay by cash or UPI — an official receipt is issued.' },
+  { icon: ReceiptText, title: 'Pay & Get Receipt', desc: 'Pay by cash or online — an official receipt is issued.' },
   { icon: UtensilsCrossed, title: 'Annadanam Served', desc: 'Food is offered to devotees on your chosen day.' },
 ]
 

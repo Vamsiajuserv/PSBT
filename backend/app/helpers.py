@@ -351,7 +351,8 @@ def check_rate_limit(db: Session, key: str, limit: int, window_minutes: int = 1)
         True if rate limit is exceeded, False otherwise
     """
     from .models import AuditLog
-    since = datetime.now() - timedelta(minutes=window_minutes)
+    # AuditLog.ts is stored in UTC — compare in UTC, whatever the server's local timezone
+    since = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
     count = (db.query(func.count(AuditLog.id))
              .filter(AuditLog.entity == f"RateLimit:{key}",
                      AuditLog.ts >= since)

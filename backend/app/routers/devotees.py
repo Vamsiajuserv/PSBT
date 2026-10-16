@@ -1,14 +1,14 @@
 """Devotee master-record management."""
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import case, or_, func
+from sqlalchemy import case, or_, func, text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Devotee, FamilyMember, Booking, Donation, Annadanam, Auction
 from ..schemas import DevoteeCreate, DevoteeUpdate, DevoteeOut
 from ..security import RequireModule, require_admin, log_action, client_ip, get_current_user
-from ..helpers import gen_code, validate_pagination, encrypt_pan, sort_expr
+from ..helpers import gen_code, next_code_seq, validate_pagination, encrypt_pan, sort_expr
 
 router = APIRouter(prefix="/api/devotees", tags=["devotees"])
 
@@ -198,6 +198,17 @@ def devotee_detail(did: int, db: Session = Depends(get_db), user=Depends(read)):
     }
 
 
+def _highest_code(db: Session) -> int:
+    """Number of the highest DEV- code issued so far (codes are zero-padded, so text order works).
+    The DEV-9xxxxxxx series belongs to generated demo data and is ignored."""
+    top = (db.query(func.max(Devotee.code))
+           .filter(Devotee.code.like("DEV-%"), Devotee.code < "DEV-9").scalar())
+    try:
+        return int(top.split("-", 1)[1]) if top else 12458
+    except (ValueError, IndexError):
+        return 12458
+
+
 @router.post("", response_model=DevoteeOut, status_code=201)
 def create_devotee(body: DevoteeCreate, request: Request,
                    db: Session = Depends(get_db), user=Depends(write)):
@@ -205,10 +216,14 @@ def create_devotee(body: DevoteeCreate, request: Request,
     existing = db.query(Devotee).filter(Devotee.mobile == body.mobile).first()
     if existing:
         raise HTTPException(409, f"A devotee with mobile number {body.mobile} already exists (Code: {existing.code})")
-    seq = 12458 + (db.query(func.count(Devotee.id)).scalar() or 0)
-    # Count drops after a delete, so skip codes already taken
-    while db.query(Devotee).filter(Devotee.code == gen_code("DEV-", seq, 8)).first():
-        seq += 1
+    # Devotee codes are never reused, even after a delete: they come from the atomic
+    # counter, seeded once from the highest code already issued.
+    top = _highest_code(db)
+    # Codes issued by the old count-based numbering may be ahead of the counter — lift it once.
+    db.execute(text("UPDATE counters SET value = :v WHERE name = 'devotee' AND value < :v"), {"v": top})
+    seq = next_code_seq(db, "devotee", top)
+    while db.query(Devotee).filter(Devotee.code == gen_code("DEV-", seq, 8)).first():   # safety net
+        seq = next_code_seq(db, "devotee", seq)
     data = body.model_dump(exclude={"family"})
     # Phase 1 Security (PRIV-001): Encrypt PAN at rest
     if data.get("pan_number"):
@@ -286,6 +301,15 @@ def delete_devotee(did: int, request: Request,
     d = db.get(Devotee, did)
     if not d:
         raise HTTPException(404, "Devotee not found")
+    # A devotee with history is never deleted — receipts, tickets and plans point at them.
+    held = {label: db.query(func.count(model.id)).filter(model.devotee_id == did).scalar() or 0
+            for label, model in (("booking", Booking), ("donation", Donation),
+                                 ("Annadanam", Annadanam), ("auction", Auction))}
+    held = {k: v for k, v in held.items() if v}
+    if held:
+        what = ", ".join(f"{v} {k}{'s' if v > 1 and k != 'Annadanam' else ''}" for k, v in held.items())
+        raise HTTPException(409, f"{d.name} ({d.code}) has {what} on record and cannot be deleted. "
+                                 "Edit the details instead.")
     log_action(db, username=user.username, action="DELETE", entity="Devotee",
                detail=f"{d.code} {d.name}", ip=client_ip(request))
     db.delete(d)

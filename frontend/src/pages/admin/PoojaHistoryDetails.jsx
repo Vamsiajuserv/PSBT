@@ -14,7 +14,7 @@ const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDi
 const shortPooja = (name) => (name || '').replace(/^Shri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 const weekday = (d) => (d ? stamp(new Date(d).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', weekday: 'long' })) : '')
-const modeLabel = (m) => tr(m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'UPI / QR Code' : (m || 'Cash'))
+const modeLabel = (m) => tr(m === 'UPI' || m === 'UPI/QR Code' || m === 'Online' ? 'Online' : (m || 'Cash'))
 function durDays(pl) { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('life')) return null; if (pl?.duration_days) return pl.duration_days; if (n.includes('monthly')) return 30; if (n.includes('year')) return 365; return 1 }
 function validityRange(pl, fromDate, bookingTime) {
   const d = durDays(pl)

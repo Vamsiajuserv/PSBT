@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import User, Role, Setting, Poojari
+from ..models import User, Role, Setting, Poojari, CommitteeMember
 from ..schemas import UserCreate, UserUpdate, UserOut
 from ..security import hash_password, require_admin, log_action, client_ip, MODULES
 from sqlalchemy import func
@@ -79,13 +79,14 @@ def create_user(body: UserCreate, request: Request,
             seq += 1
         emp = f"EMP{seq:03d}"
     poojari_id = _linked_poojari(db, role, body.poojari_id)
+    committee_member_id = _linked_committee(db, role, body.committee_member_id)
     # No modules ticked → use the role's defaults, so the user never lands on an empty sidebar
     modules = body.modules
     if not modules:
         r = db.query(Role).filter(Role.name == role).first()
         modules = [m for m in ((r.modules if r else "") or "").split(",") if m]
     u = User(
-        poojari_id=poojari_id,
+        poojari_id=poojari_id, committee_member_id=committee_member_id,
         name=body.name, name_te=body.name_te, username=username, email=body.email, mobile=body.mobile,
         employee_id=emp, role=role, is_active=body.is_active,
         modules=",".join(modules), password_hash=hash_password(body.password),
@@ -114,6 +115,24 @@ def _linked_poojari(db: Session, role: str | None, poojari_id: int | None) -> in
     return p.id
 
 
+def _linked_committee(db: Session, role: str | None, member_id: int | None,
+                      user_id: int | None = None) -> int | None:
+    """Only a Committee login is linked to a Committee Member Master record. The link is
+    what lets that login approve the hundi counts the member was assigned to; an
+    unlinked Committee login can view hundi collections but never approve one."""
+    if role != "Committee" or not member_id:
+        return None
+    m = db.get(CommitteeMember, member_id)
+    if not m:
+        raise HTTPException(404, "Linked committee member not found")
+    taken = db.query(User).filter(User.committee_member_id == m.id)
+    if user_id:
+        taken = taken.filter(User.id != user_id)
+    if taken.first():
+        raise HTTPException(409, f"{m.name} is already linked to another login.")
+    return m.id
+
+
 @router.put("/{uid}", response_model=UserOut)
 def update_user(uid: int, body: UserUpdate, request: Request,
                 db: Session = Depends(get_db), admin=Depends(require_admin)):
@@ -132,6 +151,10 @@ def update_user(uid: int, body: UserUpdate, request: Request,
     if "poojari_id" in data or "role" in data:
         u.poojari_id = _linked_poojari(db, data.get("role") or u.role,
                                        data.pop("poojari_id") if "poojari_id" in data else u.poojari_id)
+    if "committee_member_id" in data or "role" in data:
+        u.committee_member_id = _linked_committee(
+            db, data.get("role") or u.role,
+            data.pop("committee_member_id") if "committee_member_id" in data else u.committee_member_id, u.id)
     if data.get("twofa_enabled") and not u.totp_secret:
         u.totp_secret = pyotp.random_base32()
     for k, v in data.items():

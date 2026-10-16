@@ -56,12 +56,12 @@ _ALL_MODULE_KEYS = list(MODULES)
 ROLES_SEED = [
     ("ADMINISTRATOR", "Administrator", "Full access to all modules and settings", _ALL_MODULE_KEYS, True),
     ("COUNTER_STAFF", "Counter Staff", "Handle bookings, tickets, donations, hundi and counter operations",
-     ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"], True),
+     ["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Stores"], True),
     ("POOJARI", "Poojari", "View assigned pooja schedules and mark completion", ["Sevas", "Bookings"], True),
     ("ACCOUNTANT", "Accountant", "Financial oversight, reports and reconciliation",
-     ["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"], True),
+     ["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Stores", "Reports"], True),
     ("COMMITTEE", "Committee", "Hundi verification, auction decisions and committee oversight",
-     ["Hundi", "Auction", "Reports"], True),
+     ["Hundi", "Auction", "Reports", "Stores"], True),
 ]
 # Demo staff users — (name, role name, active)
 DEMO_USERS = [
@@ -269,15 +269,15 @@ USERS = [
     dict(name="Admin (EO)", username="admin", email="eo@psbt.org", employee_id="EMP001",
          role="Administrator", modules=MODULES, password="Admin@123"),
     dict(name="K. Srinivas", username="counter1", email="counter1@psbt.org", employee_id="EMP002",
-         role="Counter Staff", modules=["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Annadanam", "Counter"],
+         role="Counter Staff", modules=["Devotees", "Sevas", "Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Stores"],
          password="Counter@123"),
     dict(name="G. Meena", username="accounts", email="accounts@psbt.org", employee_id="EMP003",
-         role="Accountant", modules=["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Reports"],
+         role="Accountant", modules=["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Stores", "Reports"],
          password="Accounts@123"),
     dict(name="Sri Ramachandra Sastry", username="poojari1", email="poojari1@psbt.org", employee_id="EMP004",
          role="Poojari", modules=["Sevas", "Bookings"], password="Poojari@123"),
     dict(name="P. Rao (Committee)", username="committee1", email="committee1@psbt.org", employee_id="EMP005",
-         role="Committee", modules=["Hundi", "Auction", "Reports"], password="Committee@123"),
+         role="Committee", modules=["Hundi", "Auction", "Reports", "Stores"], password="Committee@123"),
 ]
 
 DEVOTEES = [

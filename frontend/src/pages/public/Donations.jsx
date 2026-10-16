@@ -100,13 +100,13 @@ const STEPS = [
   { title: 'Visit Temple Counter', desc: 'Come to our donation desk during temple hours' },
   { title: 'Register Details', desc: 'Provide your name and mobile number' },
   { title: 'Select Category', desc: 'Choose from cash, material, or sponsorship' },
-  { title: 'Make Donation', desc: 'Pay by cash or UPI / scan QR code' },
+  { title: 'Make Donation', desc: 'Pay by cash or online / scan QR code' },
   { title: 'Get Receipt', desc: 'Receive official receipt instantly' },
 ]
 
 const PAYMENTS = [
   { icon: Banknote, title: 'Cash', desc: 'At temple counter' },
-  { icon: QrCode, title: 'UPI / QR', desc: 'Scan & pay instantly' },
+  { icon: QrCode, title: 'Online', desc: 'Scan & pay instantly' },
   { icon: Globe, title: 'Online', desc: 'Coming soon', disabled: true },
 ]
 

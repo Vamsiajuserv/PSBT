@@ -15,9 +15,13 @@ const MAROON = [123, 17, 17]
 const generatedAt = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
 
 // ASCII file name from the English title; a Telugu title has none, so "report".
-function fileName(title) {
+// Named by the report's period (same as the Excel file); without a period, by today's IST date.
+function fileName(title, range) {
   const base = String(title || '').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'report'
-  return `${base}-${new Date().toISOString().slice(0, 10)}.pdf`
+  const when = range && range.start
+    ? (range.end && range.end !== range.start ? `${range.start}-to-${range.end}` : range.start)
+    : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  return `${base}-${when}.pdf`
 }
 
 // The standard PDF fonts have no ₹ glyph (it printed as "¹"), so English files spell it out.
@@ -53,7 +57,7 @@ export async function exportReportToPdf(result) {
     alternateRowStyles: { fillColor: [250, 248, 246] },
   })
 
-  doc.save(fileName(result.title))
+  doc.save(fileName(result.title, result.range))
 }
 
 // ── Telugu: HTML pages in Noto Sans Telugu → images → PDF ────────────────────
@@ -148,7 +152,7 @@ async function exportTeluguPdf(result) {
       if (i) doc.addPage()
       doc.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, pw, ph)
     }
-    doc.save(fileName(result.title))
+    doc.save(fileName(result.title, result.range))
   } finally {
     host.remove()
   }

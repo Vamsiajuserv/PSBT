@@ -41,7 +41,7 @@ const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDi
 const CAT_ICON = {
   pooja: { icon: Flame, color: '#8a1c1c', bg: 'bg-maroon-50', desc: tr('Bookings, schedules, poojari performance') },
   donation: { icon: HandCoins, color: '#059669', bg: 'bg-emerald-50', desc: tr('Donations, annadanam, 80G certificates') },
-  collection: { icon: Wallet, color: '#d97706', bg: 'bg-amber-50', desc: tr('Hundi, auction, waste sales') },
+  collection: { icon: Wallet, color: '#d97706', bg: 'bg-amber-50', desc: tr('Hundi, auction, other sales') },
   general: { icon: FileBarChart, color: '#2563eb', bg: 'bg-blue-50', desc: tr('Consolidated summaries, trends') },
 }
 

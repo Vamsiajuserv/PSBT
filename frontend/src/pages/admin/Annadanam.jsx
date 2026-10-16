@@ -31,7 +31,7 @@ const fmtTime = (paid, created) => {
   if (!d || isNaN(d.getTime())) return ''
   return clock12(d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }))
 }
-const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'UPI (QR)' : m)
+const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'Online' : m)
 
 // Amount in words, in the screen's language (shared with the receipt's amount box).
 const toWords = (n) => amountInWords(n, getLang() === 'te')
@@ -45,7 +45,7 @@ function printAnnadanamReceipt(doc, toWordsFn, temple) {
   const te = getLang() === 'te'
   const L = (s) => escapeHtml(te ? tr(s) : s)
   const fmtDateLocal = (d) => d ? stamp(new Date(d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })) : ''
-  const modeText = doc.mode === 'UPI/QR Code' ? 'UPI / QR Code' : doc.mode
+  const modeText = doc.mode === 'UPI/QR Code' ? 'Online' : doc.mode
   const templeEn = temple?.name || 'Shri Shirdi Sai Baba Temple'
   const templeTe = temple?.nameTelugu || tr(templeEn)
   const address = te ? (temple?.addressTe || tr(temple?.address || '')) : (temple?.address || '')
@@ -162,7 +162,7 @@ export default function Annadanam() {
     { key: 'mobile', label: 'Mobile Number', type: 'text' },
     { key: 'plates', label: 'No. of Persons', type: 'num' },
     { key: 'amount', label: 'Donation Amount (₹)', type: 'money' },
-    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', 'UPI/QR Code'] },
+    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', { value: 'UPI/QR Code', label: 'Online' }] },
   ]
   const {
     filteredSortedRows,
@@ -303,7 +303,8 @@ export default function Annadanam() {
   const EXPORT_COLS = canSeeAmounts ? ALL_EXPORT_COLS : ALL_EXPORT_COLS.filter(c => c.type !== 'money')
   // Use allFilteredData when date filter applied (ALL records), otherwise use current page
   const dataForExport = (start || end) ? allFilteredData : displayRows
-  const exportRows = canSeeAmounts ? dataForExport : dataForExport.map(r => ({ ...r, amount: null }))
+  const labelled = dataForExport.map(r => ({ ...r, mode: r.mode === 'UPI/QR Code' ? 'Online' : r.mode }))
+  const exportRows = canSeeAmounts ? labelled : labelled.map(r => ({ ...r, amount: null }))
   const exportTotal = canSeeAmounts ? { code: 'Total', amount: dataForExport.reduce((s, r) => s + Number(r.amount || 0), 0) } : null
   return (
     <div>
@@ -336,7 +337,7 @@ export default function Annadanam() {
           </div>
           <div className="w-[9rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
-            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("UPI / QR Code")}</option></Select>
+            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("Online")}</option></Select>
           </div>
           <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button onClick={() => { setFilters({ q: '', mode: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
@@ -495,12 +496,12 @@ export default function Annadanam() {
                 <label className="label"><T>Payment Mode *</T></label>
                 <div className="flex gap-6 mt-1 mb-4">
                   {['Cash', 'UPI/QR Code'].map((mo) => (
-                    <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setM({ mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'UPI / QR Code' : mo)}</label>
+                    <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setM({ mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'Online' : mo)}</label>
                   ))}
                 </div>
                 {drawer.mode === 'UPI/QR Code' && (
-                  <div className="mb-4"><label className="label"><T>UPI Transaction ID / UTR *</T></label>
-                    <div className="relative"><input required className="input pr-9" placeholder={tr("Enter UPI transaction ID / UTR")} value={drawer.txn_ref} onChange={(e) => setM({ txn_ref: e.target.value })} />
+                  <div className="mb-4"><label className="label"><T>Online Transaction ID / UTR *</T></label>
+                    <div className="relative"><input required className="input pr-9" placeholder={tr("Enter online transaction ID / UTR")} value={drawer.txn_ref} onChange={(e) => setM({ txn_ref: e.target.value })} />
                       {drawer.txn_ref && <span className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-emerald-500 text-white grid place-items-center"><Check size={12} /></span>}</div>
                   </div>
                 )}

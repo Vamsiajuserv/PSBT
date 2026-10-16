@@ -1,5 +1,6 @@
 """Donation management — cash / material / sponsorship (doc §Donation Management)."""
 import re
+from decimal import Decimal
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import or_, func
@@ -169,6 +170,27 @@ def create_donation(body: DonationCreate, request: Request,
     return d
 
 
+def _assert_stock_allows_void(db: Session, d: Donation) -> None:
+    """Stores & Inventory: a material donation already counted in stock cannot simply
+    disappear — tagged pieces would be left without a receipt, and a used consumable
+    would go below zero."""
+    from ..models import DonationCategory, StockItem
+    tagged = db.query(func.count(StockItem.id)).filter(StockItem.donation_id == d.id).scalar() or 0
+    if tagged:
+        raise HTTPException(409, f"{tagged} piece(s) from {d.receipt_no} are tagged in the Stock Register — "
+                                 "write them off there first, then void the donation.")
+    cat = db.query(DonationCategory).filter(DonationCategory.type == "Material", DonationCategory.name == d.fund).first()
+    if cat and cat.tracking == "Quantity":
+        from .consumables import _balance, _start
+        from .stores import _qty
+        start = _start(db)
+        if d.donated_on and d.donated_on >= start:
+            left = Decimal(str(_balance(db, cat, start)["remaining"]))
+            if left - Decimal(str(d.quantity or 0)) < 0:
+                raise HTTPException(409, f"{d.fund}: only {_qty(left)} {cat.unit or ''} is left in Consumables Stock — "
+                                         f"voiding this {_qty(d.quantity or 0)} would make the balance negative.")
+
+
 @router.delete("/{did}", status_code=204)
 def delete_donation(did: int, request: Request,
                     db: Session = Depends(get_db), user=Depends(require_admin)):
@@ -177,6 +199,8 @@ def delete_donation(did: int, request: Request,
     d = db.get(Donation, did)
     if not d:
         raise HTTPException(404, "Donation not found")
+    if d.donation_type == "Material" and not d.voided:
+        _assert_stock_allows_void(db, d)
     d.voided = True
     d.void_reason = "Voided by administrator"
     log_action(db, username=user.username, action="UPDATE", entity="Donation",

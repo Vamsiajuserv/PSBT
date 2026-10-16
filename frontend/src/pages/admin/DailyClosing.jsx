@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   IndianRupee, ListChecks, ClipboardCheck, Lock, RefreshCw,
-  Wallet, Scale, CreditCard, Info, CheckCircle2, Unlock, ChevronDown, ChevronUp,
+  Wallet, Scale, CreditCard, Info, CheckCircle2, Unlock, ChevronDown, ChevronUp, Tags,
 } from 'lucide-react'
 import { inr, num, fmtStamp, KpiGrid } from '../../components/admin/ui.jsx'
 import FitText from '../../components/common/FitText.jsx'
@@ -9,6 +9,7 @@ import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { DailyClosingAPI, RefundsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { DateField } from '../../components/common/Field.jsx'
+import { Link } from 'react-router-dom'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
 
@@ -62,7 +63,7 @@ function Donut({ cashPct, upiPct }) {
       <circle cx="70" cy="70" r={r} fill="none" stroke="#7a1220" strokeWidth="20"
         strokeDasharray={`${cashLen} ${c}`} transform="rotate(-90 70 70)"><title>{`Cash: ${cashPct}%`}</title></circle>
       <circle cx="70" cy="70" r={r} fill="none" stroke="#c99a2e" strokeWidth="20"
-        strokeDasharray={`${(upiPct / 100) * c} ${c}`} strokeDashoffset={`-${cashLen}`} transform="rotate(-90 70 70)"><title>{`UPI / QR: ${upiPct}%`}</title></circle>
+        strokeDasharray={`${(upiPct / 100) * c} ${c}`} strokeDashoffset={`-${cashLen}`} transform="rotate(-90 70 70)"><title>{`Online: ${upiPct}%`}</title></circle>
       {cashPct >= 8 && <text x={pc.x} y={pc.y} textAnchor="middle" style={{ fontSize: 10, fontWeight: 700, fill: '#fff' }}>{Math.round(cashPct)}%</text>}
       {upiPct >= 8 && <text x={pu.x} y={pu.y} textAnchor="middle" style={{ fontSize: 10, fontWeight: 700, fill: '#fff' }}>{Math.round(upiPct)}%</text>}
     </svg>
@@ -179,12 +180,24 @@ export default function DailyClosing() {
       <KpiGrid>
         <KpiCard icon={IndianRupee} title={tr("Total Collections (₹)")} value={hideAmount(inr(t.total))} sub={`${modules.length} ${tr('Modules')}`} valueClass="text-maroon-800" />
         <KpiCard icon={Wallet} title={tr("Cash Collections (₹)")} value={hideAmount(inr(t.cash))} sub={canSeeAmounts ? `${sum.cash_pct}% ${tr('of Total')}` : ''} />
-        <KpiCard icon={CreditCard} title={tr("UPI / QR Collections (₹)")} value={hideAmount(inr(t.upi))} sub={canSeeAmounts ? `${sum.upi_pct}% ${tr('of Total')}` : ''} />
+        <KpiCard icon={CreditCard} title={tr("Online Collections (₹)")} value={hideAmount(inr(t.upi))} sub={canSeeAmounts ? `${sum.upi_pct}% ${tr('of Total')}` : ''} />
         <KpiCard icon={ListChecks} title={tr("Total Transactions")} value={num(t.count)} sub={tr("All Payment Modes")} />
         <KpiCard icon={ClipboardCheck} title={tr("Closing Status")}
           value={closed ? tr('Closed') : tr('Open')} valueClass={closed ? 'text-rose-600' : 'text-emerald-600'}
           sub={closed ? `${tr('By')} ${personName({ name: sum.closed_by }, lang)}` : tr('Not Closed For The Day')} />
       </KpiGrid>
+
+      {/* Stores & Inventory reminder — a warning only; the day can still be closed */}
+      {sum.untagged_material?.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-start gap-x-3 gap-y-1 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[0.8125rem] text-amber-900">
+          <Tags size={16} className="mt-0.5 shrink-0 text-amber-700" />
+          <div className="flex-1 min-w-0">
+            <b>{sum.untagged_material.length} {tr('material donation(s) on this day are not tagged yet')}</b>
+            <div className="text-[0.75rem] mt-0.5">{sum.untagged_material.map((d) => `${d.receipt_no} · ${personName({ name: d.donor_name }, lang)} · ${tr(d.item_name)} (${d.mode === 'weight' ? `${num(d.tagged)}/${num(d.quantity)} g` : `${d.tagged}/${num(d.quantity)}`})`).join('  ·  ')}</div>
+          </div>
+          <Link to="/admin/stores/pending" className="shrink-0 font-semibold text-maroon-700 hover:underline">{tr('Tag them now')} →</Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* ── Left: collections + charts ── */}
@@ -199,7 +212,7 @@ export default function DailyClosing() {
                     <th className="px-4 py-3 text-left font-semibold w-10">#</th>
                     <th className="px-2 py-3 text-left font-semibold"><T>Module</T></th>
                     <th className="px-4 py-3 text-right font-semibold"><T>Cash (₹)</T></th>
-                    <th className="px-4 py-3 text-right font-semibold"><T>UPI / QR (₹)</T></th>
+                    <th className="px-4 py-3 text-right font-semibold"><T>Online (₹)</T></th>
                     <th className="px-4 py-3 text-right font-semibold"><T>Total Amount (₹)</T></th>
                     <th className="px-4 py-3 text-right font-semibold"><T>Transactions</T></th>
                   </tr>
@@ -244,7 +257,7 @@ export default function DailyClosing() {
                     <span className="w-12 shrink-0 text-right tabular-nums text-gray-500">{canSeeAmounts ? `${sum.cash_pct}%` : '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 py-2.5 border-b border-gray-50">
-                    <span className="flex-1 min-w-0 flex items-center gap-2 text-gray-700"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: '#c99a2e' }} /><span className="truncate"><T>UPI / QR Code</T></span></span>
+                    <span className="flex-1 min-w-0 flex items-center gap-2 text-gray-700"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: '#c99a2e' }} /><span className="truncate"><T>Online</T></span></span>
                     <span className="shrink-0 min-w-[6rem] text-right tabular-nums whitespace-nowrap text-gray-700">{hideAmount(inr(t.upi))}</span>
                     <span className="w-12 shrink-0 text-right tabular-nums text-gray-500">{canSeeAmounts ? `${sum.upi_pct}%` : '—'}</span>
                   </div>
@@ -287,7 +300,7 @@ export default function DailyClosing() {
               <div className="border-t border-gray-100 pt-3 space-y-3">
                 <Row label={tr("Total Transactions")} value={num(t.count)} />
                 <Row label={tr("Cash Transactions")} value={num(sum.cash_txns)} />
-                <Row label={tr("UPI / QR Transactions")} value={num(sum.upi_txns)} />
+                <Row label={tr("Online Transactions")} value={num(sum.upi_txns)} />
               </div>
             </div>
           </div>

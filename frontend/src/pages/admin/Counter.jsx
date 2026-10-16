@@ -9,7 +9,7 @@ import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { PoojasAPI, DevoteesAPI, BookingsAPI, FestivalsAPI, AlmanacAPI, SettingsAPI } from '../../api/client.js'
 import { QRCodeSVG } from 'qrcode.react'
-import { toast } from '../../components/common/Dialog.jsx'
+import { toast, confirmDialog } from '../../components/common/Dialog.jsx'
 import { T, tr, useLang, personName, stamp } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
 import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
@@ -343,6 +343,8 @@ export default function Counter() {
   // ── Duplicate Warnings (ALL duplicates are blocked) ──
   const [dupWarnings, setDupWarnings] = useState([])
   const [dupChecking, setDupChecking] = useState(false)
+  // Same pooja already booked for this devotee today / that day — a warning, not a block
+  const [sameDay, setSameDay] = useState([])
 
   // All duplicates are now blocked - no confirmation/bypass allowed
   const noDuplicates = dupWarnings.length === 0
@@ -355,7 +357,7 @@ export default function Counter() {
 
   // Check duplicates for long-term items
   useEffect(() => {
-    if ((!devotee?.id && !mobileFor10) || !selected.length) { setDupWarnings([]); setDupChecking(false); return }
+    if ((!devotee?.id && !mobileFor10) || !selected.length) { setDupWarnings([]); setSameDay([]); setDupChecking(false); return }
     // Every item is checked: long-term plans against the devotee's active plan of
     // the same kind, single-day ones (Daily) against an active Monthly / N-day plan
     // that already performs the pooja on that date.
@@ -365,9 +367,11 @@ export default function Counter() {
     setDupChecking(true)
     const checkAll = async () => {
       const warnings = []
+      const repeats = []
       for (const item of itemsToCheck) {
         try {
           const res = await BookingsAPI.checkDuplicate({ devotee_id: devotee?.id, mobile: mobileFor10, pooja_id: item.pooja_id, plan_id: item.plan_id, scheduled_date: item.scheduled_date })
+          if (!res.has_duplicate && res.same_day) repeats.push({ lineId: item.lineId, message: res.same_day.message })
           if (res.has_duplicate) {
             warnings.push({
               lineId: item.lineId,
@@ -400,6 +404,7 @@ export default function Counter() {
       }
       if (cancelled) return
       setDupWarnings(warnings)
+      setSameDay(repeats)
       setDupChecking(false)
     }
     checkAll()
@@ -534,6 +539,9 @@ export default function Counter() {
       setError(tr('Cannot proceed - Active plan duplicate detected. Please remove duplicate items from cart.'))
       return
     }
+    // Already booked the same pooja that day: allowed (e.g. for family), but confirm it is intended
+    if (sameDay.length && !(await confirmDialog({ title: tr('Already booked'), confirmLabel: tr('Book again'),
+      message: sameDay.map((w) => tr(w.message)).join('\n') + '\n\n' + tr('Book this pooja again?') }))) return
 
     setBusy(true)
     const originalItems = [...selected]
@@ -911,6 +919,7 @@ export default function Counter() {
                           <CalendarDays size={11} className="shrink-0" />{cartLineWhen(item)}
                           {item.category === 'Vehicle' && item.vehicle_no && <span className="text-amber-600">· {item.vehicle_no}</span>}
                         </div>
+                        {!blocked && sameDay.some((w) => w.lineId === item.lineId) && <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{tr('Already booked that day — will ask to confirm')}</div>}
                         {blocked && <div className="text-[11px] font-semibold text-red-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{blockedLines.get(item.lineId).in_cart ? tr('Blocked — already covered in this cart') : tr('Blocked — active plan exists')}</div>}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -1019,7 +1028,7 @@ export default function Counter() {
                       onClick={() => { setMode(m); setError('') }}
                       className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-1.5 text-sm font-medium transition-all ${mode === m ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-600 hover:border-amber-300'}`}
                     >
-                      {tr(m === 'UPI/QR Code' ? 'UPI' : m)}
+                      {tr(m === 'UPI/QR Code' ? 'Online' : m)}
                     </button>
                   ))}
                 </div>
@@ -1179,7 +1188,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
   const booking = line?.booking || {}
   const isMultiItem = (bill.lines?.length || 0) > 1
   const isDailyOnly = bill.lines?.every((l) => l.category === 'Daily') ?? false
-  const modeLabel = bill.mode === 'UPI/QR Code' ? 'UPI / QR Code' : bill.mode
+  const modeLabel = bill.mode === 'UPI/QR Code' ? 'Online' : bill.mode
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={onClose}>

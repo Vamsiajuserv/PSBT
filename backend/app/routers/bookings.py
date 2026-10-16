@@ -450,6 +450,21 @@ def create_booking(body: BookingCreate, request: Request,
     return b
 
 
+def _same_day_booking(db: Session, devotee_id, mobile, pooja_id, day):
+    """A paid, not-cancelled booking of the same pooja on the same day for this devotee
+    (matched by devotee id or mobile) — reported as a warning, never a block."""
+    if not pooja_id or not (devotee_id or mobile):
+        return None
+    who = []
+    if devotee_id:
+        who.append(Booking.devotee_id == devotee_id)
+    if mobile:
+        who.append(Booking.mobile == mobile)
+    return (db.query(Booking).filter(Booking.pooja_id == pooja_id, Booking.scheduled_date == day,
+                                     Booking.status != "Cancelled", Booking.payment_status == "Paid", or_(*who))
+            .order_by(Booking.id.desc()).first())
+
+
 @router.get("/check-duplicate")
 def check_duplicate(pooja_id: int, plan_id: int,
                     devotee_id: int | None = None, mobile: str | None = None,
@@ -463,7 +478,15 @@ def check_duplicate(pooja_id: int, plan_id: int,
     if not dup:
         cover = _find_covering_plan(db, devotee_id, mobile, pooja_id, plan, start)
         if not cover:
-            return {"has_duplicate": False}
+            same = _same_day_booking(db, devotee_id, mobile, pooja_id, start)
+            if not same:
+                return {"has_duplicate": False}
+            # Not a block — a devotee may book the same pooja twice (e.g. for family);
+            # the counter just confirms it is intended.
+            return {"has_duplicate": False, "same_day": {
+                "existing_booking": same.booking_code, "ticket_no": same.ticket_no,
+                "plan_name": same.plan_name, "devotee_name": same.devotee_name,
+                "message": f"{same.devotee_name} already has {same.seva_name} on {start} ({same.ticket_no or same.booking_code})."}}
         return {
             "has_duplicate": True,
             "covered_by": cover.plan_name,

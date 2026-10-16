@@ -76,9 +76,9 @@ def _vendor_materials(db: Session, value, existing: str | None = None) -> str | 
         else:
             unknown.append(name)
     if off:
-        raise HTTPException(400, f"Inactive material(s): {', '.join(off)}. Activate them in Waste Material Master first.")
+        raise HTTPException(400, f"Inactive material(s): {', '.join(off)}. Activate them in Other Material Master first.")
     if unknown:
-        raise HTTPException(400, f"Unknown material(s): {', '.join(unknown)}. Add them in Waste Material Master first.")
+        raise HTTPException(400, f"Unknown material(s): {', '.join(unknown)}. Add them in Other Material Master first.")
     return ", ".join(out) or None
 
 
