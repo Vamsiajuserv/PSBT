@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { X, Plus, Trash2, Search, Banknote, Receipt as ReceiptIcon, Gavel } from 'lucide-react'
+import { X, Plus, Trash2, Search, Banknote, Receipt as ReceiptIcon, Gavel, PackageX } from 'lucide-react'
 import { AuctionAPI, StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { Pill, inr } from '../../../components/admin/ui.jsx'
 import { Select, NumberField, DateField, TimeField, Checkbox } from '../../../components/common/Field.jsx'
-import { toast } from '../../../components/common/Dialog.jsx'
+import { toast, confirmDialog } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
 
 // Lot auctions: a set of tagged pieces from the Stock Register, sold to one or more buyers.
@@ -163,20 +163,37 @@ export function LotResultModal({ auction, onClose, onSaved }) {
   const base = (l) => l.piece_ids.reduce((s, pid) => s + Number(byId[pid]?.base_price || 0), 0)
   const used = lines.filter((l) => l.buyer_name.trim() || l.piece_ids.length || l.amount)
 
-  async function save(e) {
-    e.preventDefault()
-    const bad = used.findIndex((l) => !l.buyer_name.trim() || !l.piece_ids.length || !(Number(l.amount) > 0))
-    if (bad >= 0) { toast(`${tr('Buyer')} ${bad + 1}: ${tr('enter the name, pick pieces and the amount.')}`, 'error'); return }
+  async function submit(sold) {
     setSaving(true)
     try {
       await AuctionAPI.lotResult(auction.id, {
         bids: Number(bids) || 0,
-        lines: used.map((l) => ({ buyer_name: l.buyer_name.trim(), buyer_mobile: l.buyer_mobile.trim() || null, piece_ids: l.piece_ids, amount: Number(l.amount) })),
+        lines: sold.map((l) => ({ buyer_name: l.buyer_name.trim(), buyer_mobile: l.buyer_mobile.trim() || null, piece_ids: l.piece_ids, amount: Number(l.amount) })),
       })
-      toast(used.length ? tr('Result recorded — sent to the committee for approval.') : tr('Recorded as unsold — sent to the committee for approval.'))
+      toast(sold.length ? tr('Result recorded — sent to the committee for approval.') : tr('Recorded as unsold — sent to the committee for approval.'))
       onSaved?.()
     } catch (ex) { toast(errText(ex, 'Could not record the result.'), 'error') }
     finally { setSaving(false) }
+  }
+
+  async function save(e) {
+    e.preventDefault()
+    // A blank form is no longer saved silently as unsold — that is the Unsold button's job
+    if (!used.length) { toast(tr('Enter the buyer for the pieces sold, or click Unsold if nothing was sold.'), 'error'); return }
+    const bad = used.findIndex((l) => !l.buyer_name.trim() || !l.piece_ids.length || !(Number(l.amount) > 0))
+    if (bad >= 0) { toast(`${tr('Buyer')} ${bad + 1}: ${tr('enter the name, pick pieces and the amount.')}`, 'error'); return }
+    await submit(used)
+  }
+
+  // Nothing sold: the whole lot goes back to the store after the committee approves
+  async function markUnsold() {
+    const n = auction.pieces.length
+    const ok = await confirmDialog({
+      title: tr('Mark whole lot unsold?'), confirmLabel: tr('Mark Unsold'),
+      message: `${n} ${tr('piece(s)')} (${tagRange(auction.pieces.map((p) => p.tag_id))}) ${tr('will go back to their store location after the committee approves, and appear in Unsold Items.')}`
+        + (used.length ? `\n\n${tr('The buyer details entered here will be cleared.')}` : ''),
+    })
+    if (ok) await submit([])
   }
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -225,6 +242,7 @@ export function LotResultModal({ auction, onClose, onSaved }) {
         </div>
         <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
           <button type="button" onClick={onClose} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+          <button type="button" onClick={markUnsold} disabled={saving} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-orange-300 bg-orange-50 text-orange-700 font-semibold text-sm px-4 py-2 hover:bg-orange-100 disabled:opacity-60"><PackageX size={15} /><T>Unsold</T></button>
           <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60"><Gavel size={15} className="mr-1" />{saving ? tr('Saving…') : <T>Save Result</T>}</button>
         </div>
       </form>

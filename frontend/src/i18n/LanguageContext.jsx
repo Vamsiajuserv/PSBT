@@ -4052,6 +4052,12 @@ const UI_TE = {
   'This will update module access for': 'ఇది మాడ్యూల్ యాక్సెస్‌ను మారుస్తుంది —',
   'Any extra access given to an individual user with this role will be replaced.': 'ఈ పాత్ర ఉన్న వ్యక్తిగత వినియోగదారుకు ఇచ్చిన అదనపు యాక్సెస్ భర్తీ చేయబడుతుంది.',
   'user': 'వినియోగదారు',
+  // Lot auction — Unsold button
+  'Enter the buyer for the pieces sold, or click Unsold if nothing was sold.': 'అమ్మిన ముక్కలకు కొనుగోలుదారును నమోదు చేయండి, ఏమీ అమ్ముడుపోకపోతే "అమ్ముడుపోలేదు" నొక్కండి.',
+  'Mark whole lot unsold?': 'మొత్తం లాట్ అమ్ముడుపోలేదని గుర్తించాలా?',
+  'Mark Unsold': 'అమ్ముడుపోలేదని గుర్తించండి',
+  'will go back to their store location after the committee approves, and appear in Unsold Items.': 'కమిటీ ఆమోదించిన తర్వాత తమ స్టోర్ స్థానానికి తిరిగి వెళ్తాయి, అమ్ముడుపోని వస్తువులలో కనిపిస్తాయి.',
+  'The buyer details entered here will be cleared.': 'ఇక్కడ నమోదు చేసిన కొనుగోలుదారు వివరాలు తొలగించబడతాయి.',
   // Stores — Open Sale
   'Open Sale': 'ఓపెన్ సేల్',
   'In Open Sale': 'ఓపెన్ సేల్‌లో',
