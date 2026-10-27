@@ -41,6 +41,13 @@ jobs:
       - name: Backend tests (almanac, panchangam, migrations)
         working-directory: backend
         run: python -m unittest discover -s tests -t . -v
+        env:
+          # Placeholders so app settings load; the tests use their own in-memory databases.
+          JWT_SECRET: ci-only-not-a-secret
+          PGHOST: localhost
+          PGUSER: ci
+          PGPASSWORD: ci
+          PGDATABASE: ci
       - name: Upload API artifact
         uses: actions/upload-artifact@v4
         with:
