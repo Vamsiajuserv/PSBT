@@ -29,13 +29,18 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
       - name: Install dependencies
         working-directory: backend
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt   # app packages + test-only httpx
       - name: Syntax check
         working-directory: backend
         run: find app -name "*.py" | xargs python -m py_compile && echo "Python syntax OK"
+      - name: Backend tests (almanac, panchangam, migrations)
+        working-directory: backend
+        run: python -m unittest discover -s tests -t . -v
       - name: Upload API artifact
         uses: actions/upload-artifact@v4
         with:
@@ -103,10 +108,13 @@ jobs:
           echo "Health check did not succeed (check App Service Log stream)"; exit 1
 
   # ── Deploy the website to Static Web Apps ─────────────────────────
+  # Waits for the API: the website must never go live ahead of the API it calls
+  # (e.g. /api/almanac). If the API fails its tests or health check, the old
+  # website stays up, still matching the old API.
   deploy-frontend:
     name: Deploy Frontend
     runs-on: ubuntu-latest
-    needs: build-frontend
+    needs: [build-frontend, deploy-api]
     steps:
       - name: Download frontend artifact
         uses: actions/download-artifact@v4
