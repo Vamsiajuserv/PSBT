@@ -10,12 +10,16 @@ cd "$SCRIPT_DIR"
 
 echo "=== PSBT API starting in: $SCRIPT_DIR ==="
 
-# Activate the Oryx-built virtual environment (from SCM_DO_BUILD_DURING_DEPLOYMENT).
-if [ -f "$SCRIPT_DIR/antenv/bin/activate" ]; then
+# Python packages installed by the GitHub workflow (packages/), so Azure needs no
+# Oryx build. Fallback: an Oryx-built virtualenv (SCM_DO_BUILD_DURING_DEPLOYMENT=1).
+if [ -d "$SCRIPT_DIR/packages" ]; then
+  echo "=== Using bundled packages (packages/) ==="
+  export PYTHONPATH="$SCRIPT_DIR/packages${PYTHONPATH:+:$PYTHONPATH}"
+elif [ -f "$SCRIPT_DIR/antenv/bin/activate" ]; then
   echo "=== Activating virtualenv (antenv) ==="
   source "$SCRIPT_DIR/antenv/bin/activate"
 else
-  echo "=== WARNING: antenv not found; using system Python ==="
+  echo "=== WARNING: no packages/ or antenv; using system Python ==="
 fi
 
 # Ensure 'import app...' resolves regardless of Oryx's extraction path.

@@ -120,14 +120,14 @@ bash startup.sh
 | `PGSSLMODE` | `require` |
 | `JWT_SECRET` | *(secret — from `backend/.env`)* |
 | `CORS_ORIGINS` | `https://ambitious-rock-027e26800.7.azurestaticapps.net` |
-| `SCM_DO_BUILD_DURING_DEPLOYMENT` | `1` |
+| `SCM_DO_BUILD_DURING_DEPLOYMENT` | `false` |
 | `WEBSITES_PORT` | `8000` |
 
 Notes:
 - `PGHOST/PGUSER/PGDATABASE/PGPASSWORD/JWT_SECRET` are **required** — the app refuses to start without them (pydantic settings validation). `startup.sh` logs which are empty.
 - `CORS_ORIGINS` must equal the Static Web App URL **exactly**, with **no trailing slash**.
 - **Do not** use the App Service's separate **CORS** blade — leave it empty. The FastAPI app handles CORS itself; configuring both conflicts.
-- `SCM_DO_BUILD_DURING_DEPLOYMENT=1` makes Oryx `pip install -r requirements.txt` on deploy.
+- `SCM_DO_BUILD_DURING_DEPLOYMENT=false`: the GitHub workflow installs the Python packages into `backend/packages/` and `startup.sh` puts them on `PYTHONPATH`, so Azure does no build (its Oryx build failed to download Python, Oct 2026).
 - `WEBSITES_PORT=8000` matches the port in `startup.sh`.
 
 ---

@@ -88,6 +88,16 @@ jobs:
         with:
           name: api-package
           path: backend/
+      # Install the Python packages here rather than on Azure: Azure's own build (Oryx)
+      # has failed to download Python. Linux wheels for Python 3.12 (glibc 2.28 or older).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Python packages into the package
+        run: |
+          pip install --target backend/packages --python-version ${{ env.PYTHON_VERSION }} --implementation cp \
+            --only-binary=:all: --platform manylinux2014_x86_64 --platform manylinux_2_24_x86_64 \
+            --platform manylinux_2_28_x86_64 -r backend/requirements.txt
       - name: Create deployment ZIP
         run: |
           find backend -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
