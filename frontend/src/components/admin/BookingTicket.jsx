@@ -2,6 +2,25 @@ import React from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { tr, teText, useLang } from '../../i18n/LanguageContext.jsx'
 import { useTemple } from '../../lib/SiteContext.jsx'
+import { NOTE_FIXED_TIMINGS, NOTE_VEHICLE } from '../../lib/slots.js'
+
+// Devotee notes from the client's pooja timings sheet: fixed-timing poojas
+// (Daily, Monthly, Long-Term) and vehicle poojas each carry their own note.
+const FIXED_TIMING_CATEGORIES = ['Daily', 'Monthly', 'Long-Term']
+export function TicketNotes({ categories }) {
+  const cats = [].concat(categories || [])
+  const notes = [
+    cats.some((c) => FIXED_TIMING_CATEGORIES.includes(c)) && NOTE_FIXED_TIMINGS,
+    cats.includes('Vehicle') && NOTE_VEHICLE,
+  ].filter(Boolean)
+  if (!notes.length) return null
+  return (
+    <div className="text-[0.625rem] text-gray-700 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-3">
+      <div className="font-semibold text-maroon-800 mb-1">{tr('Note')}:</div>
+      <ul className="list-disc list-inside space-y-0.5 pl-1">{notes.map((n) => <li key={n}>{tr(n)}</li>)}</ul>
+    </div>
+  )
+}
 
 // Real scannable ticket QR (closes gap SYS-01). The QR encodes the ticket /
 // booking code itself, so any scanner (USB gun or phone camera) reads the exact
@@ -34,8 +53,9 @@ const flattenFields = (children, prefix = '') => React.Children.toArray(children
 // Ornate temple ticket shell — pass the fields as children. Logo, title badge and the
 // first fields stack on the left while the large QR runs down the right, so the QR's
 // height is used instead of leaving a gap under the logo. `after` renders below the
-// fields (e.g. terms & conditions).
-export function TicketShell({ code, children, after }) {
+// fields (e.g. terms & conditions); `categories` (the booked poojas' categories) adds
+// the devotee notes for fixed-timing and vehicle poojas.
+export function TicketShell({ code, children, after, categories }) {
   const { lang } = useLang()
   const temple = useTemple()
   const fields = flattenFields(children)
@@ -59,6 +79,7 @@ export function TicketShell({ code, children, after }) {
         <TicketRef code={code} className="self-center sm:self-start" />
       </div>
       {below.length > 0 && <div className="grid grid-cols-2 gap-x-6 gap-y-4 mt-4">{below}</div>}
+      <TicketNotes categories={categories} />
       {after}
       <div className="text-center mt-4 pt-3 border-t border-dashed border-amber-200">
         <div className="font-display text-maroon-700 tracking-wide text-sm">{tr("✦ Om Sai Ram ✦")}</div>

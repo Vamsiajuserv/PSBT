@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import or_, func
 
-from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, validate_pagination, encrypt_pan, enforce_rate_limit, sort_expr, apply_column_filters
+from ..helpers import ist_today, next_code_seq, assert_positive, assert_txn_date_open, validate_pagination, encrypt_pan, enforce_rate_limit, sort_expr, apply_column_filters
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -115,6 +115,43 @@ def list_donations(q: str = "", type: str = "", category: str = "", mode: str = 
             "items": [DonationOut.model_validate(r).model_dump() for r in rows]}
 
 
+def _value_metal(db: Session, data: dict) -> None:
+    """Gold / silver weighed at the counter: purity is required and the estimated value is
+    grams × the day's rate × purity (refused when the day has no rate). Other goods keep the
+    value the devotee states, if any. Either way the value is kept apart from `amount` —
+    goods are not cash."""
+    from ..models import DonationCategory
+    from .metal_rates import metal_of, valuate
+    from .stores import _is_weight
+    data["item_desc"] = (data.get("item_desc") or "").strip() or None
+    cat = (db.query(DonationCategory).filter(DonationCategory.type == "Material", DonationCategory.name == data.get("fund"))
+           .first())
+    metal = metal_of(data.get("fund"))
+    if not metal or not (_is_weight(cat.unit if cat else None) or _is_weight(data.get("unit"))):
+        # other goods: the value the devotee states (optional), printed as such on the receipt
+        data["purity"] = data["rate_per_g"] = None
+        data["est_value"] = data.get("est_value") or None
+        return
+    data["rate_per_g"], data["est_value"] = valuate(db, metal, data.get("purity"), data["quantity"],
+                                                    data.get("donated_on") or ist_today())
+    data["purity"] = data["purity"].strip()
+
+
+def _check_expiry(db: Session, data: dict) -> None:
+    """A best-before date is kept only for consumables (quantity items) and cannot be
+    before the day the goods were given."""
+    from ..models import DonationCategory
+    if not data.get("expiry_date"):
+        return
+    cat = (db.query(DonationCategory).filter(DonationCategory.type == "Material", DonationCategory.name == data.get("fund"))
+           .first())
+    if not cat or cat.tracking != "Quantity":
+        data["expiry_date"] = None
+        return
+    if data["expiry_date"] < (data.get("donated_on") or ist_today()):
+        raise HTTPException(422, "The best-before date cannot be before the donation date.")
+
+
 @router.post("", response_model=DonationOut, status_code=201)
 def create_donation(body: DonationCreate, request: Request,
                     db: Session = Depends(get_db), user=Depends(write)):
@@ -130,8 +167,11 @@ def create_donation(body: DonationCreate, request: Request,
         if float(data.get("amount") or 0) < 0:
             raise HTTPException(422, "Donation amount cannot be negative.")
         data["mode"] = "-"   # no payment for goods (matches existing material rows)
+        _value_metal(db, data)
+        _check_expiry(db, data)
     else:
         assert_positive(data.get("amount"), "Donation amount")
+        data["purity"] = data["item_desc"] = data["expiry_date"] = None
     # 80G tax exemption applies ONLY to Medical donations and requires a valid PAN.
     if data.get("g80"):
         if "medical" not in (data.get("fund") or "").lower():

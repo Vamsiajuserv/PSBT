@@ -7,14 +7,14 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..models import HundiCollection, HundiCollectionItem, Auction, Annadanam, CommitteeMember, StoreLocation
+from ..models import HundiCollection, HundiCollectionItem, Auction, Annadanam, CommitteeMember, StoreLocation, StoreReceipt
 from ..schemas import (HundiCreate, HundiOut, HundiRejectIn, HundiResubmitIn, HundiDepositIn, HundiStoreIn,
                        AuctionCreate, AuctionOut, AuctionResultIn, AuctionEditIn, AuctionReauctionIn,
                        AuctionRejectIn, AuctionPaymentIn,
                        AnnadanamCreate, AnnadanamOut)
 from ..helpers import validate_pagination, sort_expr, apply_column_filters
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip, ADMIN_ROLES
-from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, ist_now, IST_OFFSET
+from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, ist_now, ist_today, IST_OFFSET
 
 # ── Hundi ────────────────────────────────────────────────────────────────────
 hundi_router = APIRouter(prefix="/api/hundi", tags=["hundi"])
@@ -167,6 +167,20 @@ HUNDI_SORT_COLUMNS = {
 }
 
 
+def _value_metal_lines(db: Session, lines: list[dict], day: date) -> None:
+    """Gold / silver counted by weight: the line's value is grams × the collection day's
+    rate × purity, worked out here — not typed (refused when that day has no rate)."""
+    from .metal_rates import metal_of, valuate
+    from .stores import _is_weight
+    for li in lines:
+        metal = metal_of(li.get("item_type"))
+        if metal and _is_weight(li.get("unit")) and Decimal(str(li.get("quantity") or 0)) > 0:
+            li["rate_per_g"], li["value"] = valuate(db, metal, li.get("purity"), li["quantity"], day)
+            li["purity"] = li["purity"].strip()
+        else:
+            li["purity"] = li["rate_per_g"] = None
+
+
 @hundi_router.get("", response_model=dict)
 def list_hundi(q: str = "", verification: str = "", deposit: str = "",
                valuables: str = "",  # filter by valuables_status
@@ -220,6 +234,8 @@ def list_hundi(q: str = "", verification: str = "", deposit: str = "",
         query = query.order_by(HundiCollection.collected_on.desc().nullslast(), HundiCollection.id.desc())
 
     rows = query.offset((page - 1) * size).limit(size).all()
+    receipts = {sr.hundi_id: sr for sr in db.query(StoreReceipt).filter(
+        StoreReceipt.hundi_id.in_([r.id for r in rows if r.store_receive_required] or [0])).all()}
     # Enrich each row with cash_amount and valuables_amount calculated from items
     items = []
     for r in rows:
@@ -227,6 +243,11 @@ def list_hundi(q: str = "", verification: str = "", deposit: str = "",
         cash, valuables_amt = _calc_cash_valuables(r.items)
         data["cash_amount"] = float(cash)
         data["valuables_amount"] = float(valuables_amt)
+        # Receive at store: has the Stores Officer counted the valuables in yet?
+        sr = receipts.get(r.id)
+        data["store_receive"] = (None if not (r.store_receive_required and r.valuables_status == "In Store")
+                                 else {"state": sr.status if sr else "To receive", "short_code": sr.short_code if sr else None,
+                                       "received_by": sr.received_by if sr else None})
         items.append(data)
     return {"total": total, "page": page, "size": size, "items": items}
 
@@ -254,6 +275,7 @@ def create_hundi(body: HundiCreate, request: Request,
                                  "Committee Member Master — they must approve this count.")
     joined = ", ".join(m.name for m in assigned)
     item_lines = data.pop("items", []) or []
+    _value_metal_lines(db, item_lines, data.get("collected_on") or ist_today())
     # When an item-wise breakdown is supplied, the counted total is the sum of the
     # lines — the server is the source of truth, not a free-typed amount.
     if item_lines:
@@ -282,7 +304,8 @@ def create_hundi(body: HundiCreate, request: Request,
         h.items.append(HundiCollectionItem(
             hundi_item_id=li.get("hundi_item_id"), item_name=li.get("item_name"),
             item_type=li.get("item_type"), quantity=li.get("quantity"),
-            unit=li.get("unit"), value=li.get("value") or 0, remarks=li.get("remarks")))
+            unit=li.get("unit"), value=li.get("value") or 0, remarks=li.get("remarks"),
+            purity=li.get("purity"), rate_per_g=li.get("rate_per_g")))
     db.add(h); db.commit(); db.refresh(h)
     log_action(db, username=user.username, action="CREATE", entity="Hundi",
                detail=f"{h.code} ₹{h.counted_amount} ({len(item_lines)} items, cash: ₹{cash_total}, valuables: ₹{valuables_total})", ip=client_ip(request))
@@ -380,6 +403,7 @@ def resubmit_hundi(hid: int, body: HundiResubmitIn, request: Request, db: Sessio
     # The count belongs to its collection day — a closed day's totals must not change.
     assert_txn_date_open(db, h.collected_on, label="collection date")
     lines = [li.model_dump() for li in body.items]
+    _value_metal_lines(db, lines, h.collected_on or ist_today())
     if any(Decimal(str(li.get("value") or 0)) <= 0 for li in lines):
         raise HTTPException(422, "All item values must be greater than zero.")
     if body.counting_completed_on is not None:
@@ -392,7 +416,8 @@ def resubmit_hundi(hid: int, body: HundiResubmitIn, request: Request, db: Sessio
         h.items.append(HundiCollectionItem(
             hundi_item_id=li.get("hundi_item_id"), item_name=li.get("item_name"),
             item_type=li.get("item_type"), quantity=li.get("quantity"),
-            unit=li.get("unit"), value=li.get("value") or 0, remarks=li.get("remarks")))
+            unit=li.get("unit"), value=li.get("value") or 0, remarks=li.get("remarks"),
+            purity=li.get("purity"), rate_per_g=li.get("rate_per_g")))
     h.counted_amount = sum((Decimal(str(li.get("value") or 0)) for li in lines), Decimal("0"))
     cash_total, valuables_total = _calc_cash_valuables(lines)
     h.deposit_status = "Pending Deposit" if cash_total > 0 else "N/A"
@@ -473,6 +498,9 @@ def store_hundi_valuables(hid: int, body: HundiStoreIn, request: Request, db: Se
     h.valuables_custodian = body.custodian
     h.custody_receipt = body.custody_receipt
     h.valuables_status = "In Store"
+    # The Stores Officer counts the valuables in (Stores → Pending Tagging → To receive)
+    # before they are tagged — custody named here is not yet the store's own confirmation.
+    h.store_receive_required = True
     # Update status based on deposit_status
     if h.deposit_status in ("N/A", "Deposited"):
         h.status = "Completed"

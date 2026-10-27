@@ -90,7 +90,7 @@ export function DayDetail({ cal, day, onClose }) {
               {t.provisional && (
                 <div className="mt-1.5 text-[0.6875rem] text-amber-800">
                   <span className="font-semibold"><T>Provisional — awaiting confirmation against TTD</T></span>
-                  {t.review_notes && <span> · {t.review_notes}</span>}
+                  {t.review_notes && <span> · {tr(t.review_notes)}</span>}
                   {cal.isAdmin && (
                     <button type="button" disabled={cal.confirming} onClick={() => cal.confirmPournami(t)}
                       className="ml-2 px-2 py-0.5 rounded bg-maroon-700 text-white font-semibold hover:bg-maroon-800 disabled:opacity-50">

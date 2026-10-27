@@ -1,0 +1,544 @@
+// Annadanam — the record form, the register (list) and the receipt, shared by the
+// Donations screen (its "Annadanam" tab and view) and the standalone Annadanam page.
+// Data stays in the annadanam table (AnnadanamAPI) with its own ANND- receipt numbers,
+// so Daily Closing, Reports and Analytics read it exactly as before.
+import React, { useEffect, useState, useCallback, useRef } from 'react'
+import {
+  Plus, Eye, Printer, Search, RotateCcw, Minus, Check, User, X,
+  UtensilsCrossed, Users, IndianRupee, HeartHandshake,
+} from 'lucide-react'
+import { toast } from '../../../components/common/Dialog.jsx'
+import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../../components/common/SortableTable.jsx'
+import { StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate } from '../../../components/admin/ui.jsx'
+import { Receipt, amountInWords } from '../../../components/common/Receipt.jsx'
+import { AnnadanamAPI, DevoteesAPI, SettingsAPI, FestivalsAPI } from '../../../api/client.js'
+import { useAuth } from '../../../auth/AuthContext.jsx'
+import { TableStates } from '../../../components/common/states.jsx'
+import ExportButtons from '../../../components/common/ExportButtons.jsx'
+import { Select, DateField, DateTimeField, NumberField, Combobox } from '../../../components/common/Field.jsx'
+import { T, tr, clock12, personName, useLang, getLang, stamp } from '../../../i18n/LanguageContext.jsx'
+import { useFilterParams } from '../../../hooks/useUrlState.js'
+import { useTemple } from '../../../lib/SiteContext.jsx'
+
+export const RATE = 50
+const OCCASIONS = ['General', 'Birthday', 'Wedding Anniversary', 'Thanksgiving', 'In Memory', 'Festival Offering']
+const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
+// Parse datetime as UTC (server returns naive ISO without 'Z')
+const parseUTC = (s) => (s && String(s).includes('T')) ? new Date(String(s) + (String(s).endsWith('Z') ? '' : 'Z')) : null
+// paid_at is the IST clock time typed in the form, so show it as-is; only the
+// server's created_at (UTC) needs converting.
+const fmtTime = (paid, created) => {
+  const m = paid && String(paid).match(/T(\d{2}):(\d{2})/)
+  if (m) return clock12(new Date(2000, 0, 1, +m[1], +m[2]).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }))
+  const d = parseUTC(created)
+  if (!d || isNaN(d.getTime())) return ''
+  return clock12(d.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }))
+}
+const modeLabel = (m) => tr(m === 'UPI/QR Code' ? 'Online' : m)
+
+// Amount in words, in the screen's language (shared with the receipt's amount box).
+const toWords = (n) => amountInWords(n, getLang() === 'te')
+
+const emptyForm = (rate = RATE) => ({ devotee: null, persons: 1, rate, occasionChoice: 'General', occasion: 'General', scheduled_on: '', mode: 'Cash', txn_ref: '', paid_at: nowLocal() })
+
+// Print Annadanam receipt in new window — in the screen's language, with the
+// temple's name and address from Admin → Settings (same source as <Receipt>).
+const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+export function printAnnadanamReceipt(doc, temple) {
+  const te = getLang() === 'te'
+  const L = (s) => escapeHtml(te ? tr(s) : s)
+  const fmtDateLocal = (d) => d ? stamp(new Date(d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })) : ''
+  const modeText = doc.mode === 'UPI/QR Code' ? 'Online' : doc.mode
+  const templeEn = temple?.name || 'Shri Shirdi Sai Baba Temple'
+  const templeTe = temple?.nameTelugu || tr(templeEn)
+  const address = te ? (temple?.addressTe || tr(temple?.address || '')) : (temple?.address || '')
+  const donor = te ? personName({ name: doc.donor }, 'te') : doc.donor
+  const html = `
+    <!DOCTYPE html>
+    <html lang="${te ? 'te' : 'en'}">
+    <head>
+      <meta charset="utf-8" />
+      <title>${L('Annadanam Receipt')} - ${escapeHtml(doc.code)}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Telugu:wght@400;600;700&display=swap" rel="stylesheet" />
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: ${te ? "'Noto Sans Telugu', " : ''}'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+        .header { text-align: center; border-bottom: 2px solid #8b4513; padding-bottom: 15px; margin-bottom: 15px; }
+        .icon { font-size: 50px; }
+        .temple-name { font-size: 18px; font-weight: bold; color: #8b4513; margin: 8px 0; }
+        .address { font-size: 11px; color: #666; }
+        .title-box { background: #8b4513; color: white; text-align: center; padding: 10px; margin: 15px 0; font-weight: bold; letter-spacing: ${te ? '0' : '1px'}; }
+        .info-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 10px; }
+        .info-label { color: #666; }
+        .info-value { font-weight: 600; }
+        .details { border: 1px solid #ddd; padding: 15px; margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #eee; font-size: 13px; }
+        .detail-row:last-child { border-bottom: none; }
+        .amount-box { background: #fff8e7; border: 2px solid #d97706; padding: 15px; text-align: center; margin: 15px 0; }
+        .amount-label { font-size: 12px; color: #666; }
+        .amount-value { font-size: 28px; font-weight: bold; color: #8b4513; }
+        .amount-words { font-size: 11px; color: #666; margin-top: 5px; font-style: italic; }
+        .footer { text-align: center; font-size: 10px; color: #999; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ddd; }
+        @media print { body { padding: 10px; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <img src="/images/temple-logo.png" alt="${escapeHtml(te ? templeTe : templeEn)}" style="width: 70px; height: 70px; border-radius: 50%; margin-bottom: 10px; object-fit: cover;" onerror="this.style.display='none'" />
+        <div class="temple-name">${escapeHtml(te ? templeTe : templeEn)}</div>
+        ${te ? '' : `<div class="temple-name-te" style="font-size: 14px; margin-bottom: 5px;">${escapeHtml(templeTe)}</div>`}
+        <div class="address">${escapeHtml(address)}</div>
+        <div class="address">☎ ${escapeHtml(temple?.phone || '+91 040 2335 3589')}</div>
+      </div>
+      <div class="title-box">${te ? L('Annadanam Receipt') : 'ANNADANAM RECEIPT'}</div>
+      <div class="info-row">
+        <span><span class="info-label">${L('Receipt No')}:</span> <span class="info-value">${escapeHtml(doc.code)}</span></span>
+        <span><span class="info-label">${L('Date')}:</span> <span class="info-value">${escapeHtml(fmtDateLocal(doc.paid_at || doc.created_at))}</span></span>
+      </div>
+      <div class="details">
+        <div class="detail-row"><span>${L('Devotee')}</span><span>${escapeHtml(donor || '—')}</span></div>
+        <div class="detail-row"><span>${L('Mobile')}</span><span>${escapeHtml(doc.mobile || '—')}</span></div>
+        <div class="detail-row"><span>${L('No. of Persons')}</span><span>${escapeHtml(doc.plates || 1)}</span></div>
+        <div class="detail-row"><span>${L('Rate')}</span><span>₹${Number(doc.rate || 50).toLocaleString('en-IN')} ${te ? escapeHtml(tr('per person')) : '/ person'}</span></div>
+        <div class="detail-row"><span>${L('Payment Mode')}</span><span>${L(modeText)}</span></div>
+        ${doc.txn_ref ? `<div class="detail-row"><span>${L('Transaction ID')}</span><span>${escapeHtml(doc.txn_ref)}</span></div>` : ''}
+      </div>
+      <div class="amount-box">
+        <div class="amount-label">${L('Total Amount')}</div>
+        <div class="amount-value">₹ ${Number(doc.amount || 0).toLocaleString('en-IN')}</div>
+        <div class="amount-words">${escapeHtml(toWords(doc.amount))}</div>
+      </div>
+      <div class="footer">
+        ${te ? '|| ఓం శ్రీ సాయి రామ్ ||' : '|| Om Shri Sai Ram ||'}<br/>
+        ${L('Thank you for your generous contribution to Annadanam.')}<br/>
+        ${L('This is a computer-generated receipt.')}
+      </div>
+    </body>
+    </html>
+  `
+  const win = window.open('', '_blank', 'width=450,height=600')
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+  // Print once the page (and its Telugu web font) has loaded.
+  const go = () => { win.print(); win.close() }
+  const fonts = win.document.fonts
+  if (fonts?.ready) fonts.ready.then(() => setTimeout(go, 150)).catch(() => setTimeout(go, 300))
+  else setTimeout(go, 300)
+}
+
+// Who may record an annadanam: the backend grants Annadanam write to Counter Staff and
+// the Administrator; the Accountant only views it.
+export function canWriteAnnadanam(user) {
+  if (!user) return false
+  if (['Admin', 'Administrator'].includes(user.role)) return true
+  if (user.role === 'Accountant') return false
+  return (user.modules || '').split(',').map((m) => m.trim()).includes('Annadanam')
+}
+
+// On-screen annadanam receipt with a Print button.
+export function AnnadanamReceiptModal({ doc, onClose }) {
+  const temple = useTemple()
+  if (!doc) return null
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl shadow-xl w-full max-w-lg my-auto max-h-[90vh] overflow-y-auto">
+        <div className="p-4">
+          <Receipt title={tr("Annadanam Receipt")} titleTe="అన్నదానం రసీదు" no={doc.code} subNo={fmtDate(doc.paid_at || doc.created_at)} subNoLabel="Date" amount={doc.amount}
+            rows={[
+              { en: 'Devotee', value: doc.donor, valueTe: personName({ name: doc.donor }, 'te') },
+              { en: 'Mobile', value: doc.mobile || '—' },
+              { en: 'No. of Persons', value: doc.plates },
+              { en: 'Rate', value: `₹${num(doc.rate || RATE)} / ${tr('person')}` },
+              { en: 'Payment Mode', value: modeLabel(doc.mode) },
+              ...(doc.txn_ref ? [{ en: 'Transaction', value: doc.txn_ref }] : []),
+            ]}
+            footerNote={toWords(doc.amount)} />
+        </div>
+        <div className="flex gap-2 justify-center px-4 py-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
+          <button onClick={() => printAnnadanamReceipt(doc, temple)} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>
+          <button onClick={onClose} className="btn-outline"><T>Close</T></button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// The record form (devotee → persons/rate/occasion → payment). Rendered inside a drawer;
+// it is its own <form> with a sticky footer. A registered devotee is required.
+export function AnnadanamForm({ onSaved, onCancel }) {
+  const { lang } = useLang()
+  const [m, setForm] = useState(() => emptyForm())
+  const [saving, setSaving] = useState(false)
+  const [saveErr, setSaveErr] = useState('')
+
+  // configurable rate + festival names for the occasion dropdown
+  const [festivals, setFestivals] = useState([])
+  const touchedRate = useRef(false)
+  useEffect(() => {
+    SettingsAPI.config()
+      .then((c) => { if (!touchedRate.current) setForm((f) => ({ ...f, rate: Number(c?.annadanam_rate) || RATE })) })
+      .catch(() => {})
+    FestivalsAPI.list()
+      .then((r) => setFestivals(Array.isArray(r) ? r : (r.items || [])))
+      .catch(() => setFestivals([]))
+  }, [])
+
+  // devotee search
+  const [dq, setDq] = useState('')
+  const [results, setResults] = useState([])
+  useEffect(() => {
+    if (m.devotee || dq.trim().length < 1) { setResults([]); return }
+    const t = setTimeout(() => DevoteesAPI.lookup({ q: dq, size: 6 }).then((r) => setResults(r.items || [])).catch(() => toast(tr('Failed to search devotees'), 'error')), 250)
+    return () => clearTimeout(t)
+  }, [dq, m.devotee])
+
+  const setM = (patch) => setForm((d) => ({ ...d, ...patch }))
+  const amount = Number(m.persons) * (Number(m.rate) || 0)
+
+  async function save(e) {
+    e.preventDefault()
+    if (saving || !m.devotee) return
+    setSaving(true); setSaveErr('')
+    const rate = Number(m.rate) || 0
+    try {
+      const created = await AnnadanamAPI.create({
+        devotee_id: m.devotee.id, donor: m.devotee.name, mobile: m.devotee.mobile,
+        plates: Number(m.persons), rate, amount: Number(m.persons) * rate,
+        mode: m.mode, txn_ref: m.mode === 'UPI/QR Code' ? (m.txn_ref || null) : null,
+        paid_at: m.paid_at || null, scheduled_on: m.scheduled_on || null,
+        occasion: m.occasion || 'General',
+      })
+      onSaved(created)
+    } catch (err) {
+      setSaveErr(err?.detail || tr('Could not save the annadanam receipt. Please try again.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={save} className="flex-1 flex flex-col">
+      <div className="px-6 py-5 space-y-6 flex-1">
+        {/* 1. Devotee Details */}
+        <div>
+          <div className="text-maroon-700 font-semibold text-[0.875rem] mb-3"><T>1. Devotee Details</T></div>
+          <label className="label"><T>Search Devotee (Name / Mobile Number) *</T></label>
+          <div className="relative">
+            <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input className="input pr-9" placeholder={tr("Search name or mobile number…")}
+              readOnly={!!m.devotee}
+              value={m.devotee ? `${personName(m.devotee, lang)} / ${m.devotee.mobile}` : dq}
+              onChange={(e) => !m.devotee && setDq(e.target.value)} />
+            {!m.devotee && results.length > 0 && (
+              <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1">
+                {results.map((d) => (
+                  <button type="button" key={d.id} onClick={() => { setM({ devotee: d }); setResults([]) }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
+                    <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {m.devotee && (
+            <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-3.5 py-3 bg-gray-50/50 mt-3">
+              <div className="w-10 h-10 rounded-full bg-maroon-700 text-cream grid place-items-center"><User size={18} /></div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{personName(m.devotee, lang)}</span><Pill tone="green"><T>Registered</T></Pill></div>
+                <div className="text-[0.75rem] text-gray-500">{tr('Mobile')}: {m.devotee.mobile}</div>
+              </div>
+              <button type="button" onClick={() => { setM({ devotee: null }); setDq('') }} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
+            </div>
+          )}
+        </div>
+
+        {/* 2. Annadanam Details */}
+        <div>
+          <div className="text-maroon-700 font-semibold text-[0.875rem] mb-3"><T>2. Annadanam Details</T></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label"><T>Number of Persons *</T></label>
+              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden w-full">
+                <button type="button" onClick={() => setM({ persons: Math.max(1, m.persons - 1) })} className="w-10 h-11 grid place-items-center text-gray-500 hover:bg-gray-50 border-r border-gray-200"><Minus size={16} /></button>
+                <input type="number" min="1" value={m.persons} onChange={(e) => setM({ persons: Math.max(1, Number(e.target.value) || 1) })} className="no-spin flex-1 w-full text-center font-semibold text-gray-800 outline-none h-11" />
+                <button type="button" onClick={() => setM({ persons: m.persons + 1 })} className="w-10 h-11 grid place-items-center text-gray-500 hover:bg-gray-50 border-l border-gray-200"><Plus size={16} /></button>
+              </div>
+            </div>
+            <div>
+              <label className="label"><T>Rate per plate (₹) *</T></label>
+              <NumberField required min="0" step="1" prefix="₹" className="h-11" value={m.rate} onChange={(e) => { touchedRate.current = true; setM({ rate: e.target.value }) }} />
+            </div>
+          </div>
+          <div className="mt-4">
+            <label className="label"><T>Occasion *</T></label>
+            <Combobox
+              value={m.occasion}
+              onChange={(e) => setM({ occasion: e.target.value, occasionChoice: e.target.value })}
+              options={[...OCCASIONS, ...festivals.map((f) => f.name)]}
+              placeholder={tr("Select or type occasion")}
+              className="input"
+            />
+          </div>
+          <div className="mt-4">
+            <label className="label"><T>Scheduled On (Optional)</T></label>
+            <DateField value={m.scheduled_on} onChange={(e) => setM({ scheduled_on: e.target.value })} />
+          </div>
+          <div className="bg-amber-50/70 border border-amber-200 rounded-xl px-4 py-3.5 mt-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 grid place-items-center shrink-0"><UtensilsCrossed size={18} /></div>
+            <div>
+              <div className="text-[0.75rem] text-gray-500"><T>Calculated Donation Amount</T></div>
+              <div className="text-2xl font-extrabold text-gray-800 leading-none mt-0.5">{inr(amount)}</div>
+              <div className="text-[0.6875rem] text-gray-400 mt-1">{tr('Current Rate')}: ₹{num(m.rate)} {tr('per person')}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Payment Details */}
+        <div>
+          <div className="text-maroon-700 font-semibold text-[0.875rem] mb-3"><T>3. Payment Details</T></div>
+          <label className="label"><T>Payment Mode *</T></label>
+          <div className="flex gap-6 mt-1 mb-4">
+            {['Cash', 'UPI/QR Code'].map((mo) => (
+              <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="annadanam-pmode" className="accent-maroon-700" checked={m.mode === mo} onChange={() => setM({ mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'Online' : mo)}</label>
+            ))}
+          </div>
+          {m.mode === 'UPI/QR Code' && (
+            <div className="mb-4"><label className="label"><T>Online Transaction ID / UTR *</T></label>
+              <div className="relative"><input required className="input pr-9" placeholder={tr("Enter online transaction ID / UTR")} value={m.txn_ref} onChange={(e) => setM({ txn_ref: e.target.value })} />
+                {m.txn_ref && <span className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-emerald-500 text-white grid place-items-center"><Check size={12} /></span>}</div>
+            </div>
+          )}
+          <div className="mb-4"><label className="label"><T>Payment Date & Time *</T></label>
+            <DateTimeField required value={m.paid_at} onChange={(e) => setM({ paid_at: e.target.value })} /></div>
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl px-4 py-3.5 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center shrink-0"><IndianRupee size={17} /></div>
+            <div className="flex-1">
+              <div className="text-[0.75rem] text-gray-500"><T>Total Amount</T></div>
+              <div className="text-xl font-extrabold text-gray-800 leading-none">{inr(amount)}</div>
+            </div>
+            <div className="text-right max-w-[52%]">
+              <div className="text-[0.6875rem] text-gray-400"><T>Amount In Words</T></div>
+              <div className="text-[0.71875rem] text-gray-600 font-medium leading-tight">{toWords(amount)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {saveErr && <div className="px-6 pt-3 text-[0.75rem] text-red-600">{saveErr}</div>}
+      <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
+        <button type="button" onClick={onCancel} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+        <button type="submit" disabled={!m.devotee || saving} className="btn-maroon flex-1 justify-center disabled:opacity-50">{saving ? tr('Saving…') : <>{tr('Save Payment & Generate Receipt')} <Printer size={15} /></>}</button>
+      </div>
+    </form>
+  )
+}
+
+// The annadanam register: stat tiles, filters, export and the paginated list with
+// view / print receipt. Remount it (change its key) to reload after a new record.
+export function AnnadanamRegister() {
+  const { lang } = useLang()
+  const temple = useTemple()
+  const { user } = useAuth()
+  // Only Admin, Committee, Accountant can see amounts in reports
+  const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant'].includes(user?.role)
+  const SIZE = 15
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [reloadTrigger, setReloadTrigger] = useState(0)
+  const [loadErr, setLoadErr] = useState('')
+  const [total, setTotal] = useState(0)
+  const [stats, setStats] = useState(null)
+  const [printDoc, setPrintDoc] = useState(null)
+
+  // State for all filtered records (for export when date filter applied)
+  const [allFilteredData, setAllFilteredData] = useState([])
+
+  // filters - persisted in URL for state preservation across navigation
+  const {
+    q, setQ, mode, setMode, start, setStart, end, setEnd, page, setPage, setFilters,
+  } = useFilterParams({
+    q: '', mode: '', start: '', end: '', page: 1,
+  })
+
+  // Sortable table columns with filtering support
+  const sortColumns = [
+    { key: 'code', label: 'Receipt No.', type: 'text' },
+    { key: 'paid_at', label: 'Date & Time', type: 'date' },
+    { key: 'donor', label: 'Devotee Name', type: 'text' },
+    { key: 'mobile', label: 'Mobile Number', type: 'text' },
+    { key: 'plates', label: 'No. of Persons', type: 'num' },
+    { key: 'amount', label: 'Donation Amount (₹)', type: 'money' },
+    { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', { value: 'UPI/QR Code', label: 'Online' }] },
+  ]
+  const {
+    filteredSortedRows,
+    sorts, handleColumnClick, removeSort, clearSorts, getSortIndex, getSortDirection,
+    filters, toggleFilterValue, clearFilter, clearAllFilters, getFilterValues,
+  } = useFilterableSortableTable(rows, sortColumns, [], {}, { manualSort: true, manualFilter: true })
+
+  // Sorting and column filters run on the server so they cover every record, not just the
+  // visible page; changing either reloads from page 1. With no column chosen the date
+  // column is used — oldest first when a date filter is applied, newest first otherwise.
+  const [listTrigger, setListTrigger] = useState(0)
+  const prevSortsRef = useRef(sorts)
+  const prevFiltersRef = useRef(filters)
+  useEffect(() => {
+    const filtersChanged = prevFiltersRef.current !== filters
+    if (prevSortsRef.current === sorts && !filtersChanged) return
+    prevSortsRef.current = sorts
+    prevFiltersRef.current = filters
+    setPage(1)
+    // A filter change also refreshes the export data; a sort change only reloads the list
+    if (filtersChanged) setReloadTrigger((t) => t + 1)
+    else setListTrigger((t) => t + 1)
+  }, [sorts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
+  const displayRows = filteredSortedRows
+
+  // Fetch all data for export ONLY when Apply button is clicked (reloadTrigger changes)
+  // User must click Apply to filter - no auto-fetch on date change
+  useEffect(() => {
+    if (start || end) {
+      AnnadanamAPI.list({ q, mode, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+        .then((d) => {
+          const items = d.items || []
+          items.sort((a, b) => (a.paid_at || a.created_at || '').localeCompare(b.paid_at || b.created_at || ''))
+          setAllFilteredData(items)
+        })
+        .catch(() => {
+          toast(tr('Failed to fetch all records'), 'error')
+          setAllFilteredData([])
+        })
+    } else {
+      setAllFilteredData([])
+    }
+  }, [reloadTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const load = useCallback(async () => {
+    setLoading(true); setLoadErr('')
+    try {
+      const [d, s] = await Promise.all([
+        AnnadanamAPI.list({ q, mode, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'paid_at', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
+        AnnadanamAPI.stats().catch(() => null),
+      ])
+      setRows(d.items); setTotal(d.total); if (s) setStats(s)
+    } catch (ex) {
+      setLoadErr(ex?.detail || tr("Couldn't load records — check your connection and retry."))
+      setRows([])
+    } finally {
+      setLoading(false)
+    }
+  }, [q, mode, start, end, page, sorts, filters])
+  // Load on initial mount, page changes, or reload trigger
+  useEffect(() => { load() }, [page, reloadTrigger, listTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ALL_EXPORT_COLS = [{ key: 'code', label: tr('Receipt') }, { key: 'donor', label: tr('Donor') }, { key: 'plates', label: tr('Persons') },
+    { key: 'amount', label: tr('Amount (₹)'), type: 'money' }, { key: 'mode', label: tr('Mode') },
+    { key: 'scheduled_on', label: tr('Scheduled On') }, { key: 'occasion', label: tr('Occasion') }]
+  // Hide money columns for non-finance roles
+  const EXPORT_COLS = canSeeAmounts ? ALL_EXPORT_COLS : ALL_EXPORT_COLS.filter(c => c.type !== 'money')
+  // Use allFilteredData when date filter applied (ALL records), otherwise use current page
+  const dataForExport = (start || end) ? allFilteredData : displayRows
+  const labelled = dataForExport.map(r => ({ ...r, mode: r.mode === 'UPI/QR Code' ? 'Online' : r.mode }))
+  const exportRows = canSeeAmounts ? labelled : labelled.map(r => ({ ...r, amount: null }))
+  const exportTotal = canSeeAmounts ? { code: 'Total', amount: dataForExport.reduce((s, r) => s + Number(r.amount || 0), 0) } : null
+  return (
+    <>
+      {user?.role !== 'Counter Staff' && (
+        <KpiGrid>
+          <StatTile icon={UtensilsCrossed} color="#ea580c" bg="bg-orange-50" title={tr("Total Annadanam Records")} value={stats ? num(stats.total_records) : '—'} sub={tr("All Time")} />
+          <StatTile icon={Users} color="#059669" bg="bg-emerald-50" title={tr("Today's Sponsorships")} value={stats ? num(stats.today_sponsorships) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
+          <StatTile icon={IndianRupee} color="#7c3aed" bg="bg-violet-50" title={tr("Today's Collection")} value={stats ? inr(stats.today_collection) : '—'} sub={`${tr('Today')} (${fmtDate(new Date().toISOString())})`} />
+          <StatTile icon={HeartHandshake} color="#d97706" bg="bg-amber-50" title={tr("Total Persons Sponsored")} value={stats ? num(stats.total_persons) : '—'} sub={tr("Across all Annadanam records")} />
+        </KpiGrid>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-5 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[10rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee Name / Mobile / Receipt No.</T></label>
+            <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search here…")} className="input !pl-9" /></div>
+          </div>
+          <div className="w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
+            <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
+          </div>
+          <div className="w-[8rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
+          </div>
+          <div className="w-[9rem]">
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment Mode</T></label>
+            <Select value={mode} onChange={(e) => setMode(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Cash">{tr("Cash")}</option><option value="UPI/QR Code">{tr("Online")}</option></Select>
+          </div>
+          <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
+          <button onClick={() => { setFilters({ q: '', mode: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+          <ExportButtons title={tr("Annadanam Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />
+        </div>
+
+        <SortFilterPanel
+          sorts={sorts}
+          filters={filters}
+          columns={sortColumns}
+          onToggleSort={handleColumnClick}
+          onRemoveSort={removeSort}
+          onClearSorts={clearSorts}
+          onClearFilter={clearFilter}
+          onClearAllFilters={clearAllFilters}
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+              {sortColumns.map((col) => (
+                <SortableFilterableTh
+                  key={col.key}
+                  colKey={col.key}
+                  label={tr(col.label)}
+                  type={col.type}
+                  // Number columns: left-aligned like their cells, so the figures sit directly under the
+                  // title (a right-aligned title is pushed left by its hidden sort icon).
+                  className={col.type === 'money' || col.type === 'num' ? '!text-left' : ''}
+                  filterable={col.filterable}
+                  filterOptions={col.filterOptions}
+                  onSort={handleColumnClick}
+                  sortIndex={getSortIndex(col.key)}
+                  sortDirection={getSortDirection(col.key)}
+                  multiSort={sorts.length > 1}
+                  filterValues={getFilterValues(col.key)}
+                  onToggleFilter={toggleFilterValue}
+                  onClearFilter={clearFilter}
+                />
+              ))}
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-100">
+              {displayRows.map((a) => (
+                <tr key={a.id} className="hover:bg-gray-50/60">
+                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{a.code}</td>
+                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(a.paid_at || a.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(a.paid_at, a.created_at)}</div></td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: a.donor }, lang)}</td>
+                  <td className="px-4 py-3 text-gray-600">{a.mobile || '—'}</td>
+                  <td className="px-4 py-3 text-gray-700">{a.plates}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? num(a.amount) : '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{modeLabel(a.mode)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setPrintDoc(a)} title={tr("View receipt on screen")} aria-label={tr("View receipt on screen")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      <button onClick={() => printAnnadanamReceipt(a, temple)} title={tr("Print receipt directly")} aria-label={tr("Print receipt directly")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty={tr("No annadanam records found.")} />}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
+          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit={tr("records")} />
+        </div>
+      </div>
+
+      <AnnadanamReceiptModal doc={printDoc} onClose={() => setPrintDoc(null)} />
+    </>
+  )
+}

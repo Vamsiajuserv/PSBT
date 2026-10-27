@@ -5,7 +5,7 @@
 // One utility for every report — no per-report export code. Money/number columns
 // become real numeric Excel cells; date-like text columns become real Excel dates.
 import ExcelJS from 'exceljs'
-import { tr, stamp } from '../i18n/LanguageContext.jsx'
+import { tr, stamp, getLang } from '../i18n/LanguageContext.jsx'
 import { localiseReport } from './reportText.js'
 
 const MAROON = 'FF7A1220'
@@ -72,9 +72,10 @@ export async function exportReportToExcel(result) {
   const cols = result.columns || []
   const rows = result.rows || []
   const n = Math.max(1, cols.length)
-  // Labels and text cells in the screen's language; date cells stay real Excel
-  // dates (detected from the original rows below).
-  const loc = localiseReport(result, { keepDates: true })
+  // Labels and text cells in the screen's language. Date columns stay real Excel
+  // dates — they are written from the original rows (see dateCol below), so the
+  // localised copy can translate every other date-like text ('15 Oct 2026 12:22 PM').
+  const loc = localiseReport(result)
   const locRows = loc.rows || []
 
   // Which text columns are actually dates? Only when EVERY non-blank cell matches the
@@ -134,7 +135,8 @@ export async function exportReportToExcel(result) {
       cell.alignment = { horizontal: 'right' }
     } else if (isDate) {
       const d = parseDMY(value)
-      if (d) { cell.value = d; cell.numFmt = 'dd mmm yyyy' } else cell.value = String(value)
+      // Telugu: a numeric day-month-year, so Excel shows no English month name.
+      if (d) { cell.value = d; cell.numFmt = getLang() === 'te' ? 'dd-mm-yyyy' : 'dd mmm yyyy' } else cell.value = getLang() === 'te' ? stamp(String(value)) : String(value)
     } else {
       cell.value = String(value)
     }
@@ -160,7 +162,8 @@ export async function exportReportToExcel(result) {
     const totalRow = ws.getRow(row)
     cols.forEach((c, i) => {
       const cell = totalRow.getCell(i + 1)
-      writeCell(cell, c, (dateCol[i] ? result.total : loc.total)[c.key], dateCol[i])
+      const tv = (dateCol[i] ? result.total : loc.total)[c.key]
+      writeCell(cell, c, tv === 'Total' ? tr('Total') : tv, dateCol[i])
       cell.font = { bold: true }
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TOTAL_FILL } }
       cell.border = { top: { style: 'thin', color: { argb: BORDER } } }

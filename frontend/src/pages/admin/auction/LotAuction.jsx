@@ -4,7 +4,7 @@ import { AuctionAPI, StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { Pill, inr } from '../../../components/admin/ui.jsx'
 import { Select, NumberField, DateField, TimeField, Checkbox } from '../../../components/common/Field.jsx'
 import { toast, confirmDialog } from '../../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, gramUnit, teTerm } from '../../../i18n/LanguageContext.jsx'
 
 // Lot auctions: a set of tagged pieces from the Stock Register, sold to one or more buyers.
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
@@ -104,8 +104,8 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
                   <label key={p.id} className="flex items-center gap-3 px-3 py-2 text-[0.8125rem] cursor-pointer hover:bg-gray-50">
                     <Checkbox checked={!!picked[p.id]} onChange={() => setPicked((x) => ({ ...x, [p.id]: !x[p.id] }))} />
                     <span className="font-mono font-semibold text-maroon-700 w-24 shrink-0">{p.tag_id}</span>
-                    <span className="flex-1 min-w-0 truncate">{tr(p.description || p.item_name)}{p.weight_g ? ` · ${p.weight_g} g` : ''}</span>
-                    <span className="text-[0.75rem] text-gray-500 shrink-0">{p.location}{p.est_value != null ? ` · ${inr(p.est_value)}` : ''}</span>
+                    <span className="flex-1 min-w-0 truncate">{tr(p.description || p.item_name)}{p.weight_g ? ` · ${p.weight_g} ${gramUnit()}` : ''}</span>
+                    <span className="text-[0.75rem] text-gray-500 shrink-0">{teTerm(p.location)}{p.est_value != null ? ` · ${inr(p.est_value)}` : ''}</span>
                   </label>
                 ))}
                 {!pieces.length && <div className="px-3 py-6 text-center text-[0.8125rem] text-gray-500"><T>No pieces of this type are in store.</T></div>}
@@ -206,7 +206,7 @@ export function LotResultModal({ auction, onClose, onSaved }) {
         </div>
         <div className="px-6 py-5 space-y-4 flex-1">
           {auction.verification_status === 'Rejected' && auction.rejection_reason && (
-            <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-[0.8125rem] text-red-700"><b><T>Rejected</T>:</b> {auction.rejection_reason}</div>
+            <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-[0.8125rem] text-red-700"><b><T>Rejected</T>:</b> {tr(auction.rejection_reason)}</div>
           )}
           {lines.map((l, i) => {
             const avail = auction.pieces.filter((p) => !taken(i).has(p.id)).sort((a, b) => a.tag_id.localeCompare(b.tag_id))

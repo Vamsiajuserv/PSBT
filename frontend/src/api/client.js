@@ -280,6 +280,14 @@ export const DonationCategoriesAPI = {
   reset: () => api.post('/donation-categories/reset'),
 }
 
+// Gold & Silver Rate: the day's rate per gram (Admin enters) and the purity table
+export const MetalRatesAPI = {
+  day: (day) => api.get('/metal-rates/day' + (day ? `?day=${day}` : '')),
+  history: (limit = 60) => api.get(`/metal-rates?limit=${limit}`),
+  setRate: (b) => api.post('/metal-rates', b),
+  setPurities: (b) => api.put('/metal-rates/purities', b),
+}
+
 export const HundiAPI = {
   list: (params = {}) => api.get('/hundi' + qs(params)),
   stats: () => api.get('/hundi/stats'),
@@ -316,7 +324,8 @@ export const StoresAPI = {
   pendingCount: () => api.get('/stores/pending/count'),
   unsold: (params = {}) => api.get('/stores/unsold' + qs(params)),
   unsoldCount: () => api.get('/stores/unsold/count'),
-  openSale: () => api.get('/stores/open-sale'),
+  openSale: (params = {}) => api.get('/stores/open-sale' + qs(params)),
+  openSaleSales: (params = {}) => api.get('/stores/open-sale/sales' + qs(params)),
   openSaleCount: () => api.get('/stores/open-sale/count'),
   moveToOpenSale: (b) => api.post('/stores/open-sale/move', b),
   openSalePrice: (id, price) => api.put(`/stores/open-sale/${id}/price`, { price }),
@@ -326,9 +335,41 @@ export const StoresAPI = {
   tag: (b) => api.post('/stores/tag', b),
   items: (params = {}) => api.get('/stores/items' + qs(params)),
   summary: (params = {}) => api.get('/stores/summary' + qs(params)),
+  activity: (limit = 10) => api.get('/stores/activity' + qs({ limit })),
   item: (key) => api.get(`/stores/items/${encodeURIComponent(key)}`),
   move: (id, b) => api.post(`/stores/items/${id}/move`, b),
   writeOff: (id, reason) => api.post(`/stores/items/${id}/write-off`, { reason }),
+  place: (b) => api.post('/stores/items/place', b),
+  awaitingCount: () => api.get('/stores/awaiting/count'),
+  dayClosing: (date) => api.get('/stores/day-closing' + qs({ date })),
+  closeDay: (b) => api.post('/stores/day-closing/close', b),
+  reopenDay: (b) => api.post('/stores/day-closing/reopen', b),
+  dayClosingHistory: () => api.get('/stores/day-closing/history'),
+  // Issue & Return register
+  issueMeta: () => api.get('/stores/issue/meta'),
+  issueSummary: () => api.get('/stores/issue/summary'),
+  issueCount: () => api.get('/stores/issue/count'),
+  issueSlips: (params = {}) => api.get('/stores/issue' + qs(params)),
+  issueSlip: (id) => api.get(`/stores/issue/${id}`),
+  issue: (b) => api.post('/stores/issue', b),
+  returnIssue: (id, b) => api.post(`/stores/issue/${id}/return`, b),
+  // Missing Items
+  missing: (params = {}) => api.get('/stores/missing' + qs(params)),
+  missingSummary: () => api.get('/stores/missing/summary'),
+  missingCount: () => api.get('/stores/missing/count'),
+  markFound: (id, b) => api.post(`/stores/missing/${id}/found`, b),
+  reportLost: (id, reason) => api.post(`/stores/missing/${id}/report-lost`, { reason }),
+  approveLost: (id) => api.post(`/stores/missing/${id}/approve`),
+  rejectLost: (id, reason) => api.post(`/stores/missing/${id}/reject`, { reason }),
+  // Receive at store: count a counter receipt in before tagging; shortages
+  correctItem: (id, b) => api.put(`/stores/items/${id}/correct`, b),
+  receiveSummary: () => api.get('/stores/receive/summary'),
+  shortages: (params = {}) => api.get('/stores/receive/shortages' + qs(params)),
+  receive: (donationId, b) => api.post(`/stores/receive/${donationId}`, b),
+  receiveRest: (donationId, b) => api.post(`/stores/receive/${donationId}/rest`, b),
+  closeShortage: (receiptId, note) => api.post(`/stores/receive/receipt/${receiptId}/close-short`, { note }),
+  receiveHundi: (hundiId, b) => api.post(`/stores/receive/hundi/${hundiId}`, b),
+  receiveHundiRest: (hundiId, b) => api.post(`/stores/receive/hundi/${hundiId}/rest`, b),
   manual: (params = {}) => api.get('/stores/manual' + qs(params)),
   createManual: (b) => api.post('/stores/manual', b),
   verifyManual: (id) => api.post(`/stores/manual/${id}/verify`),
@@ -344,6 +385,38 @@ export const StoresAPI = {
   useSlip: (id) => api.get(`/stores/consumables/use/${id}`),
   cancelUse: (id, reason) => api.post(`/stores/consumables/use/${id}/cancel`, { reason }),
   setConsumablesStart: (start_date) => api.put('/stores/consumables/start-date', { start_date }),
+  // Batches & expiry (consumables)
+  batches: (params = {}) => api.get('/stores/consumables/batches' + qs(params)),
+  expiryCount: () => api.get('/stores/consumables/expiry/count'),
+  setBatchExpiry: (kind, id, expiry_date) => api.put(`/stores/consumables/batches/${kind}/${id}/expiry`, { expiry_date }),
+  writeOffExpired: (cid, b) => api.post(`/stores/consumables/${cid}/write-off-expired`, b),
+  // Purchase requests
+  purchases: (params = {}) => api.get('/stores/purchase' + qs(params)),
+  purchaseCount: () => api.get('/stores/purchase/count'),
+  raisePurchase: (b) => api.post('/stores/purchase', b),
+  approvePurchase: (id, note) => api.post(`/stores/purchase/${id}/approve`, { note }),
+  rejectPurchase: (id, reason) => api.post(`/stores/purchase/${id}/reject`, { reason }),
+  cancelPurchase: (id, reason) => api.post(`/stores/purchase/${id}/cancel`, { reason }),
+  receivePurchase: (id, b) => api.post(`/stores/purchase/${id}/receive`, b),
+  // Festival kits
+  kits: () => api.get('/stores/kits'),
+  kitsIssued: (params = {}) => api.get('/stores/kits/issued' + qs(params)),
+  kitsOut: () => api.get('/stores/kits/count'),
+  createKit: (b) => api.post('/stores/kits', b),
+  updateKit: (id, b) => api.put(`/stores/kits/${id}`, b),
+  removeKit: (id) => api.del(`/stores/kits/${id}`),
+  issueKit: (id, b) => api.post(`/stores/kits/${id}/issue`, b),
+  // Handover
+  handoverMeta: () => api.get('/stores/handover/meta'),
+  handoverPreview: () => api.get('/stores/handover/preview'),
+  handovers: () => api.get('/stores/handover'),
+  handover: (id) => api.get(`/stores/handover/${id}`),
+  startHandover: (b) => api.post('/stores/handover', b),
+  countHandover: (id, lines) => api.put(`/stores/handover/${id}/count`, { lines }),
+  signHandover: (id) => api.post(`/stores/handover/${id}/sign`),
+  cancelHandover: (id, reason) => api.post(`/stores/handover/${id}/cancel`, { reason }),
+  // Valuables statement (gold / silver, monthly)
+  valuables: (month) => api.get('/stores/valuables' + qs({ month })),
 }
 
 export const RefundsAPI = {

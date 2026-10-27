@@ -3,7 +3,7 @@ import { Outlet, NavLink, Link } from 'react-router-dom'
 import {
   Menu, X, Phone, Mail, MapPin, ChevronDown, Facebook, Instagram, Youtube, ShieldCheck, Clock, Languages,
 } from 'lucide-react'
-import { useLang, T, tr, useTempleAddress, clock12 } from '../../i18n/LanguageContext.jsx'
+import { useLang, T, tr, useTempleAddress, clock12, getLang } from '../../i18n/LanguageContext.jsx'
 import { useSiteContext, useTemple } from '../../lib/SiteContext.jsx'
 import { getFontScale, setFontScale } from '../../lib/fontScale.js'
 import TempleLoader from './TempleLoader.jsx'
@@ -31,9 +31,9 @@ function FontSizeToggle({ className = '' }) {
   )
   return (
     <div className={`inline-flex items-stretch rounded-full border border-gold-400/60 overflow-hidden font-bold ${className}`}>
-      {btn('small', <span className="text-[0.625rem]">A−</span>, 'Smaller text')}
-      {btn('normal', <span className="text-[0.8125rem]">A</span>, 'Default text size')}
-      {btn('large', <span className="text-[1rem]">A+</span>, 'Larger text')}
+      {btn('small', <span className="text-[0.625rem]">{getLang() === 'te' ? 'అ−' : 'A−'}</span>, 'Smaller text')}
+      {btn('normal', <span className="text-[0.8125rem]">{getLang() === 'te' ? 'అ' : 'A'}</span>, 'Default text size')}
+      {btn('large', <span className="text-[1rem]">{getLang() === 'te' ? 'అ+' : 'A+'}</span>, 'Larger text')}
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { AuditAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
-import { T, tr, auditDetail, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, auditDetail, personName, loginId, useLang } from '../../i18n/LanguageContext.jsx'
 import { toTelugu } from '../../lib/translitTelugu.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -201,7 +201,7 @@ export default function AuditTrail() {
                     <div className="font-semibold text-gray-800">
                       {personName({ name: r.actor_name, name_te: r.actor_name_te }, lang) || (r.username ? userLabel(r.username, lang) : '—')}
                     </div>
-                    {r.actor_name && <div className="text-[0.6875rem] text-gray-400 font-mono">{r.username}</div>}
+                    {r.actor_name && <div className="text-[0.6875rem] text-gray-400 font-mono">{loginId(r.username)}</div>}
                   </td>
                   <td className="px-4 py-3"><Pill tone={ACTION_TONE[r.action] || 'gray'}>{tr(r.action)}</Pill></td>
                   <td className="px-4 py-3 text-gray-600">{r.entity ? entityLabel(r.entity, lang) : '—'}</td>

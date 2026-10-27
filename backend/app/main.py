@@ -79,7 +79,9 @@ from .routers import (auth, devotees, sevas, bookings, donations, misc, users,
                       dashboard, poojas, payments, poojaris, waste, translate, schedules,
                       donation_master, pooja_history, reports, settings as settings_router, roles, masters,
                       daily_closing, backup, notifications, public, refunds, analytics, panchangam,
-                      prokerala, almanac, stores, consumables, auction_lots, stock_report, open_sale)
+                      prokerala, almanac, stores, consumables, auction_lots, stock_report, open_sale, stores_day, stores_issue,
+                      stores_receive, metal_rates, stores_purchase, stores_kits, stores_handover,
+                      stores_valuables)
 from .migrate import run_migrations, repair_permissions, retry_on_lock
 from .mock_refresh import run as refresh_mock_dates
 from .site_content import ensure_site_content
@@ -189,3 +191,11 @@ app.include_router(consumables.router)
 app.include_router(auction_lots.router)
 app.include_router(stock_report.router)
 app.include_router(open_sale.router)
+app.include_router(stores_day.router)
+app.include_router(stores_issue.router)
+app.include_router(stores_receive.router)
+app.include_router(metal_rates.router)
+app.include_router(stores_purchase.router)
+app.include_router(stores_kits.router)
+app.include_router(stores_handover.router)
+app.include_router(stores_valuables.router)

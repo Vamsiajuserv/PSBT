@@ -195,7 +195,7 @@ export default function DonationMaster() {
                   <td className="px-5 py-3.5"><Pill tone={TYPE_TONE[c.type]}>{c.type}</Pill></td>
                   <td className="px-5 py-3.5 text-gray-600">{c.unit ? tr(c.unit) : '-'}
                     {c.type === 'Material' && c.tracking && (
-                      <div className="mt-1"><Pill tone={c.tracking === 'Tagged' ? 'violet' : 'blue'}>{c.tracking === 'Tagged' ? `${tr('Tagged')} · ${c.id_prefix || '?'}` : tr('Quantity')}</Pill>{c.tracking === 'Tagged' && c.auctionable === false && <> <Pill tone="gray">{tr('No auction')}</Pill></>}</div>
+                      <div className="mt-1"><Pill tone={c.tracking === 'Tagged' ? 'violet' : 'blue'}>{c.tracking === 'Tagged' ? `${tr('Tagged')} · ${c.id_prefix || '?'}` : tr('Quantity')}</Pill>{c.tracking === 'Tagged' && c.auctionable === false && <> <Pill tone="gray">{tr('No auction')}</Pill></>}{c.tracking === 'Quantity' && c.track_expiry && <> <Pill tone="amber">{tr('Expiry')}</Pill></>}</div>
                     )}</td>
                   <td className="px-5 py-3.5"><Pill tone={c.quantity_required ? 'green' : 'red'}>{c.quantity_required ? tr('Yes') : tr('No')}</Pill></td>
                   <td className="px-5 py-3.5"><Pill tone={c.active ? 'green' : 'gray'}>{c.active ? tr('Active') : tr('Inactive')}</Pill></td>
@@ -263,7 +263,9 @@ export default function DonationMaster() {
                   {(drawer.data.tracking || 'Quantity') === 'Quantity' && (
                     <div><label className="label"><T>Low-stock warning at</T></label>
                       <NumberField min="0" step="0.001" value={drawer.data.low_stock_level ?? ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, low_stock_level: e.target.value } })} placeholder={tr('e.g. 10')} />
-                      <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Consumables Stock shows "Low" when the balance falls to this level.</T></div></div>
+                      <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Consumables Stock shows "Low" when the balance falls to this level.</T></div>
+                      <label className="mt-3 flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" className="accent-maroon-700 mt-0.5" checked={!!drawer.data.track_expiry} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, track_expiry: e.target.checked } })} />
+                        <span><T>Track expiry</T><span className="block text-[0.6875rem] text-gray-500"><T>Ask a best-before date at the counter and in manual entries (ghee, oil, rice). Use takes the batch that expires first.</T></span></span></label></div>
                   )}
                   {drawer.data.tracking === 'Tagged' && (
                     <div className="grid grid-cols-2 gap-3">

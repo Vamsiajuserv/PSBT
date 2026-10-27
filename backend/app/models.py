@@ -135,6 +135,9 @@ class PoojaPlan(Base):
     validity_value = Column(Integer, nullable=True)         # e.g. 30
     validity_unit = Column(String(20), nullable=True)       # Days | Months | Years
     tithi_type = Column(String(40), nullable=True)          # Pournami | Amavasya | null (for tithi-specific poojas)
+    # Fixed pooja timings, one per line: "08:15 AM" or "09:00 AM - 11:30 AM".
+    # Empty = no fixed timing; bookings then offer the Settings slot list.
+    time_slots = Column(Text, nullable=True)
     active = Column(Boolean, default=True, nullable=False)   # booking availability
 
     pooja = relationship("Pooja", back_populates="plans")
@@ -246,6 +249,13 @@ class Donation(Base):
     g80 = Column(Boolean, default=False, nullable=False)
     notes = Column(Text, nullable=True)
     donated_on = Column(Date, server_default=func.current_date())
+    # Gold / silver given at the counter: purity, what it is, and its estimated value at the
+    # day's rate (grams × rate × purity). Not cash — `amount` stays 0 for material.
+    purity = Column(String(10), nullable=True)                 # 22K | 24K | 925 …
+    item_desc = Column(String(120), nullable=True)             # chain, ring, coin…
+    rate_per_g = Column(Numeric(12, 2), nullable=True)         # Gold 24K / Silver 999 rate used
+    est_value = Column(Numeric(14, 2), nullable=True)
+    expiry_date = Column(Date, nullable=True)                 # consumables: best before (optional)
     voided = Column(Boolean, default=False, nullable=False)   # soft-void instead of hard delete
     void_reason = Column(Text, nullable=True)
     created_by = Column(String(60), nullable=True)
@@ -273,6 +283,7 @@ class DonationCategory(Base):
     default_value = Column(Numeric(12, 2), nullable=True)    # suggested ₹ value per piece
     low_stock_level = Column(Numeric(12, 3), nullable=True)  # Quantity items: warn at or below this balance
     auctionable = Column(Boolean, nullable=True)             # Tagged items: False = tracked only, never auctioned / sold (gold, silver)
+    track_expiry = Column(Boolean, nullable=True)            # Quantity items: ask a best-before date (ghee, oil…)
 
 
 # ── Hundi collections ────────────────────────────────────────────────────────
@@ -307,6 +318,9 @@ class HundiCollection(Base):
     valuables_custodian = Column(String(120), nullable=True)  # committee member holding custody
     valuables_stored_on = Column(Date, nullable=True)       # custody date
     custody_receipt = Column(String(200), nullable=True)    # custody receipt attachment
+    # Receive at store: custody recorded from now on is counted in by the Stores Officer
+    # before tagging (NULL = recorded before that step existed)
+    store_receive_required = Column(Boolean, nullable=True)
     status = Column(String(20), default="Verified", nullable=False)  # legacy combined status
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
@@ -331,6 +345,9 @@ class HundiCollectionItem(Base):
     unit = Column(String(20), nullable=True)                 # Amount | Count | Grams
     value = Column(Numeric(14, 2), nullable=False, default=0)  # rupee value counted for this line
     remarks = Column(Text, nullable=True)
+    # Gold / silver by weight: the value is grams × the collection day's rate × purity
+    purity = Column(String(10), nullable=True)
+    rate_per_g = Column(Numeric(12, 2), nullable=True)
 
     collection = relationship("HundiCollection", back_populates="items")
 
@@ -826,6 +843,7 @@ class ManualStockEntry(Base):
     verified_by = Column(String(120), nullable=True)
     verified_at = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
+    expiry_date = Column(Date, nullable=True)                 # consumables: best before (optional)
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -893,6 +911,7 @@ class ConsumableUse(Base):
     status = Column(String(20), default="Active", nullable=False)   # Active | Cancelled
     cancel_reason = Column(Text, nullable=True)
     cancelled_by = Column(String(120), nullable=True)
+    batch_note = Column(Text, nullable=True)                  # which batch(es) it was taken from, oldest expiry first
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -967,3 +986,218 @@ class OpenSale(Base):
     price_set_by = Column(String(120), nullable=True)
     sold_by = Column(String(60), nullable=True)
     sold_at = Column(DateTime, server_default=func.now())
+
+
+class StoresDayClosing(Base):
+    """The Stores Officer's end-of-day sign-off for the store: a frozen copy of that day's
+    Stores Day Closing report. Entries for the day are never blocked; a later change shows
+    as "changed after closing" against this snapshot."""
+    __tablename__ = "stores_day_closings"
+
+    id = Column(Integer, primary_key=True)
+    closing_date = Column(Date, unique=True, nullable=False, index=True)
+    snapshot = Column(Text, nullable=False)                   # JSON of the report at closing time
+    notes = Column(Text, nullable=True)
+    closed_by = Column(String(120), nullable=True)            # display name
+    closed_by_user = Column(String(60), nullable=True)        # login
+    closed_at = Column(DateTime, server_default=func.now())
+    # Reopen (Administrator only, reason mandatory). A reopened day is closed again by the
+    # Stores Officer; every earlier closing and its reopen stays in `history`.
+    status = Column(String(12), default="Closed", nullable=False)   # Closed | Reopened
+    reopened_by = Column(String(120), nullable=True)
+    reopened_at = Column(DateTime, nullable=True)
+    reopen_reason = Column(Text, nullable=True)
+    history = Column(Text, nullable=True)                     # JSON list of earlier closings + reopens
+
+
+class IssueSlip(Base):
+    """Tagged pieces lent out of the store for a while (a silver lamp for abhishekam, an
+    ornament for alankaram) — who took them, why and by when they must come back."""
+    __tablename__ = "issue_slips"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False, index=True)   # ISS-0001
+    issued_to = Column(String(120), nullable=False)
+    poojari_id = Column(Integer, ForeignKey("poojaris.id"), nullable=True)
+    purpose = Column(String(80), nullable=False)
+    return_by = Column(Date, nullable=False)
+    notes = Column(Text, nullable=True)
+    status = Column(String(20), default="Open", nullable=False)          # Open | Partly returned | Returned
+    issued_by = Column(String(120), nullable=True)                       # display name
+    created_by = Column(String(60), nullable=True)
+    issued_at = Column(DateTime, server_default=func.now())
+    kit_id = Column(Integer, ForeignKey("festival_kits.id"), nullable=True, index=True)   # issued as a Festival Kit
+    kit_name = Column(String(120), nullable=True)
+
+    lines = relationship("IssueLine", back_populates="slip", cascade="all, delete-orphan", order_by="IssueLine.id")
+
+
+class IssueLine(Base):
+    """One piece on an issue slip and its return."""
+    __tablename__ = "issue_lines"
+
+    id = Column(Integer, primary_key=True)
+    slip_id = Column(Integer, ForeignKey("issue_slips.id", ondelete="CASCADE"), nullable=False, index=True)
+    stock_item_id = Column(Integer, ForeignKey("stock_items.id"), nullable=False, index=True)
+    tag_id = Column(String(20), nullable=False)
+    from_location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)   # the shelf it left
+    returned_at = Column(DateTime, nullable=True)
+    returned_by = Column(String(120), nullable=True)
+    condition = Column(String(20), nullable=True)                        # Good | Damaged
+    return_note = Column(String(200), nullable=True)
+    return_location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)
+
+    slip = relationship("IssueSlip", back_populates="lines")
+
+
+class MissingCase(Base):
+    """A piece a stock check did not find, until it is found again or written off as lost
+    (the Committee approves a lost write-off; never the person who reported it)."""
+    __tablename__ = "missing_cases"
+
+    id = Column(Integer, primary_key=True)
+    stock_item_id = Column(Integer, ForeignKey("stock_items.id"), nullable=False, index=True)
+    tag_id = Column(String(20), nullable=False)
+    check_code = Column(String(20), nullable=True)                       # CHK-0003 that found it missing
+    location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)   # where it should have been
+    status = Column(String(30), default="Missing", nullable=False, index=True)  # Missing | Write-off requested | Found | Lost
+    missing_since = Column(DateTime, server_default=func.now())
+    reported_by = Column(String(120), nullable=True)                     # who asked for the lost write-off
+    reported_by_user = Column(String(60), nullable=True)
+    reported_at = Column(DateTime, nullable=True)
+    report_reason = Column(Text, nullable=True)
+    decided_by = Column(String(120), nullable=True)                      # committee decision
+    decided_at = Column(DateTime, nullable=True)
+    decision_note = Column(Text, nullable=True)
+    found_by = Column(String(120), nullable=True)
+    found_at = Column(DateTime, nullable=True)
+    found_location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)
+    found_note = Column(String(200), nullable=True)
+
+
+class StoreReceipt(Base):
+    """The store's count of a counter receipt (material donation) or of hundi valuables in
+    custody: what actually reached the store. Pieces are tagged only up to what was received;
+    less than billed / counted opens a shortage (SHT-0001) that the Committee closes — never
+    the person who counted it. A hundi keeps one entry per counted line in `lines`."""
+    __tablename__ = "store_receipts"
+
+    id = Column(Integer, primary_key=True)
+    donation_id = Column(Integer, ForeignKey("donations.id"), unique=True, nullable=True, index=True)
+    hundi_id = Column(Integer, ForeignKey("hundi_collections.id"), unique=True, nullable=True, index=True)
+    receipt_no = Column(String(30), nullable=False)
+    item_name = Column(String(120), nullable=False)
+    unit = Column(String(30), nullable=True)
+    mode = Column(String(10), default="count", nullable=False)            # count | weight (grams) | lines (hundi)
+    billed = Column(Numeric(12, 3), nullable=False)                       # receipt quantity (hundi: number of lines)
+    received = Column(Numeric(12, 3), nullable=False)                     # counted in so far (hundi: lines complete)
+    lines = Column(Text, nullable=True)                                   # hundi JSON: [{line_id, item_name, mode, counted, received}]
+    status = Column(String(20), default="Received", nullable=False, index=True)  # Received | Short | Short closed
+    received_by = Column(String(120), nullable=True)
+    received_by_user = Column(String(60), nullable=True)
+    received_at = Column(DateTime, server_default=func.now())
+    short_code = Column(String(20), unique=True, nullable=True)           # SHT-0001 when fewer arrived
+    short_reason = Column(String(60), nullable=True)
+    short_note = Column(Text, nullable=True)
+    closed_by = Column(String(120), nullable=True)                        # shortage closed (Committee / Admin)
+    closed_by_user = Column(String(60), nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    close_note = Column(Text, nullable=True)
+    events = Column(Text, nullable=True)                                  # JSON: [{action, qty, by, user, at, note}]
+
+
+class MetalRate(Base):
+    """The day's gold (24K) / silver (999) rate per gram, entered by the Administrator.
+    Gold and silver given at the counter or counted in a hundi are valued at it:
+    grams × rate × purity factor (22K = 91.6 % …)."""
+    __tablename__ = "metal_rates"
+    __table_args__ = (UniqueConstraint("rate_date", "metal", name="uq_metal_rate_day"),)
+
+    id = Column(Integer, primary_key=True)
+    rate_date = Column(Date, nullable=False, index=True)
+    metal = Column(String(10), nullable=False)                  # Gold | Silver
+    rate_per_g = Column(Numeric(12, 2), nullable=False)
+    entered_by = Column(String(120), nullable=True)
+    entered_by_user = Column(String(60), nullable=True)
+    entered_at = Column(DateTime, server_default=func.now())
+    note = Column(String(200), nullable=True)
+
+
+class PurchaseRequest(Base):
+    """A consumable running low: the Stores Officer asks to buy it, the Committee (or the
+    Administrator) approves — never whoever asked — and "Mark received" adds what was bought
+    to the Consumables balance as a verified Temple purchase entry (with the bill)."""
+    __tablename__ = "purchase_requests"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False, index=True)    # PR-0001
+    category_id = Column(Integer, ForeignKey("donation_categories.id"), nullable=False, index=True)
+    item_name = Column(String(120), nullable=False)
+    unit = Column(String(30), nullable=True)
+    balance_at = Column(Numeric(12, 3), nullable=True)                    # balance when asked
+    low_level = Column(Numeric(12, 3), nullable=True)
+    quantity = Column(Numeric(12, 3), nullable=False)                     # asked for
+    approx_cost = Column(Numeric(12, 2), nullable=True)
+    reason = Column(Text, nullable=False)
+    status = Column(String(20), default="Waiting", nullable=False, index=True)  # Waiting | Approved | Rejected | Received | Cancelled
+    raised_by = Column(String(120), nullable=True)
+    raised_by_user = Column(String(60), nullable=True)
+    raised_at = Column(DateTime, server_default=func.now())
+    decided_by = Column(String(120), nullable=True)                       # approved / rejected by
+    decided_by_user = Column(String(60), nullable=True)
+    decided_at = Column(DateTime, nullable=True)
+    decision_note = Column(Text, nullable=True)
+    received_qty = Column(Numeric(12, 3), nullable=True)
+    bill_no = Column(String(60), nullable=True)
+    bill_amount = Column(Numeric(12, 2), nullable=True)
+    expiry_date = Column(Date, nullable=True)
+    received_by = Column(String(120), nullable=True)
+    received_at = Column(DateTime, nullable=True)
+    receive_note = Column(Text, nullable=True)
+    manual_entry_id = Column(Integer, ForeignKey("manual_stock_entries.id"), nullable=True)   # the stock it added
+    cancel_reason = Column(Text, nullable=True)
+
+
+class FestivalKit(Base):
+    """A saved set of tagged pieces (and consumables used up) issued together for an event —
+    Dasara alankaram, Karthika deepam. Issuing makes one ordinary issue slip."""
+    __tablename__ = "festival_kits"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False)                # KIT-0001
+    name = Column(String(120), nullable=False)
+    notes = Column(Text, nullable=True)
+    pieces = Column(Text, nullable=True)                                  # JSON [stock item id, …]
+    consumables = Column(Text, nullable=True)                             # JSON [{category_id, quantity}]
+    active = Column(Boolean, default=True, nullable=False)
+    created_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_by = Column(String(60), nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+
+
+class StoreHandover(Base):
+    """Charge handed from one Stores Officer to the next: a snapshot of what the store holds,
+    counted line by line by the incoming officer, signed by both and a Committee witness."""
+    __tablename__ = "store_handovers"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False)                # HOV-0001
+    status = Column(String(20), default="Open", nullable=False, index=True)   # Open | Completed | Cancelled
+    from_user = Column(String(60), nullable=False)
+    from_name = Column(String(120), nullable=True)
+    to_user = Column(String(60), nullable=False)
+    to_name = Column(String(120), nullable=True)
+    witness_user = Column(String(60), nullable=False)
+    witness_name = Column(String(120), nullable=True)
+    lines = Column(Text, nullable=False)                                  # JSON snapshot + the incoming count
+    notes = Column(Text, nullable=True)
+    started_by = Column(String(120), nullable=True)
+    started_at = Column(DateTime, server_default=func.now())
+    counted_at = Column(DateTime, nullable=True)
+    from_signed_at = Column(DateTime, nullable=True)
+    to_signed_at = Column(DateTime, nullable=True)
+    witness_signed_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    cancelled_by = Column(String(120), nullable=True)
+    cancel_reason = Column(Text, nullable=True)

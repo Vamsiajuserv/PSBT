@@ -8,12 +8,37 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Pooja, PoojaPlan, Booking, Schedule
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import gen_code, next_code_seq
+from ..helpers import gen_code, next_code_seq, normalize_slot, parse_slot_bounds
 
 router = APIRouter(prefix="/api/poojas", tags=["poojas"])
 read = RequireModule("Sevas")   # master edits are Administrator-only (require_admin)
 
 CATEGORIES = ["Daily", "Monthly", "Long-Term", "Occasion", "Festival", "Vehicle"]
+
+
+def plan_slots(p: PoojaPlan | None) -> list[str]:
+    """A plan's fixed timings, in time order ([] = no fixed timing)."""
+    if not p or not p.time_slots:
+        return []
+    return [s.strip() for s in p.time_slots.splitlines() if s.strip()]
+
+
+def _clean_slots(value) -> str | None:
+    """Plan slots from the Pooja Master (a list or one-per-line text) → stored text.
+    Each must be a time ('08:15 AM') or a range ('09:00 AM - 11:30 AM')."""
+    items = value if isinstance(value, list) else str(value or "").splitlines()
+    out = []
+    for raw in items:
+        raw = str(raw or "").strip()
+        if not raw:
+            continue
+        slot = normalize_slot(raw)
+        if not slot:
+            raise HTTPException(422, f"Invalid time slot: {raw}. Use 08:15 AM, or a range like 09:00 AM - 11:30 AM with the end after the start.")
+        if slot not in out:
+            out.append(slot)
+    out.sort(key=lambda s: parse_slot_bounds(s))
+    return "\n".join(out) or None
 
 
 def _plan_dict(p: PoojaPlan) -> dict:
@@ -22,7 +47,8 @@ def _plan_dict(p: PoojaPlan) -> dict:
             "rate_type": "Committee" if p.committee_decided else "Fixed",
             "committee_decided": p.committee_decided, "duration_days": p.duration_days,
             "validity_type": p.validity_type, "validity_value": p.validity_value,
-            "validity_unit": p.validity_unit, "tithi_type": p.tithi_type, "active": p.active}
+            "validity_unit": p.validity_unit, "tithi_type": p.tithi_type,
+            "time_slots": plan_slots(p), "active": p.active}
 
 
 def _pooja_dict(pj: Pooja, all_plans: bool = False) -> dict:
@@ -70,6 +96,7 @@ def _add_plan(pl: dict) -> PoojaPlan:
         validity_value=validity_value,
         validity_unit=pl.get("validity_unit"),
         tithi_type=pl.get("tithi_type"),
+        time_slots=_clean_slots(pl.get("time_slots")),
         active=pl.get("active", True))
 
 
@@ -177,6 +204,8 @@ def update_pooja(pid: int, body: dict, request: Request, db: Session = Depends(g
             for f in ("validity_type", "validity_unit", "tithi_type"):
                 if f in item:
                     setattr(pl, f, item[f])
+            if "time_slots" in item:
+                pl.time_slots = _clean_slots(item["time_slots"])
             if "validity_value" in item:
                 pl.validity_value = item["validity_value"] if item["validity_value"] not in ("", None) else None
             if "active" in item:
@@ -207,6 +236,8 @@ def update_plan(plan_id: int, body: dict, request: Request, db: Session = Depend
         pl.committee_decided = bool(body["committee_decided"])
     if "frequency" in body:
         pl.frequency = body["frequency"]
+    if "time_slots" in body:
+        pl.time_slots = _clean_slots(body["time_slots"])
     if "active" in body:
         pl.active = bool(body["active"])
     db.commit()

@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Plus, X, CheckCircle2, XCircle, Tag } from 'lucide-react'
-import { PageTitle, Pill, fmtStamp } from '../../../components/admin/ui.jsx'
+import { PageTitle, Pill, fmtStamp, fmtDate } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
-import { Select, NumberField } from '../../../components/common/Field.jsx'
+import { Select, NumberField, DateField } from '../../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
-import { TagItemsDrawer, canWriteStores, useStoresMeta } from './shared.jsx'
+import { TagItemsDrawer, canWriteStores, useStoresMeta, staffName } from './shared.jsx'
 
 const SOURCES = ['Opening balance (physical count)', 'Old stock in store', 'Temple purchase', 'Received without receipt', 'Other']
 const STATUS_TONE = { 'Pending Verification': 'amber', Verified: 'green', Rejected: 'red' }
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
-const empty = () => ({ category_id: '', quantity: '', source: SOURCES[0], donor_name: '', donor_mobile: '', location_id: '', reason: '' })
+const empty = () => ({ category_id: '', quantity: '', source: SOURCES[0], donor_name: '', donor_mobile: '', location_id: '', reason: '', expiry_date: '' })
 
 export default function ManualEntries() {
   const { user } = useAuth()
@@ -50,6 +50,7 @@ export default function ManualEntries() {
         category_id: Number(drawer.category_id), quantity: Number(drawer.quantity), source: drawer.source,
         donor_name: drawer.donor_name.trim() || null, donor_mobile: drawer.donor_mobile.trim() || null,
         location_id: isQty ? null : Number(drawer.location_id), reason: drawer.reason.trim(),
+        expiry_date: isQty && drawer.expiry_date ? drawer.expiry_date : null,
       })
       toast(`${m.code} ${tr('sent to the committee for verification.')}`)
       setDrawer(null); load()
@@ -59,7 +60,7 @@ export default function ManualEntries() {
 
   async function verify(m) {
     const ok = await confirmDialog({ title: `${tr('Verify')} ${m.code}`, confirmLabel: tr('Verify'),
-      message: `${tr(m.item_name)} · ${m.quantity} ${tr(m.unit || '')} — ${m.reason}. ${tr('After verification the pieces can be tagged and counted in stock.')}` })
+      message: `${tr(m.item_name)} · ${m.quantity} ${tr(m.unit || '')} — ${tr(m.reason)}. ${tr('After verification the pieces can be tagged and counted in stock.')}` })
     if (!ok) return
     try { await StoresAPI.verifyManual(m.id); toast(tr('Verified.')); load() }
     catch (ex) { toast(errText(ex, 'Could not verify.'), 'error') }
@@ -91,13 +92,14 @@ export default function ManualEntries() {
             <tbody className="divide-y divide-gray-100">
               {rows.map((m) => (
                 <tr key={m.id} className="hover:bg-gray-50/60 align-top">
-                  <td className="px-4 py-3"><div className="font-mono text-[0.78rem]">{m.code}</div><div className="text-[0.6875rem] text-gray-400">{m.created_by} · {fmtStamp(m.created_at)}</div></td>
-                  <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(m.item_name)}</div><div className="text-[0.75rem] text-gray-500">{m.quantity} {tr(m.unit || '')} · {tr(m.location || '—')}</div></td>
+                  <td className="px-4 py-3"><div className="font-mono text-[0.78rem]">{m.code}</div><div className="text-[0.6875rem] text-gray-400">{staffName(m.created_by)} · {fmtStamp(m.created_at)}</div></td>
+                  <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(m.item_name)}</div><div className="text-[0.75rem] text-gray-500">{m.quantity} {tr(m.unit || '')} · {tr(m.location || '—')}</div>
+                    {m.expiry_date && <div className="text-[0.6875rem] text-amber-700">{tr('Best before')} {fmtDate(m.expiry_date)}</div>}</td>
                   <td className="px-4 py-3 text-gray-700">{tr(m.source)}{m.donor_name && <div className="text-[0.75rem] text-gray-500">{personName({ name: m.donor_name }, lang)}</div>}</td>
-                  <td className="px-4 py-3 text-gray-700 max-w-[18rem]">{m.reason}</td>
+                  <td className="px-4 py-3 text-gray-700 max-w-[18rem]">{tr(m.reason)}</td>
                   <td className="px-4 py-3"><Pill tone={STATUS_TONE[m.status]}>{tr(m.status)}</Pill>
-                    {m.verified_by && <div className="text-[0.6875rem] text-gray-500 mt-1">{m.verified_by}</div>}
-                    {m.rejection_reason && <div className="text-[0.6875rem] text-red-600 mt-1">{m.rejection_reason}</div>}</td>
+                    {m.verified_by && <div className="text-[0.6875rem] text-gray-500 mt-1">{staffName(m.verified_by)}</div>}
+                    {m.rejection_reason && <div className="text-[0.6875rem] text-red-600 mt-1">{tr(m.rejection_reason)}</div>}</td>
                   <td className="px-4 py-3"><div className="flex gap-1.5 flex-nowrap">
                     {isCommittee && m.status === 'Pending Verification' && m.created_by !== user?.username && (<>
                       <button onClick={() => verify(m)} title={tr('Verify')} aria-label={tr('Verify')} className="w-8 h-8 grid place-items-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 size={15} /></button>
@@ -135,6 +137,8 @@ export default function ManualEntries() {
                 <div><label className="label"><T>Donor (optional)</T></label><input className="input" value={drawer.donor_name} onChange={(e) => setDrawer({ ...drawer, donor_name: e.target.value })} /></div>
                 <div><label className="label"><T>Mobile (optional)</T></label><input className="input" inputMode="numeric" maxLength={10} value={drawer.donor_mobile} onChange={(e) => setDrawer({ ...drawer, donor_mobile: e.target.value.replace(/\D/g, '') })} /></div>
               </div>
+              {isQty && cat?.track_expiry && <div><label className="label">{tr('Best before (optional)')}</label>
+                <DateField min={new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })} value={drawer.expiry_date} onChange={(e) => setDrawer({ ...drawer, expiry_date: e.target.value })} /></div>}
               {!isQty && <div><label className="label"><T>Store location *</T></label>
                 <Select required className="input" value={drawer.location_id} onChange={(e) => setDrawer({ ...drawer, location_id: e.target.value })}>
                   <option value="">{tr('Select')}</option>{activeLocations.map((l) => <option key={l.id} value={l.id}>{tr(l.name)}</option>)}

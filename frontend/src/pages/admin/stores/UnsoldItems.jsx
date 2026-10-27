@@ -7,7 +7,7 @@ import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
 import { useStoresMeta, isCommitteeUser } from './shared.jsx'
 import { StockAuctionDrawer } from '../auction/LotAuction.jsx'
 
@@ -88,7 +88,7 @@ export default function UnsoldItems() {
                   <td className="pl-5 pr-2 py-3"><Checkbox checked={!!picked[r.id]} onChange={() => setPicked((p) => ({ ...p, [r.id]: !p[r.id] }))} /></td>
                   <td className="px-4 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link></td>
                   <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(r.description || r.item_name)}</div>
-                    <div className="text-[0.6875rem] text-gray-500">{[tr(r.item_name), r.details, r.weight_g ? `${r.weight_g} g` : ''].filter(Boolean).join(' · ')}</div></td>
+                    <div className="text-[0.6875rem] text-gray-500">{[tr(r.item_name), tr(r.details), r.weight_g ? `${r.weight_g} ${gramUnit()}` : ''].filter(Boolean).join(' · ')}</div></td>
                   <td className="px-4 py-3 text-center"><Pill tone={r.unsold_count >= 2 ? 'red' : 'orange'}>×{r.unsold_count}</Pill></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] whitespace-nowrap">{r.last_auction_code || '—'}</td>
                   <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{r.last_base_price != null ? inr(r.last_base_price) : '—'}</td>

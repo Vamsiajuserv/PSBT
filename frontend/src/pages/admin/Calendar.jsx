@@ -15,7 +15,7 @@ import TempleCalendar from './calendar/TempleCalendar.jsx'
 // (calendar/TempleCalendar.jsx); a clicked day opens its detail in a popup.
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'].map(m => tr(m))
+  'July', 'August', 'September', 'October', 'November', 'December']
 
 // "Show" toggles — stored as the hidden ones in the URL (?hide=moon,panch)
 const LAYERS = [
@@ -52,7 +52,7 @@ function MonthPicker({ year, month, onPick, onClose }) {
           {MONTHS.map((m, i) => (
             <button key={i} onClick={() => onPick(y, i)}
               className={`py-1.5 rounded-lg text-[0.75rem] font-semibold ${y === year && i === month ? 'bg-maroon-700 text-white' : 'hover:bg-gold-50 text-gray-700'}`}>
-              {m.slice(0, 3)}
+              {tr(m.slice(0, 3))}
             </button>
           ))}
         </div>

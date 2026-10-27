@@ -5,6 +5,7 @@ import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { DateField } from '../../../components/common/Field.jsx'
 import ExportButtons from '../../../components/common/ExportButtons.jsx'
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
+import { staffName } from './shared.jsx'
 
 const ist = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const monthStart = () => { const t = ist(new Date()); return `${t.slice(0, 8)}01` }
@@ -37,17 +38,19 @@ export default function StockReport() {
   const period = `${fmtDate(data?.start)} – ${fmtDate(data?.end)}`
   const exportRows = data ? [
     ...data.tagged.map((r) => ({ ...r, name: `${tr(r.name)} (${tr('pieces')})` })),
-    ...data.quantity.map((r) => ({ ...r, name: `${tr(r.name)} (${tr(r.unit || '')})`, sold: '', in_auction: '', in_open_sale: '', sold_open_sale: '', unsold_returned: '', value_in_store: null, realised: null })),
+    ...data.quantity.map((r) => ({ ...r, name: `${tr(r.name)} (${tr(r.unit || '')})`, sold: '', awaiting_placement: '', in_store: '', issued: '', missing: '', in_auction: '', in_open_sale: '', sold_open_sale: '', unsold_returned: '', value_in_store: null, realised: null })),
   ] : []
   const exportCols = [
     { key: 'name', label: tr('Item type') }, { key: 'opening', label: tr('Opening') }, { key: 'received', label: tr('Received') },
     { key: 'sold', label: tr('Sold') }, { key: 'sold_open_sale', label: tr('of which Open Sale') }, { key: 'out', label: tr('Used / Written Off') }, { key: 'closing', label: tr('Closing') },
+    { key: 'awaiting_placement', label: tr('Awaiting Placement') }, { key: 'in_store', label: tr('In Store') },
+    { key: 'issued', label: tr('Issued') }, { key: 'missing', label: tr('Missing') },
     { key: 'in_auction', label: tr('In Auction') }, { key: 'in_open_sale', label: tr('In Open Sale') }, { key: 'unsold_returned', label: tr('Unsold (returned)') },
     { key: 'value_in_store', label: tr('Value in store (₹)'), type: 'money' }, { key: 'realised', label: tr('Realised (₹)'), type: 'money' },
   ]
   // One table for the details export: a Section column groups the rows
   const detailExport = detail ? [
-    ...detail.remaining.map((x) => ({ section: tr('Remaining'), pieces: `${x.in_store} ${tr('in store')} · ${x.in_auction} ${tr('in auction')} · ${x.in_open_sale || 0} ${tr('in Open Sale')}`, ref: x.location, person: '', amount: null, status: x.unsold_before.length ? `${tr('Unsold before')}: ${x.unsold_before.join(', ')}` : '', date: '' })),
+    ...detail.remaining.map((x) => ({ section: tr('Remaining'), pieces: `${x.awaiting_placement ? `${x.awaiting_placement} ${tr('awaiting placement')} · ` : ''}${x.in_store} ${tr('in store')} · ${x.in_auction} ${tr('in auction')} · ${x.in_open_sale || 0} ${tr('in Open Sale')}`, ref: x.location, person: '', amount: null, status: x.unsold_before.length ? `${tr('Unsold before')}: ${x.unsold_before.join(', ')}` : '', date: '' })),
     ...detail.sold.map((x) => ({ section: tr('Sold'), pieces: x.tag_id, ref: x.auction, person: x.buyer || '', amount: x.amount, status: x.payment === 'Paid' ? `${tr('Paid')} · ${tr(modeLabel(x.payment_mode))} · ${x.receipt_no}` : tr(x.payment || '—'), date: fmtDate(x.date) })),
     ...detail.received.map((x) => ({ section: tr('Received'), pieces: x.pieces, ref: x.source_ref, person: x.donor || '', amount: null, status: '', date: fmtDate(x.date) })),
     ...detail.written_off.map((x) => ({ section: tr('Written Off'), pieces: x.tag_id, ref: '', person: x.by || '', amount: null, status: x.reason || '', date: fmtDate(x.date) })),
@@ -95,7 +98,7 @@ export default function StockReport() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm tabular-nums">
                 <Head cols={[[tr('Item type')], [tr('Opening'), 1], [tr('Received'), 1], [tr('Sold'), 1], [tr('Written Off'), 1], [tr('Closing'), 1],
-                  [tr('In Store'), 1], [tr('In Auction'), 1], [tr('In Open Sale'), 1], [tr('Unsold (returned)'), 1], [tr('Value in store (₹)'), 1], [tr('Realised (₹)'), 1]]} />
+                  [tr('Awaiting Placement'), 1], [tr('In Store'), 1], [tr('Issued'), 1], [tr('Missing'), 1], [tr('In Auction'), 1], [tr('In Open Sale'), 1], [tr('Unsold (returned)'), 1], [tr('Value in store (₹)'), 1], [tr('Realised (₹)'), 1]]} />
                 <tbody className="divide-y divide-gray-100">
                   {data.tagged.map((r) => (
                     <React.Fragment key={r.category_id}>
@@ -103,24 +106,26 @@ export default function StockReport() {
                         <td className="px-3 py-3 font-semibold text-maroon-800 whitespace-nowrap">{open === r.category_id ? <ChevronDown size={14} className="inline mr-1" /> : <ChevronRight size={14} className="inline mr-1" />}{tr(r.name)}</td>
                         <td className="px-3 py-3 text-right">{r.opening}</td><td className="px-3 py-3 text-right">{r.received}</td>
                         <td className="px-3 py-3 text-right">{r.sold}{r.sold_open_sale > 0 && <div className="text-[0.6875rem] text-violet-700">{r.sold_open_sale} {tr('Open Sale')}</div>}</td><td className="px-3 py-3 text-right">{r.out}</td>
-                        <td className="px-3 py-3 text-right font-bold">{r.closing}</td><td className="px-3 py-3 text-right">{r.in_store}</td>
+                        <td className="px-3 py-3 text-right font-bold">{r.closing}</td><td className="px-3 py-3 text-right">{r.awaiting_placement || 0}</td><td className="px-3 py-3 text-right">{r.in_store}</td>
+                        <td className="px-3 py-3 text-right">{r.issued || 0}</td><td className={`px-3 py-3 text-right ${r.missing ? 'text-red-700 font-semibold' : ''}`}>{r.missing || 0}</td>
                         <td className="px-3 py-3 text-right">{r.in_auction}</td><td className="px-3 py-3 text-right">{r.in_open_sale}</td><td className="px-3 py-3 text-right">{r.unsold_returned}</td>
                         <td className="px-3 py-3 text-right">{inr(r.value_in_store)}</td><td className="px-3 py-3 text-right">{inr(r.realised)}</td>
                       </tr>
                       {open === r.category_id && (
-                        <tr><td colSpan={12} className="bg-cream/40 px-4 py-4">
+                        <tr><td colSpan={15} className="bg-cream/40 px-4 py-4">
                           {!detail ? <div className="text-sm text-gray-500"><T>Loading...</T></div> : (
                             <div className="space-y-4">
                               <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="text-[0.8125rem] text-gray-700"><b>{tr(detail.category)}</b> · {period} · {tr('Closing')} {r.closing} = {tr('In Store')} {r.in_store} + {tr('In Auction')} {r.in_auction} + {tr('In Open Sale')} {r.in_open_sale}</div>
+                                <div className="text-[0.8125rem] text-gray-700"><b>{tr(detail.category)}</b> · {period} · {tr('Closing')} {r.closing} = {r.awaiting_placement ? `${tr('Awaiting Placement')} ${r.awaiting_placement} + ` : ''}{tr('In Store')} {r.in_store}{r.issued ? ` + ${tr('Issued')} ${r.issued}` : ''} + {tr('In Auction')} {r.in_auction} + {tr('In Open Sale')} {r.in_open_sale}{r.missing ? ` + ${tr('Missing')} ${r.missing}` : ''}</div>
                                 <ExportButtons title={`${tr(detail.category)} — ${tr('Stock details')} ${period}`} columns={detailCols} rows={detailExport} />
                               </div>
                               <Section title={tr('Remaining — where the pieces are')}>
-                                <table className="w-full text-[0.8125rem]"><Head cols={[[tr('Location')], [tr('In Store'), 1], [tr('In Auction'), 1], [tr('In Open Sale'), 1], [tr('Came back unsold before')]]} />
+                                <table className="w-full text-[0.8125rem]"><Head cols={[[tr('Location')], [tr('Awaiting Placement'), 1], [tr('In Store'), 1], [tr('Issued'), 1], [tr('Missing'), 1], [tr('In Auction'), 1], [tr('In Open Sale'), 1], [tr('Came back unsold before')]]} />
                                   <tbody className="divide-y divide-gray-100">{detail.remaining.map((x) => (
-                                    <tr key={x.location}><td className="px-3 py-2">{tr(x.location)}</td><td className="px-3 py-2 text-right">{x.in_store}</td><td className="px-3 py-2 text-right">{x.in_auction}</td><td className="px-3 py-2 text-right">{x.in_open_sale || 0}</td>
+                                    <tr key={x.location}><td className="px-3 py-2">{x.location === '—' && x.awaiting_placement ? tr('Not placed yet') : tr(x.location)}</td><td className="px-3 py-2 text-right">{x.awaiting_placement || 0}</td><td className="px-3 py-2 text-right">{x.in_store}</td>
+                                      <td className="px-3 py-2 text-right">{x.issued || 0}</td><td className="px-3 py-2 text-right">{x.missing || 0}</td><td className="px-3 py-2 text-right">{x.in_auction}</td><td className="px-3 py-2 text-right">{x.in_open_sale || 0}</td>
                                       <td className="px-3 py-2 font-mono text-[0.72rem] text-orange-700">{x.unsold_before.join(', ') || '—'}</td></tr>))}
-                                    {!detail.remaining.length && <Empty cols={5} text={tr('Nothing left in stock.')} />}</tbody></table>
+                                    {!detail.remaining.length && <Empty cols={8} text={tr('Nothing left in stock.')} />}</tbody></table>
                               </Section>
                               <Section title={tr('Sold')} count={detail.sold.length}>
                                 <table className="w-full text-[0.8125rem]"><Head cols={[[tr('Piece')], [tr('Auction')], [tr('Buyer')], [tr('Amount'), 1], [tr('Payment')], [tr('Date')]]} />
@@ -142,7 +147,7 @@ export default function StockReport() {
                                 <Section title={tr('Written Off')} count={detail.written_off.length}>
                                   <table className="w-full text-[0.8125rem]"><Head cols={[[tr('Piece')], [tr('Reason')], [tr('By')], [tr('Date')]]} />
                                     <tbody className="divide-y divide-gray-100">{detail.written_off.map((x) => (
-                                      <tr key={x.tag_id}><td className="px-3 py-2 font-mono">{x.tag_id}</td><td className="px-3 py-2">{x.reason}</td><td className="px-3 py-2">{x.by}</td><td className="px-3 py-2 whitespace-nowrap">{fmtDate(x.date)}</td></tr>))}</tbody></table>
+                                      <tr key={x.tag_id}><td className="px-3 py-2 font-mono">{x.tag_id}</td><td className="px-3 py-2">{tr(x.reason)}</td><td className="px-3 py-2">{staffName(x.by)}</td><td className="px-3 py-2 whitespace-nowrap">{fmtDate(x.date)}</td></tr>))}</tbody></table>
                                 </Section>
                               )}
                               <Section title={tr('Auctions in this period')} count={detail.auctions.length}>
@@ -160,7 +165,7 @@ export default function StockReport() {
                       )}
                     </React.Fragment>
                   ))}
-                  {!data.tagged.length && <Empty cols={12} text={tr('No tagged pieces yet.')} />}
+                  {!data.tagged.length && <Empty cols={15} text={tr('No tagged pieces yet.')} />}
                 </tbody>
               </table>
             </div>

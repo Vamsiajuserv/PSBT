@@ -5,16 +5,18 @@
 
 // ── Name Validation ──
 // Allows alphabets, spaces, and common name characters (no numbers)
+import { tr } from '../i18n/LanguageContext.jsx'
+
 export const namePattern = /^[A-Za-z\s.'()-]+$/
 export const namePatternTelugu = /^[A-Za-z\s.'()\u0C00-\u0C7F-]+$/ // Includes Telugu characters
 
 export function validateName(value) {
-  if (!value || !value.trim()) return { valid: false, error: 'Name is required' }
-  if (/\d/.test(value)) return { valid: false, error: 'Name cannot contain numbers' }
+  if (!value || !value.trim()) return { valid: false, error: tr('Name is required') }
+  if (/\d/.test(value)) return { valid: false, error: tr('Name cannot contain numbers') }
   if (!namePattern.test(value) && !namePatternTelugu.test(value)) {
-    return { valid: false, error: 'Name contains invalid characters' }
+    return { valid: false, error: tr('Name contains invalid characters') }
   }
-  if (value.trim().length < 2) return { valid: false, error: 'Name must be at least 2 characters' }
+  if (value.trim().length < 2) return { valid: false, error: tr('Name must be at least 2 characters') }
   return { valid: true, error: null }
 }
 
@@ -32,7 +34,7 @@ export function validatePhone(value) {
   if (!value || !value.trim()) return { valid: true, error: null }
   const digits = value.replace(/\D/g, '')
   if (digits.length !== 10) return { valid: true, error: null }
-  if (!phonePattern.test(digits)) return { valid: false, error: 'Invalid Mobile Number. Please Enter Valid Mobile Number' }
+  if (!phonePattern.test(digits)) return { valid: false, error: tr('Invalid Mobile Number. Please Enter Valid Mobile Number') }
   return { valid: true, error: null }
 }
 
@@ -51,9 +53,9 @@ export function validateEmail(value) {
   const trimmed = value.trim()
   // Check for invalid special characters
   if (/[!#$%^&*()+=\[\]{};':"\\|,<>\/?]/.test(trimmed.split('@')[0])) {
-    return { valid: false, error: 'Email contains invalid special characters' }
+    return { valid: false, error: tr('Email contains invalid special characters') }
   }
-  if (!emailPattern.test(trimmed)) return { valid: false, error: 'Invalid email format' }
+  if (!emailPattern.test(trimmed)) return { valid: false, error: tr('Invalid email format') }
   return { valid: true, error: null }
 }
 
@@ -71,12 +73,12 @@ export function poojaFeeError(value) {
 
 export function validateAmount(value, { min = 0, max = Infinity, required = false } = {}) {
   if (!value && value !== 0) {
-    return required ? { valid: false, error: 'Amount is required' } : { valid: true, error: null }
+    return required ? { valid: false, error: tr('Amount is required') } : { valid: true, error: null }
   }
   const num = Number(value)
-  if (isNaN(num)) return { valid: false, error: 'Must be a valid number' }
-  if (num < min) return { valid: false, error: `Amount must be at least ${min}` }
-  if (num > max) return { valid: false, error: `Amount cannot exceed ${max}` }
+  if (isNaN(num)) return { valid: false, error: tr('Must be a valid number') }
+  if (num < min) return { valid: false, error: tr(`Amount must be at least ${min}`) }
+  if (num > max) return { valid: false, error: tr(`Amount cannot exceed ${max}`) }
   return { valid: true, error: null }
 }
 
@@ -88,12 +90,12 @@ export function sanitizeAmount(value) {
 // ── Quantity Validation ──
 export function validateQuantity(value, { min = 1, max = 10000, required = false } = {}) {
   if (!value && value !== 0) {
-    return required ? { valid: false, error: 'Quantity is required' } : { valid: true, error: null }
+    return required ? { valid: false, error: tr('Quantity is required') } : { valid: true, error: null }
   }
   const num = parseInt(value, 10)
-  if (isNaN(num) || num !== Number(value)) return { valid: false, error: 'Must be a whole number' }
-  if (num < min) return { valid: false, error: `Quantity must be at least ${min}` }
-  if (num > max) return { valid: false, error: `Quantity cannot exceed ${max}` }
+  if (isNaN(num) || num !== Number(value)) return { valid: false, error: tr('Must be a whole number') }
+  if (num < min) return { valid: false, error: tr(`Quantity must be at least ${min}`) }
+  if (num > max) return { valid: false, error: tr(`Quantity cannot exceed ${max}`) }
   return { valid: true, error: null }
 }
 
@@ -102,8 +104,8 @@ export function validateQuantity(value, { min = 1, max = 10000, required = false
 export const itemNamePattern = /^[A-Za-z\s.'(),/&\u0C00-\u0C7F-]+$/
 
 export function validateItemName(value) {
-  if (!value || !value.trim()) return { valid: false, error: 'Item name is required' }
-  if (/\d/.test(value)) return { valid: false, error: 'Item name cannot contain numbers' }
+  if (!value || !value.trim()) return { valid: false, error: tr('Item name is required') }
+  if (/\d/.test(value)) return { valid: false, error: tr('Item name cannot contain numbers') }
   return { valid: true, error: null }
 }
 
@@ -118,7 +120,7 @@ export const panPattern = /^[A-Z]{5}[0-9]{4}[A-Z]$/
 export function validatePAN(value) {
   if (!value || !value.trim()) return { valid: true, error: null } // PAN is optional unless required
   const upper = value.toUpperCase().trim()
-  if (!panPattern.test(upper)) return { valid: false, error: 'Invalid PAN format (e.g. ABCDE1234F)' }
+  if (!panPattern.test(upper)) return { valid: false, error: tr('Invalid PAN format (e.g. ABCDE1234F)') }
   return { valid: true, error: null }
 }
 
@@ -133,7 +135,7 @@ export const vehiclePattern = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{1,4}$/
 export function validateVehicle(value) {
   if (!value || !value.trim()) return { valid: true, error: null }
   const upper = value.toUpperCase().replace(/[\s-]/g, '')
-  if (!vehiclePattern.test(upper)) return { valid: false, error: 'Invalid vehicle number format' }
+  if (!vehiclePattern.test(upper)) return { valid: false, error: tr('Invalid vehicle number format') }
   return { valid: true, error: null }
 }
 
@@ -181,12 +183,12 @@ export const utrPattern = /^[A-Za-z0-9]{12,22}$/
 
 export function validateUTR(value, { required = false } = {}) {
   if (!value || !value.trim()) {
-    return required ? { valid: false, error: 'Transaction reference is required' } : { valid: true, error: null }
+    return required ? { valid: false, error: tr('Transaction reference is required') } : { valid: true, error: null }
   }
   const trimmed = value.trim().replace(/\s/g, '')
-  if (trimmed.length < 12) return { valid: false, error: 'UTR must be at least 12 characters' }
-  if (trimmed.length > 22) return { valid: false, error: 'UTR cannot exceed 22 characters' }
-  if (!utrPattern.test(trimmed)) return { valid: false, error: 'UTR must be alphanumeric only' }
+  if (trimmed.length < 12) return { valid: false, error: tr('UTR must be at least 12 characters') }
+  if (trimmed.length > 22) return { valid: false, error: tr('UTR cannot exceed 22 characters') }
+  if (!utrPattern.test(trimmed)) return { valid: false, error: tr('UTR must be alphanumeric only') }
   return { valid: true, error: null }
 }
 
@@ -203,11 +205,11 @@ export function handleUTRInput(e, setter) {
 // ── Bank Reference/Challan Validation ──
 export function validateBankRef(value, { required = false } = {}) {
   if (!value || !value.trim()) {
-    return required ? { valid: false, error: 'Bank reference is required' } : { valid: true, error: null }
+    return required ? { valid: false, error: tr('Bank reference is required') } : { valid: true, error: null }
   }
   const trimmed = value.trim()
-  if (trimmed.length < 3) return { valid: false, error: 'Reference must be at least 3 characters' }
-  if (trimmed.length > 50) return { valid: false, error: 'Reference cannot exceed 50 characters' }
+  if (trimmed.length < 3) return { valid: false, error: tr('Reference must be at least 3 characters') }
+  if (trimmed.length > 50) return { valid: false, error: tr('Reference cannot exceed 50 characters') }
   return { valid: true, error: null }
 }
 
@@ -217,7 +219,7 @@ export const ifscPattern = /^[A-Z]{4}0[A-Z0-9]{6}$/
 export function validateIFSC(value) {
   if (!value || !value.trim()) return { valid: true, error: null }
   const upper = value.toUpperCase().trim()
-  if (!ifscPattern.test(upper)) return { valid: false, error: 'Invalid IFSC code format' }
+  if (!ifscPattern.test(upper)) return { valid: false, error: tr('Invalid IFSC code format') }
   return { valid: true, error: null }
 }
 
@@ -254,21 +256,21 @@ export const PASSWORD_MIN_LENGTH = 6
 
 export function validatePassword(value, { required = true } = {}) {
   if (!value) {
-    return required ? { valid: false, error: 'Password is required' } : { valid: true, error: null }
+    return required ? { valid: false, error: tr('Password is required') } : { valid: true, error: null }
   }
 
   if (value.length < PASSWORD_MIN_LENGTH) {
-    return { valid: false, error: `Password must be at least ${PASSWORD_MIN_LENGTH} characters` }
+    return { valid: false, error: tr(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`) }
   }
 
   // Must contain at least one letter
   if (!/[A-Za-z]/.test(value)) {
-    return { valid: false, error: 'Password must contain at least one letter' }
+    return { valid: false, error: tr('Password must contain at least one letter') }
   }
 
   // Must contain at least one number
   if (!/[0-9]/.test(value)) {
-    return { valid: false, error: 'Password must contain at least one number' }
+    return { valid: false, error: tr('Password must contain at least one number') }
   }
 
   return { valid: true, error: null }
@@ -299,16 +301,16 @@ export function validateDateRange(startDate, endDate, { maxDays = MAX_DATE_RANGE
   // Handle empty values
   if (!startDate && !endDate) {
     return required
-      ? { valid: false, error: 'Date range is required' }
+      ? { valid: false, error: tr('Date range is required') }
       : { valid: true, error: null }
   }
 
   if (startDate && !endDate) {
-    return { valid: false, error: 'End date is required when start date is provided' }
+    return { valid: false, error: tr('End date is required when start date is provided') }
   }
 
   if (!startDate && endDate) {
-    return { valid: false, error: 'Start date is required when end date is provided' }
+    return { valid: false, error: tr('Start date is required when end date is provided') }
   }
 
   // Parse dates
@@ -317,21 +319,21 @@ export function validateDateRange(startDate, endDate, { maxDays = MAX_DATE_RANGE
 
   // Check for invalid dates
   if (isNaN(start.getTime())) {
-    return { valid: false, error: 'Invalid start date' }
+    return { valid: false, error: tr('Invalid start date') }
   }
   if (isNaN(end.getTime())) {
-    return { valid: false, error: 'Invalid end date' }
+    return { valid: false, error: tr('Invalid end date') }
   }
 
   // Start must be before or equal to end
   if (start > end) {
-    return { valid: false, error: 'Start date cannot be after end date' }
+    return { valid: false, error: tr('Start date cannot be after end date') }
   }
 
   // Check date range limit
   const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24))
   if (diffDays > maxDays) {
-    return { valid: false, error: `Date range cannot exceed ${maxDays} days` }
+    return { valid: false, error: tr(`Date range cannot exceed ${maxDays} days`) }
   }
 
   return { valid: true, error: null, diffDays }
@@ -344,7 +346,7 @@ export function validateNotFutureDate(value) {
   const today = new Date()
   today.setHours(23, 59, 59, 999) // End of today
   if (date > today) {
-    return { valid: false, error: 'Date cannot be in the future' }
+    return { valid: false, error: tr('Date cannot be in the future') }
   }
   return { valid: true, error: null }
 }
@@ -360,7 +362,7 @@ export function validateNotPastDate(value, { allowToday = true } = {}) {
     today.setHours(23, 59, 59, 999) // End of today
   }
   if (date < today) {
-    return { valid: false, error: 'Date cannot be in the past' }
+    return { valid: false, error: tr('Date cannot be in the past') }
   }
   return { valid: true, error: null }
 }

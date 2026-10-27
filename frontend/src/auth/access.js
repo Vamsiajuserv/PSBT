@@ -59,7 +59,21 @@ export const ACCESS = {
   'stores/check': { module: 'Stores' },
   'stores/manual': { module: 'Stores' },
   'stores/item': { module: 'Stores' },
-  'stores/locations': { adminOnly: true },
+  // Store Locations: Administrator + Stores Officer (backend: RequireRole(STORES_OFFICER))
+  'stores/locations': { roles: ['Stores Officer'] },
+  // Stores Overview: the Stores Officer's landing page
+  'stores/overview': { module: 'Stores', roles: ['Stores Officer'] },
+  // Stores Day Closing: Stores Officer + Administrator close it; Committee and Accountant view / print
+  'stores/day-closing': { module: 'Stores', roles: ['Stores Officer', 'Committee', 'Accountant'] },
+  // Issue & Return (issue/return: Stores Officer + Admin; others view) · Missing Items (Committee decides lost)
+  'stores/issue': { module: 'Stores' },
+  'stores/missing': { module: 'Stores' },
+  // Purchase Requests (Stores Officer raises, Committee approves, Accountant views) · Valuables
+  // Statement (view / print) · Festival Kits and Handover (Stores Officer works, Committee views / witnesses)
+  'stores/purchase': { module: 'Stores', roles: ['Stores Officer', 'Committee', 'Accountant'] },
+  'stores/valuables': { module: 'Stores', roles: ['Stores Officer', 'Committee', 'Accountant'] },
+  'stores/kits': { module: 'Stores', roles: ['Stores Officer', 'Committee'] },
+  'stores/handover': { module: 'Stores', roles: ['Stores Officer', 'Committee'] },
 
   // ── Poojari workflow screens (Poojari + Administrator) ──
   'my-poojas': { module: 'Bookings', roles: ['Poojari'] },
@@ -70,6 +84,7 @@ export const ACCESS = {
   'poojari-schedule': { adminOnly: true },
   'poojari-master': { adminOnly: true },
   'donation-master': { adminOnly: true },
+  'metal-rates': { adminOnly: true },   // Gold & Silver Rate: the day's rate per gram
   'hundi-items': { adminOnly: true },
   'auction-items': { adminOnly: true },
   vendors: { adminOnly: true },

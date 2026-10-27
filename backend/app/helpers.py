@@ -52,6 +52,42 @@ def ist_today() -> _date:
 
 
 _SLOT_RE = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*-\s*(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*$")
+_TIME_RE = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*$")
+
+
+def _clock(h: str, m: str, ap: str):
+    return datetime.strptime(f"{h}:{m} {ap.upper()}", "%I:%M %p").time()
+
+
+def parse_slot_bounds(slot: str | None):
+    """A pooja plan slot — a fixed time '08:15 AM' or a range '09:00 AM - 11:30 AM' —
+    as (start_time, end_time); a fixed time gives start == end. None if malformed."""
+    m = _TIME_RE.match(slot or "")
+    if m:
+        try:
+            t = _clock(*m.groups())
+        except ValueError:
+            return None
+        return (t, t)
+    return parse_time_slot(slot)
+
+
+def normalize_slot(slot: str | None) -> str | None:
+    """Canonical spelling of a plan slot ('8:15 am' → '08:15 AM'); None if invalid."""
+    bounds = parse_slot_bounds(slot)
+    if not bounds:
+        return None
+    start, end = (t.strftime("%I:%M %p") for t in bounds)
+    return start if start == end else f"{start} - {end}"
+
+
+def slot_is_over(slot: str | None, now) -> bool:
+    """True once today's slot has gone by: a fixed time after it starts, a range at its end."""
+    bounds = parse_slot_bounds(slot)
+    if not bounds:
+        return False
+    start, end = bounds
+    return now > end if start == end else now >= end
 
 
 def parse_time_slot(slot: str | None):

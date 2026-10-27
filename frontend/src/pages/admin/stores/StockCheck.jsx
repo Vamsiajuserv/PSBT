@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import React, { useEffect, useState } from 'react'
 import { Printer, ClipboardCheck, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { PageTitle, Pill, fmtStamp } from '../../../components/admin/ui.jsx'
@@ -5,11 +6,11 @@ import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
-import { useStoresMeta } from './shared.jsx'
+import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
+import { useStoresMeta, staffName } from './shared.jsx'
 
-// Who may record a check (backend: Counter Staff, Committee, Administrator)
-const canCheck = (user) => ['Admin', 'Administrator', 'Counter Staff', 'Committee'].includes(user?.role)
+// Who may record a check (backend: Counter Staff, Committee, Stores Officer, Administrator)
+const canCheck = (user) => ['Admin', 'Administrator', 'Stores Officer'].includes(user?.role)
 
 export default function StockCheck() {
   const { user } = useAuth()
@@ -36,12 +37,13 @@ export default function StockCheck() {
   async function save() {
     const missing = items.length - nFound
     if (missing && !(await confirmDialog({ title: tr('Save stock check'), confirmLabel: tr('Save'), tone: 'danger',
-      message: `${missing} ${tr('piece(s) not ticked will be recorded as MISSING. Nothing is written off — the committee follows up.')}` }))) return
+      message: `${missing} ${tr('piece(s) not ticked will be marked Missing and listed under Missing Items for follow-up. Nothing is written off.')}` }))) return
     setSaving(true)
     try {
       const r = await StoresAPI.recordCheck({ location_id: Number(lid), listed_ids: items.map((i) => i.id),
         found_ids: items.filter((i) => found[i.id]).map((i) => i.id), notes: notes.trim() || null })
       setResult(r); toast(`${r.code}: ${r.found}/${r.expected} ${tr('found')}`); loadChecks()
+      if (r.missing.length) window.dispatchEvent(new Event('stores:changed'))   // Missing Items badge
     } catch (ex) {
       toast(tr(getErrorMessage(ex, 'Could not save the check.')).replace(/^Value error, /, ''), 'error')
       // The pieces at this location changed meanwhile: show the fresh list (ticks for pieces still there are kept)
@@ -74,7 +76,7 @@ export default function StockCheck() {
                     <Checkbox checked={!!found[i.id]} onChange={() => setFound((f) => ({ ...f, [i.id]: !f[i.id] }))} />
                     <span className="font-mono font-semibold text-maroon-700 w-24 shrink-0">{i.tag_id}</span>
                     <span className="flex-1 min-w-0"><span className="text-gray-800">{tr(i.description || i.item_name)}</span>{i.status === 'In Open Sale' && <> <Pill tone="violet">{tr('In Open Sale')}</Pill></>}
-                      <span className="text-gray-500">{[i.details, i.weight_g ? `${i.weight_g} g` : ''].filter(Boolean).map((x) => ` · ${x}`).join('')}</span></span>
+                      <span className="text-gray-500">{[tr(i.details), i.weight_g ? `${i.weight_g} ${gramUnit()}` : ''].filter(Boolean).map((x) => ` · ${x}`).join('')}</span></span>
                     <span className="text-[0.75rem] text-gray-500 shrink-0 text-right">{personName({ name: i.donor_name }, lang)}<br /><span className="font-mono">{i.source_ref}</span></span>
                   </label>
                 ))}
@@ -88,11 +90,12 @@ export default function StockCheck() {
               <input className="input" maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={tr('Notes (optional), e.g. who was present')} />
               {canCheck(user)
                 ? <button disabled={saving} onClick={save} className="btn-maroon !py-2.5 disabled:opacity-60"><ClipboardCheck size={15} />{' '}{saving ? tr('Saving…') : tr('Save stock check')}</button>
-                : <div className="text-[0.75rem] text-gray-500"><T>Counter staff or a committee member records the check.</T></div>}
+                : <div className="text-[0.75rem] text-gray-500"><T>The Stores Officer records the check.</T></div>}
               {result && (
                 <div className={`rounded-lg px-4 py-3 text-[0.8125rem] border ${result.missing.length ? 'bg-red-50 border-red-100 text-red-700' : 'bg-emerald-50 border-emerald-100 text-emerald-800'}`}>
                   {result.missing.length ? <AlertTriangle size={15} className="inline mr-1" /> : <CheckCircle2 size={15} className="inline mr-1" />}
                   <b>{result.code}</b>: {result.found}/{result.expected} {tr('found')}{result.missing.length ? ` — ${tr('missing')}: ${result.missing.join(', ')}` : ` — ${tr('everything is in place.')}`}
+                  {result.missing.length > 0 && <Link to="/admin/stores/missing" className="block mt-1 font-semibold underline">{result.missing.length} {tr('piece(s) marked Missing → see Missing Items')}</Link>}
                 </div>
               )}
             </div>
@@ -105,9 +108,9 @@ export default function StockCheck() {
               <div key={c.id} className="px-5 py-3 text-[0.8125rem]">
                 <div className="flex items-center justify-between gap-2"><span><b className="font-mono">{c.code}</b> · {tr(c.location)}</span>
                   <Pill tone={c.missing.length ? 'red' : 'green'}>{c.found}/{c.expected}</Pill></div>
-                <div className="text-[0.6875rem] text-gray-500">{c.checked_by} · {fmtStamp(c.created_at)}</div>
+                <div className="text-[0.6875rem] text-gray-500">{staffName(c.checked_by)} · {fmtStamp(c.created_at)}</div>
                 {c.missing.length > 0 && <div className="text-[0.75rem] text-red-600 mt-0.5">{tr('missing')}: <span className="font-mono">{c.missing.join(', ')}</span></div>}
-                {c.notes && <div className="text-[0.75rem] text-gray-600 mt-0.5">{c.notes}</div>}
+                {c.notes && <div className="text-[0.75rem] text-gray-600 mt-0.5">{tr(c.notes)}</div>}
               </div>
             ))}
             {!checks.length && <div className="px-5 py-8 text-center text-gray-500 text-[0.8125rem]"><T>No checks recorded yet.</T></div>}

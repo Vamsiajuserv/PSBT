@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { X, MinusCircle, BookOpen, Plus, CalendarDays, Ban, Printer, Receipt as ReceiptIcon } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { X, MinusCircle, BookOpen, Plus, CalendarDays, Ban, Printer, Receipt as ReceiptIcon, ShoppingCart, Trash2, Pencil, AlertTriangle } from 'lucide-react'
 import { PageTitle, Pill, fmtDate, fmtStamp } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
 import { NumberField, DateField, Combobox } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
-import { canWriteStores, isAdminUser } from './shared.jsx'
+import { T, tr, personName, useLang, getLang } from '../../../i18n/LanguageContext.jsx'
+import { canWriteStores, canManageStores, staffName, storeDetail } from './shared.jsx'
 import { useTemple } from '../../../lib/SiteContext.jsx'
 
 const PURPOSES = ['Nithya Pooja – Deepam', 'Abhishekam', 'Annadanam', 'Prasadam', 'Festival', 'Homam', 'Other']
@@ -16,12 +16,20 @@ const KIND_TONE = { Donation: 'blue', 'Manual entry': 'amber', Use: 'red' }
 const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
 const q3 = (n) => (n == null ? '—' : Number(n).toLocaleString('en-IN', { maximumFractionDigits: 3 }))
+const changed = () => window.dispatchEvent(new Event('stores:changed'))   // sidebar badges
+// Batch status: Expired / Soon (≤ 7 days) red, Watch (≤ 30 days) amber
+const EXP_TONE = { Expired: 'red', Soon: 'red', Watch: 'amber', OK: 'green', 'No date': 'gray' }
+const daysText = (b) => (b.days_left == null ? tr('No date') : b.days_left < 0 ? `${tr('Expired')} ${-b.days_left} ${tr('days ago')}`
+  : b.days_left === 0 ? tr('Expires today') : `${b.days_left} ${tr('days')}`)
+export function ExpiryPill({ b }) {
+  return <Pill tone={EXP_TONE[b.status] || 'gray'}>{daysText(b)}</Pill>
+}
 
 export default function Consumables() {
   const { user } = useAuth()
   const { lang } = useLang()
   const canWrite = canWriteStores(user)
-  const isAdmin = isAdminUser(user)
+  const isAdmin = canManageStores(user)   // Administrator or Stores Officer: start date, cancel a use
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
@@ -29,6 +37,8 @@ export default function Consumables() {
   const [ledger, setLedger] = useState(null)
   const [startEdit, setStartEdit] = useState(null)
   const [slip, setSlip] = useState(null)
+  const [tab, setTab] = useState('balance')
+  const navigate = useNavigate()
 
   const load = useCallback(() => {
     setLoading(true); setLoadErr('')
@@ -47,7 +57,7 @@ export default function Consumables() {
         issued_to: useFor.issued_to.trim() || null, used_on: useFor.used_on, notes: useFor.notes.trim() || null,
       })
       toast(`${r.code}: ${tr('recorded')} · ${q3(r.remaining)} ${tr(r.unit || '')} ${tr('left')}`)
-      setUseFor(null); setSlip(r.slip); load()
+      setUseFor(null); setSlip(r.slip); load(); changed()
     } catch (ex) { toast(errText(ex, 'Could not record the use.'), 'error') }
   }
   const openSlip = (id) => StoresAPI.useSlip(id).then(setSlip).catch((ex) => toast(errText(ex, 'Could not load the issue slip.'), 'error'))
@@ -56,8 +66,17 @@ export default function Consumables() {
       message: tr('The entry stays in the ledger, marked cancelled, and its quantity goes back into stock.'),
       fields: [{ k: 'reason', label: tr('Reason'), required: true, placeholder: tr('e.g. Entered twice by mistake') }] })
     if (!res) return
-    try { await StoresAPI.cancelUse(entry.id, res.reason.trim()); toast(tr('Cancelled.')); load(); openLedger(ledger.category_id) }
+    try { await StoresAPI.cancelUse(entry.id, res.reason.trim()); toast(tr('Cancelled.')); load(); changed(); openLedger(ledger.category_id) }
     catch (ex) { toast(errText(ex, 'Could not cancel the entry.'), 'error') }
+  }
+  async function writeOff(i) {
+    const res = await promptDialog({ title: `${tr('Write off expired')} — ${tr(i.name)}`, tone: 'danger', confirmLabel: tr('Write off'),
+      message: `${q3(i.expired_left)} ${tr(i.unit || '')} ${tr('is past its best-before date. It is taken out of stock and shown in the ledger as "Expired — written off".')}`,
+      fields: [{ k: 'quantity', label: `${tr('Quantity')} (${tr(i.unit || '')})`, required: true, type: 'number', defaultValue: String(i.expired_left) },
+        { k: 'reason', label: tr('Reason'), required: true, placeholder: tr('e.g. Expired, smells bad') }] })
+    if (!res) return
+    try { const r = await StoresAPI.writeOffExpired(i.category_id, { quantity: Number(res.quantity), reason: res.reason.trim() }); toast(`${r.code}: ${tr('written off')}`); load(); changed() }
+    catch (ex) { toast(errText(ex, 'Could not write it off.'), 'error') }
   }
   async function saveStart(e) {
     e.preventDefault()
@@ -86,12 +105,18 @@ export default function Consumables() {
         </div>
       )}
 
+      <div className="flex gap-1 mb-3">
+        {[['balance', 'Balance'], ['batches', 'Batches & Expiry']].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 rounded-lg text-[0.8125rem] font-semibold ${tab === k ? 'bg-maroon-700 text-cream' : 'text-gray-600 hover:bg-gray-100'}`}>{tr(l)}</button>))}
+      </div>
+
+      {tab === 'batches' ? <Batches canEdit={isAdmin} /> : (
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
             <th className="px-4 py-3 font-semibold">{tr('Item')}</th><th className="px-4 py-3 font-semibold">{tr('Unit')}</th>
             <th className="px-4 py-3 font-semibold text-right">{tr('Received')}</th><th className="px-4 py-3 font-semibold text-right">{tr('Used')}</th>
-            <th className="px-4 py-3 font-semibold text-right">{tr('Remaining')}</th><th className="px-4 py-3 font-semibold">{tr('Actions')}</th>
+            <th className="px-4 py-3 font-semibold text-right">{tr('Remaining')}</th><th className="px-4 py-3 font-semibold">{tr('Next expiry')}</th><th className="px-4 py-3 font-semibold">{tr('Actions')}</th>
           </tr></thead>
           <tbody className="divide-y divide-gray-100">
             {items.map((i) => (
@@ -102,16 +127,20 @@ export default function Consumables() {
                 <td className="px-4 py-3 text-right tabular-nums" title={`${tr('Donations')} ${q3(i.received_donations)} + ${tr('Manual entries')} ${q3(i.received_manual)}`}>{q3(i.received)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{q3(i.used)}</td>
                 <td className="px-4 py-3 text-right tabular-nums"><b>{q3(i.remaining)}</b>{i.low && <span className="ml-2"><Pill tone="red">{tr('Low')}</Pill></span>}</td>
+                <td className="px-4 py-3 whitespace-nowrap">{i.next_expiry ? <><ExpiryPill b={i.next_expiry} /><div className="text-[0.6875rem] text-gray-500 mt-0.5">{fmtDate(i.next_expiry.expiry_date)} · {q3(i.next_expiry.left)} {tr(i.unit || '')}</div></>
+                  : <span className="text-[0.75rem] text-gray-400">{i.track_expiry ? tr('No date entered') : '—'}</span>}</td>
                 <td className="px-4 py-3"><div className="flex gap-1.5 flex-nowrap">
                   <button onClick={() => openLedger(i.category_id)} title={tr('Ledger')} aria-label={tr('Ledger')} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700"><BookOpen size={15} /></button>
                   {canWrite && i.remaining > 0 && <button onClick={() => setUseFor({ item: i, quantity: '', purpose: '', issued_to: '', used_on: todayISO(), notes: '' })} title={tr('Record use')} aria-label={tr('Record use')} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><MinusCircle size={15} /></button>}
+                  {isAdmin && i.expired_left > 0 && <button onClick={() => writeOff(i)} title={tr('Write off expired')} aria-label={tr('Write off expired')} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}
+                  {isAdmin && i.low && <button onClick={() => navigate(`/admin/stores/purchase?new=${i.category_id}`)} title={tr('Raise purchase request')} className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 text-[0.75rem] font-semibold whitespace-nowrap"><ShoppingCart size={14} />{tr('Raise request')}</button>}
                 </div></td>
               </tr>
             ))}
-            {items.length === 0 && <TableStates colSpan={6} loading={loading} error={loadErr} onRetry={load} empty={tr('No quantity items. Set Tracking = Quantity in Donation Master.')} />}
+            {items.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr('No quantity items. Set Tracking = Quantity in Donation Master.')} />}
           </tbody>
         </table>
-      </div>
+      </div>)}
 
       {useFor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -133,6 +162,7 @@ export default function Consumables() {
                 <input className="input" maxLength={120} value={useFor.issued_to} onChange={(e) => setUseFor({ ...useFor, issued_to: e.target.value })} placeholder={tr('e.g. Poojari Venkatesh')} /></div>
               <div className="col-span-2"><label className="label"><T>Notes</T></label>
                 <input className="input" maxLength={500} value={useFor.notes} onChange={(e) => setUseFor({ ...useFor, notes: e.target.value })} /></div>
+              {useFor.item.next_expiry && <div className="col-span-2 text-[0.75rem] text-gray-500">{tr('Taken from the batch that expires first')}: {useFor.item.next_expiry.ref} ({fmtDate(useFor.item.next_expiry.expiry_date)})</div>}
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button type="button" onClick={() => setUseFor(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
@@ -162,8 +192,10 @@ export default function Consumables() {
                   {ledger.entries.map((e, k) => (
                     <tr key={k} className={e.status === 'Cancelled' ? 'text-gray-400 line-through' : ''}>
                       <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(e.date)}</td>
-                      <td className="px-4 py-2.5"><Pill tone={KIND_TONE[e.kind] || 'gray'}>{tr(e.kind)}</Pill><div className="font-mono text-[0.7rem] text-gray-500 mt-0.5">{e.ref}</div></td>
-                      <td className="px-4 py-2.5 text-[0.8125rem]">{e.kind === 'Donation' ? personName({ name: e.detail }, lang) : e.detail}<div className="text-[0.6875rem] text-gray-400">{e.by} · {fmtStamp(e.at)}</div></td>
+                      <td className="px-4 py-2.5"><Pill tone={KIND_TONE[e.kind] || 'gray'}>{tr(e.kind === 'Use' ? 'Used' : e.kind)}</Pill><div className="font-mono text-[0.7rem] text-gray-500 mt-0.5">{e.ref}</div></td>
+                      <td className="px-4 py-2.5 text-[0.8125rem]">{e.kind === 'Donation' ? personName({ name: e.detail }, lang) : storeDetail(e.detail)}
+                        {e.expiry_date && <div className="text-[0.6875rem] text-amber-700">{tr('Best before')} {fmtDate(e.expiry_date)}</div>}
+                        <div className="text-[0.6875rem] text-gray-400">{staffName(e.by)} · {fmtStamp(e.at)}</div></td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-emerald-700">{e.in != null ? `+${q3(e.in)}` : ''}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-red-600">{e.out != null ? `−${q3(e.out)}` : ''}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{q3(e.balance)}</td>
@@ -196,20 +228,21 @@ function IssueSlip({ slip, onClose }) {
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md">
         <div id="print-area" className="px-6 py-5 relative">
           <div className="text-center border-b border-dashed border-gray-300 pb-3 mb-3">
-            <div className="font-serif text-lg font-bold text-maroon-800">{temple?.name || 'Shri Shirdi Sai Baba Temple'}</div>
-            <div className="text-sm text-gray-600">{temple?.nameTelugu || 'శ్రీ షిర్డీ సాయిబాబా దేవస్థానం'}</div>
+            <div className="font-serif text-lg font-bold text-maroon-800">{getLang() === 'te' ? (temple?.nameTelugu || 'శ్రీ షిర్డీ సాయిబాబా దేవస్థానం') : (temple?.name || 'Shri Shirdi Sai Baba Temple')}</div>
+            {getLang() !== 'te' && <div className="text-sm text-gray-600">{temple?.nameTelugu || 'శ్రీ షిర్డీ సాయిబాబా దేవస్థానం'}</div>}
             <div className="font-semibold text-gray-800 mt-2"><T>Store Issue Slip</T></div>
           </div>
-          {cancelled && <div className="mb-3 text-center text-red-700 font-bold border-2 border-red-300 rounded-lg py-1"><T>CANCELLED</T>{slip.cancel_reason && <div className="text-[0.75rem] font-normal">{slip.cancel_reason} — {slip.cancelled_by}</div>}</div>}
+          {cancelled && <div className="mb-3 text-center text-red-700 font-bold border-2 border-red-300 rounded-lg py-1"><T>CANCELLED</T>{slip.cancel_reason && <div className="text-[0.75rem] font-normal">{tr(slip.cancel_reason)} — {staffName(slip.cancelled_by)}</div>}</div>}
           <div className="space-y-2 text-[0.875rem]">
             {row(tr('Slip No'), slip.code)}
             {row(tr('Date'), fmtDate(slip.used_on))}
             {row(tr('Item'), tr(slip.item))}
             <div className="flex justify-between text-lg font-bold border-y border-gray-200 py-2"><span><T>Quantity issued</T>:</span><span className="text-maroon-700">{q3(slip.quantity)} {tr(slip.unit || '')}</span></div>
             {row(tr('Purpose'), tr(slip.purpose))}
-            {row(tr('Issued to'), slip.issued_to)}
-            {row(tr('Issued by'), slip.issued_by)}
-            {row(tr('Notes'), slip.notes)}
+            {row(tr('Issued to'), staffName(slip.issued_to))}
+            {row(tr('Issued by'), staffName(slip.issued_by))}
+            {row(tr('Notes'), tr(slip.notes))}
+            {slip.batch_note && <div className="text-[0.75rem] text-gray-500">{slip.batch_note}</div>}
           </div>
           <div className="grid grid-cols-2 gap-6 mt-10 text-center text-[0.75rem] text-gray-600">
             <div className="border-t border-gray-400 pt-1"><T>Issued by (signature)</T></div>
@@ -222,6 +255,68 @@ function IssueSlip({ slip, onClose }) {
           <button onClick={() => window.print()} className="btn-maroon flex-1 justify-center"><Printer size={16} className="mr-1" /><T>Print</T></button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Batches & Expiry: every receipt with stock left and its best-before date, soonest first.
+// The Stores Officer can add or correct a date (receipts made without one).
+function Batches({ canEdit }) {
+  const [show, setShow] = useState('expiring')
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+  const [edit, setEdit] = useState(null)
+  const load = useCallback(() => {
+    setLoading(true); setErr('')
+    StoresAPI.batches({ show, days: 30 }).then((d) => setRows(d.items || []))
+      .catch((ex) => { setRows([]); setErr(errText(ex, 'Could not load the batches.')) }).finally(() => setLoading(false))
+  }, [show])
+  useEffect(() => { load() }, [load])
+  async function saveDate(e) {
+    e.preventDefault()
+    try { await StoresAPI.setBatchExpiry(edit.kind, edit.id, edit.expiry_date || null); toast(tr('Best-before date saved.')); setEdit(null); load(); changed() }
+    catch (ex) { toast(errText(ex, 'Could not save the date.'), 'error') }
+  }
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 flex flex-wrap items-center gap-4 border-b border-gray-100 text-[0.8125rem]">
+        {[['expiring', 'Expiring in 30 days'], ['all', 'All batches with stock']].map(([k, l]) => (
+          <label key={k} className="inline-flex items-center gap-2 text-gray-700"><input type="radio" name="batch-show" className="accent-maroon-700" checked={show === k} onChange={() => setShow(k)} />{tr(l)}</label>))}
+        <span className="text-[0.75rem] text-gray-500 ml-auto">{tr('Uses take from the batch that expires first.')}</span>
+      </div>
+      <div className="overflow-x-auto"><table className="w-full text-sm">
+        <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
+          {['Item', 'Batch', 'Received', 'Left', 'Best before', 'Status', ''].map((h) => <th key={h} className={`px-4 py-3 font-semibold ${h === 'Left' ? 'text-right' : ''}`}>{tr(h)}</th>)}</tr></thead>
+        <tbody className="divide-y divide-gray-100">
+          {rows.map((b) => (
+            <tr key={`${b.kind}-${b.id}`} className={b.status === 'Expired' ? 'bg-red-50/60' : ''}>
+              <td className="px-4 py-2.5 font-semibold text-gray-800">{tr(b.name)}</td>
+              <td className="px-4 py-2.5"><span className="font-mono text-[0.78rem]">{b.ref}</span><div className="text-[0.6875rem] text-gray-500">{b.kind === 'Donation' ? staffName(b.detail) : tr(b.detail)}</div></td>
+              <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(b.received)}</td>
+              <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap"><b>{q3(b.left)}</b> <span className="text-gray-500">/ {q3(b.quantity)} {tr(b.unit || '')}</span></td>
+              <td className="px-4 py-2.5 whitespace-nowrap">{b.expiry_date ? fmtDate(b.expiry_date) : '—'}</td>
+              <td className="px-4 py-2.5"><ExpiryPill b={b} /></td>
+              <td className="px-4 py-2.5">{canEdit && <button onClick={() => setEdit({ ...b, expiry_date: b.expiry_date || '' })} title={tr('Set best-before date')} aria-label={tr('Set best-before date')}
+                className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-700 hover:text-maroon-700"><Pencil size={14} /></button>}</td>
+            </tr>))}
+          {!rows.length && <TableStates colSpan={7} loading={loading} error={err} onRetry={load}
+            empty={show === 'expiring' ? tr('Nothing expires in the next 30 days.') : tr('No stock left in any batch.')} />}
+        </tbody></table></div>
+      {rows.some((b) => b.status === 'Expired') && <div className="px-5 py-2.5 border-t border-gray-100 text-[0.75rem] text-red-700"><AlertTriangle size={13} className="inline mr-1" />{tr('Expired stock: use "Write off expired" on the Balance tab.')}</div>}
+      {edit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setEdit(null)} />
+          <form onSubmit={saveDate} className="relative bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-serif text-lg font-bold text-maroon-800"><T>Best before</T></h3>
+              <div className="text-[0.75rem] text-gray-500">{tr(edit.name)} · {edit.ref} · {tr('received')} {fmtDate(edit.received)}</div></div>
+            <div className="px-5 py-4"><DateField min={edit.received || undefined} value={edit.expiry_date} onChange={(e) => setEdit({ ...edit, expiry_date: e.target.value })} /></div>
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+              <button type="button" onClick={() => setEdit(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <button className="btn-maroon flex-1 justify-center"><T>Save</T></button>
+            </div>
+          </form>
+        </div>)}
     </div>
   )
 }

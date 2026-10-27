@@ -62,6 +62,8 @@ ROLES_SEED = [
      ["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Stores", "Reports"], True),
     ("COMMITTEE", "Committee", "Hundi verification, auction decisions and committee oversight",
      ["Hundi", "Auction", "Reports", "Stores"], True),
+    ("STORES_OFFICER", "Stores Officer", "Manages stock, tagging, consumables, store locations and stock checks",
+     ["Stores"], True),
 ]
 # Demo staff users — (name, role name, active)
 DEMO_USERS = [
@@ -199,6 +201,7 @@ DEMO_WASTE = [
 ]
 
 from .security import hash_password, MODULES
+from .pooja_slot_sheet import apply_to_plan
 
 # ── Pooja Master (single master; each pooja has plans) — from the requirement doc.
 # plan = (plan_name, frequency, fee | None for committee-decided, duration_days)
@@ -278,6 +281,8 @@ USERS = [
          role="Poojari", modules=["Sevas", "Bookings"], password="Poojari@123"),
     dict(name="P. Rao (Committee)", username="committee1", email="committee1@psbt.org", employee_id="EMP005",
          role="Committee", modules=["Hundi", "Auction", "Reports", "Stores"], password="Committee@123"),
+    dict(name="S. Officer (Stores)", username="store1", email="store1@psbt.org", employee_id="EMP006",
+         role="Stores Officer", modules=["Stores"], password="Store@123"),
 ]
 
 DEVOTEES = [
@@ -337,6 +342,8 @@ def run():
                         fee=Decimal(fee) if fee is not None else None,
                         committee_decided=(fee is None), duration_days=dur,
                         validity_type=vt, validity_value=vv, validity_unit=vu))
+                for pl in pj.plans:   # timings + fees from the client's slot sheet
+                    apply_to_plan(name, pl)
                 db.add(pj)
             db.commit()
             plan_count = db.query(PoojaPlan).count()

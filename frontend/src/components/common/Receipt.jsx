@@ -65,6 +65,9 @@ export function Receipt({
   subNoLabel = 'Booking No',
   rows = [],
   amount,
+  amountLabel = 'Total Amount',   // material gold / silver: "Estimated Value"
+  amountNote,                     // e.g. "not cash received"
+  hideAmount = false,             // goods with no value (pancha…): no "₹0 · Rupees Zero Only"
   footerNote,
   showTerms = true
 }) {
@@ -126,15 +129,18 @@ export function Receipt({
       </section>
 
       {/* ═══════════════ AMOUNT SECTION ═══════════════ */}
-      <section className="receipt-amount">
-        <div className="amount-row">
-          <span className="amount-label">{L('Total Amount')}</span>
-          <span className="amount-value">₹ {amountNum.toLocaleString('en-IN')}</span>
-        </div>
-        <div className="amount-words">
-          {L('Rupees')} {numberToWords(amountNum, te)}
-        </div>
-      </section>
+      {!hideAmount && (
+        <section className="receipt-amount">
+          <div className="amount-row">
+            <span className="amount-label">{L(amountLabel)}</span>
+            <span className="amount-value">₹ {amountNum.toLocaleString('en-IN')}</span>
+          </div>
+          <div className="amount-words">
+            {L('Rupees')} {numberToWords(Math.round(amountNum), te)}
+          </div>
+          {amountNote && <div className="amount-words">({L(amountNote)})</div>}
+        </section>
+      )}
 
       {/* ═══════════════ TERMS & CONDITIONS ═══════════════ */}
       {showTerms && (

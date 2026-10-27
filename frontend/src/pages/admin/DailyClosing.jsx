@@ -11,7 +11,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { DateField } from '../../components/common/Field.jsx'
 import { Link } from 'react-router-dom'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang, stamp, teText } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, stamp, teText, gramUnit } from '../../i18n/LanguageContext.jsx'
 
 // Today in IST (toISOString is UTC, which is still "yesterday" before 5:30 AM IST)
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -193,7 +193,7 @@ export default function DailyClosing() {
           <Tags size={16} className="mt-0.5 shrink-0 text-amber-700" />
           <div className="flex-1 min-w-0">
             <b>{sum.untagged_material.length} {tr('material donation(s) on this day are not tagged yet')}</b>
-            <div className="text-[0.75rem] mt-0.5">{sum.untagged_material.map((d) => `${d.receipt_no} · ${personName({ name: d.donor_name }, lang)} · ${tr(d.item_name)} (${d.mode === 'weight' ? `${num(d.tagged)}/${num(d.quantity)} g` : `${d.tagged}/${num(d.quantity)}`})`).join('  ·  ')}</div>
+            <div className="text-[0.75rem] mt-0.5">{sum.untagged_material.map((d) => `${d.receipt_no} · ${personName({ name: d.donor_name }, lang)} · ${tr(d.item_name)} (${d.mode === 'weight' ? `${num(d.tagged)}/${num(d.quantity)} ${gramUnit()}` : `${d.tagged}/${num(d.quantity)}`})`).join('  ·  ')}</div>
           </div>
           <Link to="/admin/stores/pending" className="shrink-0 font-semibold text-maroon-700 hover:underline">{tr('Tag them now')} →</Link>
         </div>
@@ -375,7 +375,7 @@ export default function DailyClosing() {
                     {refunds.map((r) => (
                       <tr key={r.id}>
                         <td className="px-3 py-2 font-mono text-[0.75rem] text-gray-500">{r.refund_code}</td>
-                        <td className="px-3 py-2 text-gray-700">{r.entity_type} {r.entity_code || `#${r.entity_id || ''}`}</td>
+                        <td className="px-3 py-2 text-gray-700">{tr(r.entity_type)} {r.entity_code || `#${r.entity_id || ''}`}</td>
                         <td className="px-3 py-2 text-gray-500">{r.reason || '—'}</td>
                         <td className="px-3 py-2 text-gray-600">{tr(r.mode || 'Cash')}</td>
                         <td className="px-3 py-2 text-gray-500">{r.created_by ? personName({ name: r.created_by }, lang) : '—'}</td>

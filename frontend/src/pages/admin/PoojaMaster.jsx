@@ -9,8 +9,9 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Toggle, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12 } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, poojaFeeError } from '../../lib/validation.js'
+import { TEMPLE_HOURS, fromTimeInput, normalizeSlot, sortSlots, slotPeriod, isTempleHours } from '../../lib/slots.js'
 
 const CAT_OPTIONS = [
   { value: 'Daily', label: 'Daily Pooja' }, { value: 'Monthly', label: 'Monthly Pooja' },
@@ -40,8 +41,63 @@ function rateLines(p) {
   if (p.plans.length === 1) return [p.plans[0].committee_decided ? '₹0' : `₹${num(p.plans[0].fee)}`]
   return p.plans.map((pl) => `${tr(pl.plan_name)} ₹${pl.committee_decided ? '0' : num(pl.fee)}`)
 }
+// Time Slot column: the first active plan's fixed timing (or a count when there are several)
+function slotSummary(p) {
+  const slots = (p.plans.find((pl) => pl.active && pl.time_slots?.length) || {}).time_slots || []
+  if (slots.length === 0) return '—'
+  if (slots.length === 1) return isTempleHours(slots[0]) ? `${tr('Temple hours')} (${clock12(slots[0])})` : clock12(slots[0])
+  return `${slots.length} ${tr('slots')} (${clock12(slots[0])} …)`
+}
+
+// Fixed timings of one plan: a time, a range, or the temple hours.
+function PlanSlotsEditor({ slots, onChange }) {
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [range, setRange] = useState(false)
+  const [err, setErr] = useState('')
+  const add = (slot) => {
+    const s = normalizeSlot(slot)
+    if (!s) { setErr(tr('Enter a valid time — for a range, the end must be after the start.')); return }
+    setErr('')
+    if (!slots.includes(s)) onChange(sortSlots([...slots, s]))
+    setFrom(''); setTo('')
+  }
+  const addTyped = () => {
+    if (!from) { setErr(tr('Pick a time first.')); return }
+    add(range ? `${fromTimeInput(from)} - ${fromTimeInput(to)}` : fromTimeInput(from))
+  }
+  const groups = ['Morning', 'Evening'].map((g) => [g, slots.filter((s) => slotPeriod(s) === g)]).filter(([, l]) => l.length)
+  return (
+    <div className="mt-3">
+      <label className="label"><T>Time Slots</T></label>
+      {slots.length === 0 && <div className="text-[0.75rem] text-gray-400 mb-2"><T>No fixed timing — bookings offer the slots from Settings.</T></div>}
+      {groups.map(([g, list]) => (
+        <div key={g} className="flex items-start gap-2 mb-1.5">
+          <span className="text-[0.6875rem] font-semibold text-gray-500 w-14 pt-1 shrink-0">{tr(g)}</span>
+          <div className="flex flex-wrap gap-1.5">
+            {list.map((s) => (
+              <span key={s} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-[0.75rem] text-amber-800">
+                {isTempleHours(s) ? `${tr('Temple hours')} ${clock12(s)}` : clock12(s)}
+                <button type="button" onClick={() => onChange(slots.filter((x) => x !== s))} aria-label={`${tr('Remove')} ${s}`} className="text-amber-500 hover:text-red-600"><X size={12} /></button>
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-2 mt-2">
+        <input type="time" className="input !w-28 !py-1.5" value={from} onChange={(e) => setFrom(e.target.value)} aria-label={tr('Time')} />
+        {range && <><span className="text-gray-400 text-[0.75rem]"><T>to</T></span><input type="time" className="input !w-28 !py-1.5" value={to} onChange={(e) => setTo(e.target.value)} aria-label={tr('End time')} /></>}
+        <label className="flex items-center gap-1 text-[0.75rem] text-gray-600 cursor-pointer"><input type="checkbox" checked={range} onChange={(e) => setRange(e.target.checked)} /> <T>Range</T></label>
+        <button type="button" onClick={addTyped} className="px-2.5 py-1.5 rounded-lg border border-maroon-300 text-maroon-700 text-[0.75rem] font-semibold hover:bg-maroon-50"><Plus size={12} className="inline -mt-0.5" /> <T>Add Slot</T></button>
+        {!slots.includes(TEMPLE_HOURS) && <button type="button" onClick={() => add(TEMPLE_HOURS)} className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-[0.75rem] hover:bg-gray-50"><T>Temple hours</T></button>}
+      </div>
+      {err && <div role="alert" className="text-[0.6875rem] text-red-600 mt-1">{err}</div>}
+    </div>
+  )
+}
+
 // Committee Decided removed per Item 3 - all poojas have fixed rates now
-const emptyPlan = () => ({ plan_name: '', frequency: '', rate_type: 'Fixed', fee: '', validity_type: '', validity_value: '', validity_unit: '', active: true })
+const emptyPlan = () => ({ plan_name: '', frequency: '', rate_type: 'Fixed', fee: '', validity_type: '', validity_value: '', validity_unit: '', time_slots: [], active: true })
 
 // Helper to get primary rate for sorting
 function getPrimaryRate(p) {
@@ -106,7 +162,7 @@ export default function PoojaMaster() {
     setDrawer({ mode: 'edit', data: {
       id: p.id, name: p.name, code: p.code, category: p.category, description: p.description || '',
       active: p.active,
-      plans: p.plans.map((pl) => ({ plan_name: pl.plan_name, frequency: pl.frequency || '', rate_type: pl.committee_decided ? 'Committee' : 'Fixed', fee: pl.fee ?? '', validity_type: pl.validity_type || '', validity_value: pl.validity_value ?? '', validity_unit: pl.validity_unit || '', active: pl.active }))
+      plans: p.plans.map((pl) => ({ plan_name: pl.plan_name, frequency: pl.frequency || '', rate_type: pl.committee_decided ? 'Committee' : 'Fixed', fee: pl.fee ?? '', validity_type: pl.validity_type || '', validity_value: pl.validity_value ?? '', validity_unit: pl.validity_unit || '', time_slots: pl.time_slots || [], active: pl.active }))
     } })
   }
   async function remove(p) {
@@ -142,7 +198,7 @@ export default function PoojaMaster() {
         fee: pl.rate_type === 'Committee' ? null : (pl.fee === '' ? null : Number(pl.fee)),
         validity_type: pl.validity_type || null,
         validity_value: pl.validity_value === '' ? null : Number(pl.validity_value),
-        validity_unit: pl.validity_unit || null, active: pl.active,
+        validity_unit: pl.validity_unit || null, time_slots: pl.time_slots || [], active: pl.active,
       })),
     }
     try {
@@ -180,7 +236,7 @@ export default function PoojaMaster() {
           <div className="flex flex-col lg:flex-row lg:items-end gap-3 mt-4 mb-4">
             <div className="flex-1 max-w-xs"><SearchInput value={q} onChange={(v) => { setQ(v); setPage(1) }} placeholder={tr("Search by Pooja Name")} /></div>
             <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Category</T></label>
-              <Select value={cat} onChange={(e) => { setCat(e.target.value); setPage(1) }} className="input !w-48"><option value="">{tr("All Categories")}</option>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.label}>{c.label}</option>)}</Select></div>
+              <Select value={cat} onChange={(e) => { setCat(e.target.value); setPage(1) }} className="input !w-48"><option value="">{tr("All Categories")}</option>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.label}>{tr(c.label)}</option>)}</Select></div>
             <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
               <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }} className="input !w-40"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
           </div>
@@ -240,6 +296,7 @@ export default function PoojaMaster() {
                   </th>
                 )
               })()}
+              <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Time Slot')}</th>
               <th className="px-5 py-3 font-semibold whitespace-nowrap">{tr('Validity Type')}</th>
               {(() => {
                 const col = SORT_COLUMNS.find(c => c.key === 'active')
@@ -278,6 +335,7 @@ export default function PoojaMaster() {
                     {p.plans.length > 3 && <span className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-gray-100 text-gray-500">+{p.plans.length - 3} {tr('More')}</span>}
                   </div></td>
                   <td className="px-5 py-3.5 text-[0.8125rem]">{rateLines(p).map((r, i) => <div key={i} className="text-gray-700">{r}</div>)}</td>
+                  <td className="px-5 py-3.5 text-gray-700 text-[0.8125rem] whitespace-nowrap">{slotSummary(p)}</td>
                   <td className="px-5 py-3.5 text-gray-500 text-[0.8125rem]">{validityDisplay(p)}</td>
                   <td className="px-5 py-3.5"><Pill tone={p.active ? 'green' : 'gray'}>{p.active ? tr('Active') : tr('Inactive')}</Pill></td>
                   <td className="px-5 py-3.5">
@@ -288,7 +346,7 @@ export default function PoojaMaster() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-600"><T>No poojas found.</T></td></tr>}
+              {rows.length === 0 && <tr><td colSpan={8} className="px-5 py-12 text-center text-gray-600"><T>No poojas found.</T></td></tr>}
             </tbody>
           </table>
         </div>
@@ -318,7 +376,7 @@ export default function PoojaMaster() {
                 <div className="space-y-3">
                   <div><label className="label"><T>Pooja Name *</T></label><input required className="input" placeholder={tr("Pooja Name")} value={drawer.data.name} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, name: sanitizeName(e.target.value) } })} /></div>
                   <div><label className="label"><T>Pooja Code</T></label><input className="input" placeholder={tr("Pooja Code")} value={drawer.data.code} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, code: e.target.value } })} /></div>
-                  <div><label className="label"><T>Category *</T></label><Select required className="input" value={drawer.data.category} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, category: e.target.value } })}>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</Select></div>
+                  <div><label className="label"><T>Category *</T></label><Select required className="input" value={drawer.data.category} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, category: e.target.value } })}>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.value}>{tr(c.label)}</option>)}</Select></div>
                   <div><label className="label"><T>Description</T></label><textarea className="input min-h-[4rem]" placeholder={tr("Enter description (optional)")} value={drawer.data.description} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, description: e.target.value } })} /></div>
                   <div><label className="label"><T>Status</T></label>
                     <div className="flex gap-2">
@@ -369,6 +427,7 @@ export default function PoojaMaster() {
                           <div><label className="label"><T>Unit</T></label><Select className="input !px-1" value={pl.validity_unit} onChange={(e) => setPlan(i, { validity_unit: e.target.value })}><option value="">—</option>{UNITS.map((u) => <option key={u}>{u}</option>)}</Select></div>
                         </div>
                       </div>
+                      <PlanSlotsEditor slots={pl.time_slots || []} onChange={(time_slots) => setPlan(i, { time_slots })} />
                       <label className="flex items-center gap-2.5 text-[0.8125rem] text-gray-600 mt-3 cursor-pointer"><Toggle checked={pl.active} onChange={(e) => setPlan(i, { active: e.target.checked })} />{' '}<T>Booking Availability</T></label>
                     </div>
                   ))}

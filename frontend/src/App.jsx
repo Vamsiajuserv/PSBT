@@ -47,6 +47,7 @@ const PoojaHistoryDetails = lazy(() => import('./pages/admin/PoojaHistoryDetails
 const BookingDetails = lazy(() => import('./pages/admin/BookingDetails.jsx'))
 const WasteSales = lazy(() => import('./pages/admin/WasteSales.jsx'))
 const DonationMaster = lazy(() => import('./pages/admin/DonationMaster.jsx'))
+const MetalRates = lazy(() => import('./pages/admin/MetalRates.jsx'))
 const Settings = lazy(() => import('./pages/admin/Settings.jsx'))
 const AdminCalendar = lazy(() => import('./pages/admin/Calendar.jsx'))
 const AdminDevotees = lazy(() => import('./pages/admin/Devotees.jsx'))
@@ -84,6 +85,14 @@ const StockCheck = lazy(() => import('./pages/admin/stores/StockCheck.jsx'))
 const UnsoldItems = lazy(() => import('./pages/admin/stores/UnsoldItems.jsx'))
 const OpenSale = lazy(() => import('./pages/admin/stores/OpenSale.jsx'))
 const StoreLocations = lazy(() => import('./pages/admin/stores/StoreLocations.jsx'))
+const StoresOverview = lazy(() => import('./pages/admin/stores/StoresOverview.jsx'))
+const StoresDayClosing = lazy(() => import('./pages/admin/stores/StoresDayClosing.jsx'))
+const IssueReturn = lazy(() => import('./pages/admin/stores/IssueReturn.jsx'))
+const MissingItems = lazy(() => import('./pages/admin/stores/MissingItems.jsx'))
+const PurchaseRequests = lazy(() => import('./pages/admin/stores/PurchaseRequests.jsx'))
+const FestivalKits = lazy(() => import('./pages/admin/stores/FestivalKits.jsx'))
+const Handover = lazy(() => import('./pages/admin/stores/Handover.jsx'))
+const ValuablesStatement = lazy(() => import('./pages/admin/stores/ValuablesStatement.jsx'))
 
 // Per-route module guard. RequireAuth (on the parent) has already ensured a user
 // exists; this sends a signed-in staff member who lacks the screen's module back
@@ -101,6 +110,8 @@ function AdminHome() {
   const { user } = useAuth()
   if (user?.role === 'Poojari') return <Navigate to="/admin/my-poojas" replace />
   if (user?.role === 'Counter Staff') return <Navigate to="/admin/counter" replace />
+  // Stores Officer works only in Stores & Inventory — land on the Stores Overview.
+  if (user?.role === 'Stores Officer') return <Navigate to="/admin/stores/overview" replace />
   return <Dashboard />
 }
 
@@ -168,6 +179,7 @@ export default function App() {
         <Route path="devotees/:id" element={<Guard k="devotees"><DevoteeDetails /></Guard>} />
         <Route path="donations" element={<Guard k="donations"><AdminDonations /></Guard>} />
         <Route path="donation-master" element={<Guard k="donation-master"><DonationMaster /></Guard>} />
+        <Route path="metal-rates" element={<Guard k="metal-rates"><MetalRates /></Guard>} />
         <Route path="hundi" element={<Guard k="hundi"><AdminHundi /></Guard>} />
         <Route path="auction" element={<Guard k="auction"><AdminAuction /></Guard>} />
         <Route path="annadanam" element={<Guard k="annadanam"><AdminAnnadanam /></Guard>} />
@@ -180,6 +192,14 @@ export default function App() {
         <Route path="daily-closing" element={<Guard k="daily-closing"><DailyClosing /></Guard>} />
         <Route path="backup" element={<Guard k="backup"><BackupRestore /></Guard>} />
         <Route path="notifications" element={<Guard k="notifications"><Notifications /></Guard>} />
+        <Route path="stores/issue" element={<Guard k="stores/issue"><IssueReturn /></Guard>} />
+        <Route path="stores/missing" element={<Guard k="stores/missing"><MissingItems /></Guard>} />
+        <Route path="stores/purchase" element={<Guard k="stores/purchase"><PurchaseRequests /></Guard>} />
+        <Route path="stores/kits" element={<Guard k="stores/kits"><FestivalKits /></Guard>} />
+        <Route path="stores/handover" element={<Guard k="stores/handover"><Handover /></Guard>} />
+        <Route path="stores/valuables" element={<Guard k="stores/valuables"><ValuablesStatement /></Guard>} />
+        <Route path="stores/day-closing" element={<Guard k="stores/day-closing"><StoresDayClosing /></Guard>} />
+        <Route path="stores/overview" element={<Guard k="stores/overview"><StoresOverview /></Guard>} />
         <Route path="stores/register" element={<Guard k="stores/register"><StockRegister /></Guard>} />
         <Route path="stores/pending" element={<Guard k="stores/pending"><PendingTagging /></Guard>} />
         <Route path="stores/manual" element={<Guard k="stores/manual"><ManualEntries /></Guard>} />

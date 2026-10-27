@@ -9,7 +9,7 @@ import { NotificationsAPI } from '../../api/client.js'
 import { Select } from '../../components/common/Field.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
 import { promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, getLang } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const CH_ICON = { SMS: Smartphone, Email: Mail, WhatsApp: MessageSquare }
@@ -105,7 +105,9 @@ export default function Notifications() {
       {!anyConfigured && (
         <div className="mb-5 flex items-start gap-2.5 bg-amber-50/70 border border-amber-100 rounded-xl px-5 py-3.5 text-[0.8125rem] text-gray-600">
           <Info size={17} className="text-amber-500 shrink-0 mt-0.5" />
-          <span><T>No delivery provider is configured yet, so notifications are</T>{' '}<b><T>recorded but not sent</T></b>{' '}<T>(status “Skipped”). Set the provider credentials (</T><code className="text-[0.75rem]">SMTP_*</code>, <code className="text-[0.75rem]">SMS_API_*</code>, <code className="text-[0.75rem]">WHATSAPP_API_*</code>){' '}<T>in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.</T></span>
+          <span><T>No delivery provider is configured yet, so notifications are</T>{' '}<b><T>recorded but not sent</T></b>{' '}<T>(status “Skipped”). Set the provider credentials (</T>{getLang() === 'te'
+            ? <>{tr('Email')}, {tr('SMS')}, {tr('WhatsApp')}</>
+            : <><code className="text-[0.75rem]">SMTP_*</code>, <code className="text-[0.75rem]">SMS_API_*</code>, <code className="text-[0.75rem]">WHATSAPP_API_*</code></>}){' '}<T>in the backend environment to enable real delivery — no message is ever marked delivered until a provider accepts it.</T></span>
         </div>
       )}
 

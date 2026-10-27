@@ -14,9 +14,10 @@ import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, Checkbox, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { promptDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, auditDetail } from '../../i18n/LanguageContext.jsx'
 import { sanitizeItemName } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
+import { metalOf, isGrams, factorOf, estValue, pct, useMetalDay } from '../../lib/metal.js'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
 // Stored values stay as above; 'Notes' is shown as 'Currency Notes' because plain
@@ -25,6 +26,14 @@ const DENOM_LABEL = { Notes: 'Currency Notes' }
 const VER_TONE = { Verified: 'green', 'Pending Verification': 'blue', Rejected: 'red' }
 const DEP_TONE = { Deposited: 'green', 'Pending Deposit': 'amber', 'N/A': 'gray' }
 const VAL_TONE = { 'In Store': 'green', 'Pending Custody': 'violet' }
+// Receive at store: after custody, the Stores Officer counts the valuables in
+const StoreReceive = ({ r }) => (!r ? null : r.state === 'Received'
+  ? <div className="text-[0.6875rem] text-emerald-700 mt-1 whitespace-nowrap">✔ {tr('Received at store')}</div>
+  : r.state === 'To receive'
+    ? <div className="text-[0.6875rem] text-amber-700 mt-1 whitespace-nowrap">{tr('Awaiting store receipt')}</div>
+    : r.state === 'Short'
+      ? <div className="text-[0.6875rem] text-red-600 mt-1 whitespace-nowrap">⚠ {tr('Short at store')}{r.short_code ? ` · ${r.short_code}` : ''}</div>
+      : <div className="text-[0.6875rem] text-gray-500 mt-1 whitespace-nowrap">{tr('Shortage closed')}{r.short_code ? ` · ${r.short_code}` : ''}</div>)
 const nowLocal = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}` }
 const today = () => nowLocal().slice(0, 10)
 // Counting Completed On must fall between the collection date and now. Same rules
@@ -42,8 +51,7 @@ const memberCount = (s) => (s ? s.split(',').filter((x) => x.trim()).length : 0)
 const REQUIRED_APPROVALS = 2
 const approvalsNeeded = (h) => Math.min(REQUIRED_APPROVALS, (h.committee_member_ids || []).length || REQUIRED_APPROVALS)
 
-const emptyLine = () => ({ hundi_item_id: '', item_name: '', item_type: '', quantity: '', unit: '', value: '', remarks: '' })
-const lineTotal = (lines) => lines.reduce((s, l) => s + Number(l.value || 0), 0)
+const emptyLine = () => ({ hundi_item_id: '', item_name: '', item_type: '', quantity: '', unit: '', value: '', remarks: '', purity: '' })
 
 const emptyForm = () => ({
   collected_on: today(), counting_completed_on: nowLocal(),
@@ -77,6 +85,16 @@ export default function Hundi() {
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [view, setView] = useState(null)
+  // Gold / silver counted by weight: valued at the collection day's rate × purity
+  const metalDay = useMetalDay(drawer?.collected_on || undefined)
+  const lineMetal = (l) => (isGrams(l.unit) ? metalOf(l.item_type) : null)
+  const lineValue = (l) => {
+    const m = lineMetal(l)
+    if (!m) return l.value
+    const v = estValue(l.quantity, metalDay.rates?.[m]?.rate_per_g, factorOf(metalDay.purities, m, l.purity))
+    return v ?? ''
+  }
+  const formTotal = (lines) => lines.reduce((s, l) => s + Number(lineValue(l) || 0), 0)
   const [committee, setCommittee] = useState([])
   const [banks, setBanks] = useState([])
   const [itemMaster, setItemMaster] = useState([])
@@ -218,7 +236,7 @@ export default function Hundi() {
       members: h.committee_member_ids || [],
       lines: (h.items || []).length ? h.items.map((it) => ({
         hundi_item_id: it.hundi_item_id || '', item_name: it.item_name || '', item_type: it.item_type || '',
-        quantity: it.quantity ?? '', unit: it.unit || '', value: it.value ?? '', remarks: it.remarks || '',
+        quantity: it.quantity ?? '', unit: it.unit || '', value: it.value ?? '', remarks: it.remarks || '', purity: it.purity || '',
       })) : [emptyLine()],
     })
   }
@@ -331,17 +349,29 @@ export default function Hundi() {
       return
     }
 
+    // Gold / silver by weight need the collection day's rate and a purity
+    for (const l of m.lines) {
+      const metal = l.item_name.trim() && Number(l.quantity) > 0 ? lineMetal(l) : null
+      if (!metal) continue
+      if (!metalDay.rates?.[metal]) {
+        toast(tr(metal === 'Gold' ? 'No gold rate entered for the collection date — ask the Administrator to enter it first.' : 'No silver rate entered for the collection date — ask the Administrator to enter it first.'), 'error')
+        return
+      }
+      if (!l.purity) { toast(`${l.item_name}: ${tr('choose the purity.')}`, 'error'); return }
+    }
+
     // Filter and validate items - value must be positive
     const items = m.lines
-      .filter((l) => l.item_name.trim() && l.value !== '')
+      .filter((l) => l.item_name.trim() && lineValue(l) !== '')
       .map((l) => ({
         hundi_item_id: (l.hundi_item_id && l.hundi_item_id !== 'custom') ? l.hundi_item_id : null,
         item_name: l.item_name.trim(),
         item_type: l.item_type || null,
         quantity: l.quantity !== '' ? Number(l.quantity) : null,
         unit: l.unit || null,
-        value: Number(l.value || 0),
+        value: Number(lineValue(l) || 0),
         remarks: l.remarks || null,
+        purity: lineMetal(l) ? l.purity : null,
       }))
 
     if (items.length === 0) {
@@ -389,7 +419,7 @@ export default function Hundi() {
       // only the actual collection data is sent.
       await HundiAPI.create({
         collected_on: m.collected_on || null,
-        counted_amount: lineTotal(m.lines),   // server recomputes from items; sent for the no-items fallback path
+        counted_amount: formTotal(m.lines),   // server recomputes from items; sent for the no-items fallback path
         counting_completed_on: m.counting_completed_on || null,
         denomination: m.denomination || null,
         officer: m.officer || null,
@@ -527,7 +557,7 @@ export default function Hundi() {
                     )}
                   </td>
                   <td className="px-3 py-3">{h.deposit_status && h.deposit_status !== 'N/A' ? <Pill tone={DEP_TONE[h.deposit_status] || 'gray'}>{tr(h.deposit_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
-                  <td className="px-3 py-3">{h.valuables_status ? <Pill tone={VAL_TONE[h.valuables_status] || 'gray'}>{tr(h.valuables_status)}</Pill> : <span className="text-gray-300">—</span>}</td>
+                  <td className="px-3 py-3">{h.valuables_status ? <Pill tone={VAL_TONE[h.valuables_status] || 'gray'}>{tr(h.valuables_status)}</Pill> : <span className="text-gray-300">—</span>}<StoreReceive r={h.store_receive} /></td>
                   <td className="px-3 py-3">
                     {/* Icon-only actions (tooltip names each one) so the column stays narrow — no horizontal scroll */}
                     <div className="flex items-center gap-1.5 flex-nowrap">
@@ -579,7 +609,7 @@ export default function Hundi() {
               {drawer.resubmit && (
                 <div className="bg-red-50/70 border border-red-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-700 flex items-start gap-2">
                   <Info size={15} className="text-red-500 shrink-0 mt-0.5" />
-                  <span><b><T>Rejected</T>:</b> {(drawer.resubmit.notes || '').split(' | ').filter((x) => /^Rejected by/.test(x)).slice(-1)[0] || '—'}</span>
+                  <span><b><T>Rejected</T>:</b> {auditDetail((drawer.resubmit.notes || '').split(' | ').filter((x) => /^Rejected by/.test(x)).slice(-1)[0]) || '—'}</span>
                 </div>
               )}
               <DSection n="1" icon={FileText} title={tr("Collection Details")}>
@@ -612,17 +642,36 @@ export default function Hundi() {
                           <button type="button" onClick={() => removeLine(i)} disabled={drawer.lines.length <= 1} title={tr("Remove line")}
                             className="w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-200 disabled:opacity-40"><Trash2 size={14} /></button>
                         </div>
+                        {lineMetal(l) ? (() => {
+                          const metal = lineMetal(l)
+                          const rate = metalDay.rates?.[metal]
+                          const factor = factorOf(metalDay.purities, metal, l.purity)
+                          const v = lineValue(l)
+                          return (<>
+                            <div className="grid grid-cols-3 gap-2">
+                              <NumberField min="0" max="999999" step="0.01" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Grams *")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
+                              <Select className="input !py-1.5 text-[0.78125rem]" value={l.purity} onChange={(e) => setLine(i, { purity: e.target.value })}>
+                                <option value="">{tr('Purity *')}</option>
+                                {(metalDay.purities?.[metal] || []).map((p) => <option key={p.label} value={p.label}>{p.label}</option>)}
+                              </Select>
+                              <div className="input !py-1.5 text-[0.78125rem] bg-gray-50 tabular-nums">{v !== '' ? inr(v) : '—'}</div>
+                            </div>
+                            <div className={`text-[0.6875rem] ${rate ? 'text-gray-500' : 'text-red-600'}`}>{rate
+                              ? `${tr('Value')} = ${l.quantity || 0} ${tr('g')} × ₹${Number(rate.rate_per_g).toLocaleString('en-IN')} (${rate.basis}, ${fmtDate(metalDay.date)})${factor ? ` × ${pct(factor)}` : ''}`
+                              : tr(metal === 'Gold' ? 'No gold rate entered for the collection date — ask the Administrator to enter it first.' : 'No silver rate entered for the collection date — ask the Administrator to enter it first.')}</div>
+                          </>)
+                        })() : (
                         <div className="grid grid-cols-3 gap-2">
                           <NumberField min="0" max="999999" step="0.01" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Qty")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
                           <input className="input !py-1.5 text-[0.78125rem]" placeholder={tr("Unit")} value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />
                           <NumberField required min="0.01" max="99999999" step="0.01" prefix="₹" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Value *")} value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} />
-                        </div>
+                        </div>)}
                       </div>
                     ))}
                   </div>
                   <div className="flex items-center justify-between bg-maroon-50 border border-maroon-100 rounded-lg px-3 py-2.5 mt-3">
                     <span className="text-[0.78125rem] font-semibold text-maroon-800"><T>Total Amount Counted</T></span>
-                    <span className="text-[0.9375rem] font-extrabold text-maroon-800 tabular-nums">{inr(lineTotal(drawer.lines))}</span>
+                    <span className="text-[0.9375rem] font-extrabold text-maroon-800 tabular-nums">{inr(formTotal(drawer.lines))}</span>
                   </div>
                 </div>
                 <div id="hundi-counting-on"><label className="label"><T>Counting Completed On *</T></label>
@@ -728,7 +777,7 @@ export default function Hundi() {
                           <div className="text-[0.8125rem] font-medium text-gray-800 truncate">{tr(it.item_name)}</div>
                           <div className="text-[0.6875rem] text-gray-400">
                             {it.item_type ? tr(it.item_type) : '—'}
-                            {it.quantity != null && ` · ${num(it.quantity)}${it.unit ? ` ${tr(it.unit)}` : ''}`}
+                            {it.quantity != null && ` · ${num(it.quantity)}${it.unit ? ` ${tr(it.unit)}` : ''}`}{it.purity && ` · ${it.purity}`}{it.rate_per_g != null && ` · ₹${Number(it.rate_per_g).toLocaleString('en-IN')}/${tr('g')}`}
                           </div>
                         </div>
                         <div className="text-[0.8125rem] font-semibold text-gray-800 tabular-nums shrink-0">{canSeeAmounts ? inr(it.value) : '—'}</div>
@@ -752,7 +801,7 @@ export default function Hundi() {
                   <VField label={tr("History")} wide value={
                     <ul className="space-y-1">
                       {(view.notes || '').split(' | ').filter((x) => /^(Rejected|Corrected) by /.test(x)).map((x, i) => (
-                        <li key={i} className={/^Rejected/.test(x) ? 'text-red-700' : 'text-amber-800'}>{x}</li>
+                        <li key={i} className={/^Rejected/.test(x) ? 'text-red-700' : 'text-amber-800'}>{auditDetail(x)}</li>
                       ))}
                     </ul>} />
                 )}
@@ -773,7 +822,7 @@ export default function Hundi() {
               {view.valuables_amount > 0 && (
                 <DSection n={view.cash_amount > 0 ? "4" : "3"} icon={Lock} title={tr("Valuables → Store Custody")}>
                   <VField label={tr("Valuables Amount")} value={canSeeAmounts ? inr(view.valuables_amount) : '—'} />
-                  <VField label={tr("Status")} value={view.valuables_status ? <Pill tone={VAL_TONE[view.valuables_status]}>{tr(view.valuables_status)}</Pill> : '—'} />
+                  <VField label={tr("Status")} value={view.valuables_status ? <><Pill tone={VAL_TONE[view.valuables_status]}>{tr(view.valuables_status)}</Pill><StoreReceive r={view.store_receive} /></> : '—'} />
                   <VField label={tr("Custody Date")} value={view.valuables_stored_on ? fmtDate(view.valuables_stored_on) : '—'} />
                   <VField label={tr("Store Location")} value={view.store_location ? tr(view.store_location) : '—'} />
                   <VField label={tr("Custodian")} value={view.valuables_custodian ? personName({ name: view.valuables_custodian }, lang) : '—'} wide />

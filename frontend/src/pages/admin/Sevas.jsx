@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2, Search, Boxes, CheckCircle2, XCircle, LayoutGrid 
 import { Table, Badge, Flourish } from '../../components/common/UI.jsx'
 import { SEVAS, SEVA_CATEGORIES } from '../../data/mock.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
-import { T, tr } from '../../i18n/LanguageContext.jsx'
+import { T, tr, teTerm, getLang } from '../../i18n/LanguageContext.jsx'
 
 const INACTIVE = new Set(['SV23']) // demo: one inactive service
 const DURATION = { Daily: '20–30 mins', Monthly: '30 mins', 'Long-term': '—', Ceremony: '45 mins', Festival: '60 mins', Donation: '—', Vahana: '30 mins' }
@@ -62,7 +62,7 @@ export default function Sevas() {
           const inactive = INACTIVE.has(s.id)
           return (
             <tr key={s.id} className="hover:bg-gold-50/50">
-              <td className="px-4 py-3"><span className="font-semibold text-gray-800">{s.name}</span><span className="block text-[11px] text-gray-400 font-telugu">{s.nameTe}</span></td>
+              <td className="px-4 py-3"><span className="font-semibold text-gray-800">{getLang() === 'te' ? (s.nameTe || teTerm(s.name)) : s.name}</span>{getLang() !== 'te' && <span className="block text-[11px] text-gray-400 font-telugu">{s.nameTe}</span>}</td>
               <td className="px-4 py-3 text-gray-600 text-xs">{tr(s.category)}</td>
               <td className="px-4 py-3 text-gray-500 text-xs">{tr(DURATION[s.category])}</td>
               <td className="px-4 py-3 font-bold text-maroon-700">{s.amount.toLocaleString('en-IN')}.00</td>

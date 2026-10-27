@@ -1123,6 +1123,8 @@ html[lang="te"] .font-script {
 }
 @container (min-width: 51rem) {
   .kpi-grid[data-n="4"] { --kpi-cols: 4; }
+  /* 8 tiles (Stock Register: every piece status) → 4 + 4 */
+  .kpi-grid[data-n="8"] { --kpi-cols: 4; }
 }
 @container (min-width: 64rem) {
   .kpi-grid[data-n="5"] { --kpi-cols: 5; }

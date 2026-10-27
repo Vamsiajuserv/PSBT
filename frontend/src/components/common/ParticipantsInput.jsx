@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { DevoteesAPI } from '../../api/client.js'
-import { tr } from '../../i18n/LanguageContext.jsx'
+import { tr, personName, getLang } from '../../i18n/LanguageContext.jsx'
 
 // Participant chips; a linked devotee's family members can be added with one click.
 export default function ParticipantsInput({ participants, setParticipants, devotee }) {
@@ -40,7 +40,7 @@ export default function ParticipantsInput({ participants, setParticipants, devot
             const added = participants.some(p => p.name.toLowerCase() === m.name.toLowerCase())
             return (
               <button key={i} onClick={() => !added && addParticipant(m.name, m.relation)} disabled={added} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${added ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>
-                <Plus size={10} /> {m.name}
+                <Plus size={10} /> {personName({ name: m.name }, getLang())}
               </button>
             )
           })}

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import {
-  Printer, Plus, Receipt as ReceiptIcon, Search, User, X, IndianRupee, Loader2, Eye, AlertTriangle,
+  Printer, Plus, Receipt as ReceiptIcon, Search, User, X, IndianRupee, Loader2, Eye, AlertTriangle, Clock,
   Check, Flame, CalendarDays, Moon, Car, ShieldCheck, FileText, RotateCcw, CheckCircle2, ChevronDown, ChevronUp, UserPlus,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
@@ -10,11 +10,12 @@ import { DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../
 import { PoojasAPI, DevoteesAPI, BookingsAPI, FestivalsAPI, AlmanacAPI, SettingsAPI } from '../../api/client.js'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast, confirmDialog } from '../../components/common/Dialog.jsx'
-import { T, tr, useLang, personName, stamp } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useLang, personName, stamp, teTerm, clock12 } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
 import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
 import { planValidUntil, planSpan, addDaysISO } from '../../lib/planTerms.js'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
+import { slotIsOver, slotPeriod, isRange, isTempleHours, NOTE_VEHICLE } from '../../lib/slots.js'
 
 // ── Constants ──
 const CATS = ['All', 'Daily', 'Monthly', 'Long-Term', 'Occasion', 'Festival', 'Vehicle']
@@ -81,6 +82,17 @@ const calcExpiry = (bookedDate, planName) => {
   return null
 }
 
+// Fixed pooja timings (Pooja Master): the slot this line keeps on `date` — its current
+// one while still open, else the first open slot ('' when today's are all over).
+const openSlotsOf = (item, date) => (item.time_slots || []).filter((s) => !slotIsOver(s, date))
+const pickSlot = (item, date) => {
+  const open = openSlotsOf(item, date)
+  return open.includes(item.time_slot) ? item.time_slot : (open[0] || '')
+}
+// Lines whose date the operator can change (see BookingItemDetails); the rest are for today
+const hasDatePicker = (item) => isPournamiPlan(item) || ['Monthly', 'Festival', 'Occasion'].includes(item.category)
+const slotLabel = (s) => (isTempleHours(s) ? `${tr('Temple hours')} ${clock12(s)}` : clock12(s))
+
 // Determine if pooja requires additional booking details
 const requiresBookingDetails = (category, planName) => {
   if (category === 'Monthly' || category === 'Festival' || category === 'Occasion' || category === 'Long-Term') return true
@@ -119,6 +131,7 @@ export default function Counter() {
               key: `${p.id}-${pl.id}`,
               pooja_id: p.id, pooja_name: p.name, name_te: p.name_te, category: p.category,
               plan_id: pl.id, plan_name: pl.plan_name, tithi_type: pl.tithi_type,
+              time_slots: Array.isArray(pl.time_slots) ? pl.time_slots : [],
               committee: !!pl.committee_decided,
               fee: pl.fee == null ? null : Number(pl.fee),
               duration_days: pl.duration_days, validity_type: pl.validity_type, validity_value: pl.validity_value,
@@ -146,7 +159,7 @@ export default function Counter() {
     if (current) return { date: t, name: current.name, fest: current }
     const upcoming = linked.filter((f) => f.start_date > t).sort((a, b) => a.start_date.localeCompare(b.start_date))[0]
     if (upcoming) return { date: upcoming.start_date, name: upcoming.name, fest: upcoming }
-    return { past: true, windows: linked.map((f) => `${f.name} (${f.start_date} – ${f.end_date})`).join(', ') }
+    return { past: true, windows: linked.map((f) => `${teTerm(f.name)} (${f.start_date} – ${f.end_date})`).join(', ') }
   }
 
   // ── Pournami Dates ──
@@ -412,7 +425,7 @@ export default function Counter() {
   }, [devotee?.id, mobileFor10, selectedKey])
 
   // ── Toggle Selection ──
-  const toggleSelect = (entry) => {
+  const toggleSelect = async (entry) => {
     const isSelected = selected.some(s => s.key === entry.key)
     if (isSelected) {
       setSelected(prev => prev.filter(s => s.key !== entry.key))
@@ -444,11 +457,24 @@ export default function Counter() {
         if (pournamiDates.length > 0) scheduled_date = pournamiDates[0].event_date
       }
 
+      // Fixed timings: today's slot may already be over. A line with a date moves to
+      // tomorrow; a today-only line (Daily, Vehicle…) cannot be billed today.
+      if (entry.time_slots?.length && openSlotsOf(entry, scheduled_date).length === 0) {
+        if (!hasDatePicker(entry)) {
+          setError(`${tr("Today's time slot for this pooja is over")}: ${teTerm(entry.pooja_name)} (${entry.time_slots.map(clock12).join(', ')}). ${tr('Book it for another date from Advance Booking.')}`)
+          return
+        }
+        if (scheduled_date === todayISO()) scheduled_date = addDaysISO(todayISO(), 1)
+      }
+      // Vehicle poojas depend on the poojari — tell the devotee before billing
+      if (entry.category === 'Vehicle' && !(await confirmDialog({ title: tr('Vehicle Pooja'), message: tr(NOTE_VEHICLE) + '\n\n' + tr('Please inform the devotee before booking.'), confirmLabel: tr('OK, Continue') }))) return
+
       setSelected(prev => [...prev, {
         ...entry,
         amount,
         lineId: ++lineSeq.current,
         scheduled_date,
+        time_slot: pickSlot(entry, scheduled_date),
         vehicle_no: '',
       }])
       setError('')
@@ -461,7 +487,12 @@ export default function Counter() {
   }
 
   const updateItemMeta = (lineId, field, value) => {
-    setSelected(prev => prev.map(s => s.lineId === lineId ? { ...s, [field]: value } : s))
+    setSelected(prev => prev.map(s => {
+      if (s.lineId !== lineId) return s
+      const next = { ...s, [field]: value }
+      if (field === 'scheduled_date') next.time_slot = pickSlot(next, value)   // keep the slot valid for the new date
+      return next
+    }))
   }
 
   const total = selected.reduce((s, x) => s + Number(x.amount || 0), 0)
@@ -529,7 +560,11 @@ export default function Counter() {
     // Validate per-item requirements (Vehicle number is optional)
     for (const item of selected) {
       if (item.category === 'Occasion' && !item.scheduled_date) {
-        setError(tr('Select date for') + ` ${item.pooja_name}`)
+        setError(tr('Select date for') + ` ${teTerm(item.pooja_name)}`)
+        return
+      }
+      if (item.time_slots?.length && (!item.time_slot || slotIsOver(item.time_slot, item.scheduled_date || todayISO()))) {
+        setError(`${tr('Select a time slot for')} ${teTerm(item.pooja_name)} — ${tr("today's slot is over, choose another date")}.`)
         return
       }
     }
@@ -558,6 +593,7 @@ export default function Counter() {
         category: item.category || undefined,
         amount: Number(item.amount),
         scheduled_date: item.scheduled_date || todayISO(),
+        time_slot: item.time_slot || undefined,
         vehicle_no: item.vehicle_no?.trim() || undefined,
         gothram: gothram.trim() || undefined,
         nakshatram: nakshatram.trim() || undefined,
@@ -579,7 +615,7 @@ export default function Counter() {
           pooja_name: cartItem.pooja_name || s.seva_name || 'Seva',
           plan_name: cartItem.plan_name || s.plan_name || 'Daily',
           amount: cartItem.amount || s.amount || 0,
-          booking: { id: s.id, booking_code: s.booking_code, ticket_no: s.ticket_no, receipt_no: s.receipt_no, seva_name: s.seva_name, plan_name: s.plan_name, amount: s.amount, valid_until: s.valid_until, scheduled_date: s.scheduled_date },
+          booking: { id: s.id, booking_code: s.booking_code, ticket_no: s.ticket_no, receipt_no: s.receipt_no, seva_name: s.seva_name, plan_name: s.plan_name, amount: s.amount, valid_until: s.valid_until, scheduled_date: s.scheduled_date, time_slot: s.time_slot },
         }
       })
 
@@ -919,6 +955,7 @@ export default function Counter() {
                           <CalendarDays size={11} className="shrink-0" />{cartLineWhen(item)}
                           {item.category === 'Vehicle' && item.vehicle_no && <span className="text-amber-600">· {item.vehicle_no}</span>}
                         </div>
+                        {item.time_slots?.length > 0 && <CartLineSlot item={item} onChange={(v) => updateItemMeta(item.lineId, 'time_slot', v)} />}
                         {!blocked && sameDay.some((w) => w.lineId === item.lineId) && <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{tr('Already booked that day — will ask to confirm')}</div>}
                         {blocked && <div className="text-[11px] font-semibold text-red-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{blockedLines.get(item.lineId).in_cart ? tr('Blocked — already covered in this cart') : tr('Blocked — active plan exists')}</div>}
                       </div>
@@ -978,7 +1015,7 @@ export default function Counter() {
                 <div className="space-y-1.5.5">
                   {vehicleItems.map((item) => (
                     <div key={item.lineId}>
-                      <div className="text-[11px] text-gray-500 mb-0.5">{item.pooja_name}</div>
+                      <div className="text-[11px] text-gray-500 mb-0.5">{teTerm(item.pooja_name)}</div>
                       <input
                         value={item.vehicle_no || ''}
                         onChange={(e) => updateItemMeta(item.lineId, 'vehicle_no', sanitizeVehicle(e.target.value))}
@@ -1102,6 +1139,52 @@ export default function Counter() {
 // SUBCOMPONENTS
 // ══════════════════════════════════════════════════════════════════════════════
 
+// A cart line's fixed timing: one slot is shown read-only; several are tappable chips
+// grouped Morning / Evening — today's passed slots stay visible but greyed out, and the
+// chosen one is highlighted so the operator confirms it with the devotee.
+function CartLineSlot({ item, onChange }) {
+  const date = item.scheduled_date || todayISO()
+  const open = openSlotsOf(item, date)
+  const vehicle = item.category === 'Vehicle'
+  if (open.length === 0) {
+    return <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{tr("Today's time slot for this pooja is over")}</div>
+  }
+  if (item.time_slots.length === 1) {
+    return (
+      <div className="text-[11px] text-gray-600 flex flex-wrap items-center gap-1 mt-0.5">
+        <Clock size={11} className="shrink-0 text-amber-600" />
+        <span className="font-medium">{slotLabel(item.time_slots[0])} <span className="text-gray-400">({isRange(item.time_slots[0]) ? tr('Time window') : tr('Fixed')})</span></span>
+        {vehicle && <span className="text-amber-700 flex items-center gap-0.5"><AlertTriangle size={10} />{tr('Subject to poojari availability')}</span>}
+      </div>
+    )
+  }
+  const groups = ['Morning', 'Evening'].map((g) => [g, item.time_slots.filter((s) => slotPeriod(s) === g)]).filter(([, l]) => l.length)
+  return (
+    <div className="mt-1.5" role="radiogroup" aria-label={tr('Time Slot')}>
+      <div className="text-[11px] text-gray-600 flex items-center gap-1 mb-1"><Clock size={11} className="shrink-0 text-amber-600" /><span className="font-medium">{tr('Time Slot')}</span></div>
+      <div className="space-y-1">
+        {groups.map(([g, list]) => (
+          <div key={g} className="flex items-start gap-1.5">
+            <span className="text-[10px] font-semibold text-gray-500 w-12 pt-1 shrink-0">{tr(g)}</span>
+            <div className="flex flex-wrap gap-1">
+              {list.map((s) => {
+                const over = slotIsOver(s, date), on = item.time_slot === s
+                return (
+                  <button key={s} type="button" role="radio" aria-checked={on} disabled={over} onClick={() => onChange(s)}
+                    title={over ? tr("Today's time slot for this pooja is over") : undefined}
+                    className={`px-2 py-1 rounded-md text-[11px] font-semibold border transition-colors ${on ? 'bg-maroon-700 text-cream border-maroon-700' : over ? 'bg-gray-50 text-gray-300 border-gray-100 line-through cursor-not-allowed' : 'bg-white text-maroon-700 border-maroon-200 hover:bg-maroon-50'}`}>
+                    {clock12(s)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, lang }) {
   const fw = item.category === 'Festival' ? festivalFor(item) : null
 
@@ -1155,7 +1238,7 @@ function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, lang
           <div>
             <label className="text-[10px] font-medium text-gray-600 mb-1 block flex items-center gap-1">
               <CalendarDays size={10} /> <T>Festival Date</T>
-              <span className="text-[9px] text-amber-600 ml-1">({fw.name}: {stamp(fmtDate(fw.fest.start_date))} – {stamp(fmtDate(fw.fest.end_date))})</span>
+              <span className="text-[9px] text-amber-600 ml-1">({teTerm(fw.name)}: {stamp(fmtDate(fw.fest.start_date))} – {stamp(fmtDate(fw.fest.end_date))})</span>
             </label>
             <DateField value={item.scheduled_date} min={fw.fest.start_date} max={fw.fest.end_date} onChange={(e) => updateMeta('scheduled_date', e.target.value)} className="!py-1.5 !text-xs" />
           </div>
@@ -1204,7 +1287,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
         </div>
 
         <div className="p-5" id="print-area">
-          <TicketShell code={booking?.booking_code || bill.ref}>
+          <TicketShell code={booking?.booking_code || bill.ref} categories={(bill.lines || []).map((l) => l.category)}>
             <TF label={tr("Receipt No")} value={bill.ref} mono />
             <TF label={tr("Ticket No")} value={booking?.ticket_no || booking?.booking_code} mono />
             <TF label={tr("Devotee")} value={<>{personName({ name: bill.name }, lang)}<span className="block text-[0.6875rem] text-gray-700 font-normal">{bill.mobile}</span></>} />
@@ -1223,6 +1306,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
                 <TF label={tr("Pooja")} value={lang === 'te' && line.name_te ? line.name_te : tr(line.pooja_name || booking?.seva_name || 'Seva')} />
                 <TF label={tr("Plan")} value={tr(line.plan_name || booking?.plan_name || 'Daily')} />
                 <TF label={tr("Pooja Date")} value={stamp(fmtDate(booking?.scheduled_date || line.scheduled_date || todayISO()))} />
+                {(booking?.time_slot || line.time_slot) && <TF label={tr("Time Slot")} value={slotLabel(booking?.time_slot || line.time_slot)} />}
                 {line.vehicle_no && <TF label={tr("Vehicle No")} value={line.vehicle_no} />}
               </>
             )}
@@ -1238,6 +1322,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
                         <span className="text-gray-600 text-[0.6875rem] ml-1">· {tr(l.plan_name || l.booking?.plan_name || 'Daily')}</span>
                         {l.vehicle_no && <span className="text-gray-600 text-[0.6875rem] ml-1">· {l.vehicle_no}</span>}
                         <span className="text-gray-600 text-[0.6875rem] ml-1">· {stamp(fmtDate(l.booking?.scheduled_date || l.scheduled_date || todayISO()))}</span>
+                        {(l.booking?.time_slot || l.time_slot) && <span className="text-gray-600 text-[0.6875rem] ml-1">· {slotLabel(l.booking?.time_slot || l.time_slot)}</span>}
                         {lineValidity(l) && <span className="block text-blue-700 text-[0.6875rem]"><T>Validity</T>: {lineValidity(l)}</span>}
                       </span>
                       <span className="font-semibold text-gray-700">₹{Number(l.amount || l.booking?.amount || 0).toLocaleString('en-IN')}</span>

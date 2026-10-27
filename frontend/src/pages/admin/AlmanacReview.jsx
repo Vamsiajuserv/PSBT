@@ -4,7 +4,7 @@ import { PageTitle, StatTile, KpiGrid, Pill, Section, fmtDate } from '../../comp
 import { AlmanacAPI } from '../../api/client.js'
 import { Select, Toggle } from '../../components/common/Field.jsx'
 import { toast, confirmDialog, promptDialog } from '../../components/common/Dialog.jsx'
-import { T, tr, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useLang, staffName } from '../../i18n/LanguageContext.jsx'
 
 // Almanac Review — the yearly sign-off of engine-computed Pournami and festival days.
 // Days the engine is sure about are already published; flagged days (close calls)
@@ -174,11 +174,11 @@ export default function AlmanacReview() {
                     <td className="px-4 py-2.5"><Pill tone={{ Pournami: 'amber', Amavasya: 'gray', Festival: 'maroon' }[r.event_type] || 'gray'}>{r.event_type}</Pill></td>
                     <td className="px-4 py-2.5">
                       {r.override_reason ? <Pill tone="blue">Moved</Pill> : r.provisional ? <Pill tone="orange">Provisional</Pill> : <Pill tone="green">Published</Pill>}
-                      {r.verified_by && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{tr('by')} {r.verified_by}</div>}
+                      {r.verified_by && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{tr('by')} {staffName(r.verified_by)}</div>}
                     </td>
                     <td className="px-4 py-2.5 text-[0.75rem] text-gray-600 max-w-sm">
                       {r.override_reason
-                        ? <>{r.override_reason}{r.computed_date && r.computed_date !== r.event_date && <span className="text-gray-400"> · {tr('engine')}: {fmtDate(r.computed_date)}</span>}</>
+                        ? <>{tr(r.override_reason)}{r.computed_date && r.computed_date !== r.event_date && <span className="text-gray-400"> · {tr('engine')}: {fmtDate(r.computed_date)}</span>}</>
                         : (r.review_notes && tr(r.review_notes)) || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right whitespace-nowrap">

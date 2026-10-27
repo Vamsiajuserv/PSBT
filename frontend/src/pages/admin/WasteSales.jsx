@@ -14,7 +14,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, DateTimeField, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
-import { T, tr, trLocal, clock12, personName, useLang, getLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, trLocal, clock12, personName, useLang, getLang, staffName } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -475,7 +475,7 @@ export default function WasteSales() {
                   <div className="flex items-center gap-3 border border-emerald-200 rounded-xl px-3.5 py-3 bg-emerald-50/50">
                     <div className="w-10 h-10 rounded-full bg-emerald-600 text-white grid place-items-center"><User size={18} /></div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-gray-800 truncate">{drawer.buyer_name}</div>
+                      <div className="font-semibold text-gray-800 truncate">{staffName(drawer.buyer_name)}</div>
                       <div className="text-[0.75rem] text-emerald-600">{drawer.mobile || tr('Registered Devotee')}</div>
                     </div>
                     <button type="button" onClick={clearDevotee} className="text-emerald-600 hover:text-emerald-900"><X size={18} /></button>
@@ -657,10 +657,10 @@ export default function WasteSales() {
             </div>
             <div className="px-6 py-5">
               <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-[0.8125rem]">
-                <div className="flex justify-between"><span className="text-gray-500"><T>Buyer</T>:</span><span className="font-semibold text-gray-800">{verifyModal.buyer_name}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Buyer</T>:</span><span className="font-semibold text-gray-800">{staffName(verifyModal.buyer_name)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{matLabel(verifyModal.material)} — {money2(verifyModal.weight_kg)} {tr(unitShort(verifyModal.unit))}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500"><T>Amount</T>:</span><span className="font-semibold text-gray-800">₹{money2(verifyModal.amount)} ({verifyModal.mode})</span></div>
-                <div className="flex justify-between"><span className="text-gray-500"><T>Recorded by</T>:</span><span className="text-gray-700">{verifyModal.created_by || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Amount</T>:</span><span className="font-semibold text-gray-800">₹{money2(verifyModal.amount)} ({tr(verifyModal.mode)})</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Recorded by</T>:</span><span className="text-gray-700">{staffName(verifyModal.created_by) || '—'}</span></div>
               </div>
               <p className="text-[0.8125rem] text-gray-600 mt-4"><T>By verifying, you confirm that this sale transaction is accurate and complete.</T></p>
             </div>
@@ -685,7 +685,7 @@ export default function WasteSales() {
             </div>
             <div className="px-6 py-5">
               <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-[0.8125rem] mb-4">
-                <div className="flex justify-between"><span className="text-gray-500"><T>Buyer</T>:</span><span className="font-semibold text-gray-800">{rejectModal.buyer_name}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500"><T>Buyer</T>:</span><span className="font-semibold text-gray-800">{staffName(rejectModal.buyer_name)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500"><T>Material</T>:</span><span className="text-gray-700">{matLabel(rejectModal.material)} — {money2(rejectModal.weight_kg)} {unitShort(rejectModal.unit)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500"><T>Amount</T>:</span><span className="font-semibold text-gray-800">₹{money2(rejectModal.amount)}</span></div>
               </div>

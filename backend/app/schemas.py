@@ -430,6 +430,14 @@ class DonationCreate(BaseModel):
     g80: bool = False
     notes: Optional[str] = None
     donated_on: Optional[date] = None
+    # Gold / silver at the counter (the server values it at the day's rate)
+    purity: Optional[str] = Field(default=None, max_length=10)
+    item_desc: Optional[str] = Field(default=None, max_length=120)
+    # Other goods (cloth, utensils…): the value the devotee states, optional. Gold / silver
+    # are valued on the server at the day's rate instead.
+    est_value: Optional[Decimal] = Field(default=None, ge=0, le=Decimal("100000000"))
+    # Consumables (ghee, oil…): best-before date, optional
+    expiry_date: Optional[date] = None
 
     @model_validator(mode='before')
     @classmethod
@@ -466,6 +474,11 @@ class DonationOut(ORM):
     notes: Optional[str] = None
     donated_on: Optional[date] = None
     created_at: Optional[datetime] = None
+    purity: Optional[str] = None
+    item_desc: Optional[str] = None
+    rate_per_g: Optional[Decimal] = None
+    est_value: Optional[Decimal] = None
+    expiry_date: Optional[date] = None
 
     # Phase 1 Security (PRIV-001): Mask PAN in API responses
     # Uses mask_pan from helpers which handles both encrypted and plaintext PANs
@@ -486,6 +499,7 @@ class HundiItemLine(BaseModel):
     unit: Optional[str] = None
     value: Decimal = Decimal(0)
     remarks: Optional[str] = None
+    purity: Optional[str] = None          # gold / silver by weight: valued on the server
 
 
 class HundiItemLineOut(ORM):
@@ -497,6 +511,8 @@ class HundiItemLineOut(ORM):
     unit: Optional[str] = None
     value: Decimal = Decimal(0)
     remarks: Optional[str] = None
+    purity: Optional[str] = None
+    rate_per_g: Optional[Decimal] = None
 
 
 class HundiCreate(BaseModel):

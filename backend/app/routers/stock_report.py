@@ -23,13 +23,13 @@ from ..database import get_db
 from ..helpers import next_code_seq
 from ..models import (ConsumableUse, Donation, DonationCategory, ManualStockEntry, StockCheck, StockItem,
                       StockMovement, StoreLocation)
-from ..security import RequireModule, RequireRole, log_action, client_ip
+from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
 from .consumables import _start as consumables_start
-from .stores import ON_SHELF, _who
+from .stores import ON_SHELF, PLACED, TAGGED_UNPLACED, ACT_ISSUED, ACT_RETURNED, ACT_MISSING, ACT_FOUND, MISSING, _who
 
 router = APIRouter(prefix="/api/stores", tags=["stock-report"])
 read = RequireModule("Stores")
-checker = RequireRole("Counter Staff", "Committee")     # Administrator always allowed
+checker = RequireRole(STORES_OFFICER)     # record a stock check: Stores Officer + Administrator
 IST = timedelta(hours=5, minutes=30)
 
 
@@ -39,9 +39,14 @@ def _ist_date(dt: datetime | None) -> date | None:
 
 
 # ── Report ───────────────────────────────────────────────────────────────────
+# Replay states that are still the temple's stock (counted in Opening / Closing)
+IN_STOCK = ("awaiting", "store", "issued", "auction", "open", "missing")
+
+
 def _replay(evs: list[tuple], start: date, end: date) -> dict:
-    """Walk one piece's history up to `end`. States: None (not yet in stock), "store",
-    "auction" (still the temple's), "sold", "out" (written off). Counts only what happened
+    """Walk one piece's history up to `end`. States: None (not yet in stock), "awaiting"
+    (tagged, not yet placed — still the temple's), "store", "auction" (still the temple's),
+    "sold", "out" (written off). Counts only what happened
     inside [start, end]; a sale undone in the same period does not count as sold, and a sale
     from an earlier period undone now counts as received back."""
     state = before = None
@@ -50,10 +55,20 @@ def _replay(evs: list[tuple], start: date, end: date) -> dict:
         if day is None or day > end:
             break
         inp = day >= start
-        if action == "Tagged":
-            state = "store"
+        if action in ("Tagged", TAGGED_UNPLACED):
+            state = "store" if action == "Tagged" else "awaiting"
             if inp:
                 r["received"] += 1; r["tag_ev"] = (day, by)
+        elif action == PLACED and state == "awaiting":
+            state = "store"
+        elif action == ACT_ISSUED and state == "store":
+            state = "issued"
+        elif action == ACT_RETURNED and state == "issued":
+            state = "store"
+        elif action == ACT_MISSING and state in ("store", "open"):
+            state = "missing"
+        elif action == ACT_FOUND and state == "missing":
+            state = "store"
         elif action == "Put in auction" and state == "store":
             state = "auction"
         elif action == "Unsold" and state == "auction":
@@ -69,7 +84,7 @@ def _replay(evs: list[tuple], start: date, end: date) -> dict:
             state = "sold"
             if inp:
                 r["sold"] += 1; r["sold_open"] += 1; r["sold_ev"] = (day, detail)
-        elif action == "Written off" and state in ("store", "auction", "open"):
+        elif action == "Written off" and state in ("awaiting", "store", "auction", "open", "missing"):
             state = "out"
             if inp:
                 r["out"] += 1; r["out_ev"] = (day, detail, by)
@@ -83,7 +98,7 @@ def _replay(evs: list[tuple], start: date, end: date) -> dict:
                 state = "store"
         if day < start:
             before = state
-    r["before_in"] = before in ("store", "auction", "open")
+    r["before_in"] = before in IN_STOCK
     r["end_state"] = state
     return r
 
@@ -110,7 +125,7 @@ def _tagged_rows(db: Session, start: date, end: date) -> list[dict]:
             continue
         r = rows.setdefault(cat.id, {"category_id": cat.id, "name": cat.name, "unit": "pieces", "tracking": "Tagged",
                                      "opening": 0, "received": 0, "sold": 0, "out": 0, "closing": 0,
-                                     "in_store": 0, "in_auction": 0, "in_open_sale": 0, "sold_open_sale": 0,
+                                     "awaiting_placement": 0, "in_store": 0, "issued": 0, "missing": 0, "in_auction": 0, "in_open_sale": 0, "sold_open_sale": 0,
                                      "unsold_returned": 0,
                                      "value_in_store": 0.0, "realised": 0.0})
         p = _replay(events.get(iid, []), start, end)
@@ -118,11 +133,14 @@ def _tagged_rows(db: Session, start: date, end: date) -> list[dict]:
         r["received"] += p["received"]; r["sold"] += p["sold"]; r["out"] += p["out"]
         r["unsold_returned"] += p["unsold"]
         r["sold_open_sale"] += p["sold_open"]
+        r["awaiting_placement"] += p["end_state"] == "awaiting"
         r["in_store"] += p["end_state"] == "store"
+        r["issued"] += p["end_state"] == "issued"
+        r["missing"] += p["end_state"] == "missing"
         r["in_auction"] += p["end_state"] == "auction"
         r["in_open_sale"] += p["end_state"] == "open"
-        r["closing"] += p["end_state"] in ("store", "auction", "open")
-        if p["end_state"] in ("store", "auction", "open"):
+        r["closing"] += p["end_state"] in IN_STOCK
+        if p["end_state"] in IN_STOCK:
             r["value_in_store"] += float(item.est_value or 0)
         if p["sold_ev"] and p["end_state"] == "sold":
             r["realised"] += float(item.sold_amount or 0)
@@ -156,13 +174,17 @@ def stock_report_detail(category_id: int, start: date, end: date, db: Session = 
                                  Auction.status != "Void").order_by(AuctionPiece.id).all()):
         sale_of[ap.stock_item_id] = (au.code, sale)
     open_sale_of = {s.stock_item_id: s for s in db.query(OpenSale).filter(OpenSale.stock_item_id.in_(list(items) or [0])).all()}
-    remaining, sold, received, written = (defaultdict(lambda: {"in_store": 0, "in_auction": 0, "in_open_sale": 0, "unsold_before": []}),
+    remaining, sold, received, written = (defaultdict(lambda: {"awaiting_placement": 0, "in_store": 0, "issued": 0,
+                                                               "in_auction": 0, "in_open_sale": 0, "missing": 0,
+                                                               "unsold_before": []}),
                                           [], defaultdict(list), [])
     for iid, item in items.items():
         p = _replay(events.get(iid, []), start, end)
-        if p["end_state"] in ("store", "auction", "open"):
-            loc = remaining[locs.get(item.location_id, "—")]
-            loc[{"store": "in_store", "auction": "in_auction", "open": "in_open_sale"}[p["end_state"]]] += 1
+        if p["end_state"] in IN_STOCK:
+            # A piece not yet placed has no shelf: it is listed under "—" (no location)
+            loc = remaining["—" if p["end_state"] == "awaiting" else locs.get(item.location_id, "—")]
+            loc[{"awaiting": "awaiting_placement", "store": "in_store", "issued": "issued", "auction": "in_auction",
+                 "open": "in_open_sale", "missing": "missing"}[p["end_state"]]] += 1
             if item.unsold_count:
                 loc["unsold_before"].append(f"{item.tag_id} (×{item.unsold_count})")
         if p["sold_ev"] and p["end_state"] == "sold" and iid in open_sale_of:
@@ -293,10 +315,17 @@ def record_check(body: CheckIn, request: Request, db: Session = Depends(get_db),
                      found=len(found), missing_tags=",".join(i.tag_id for i in missing),
                      notes=(body.notes or "").strip() or None, checked_by=_who(user), created_by=user.username)
     db.add(chk); db.flush()
+    from ..models import MissingCase
     for i in expected:
-        db.add(StockMovement(item_id=i.id, action="Stock check",
-                             detail=(f"Found at {loc.name} ({chk.code})" if i.id in found
-                                     else f"MISSING at {loc.name} ({chk.code}) — to be followed up"), by=_who(user)))
+        if i.id in found:
+            db.add(StockMovement(item_id=i.id, action="Stock check", detail=f"Found at {loc.name} ({chk.code})", by=_who(user)))
+            continue
+        # Not found: the piece becomes Missing and opens a case (Missing Items) — found again,
+        # or written off as lost once the Committee approves.
+        db.add(StockMovement(item_id=i.id, action=ACT_MISSING,
+                             detail=f"MISSING at {loc.name} ({chk.code}) — to be followed up", by=_who(user)))
+        i.status, i.open_sale_price = MISSING, None
+        db.add(MissingCase(stock_item_id=i.id, tag_id=i.tag_id, check_code=chk.code, location_id=loc.id))
     db.commit(); db.refresh(chk)
     log_action(db, username=user.username, action="CREATE", entity="StockCheck",
                detail=f"{chk.code} {loc.name}: {chk.found}/{chk.expected} found" + (f", missing {chk.missing_tags[:150]}" if missing else ""),

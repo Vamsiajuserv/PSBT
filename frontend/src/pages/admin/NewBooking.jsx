@@ -12,10 +12,11 @@ import { TicketShell } from '../../components/admin/BookingTicket.jsx'
 import { toast, confirmDialog } from '../../components/common/Dialog.jsx'
 import { Select, DateField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
-import { T, tr, clock12, useLang, personName } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, useLang, personName, teTerm } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
 import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
 import { addDaysISO, planValidUntil, planSpan } from '../../lib/planTerms.js'
+import { planSlots, slotIsOver, slotPeriod, isRange, isTempleHours, NOTE_VEHICLE } from '../../lib/slots.js'
 
 const STEPS = [
   { t: 'Booking Details', s: 'Enter booking information' },
@@ -190,7 +191,7 @@ export default function NewBooking() {
     if (current) return { fest: current }
     const upcoming = linked.filter((f) => f.start_date > today).sort((a, b) => a.start_date.localeCompare(b.start_date))[0]
     if (upcoming) return { fest: upcoming }
-    return { past: true, windows: linked.map((f) => `${f.name} (${fmtDate(f.start_date)} – ${fmtDate(f.end_date)})`).join(', ') }
+    return { past: true, windows: linked.map((f) => `${teTerm(f.name)} (${fmtDate(f.start_date)} – ${fmtDate(f.end_date)})`).join(', ') }
   })()
   const fest = festInfo?.fest || null
 
@@ -225,8 +226,10 @@ export default function NewBooking() {
     const tomorrow = addDaysISO(today, 1)
     return limitDate && tomorrow > limitDate ? today : tomorrow
   }
-  const choosePooja = (id) => {
+  const choosePooja = async (id) => {
     const p = poojas.find((x) => String(x.id) === String(id)) || null
+    // Vehicle poojas depend on the poojari — tell the devotee before booking
+    if (p?.category === 'Vehicle' && !(await confirmDialog({ title: tr('Vehicle Pooja'), message: tr(NOTE_VEHICLE) + '\n\n' + tr('Please inform the devotee before booking.'), confirmLabel: tr('OK, Continue') }))) return
     setPoojaId(id); setPlan(null); setVehicleNo('')
     setSchedDate(defaultDateFor(p))
   }
@@ -237,12 +240,16 @@ export default function NewBooking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.id])
 
-  const slotsForDate = openSlots(cfg.slots, schedDate)
-  // Slot is optional — clear it if it's no longer valid for the chosen date
+  // A plan with fixed timings (Pooja Master) offers only its own slots, and one must be
+  // taken; otherwise the Settings slots are optional. Today's passed slots drop out.
+  const fixedSlots = planSlots(plan)
+  const hasFixed = fixedSlots.length > 0
+  const slotsForDate = hasFixed ? fixedSlots.filter((s) => !slotIsOver(s, schedDate)) : openSlots(cfg.slots, schedDate)
   useEffect(() => {
+    if (hasFixed && fixedSlots.length === 1) { setSlot(slotsForDate[0] || ''); return }   // the only timing — fixed
     if (slot && !slotsForDate.includes(slot)) setSlot('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedDate, cfg.slots.join('|')])
+  }, [schedDate, plan?.id, cfg.slots.join('|')])
 
   // ── Pricing (same rule as Counter: committee plans need the committee's festival price) ──
   const festCommitteeFee = plan?.committee_decided ? Number(fest?.plan_fees?.[String(plan.id)] || 0) : 0
@@ -290,6 +297,8 @@ export default function NewBooking() {
     if (schedDate < minDate) return tr('The pooja date cannot be before') + ` ${fmtDate(minDate)}.`
     if (maxDate && schedDate > maxDate) return tr('The pooja date cannot be after') + ` ${fmtDate(maxDate)}.`
     if (usePournami && !monthlyDates.includes(schedDate)) return tr('Select a Pournami date for this monthly pooja.')
+    if (hasFixed && slotsForDate.length === 0) return tr("Today's time slot for this pooja is over. Choose another date.")
+    if (hasFixed && !slot) return tr('Select a time slot.')
     if (dupChecking) return tr('Checking existing plans, please wait.')
     if (dupWarning) return tr('Booking blocked: An active plan already exists for this devotee and pooja.')
     return ''
@@ -521,7 +530,7 @@ export default function NewBooking() {
                 <div className="mt-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-[0.78125rem] text-red-700 flex items-start gap-2"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span><T>The festival window for this pooja is over</T> ({festInfo.windows}).</span></div>
               )}
               {fest && (
-                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[0.78125rem] text-amber-800 flex items-start gap-2"><CalendarDays size={15} className="shrink-0 mt-0.5" /> <span>{fest.name}: {fmtDate(fest.start_date)} – {fmtDate(fest.end_date)}. <T>The pooja date must fall in this festival window.</T></span></div>
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[0.78125rem] text-amber-800 flex items-start gap-2"><CalendarDays size={15} className="shrink-0 mt-0.5" /> <span>{teTerm(fest.name)}: {fmtDate(fest.start_date)} – {fmtDate(fest.end_date)}. <T>The pooja date must fall in this festival window.</T></span></div>
               )}
               {usePournami && (
                 <div className="mt-3 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2 text-[0.78125rem] text-blue-800 flex items-start gap-2"><Moon size={15} className="shrink-0 mt-0.5" /> <T>Monthly poojas are booked on Pournami dates.</T></div>
@@ -610,6 +619,10 @@ export default function NewBooking() {
                 {plan && <div className="text-[0.75rem] text-emerald-700 mt-1"><T>Validity</T>: {validityPreview(plan, schedDate)}</div>}
               </div>
               <div>
+                {hasFixed ? (
+                  <FixedSlotPicker slots={fixedSlots} date={schedDate} value={slot} onChange={setSlot}
+                    vehicle={pooja?.category === 'Vehicle'} onTomorrow={() => setSchedDate(addDaysISO(today, 1))} />
+                ) : (<>
                 <label className="label"><T>Time Slot</T> <T>(Optional)</T></label>
                 {cfg.slots.length === 0 ? (
                   <div className="text-[0.8125rem] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"><T>No time slots configured in Settings.</T></div>
@@ -619,6 +632,7 @@ export default function NewBooking() {
                   <Select value={slot} onChange={(e) => setSlot(e.target.value)}><option value="">{tr('Not selected')}</option>{slotsForDate.map((s) => <option key={s} value={s}>{clock12(s)}</option>)}</Select>
                 )}
                 <div className="text-[0.75rem] text-gray-400 mt-1.5"><T>Slots are managed in Settings › Pooja Booking Settings.</T></div>
+                </>)}
               </div>
               <div>
                 <label className="label"><T>Assign Poojari (Optional)</T></label>
@@ -740,7 +754,7 @@ export default function NewBooking() {
             </div>
 
             <div id="print-area" className="print-modal">
-              <TicketShell code={ticket.booking_code} after={
+              <TicketShell code={ticket.booking_code} categories={pooja?.category} after={
                 <div className="text-[0.5625rem] text-gray-500 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-3">
                   <div className="font-semibold text-gray-600 mb-1"><T>Terms & Conditions</T>:</div>
                   <ol className="list-decimal list-inside space-y-0.5 pl-1">
@@ -787,6 +801,53 @@ export default function NewBooking() {
       )}
     </div>
   )
+}
+
+// Time slot of a plan with fixed timings: one slot is shown locked, several are
+// chips grouped Morning / Evening (today's passed ones greyed out).
+function FixedSlotPicker({ slots, date, value, onChange, vehicle, onTomorrow }) {
+  const open = slots.filter((s) => !slotIsOver(s, date))
+  const label = (s) => (isTempleHours(s) ? `${tr('Temple hours')} ${clock12(s)}` : clock12(s))
+  if (open.length === 0) {
+    return (<>
+      <label className="label"><T>Time Slot</T> *</label>
+      <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
+        <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+        <span>{tr("Today's time slot for this pooja is over")} ({slots.map(clock12).join(', ')}). <T>Please choose another date.</T></span>
+      </div>
+      <button type="button" onClick={onTomorrow} className="mt-2 text-[0.75rem] font-semibold rounded-lg px-3 py-1.5 border border-maroon-200 text-maroon-700 hover:bg-maroon-50"><T>Book for Tomorrow</T></button>
+    </>)
+  }
+  if (slots.length === 1) {
+    return (<>
+      <label className="label"><T>Time Slot</T></label>
+      <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[0.875rem] font-semibold text-amber-900">
+        <Clock size={15} className="text-amber-600" />{label(slots[0])}<span className="ml-auto text-[0.6875rem] font-medium text-amber-700">{isRange(slots[0]) ? tr('Time window') : tr('Fixed')}</span>
+      </div>
+      <div className={`text-[0.75rem] mt-1.5 flex items-start gap-1 ${vehicle ? 'text-amber-700' : 'text-gray-500'}`}>
+        {vehicle ? <><AlertTriangle size={13} className="shrink-0 mt-0.5" />{tr('Subject to poojari availability.')}</> : isTempleHours(slots[0]) ? tr('Valid during temple hours.') : tr('Pooja timings are fixed and cannot be changed.')}
+      </div>
+    </>)
+  }
+  const groups = ['Morning', 'Evening'].map((g) => [g, slots.filter((s) => slotPeriod(s) === g)]).filter(([, l]) => l.length)
+  return (<>
+    <label className="label"><T>Time Slot</T> *</label>
+    <div className="space-y-2">
+      {groups.map(([g, list]) => (
+        <div key={g}>
+          <div className="text-[0.6875rem] font-semibold text-gray-500 mb-1">{tr(g)}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {list.map((s) => {
+              const over = slotIsOver(s, date), on = value === s
+              return <button key={s} type="button" disabled={over} onClick={() => onChange(s)} aria-pressed={on}
+                className={`px-2.5 py-1.5 rounded-lg text-[0.75rem] font-medium border ${on ? 'bg-maroon-700 text-cream border-maroon-700' : over ? 'bg-gray-50 text-gray-300 border-gray-100 line-through cursor-not-allowed' : 'bg-white text-maroon-700 border-maroon-200 hover:bg-maroon-50'}`}>{clock12(s)}</button>
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="text-[0.75rem] text-gray-500 mt-1.5"><T>Pooja timings are fixed and cannot be changed.</T></div>
+  </>)
 }
 
 function Detail({ k, v }) {

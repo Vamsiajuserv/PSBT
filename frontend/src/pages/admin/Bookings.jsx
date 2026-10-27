@@ -11,7 +11,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey } from '../../auth/access.js'
 import { Select, DateField, Checkbox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, clock12, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, personName, useLang, stamp, teTerm } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
 // Page-number list with ellipsis, e.g. 1 … 4 5 [6] 7 8 … 12
@@ -291,7 +291,7 @@ export default function Bookings() {
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Pooja</T></label>
             <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input">
               <option value="">{tr("All Poojas")}</option>
-              {poojas.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+              {poojas.map((p) => <option key={p.id} value={p.name}>{teTerm(p.name)}</option>)}
             </Select>
           </div>
           <div>

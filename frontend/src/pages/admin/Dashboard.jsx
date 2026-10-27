@@ -29,7 +29,7 @@ const OVERVIEW_ICONS = {
 
 const OVERVIEW_ROUTE = {
   'Pooja Bookings': '/admin/bookings', 'Donations Received': '/admin/donations',
-  'Annadanam Sponsors': '/admin/annadanam', 'Hundi Collection': '/admin/hundi',
+  'Annadanam Sponsors': '/admin/donations?view=annadanam', 'Hundi Collection': '/admin/hundi',
   'Auction Sales': '/admin/auction', 'Other Material Sales': '/admin/waste-sales', 'Open Sale (Stores)': '/admin/stores/open-sale',
 }
 // Alerts arrive as a key plus values, so the sentence is built in the reader's
@@ -227,7 +227,7 @@ export default function Dashboard() {
           value={t ? num(t.hundi.count) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Auction') && <Kpi to="/admin/auction" icon={Gavel} iconBg="bg-violet-50" iconColor="#7c3aed" title={tr("Auction Sales")}
           value={t ? inr(t.auction.amount) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
-        {hasModule('Annadanam') && <Kpi to="/admin/annadanam" icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Annadanam Sponsors")}
+        {hasModule('Annadanam') && <Kpi to="/admin/donations?view=annadanam" icon={Flame} iconBg="bg-orange-50" iconColor="#ea580c" title={tr("Annadanam Sponsors")}
           value={t ? num(t.annadanam.count) : '—'} footLabel={tr("Beneficiaries")} footValue={t ? num(t.annadanam.beneficiaries) : '—'} />}
         {hasModule('Counter') && <Kpi to="/admin/waste-sales" icon={Recycle} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Other Material Sales")}
           value={t ? num(t.waste.count) : '—'} footLabel={tr("Total Weight")} footValue={t ? `${num(t.waste.weight)} ${tr("Kg")}` : '—'} />}

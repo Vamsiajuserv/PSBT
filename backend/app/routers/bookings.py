@@ -15,8 +15,9 @@ from ..database import get_db, SessionLocal
 from ..models import Booking, BookingPerformance, Devotee, PoojaPlan, Seva, Pooja, Festival, Poojari
 from ..schemas import BookingCreate, BookingOut, QuickCreateBookingIn, BulkQuickCreateBookingIn
 from ..security import RequireModule, require_admin, log_action, client_ip, ADMIN_ROLES
-from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination, enforce_rate_limit, ist_today, ist_now, parse_time_slot, sort_expr, apply_column_filters
+from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination, enforce_rate_limit, ist_today, ist_now, parse_slot_bounds, normalize_slot, slot_is_over, sort_expr, apply_column_filters
 from .settings import time_slots, max_advance_days
+from .poojas import plan_slots
 from .refunds import record_refund
 from .schedules import scheduled_poojari
 from .almanac import assert_pournami
@@ -160,9 +161,14 @@ def _find_covering_plan(db: Session, devotee_id, mobile, pooja_id, plan, day):
     return None
 
 
-def _check_date_and_slot(db: Session, start: date, slot: str | None, *, slot_from_settings=True) -> str | None:
-    """Booking date must be today or later and within the admin's days-ahead limit;
-    a slot must be one of the configured slots and, for today, not already over."""
+def _check_date_and_slot(db: Session, start: date, slot: str | None, plan=None, *,
+                         strict=True) -> str | None:
+    """Booking date must be today or later and within the admin's days-ahead limit.
+
+    A plan with fixed timings (Pooja Master) takes one of its own slots — its only
+    slot is applied automatically, and with several the operator must pick one.
+    A plan without them may take one of the Settings slots, or none. For today the
+    slot must not be over. `strict=False` keeps a slot the booking already holds."""
     today = ist_today()
     if start < today:
         raise HTTPException(422, "The scheduled date cannot be in the past — bookings start from today.")
@@ -170,13 +176,25 @@ def _check_date_and_slot(db: Session, start: date, slot: str | None, *, slot_fro
     if max_days is not None and start > today + timedelta(days=max_days):
         raise HTTPException(422, f"Poojas can be booked at most {max_days} days ahead.")
     slot = (slot or "").strip()
-    if not slot:
-        return None
-    if slot_from_settings and slot not in time_slots(db):
-        raise HTTPException(422, "Select a time slot from the list configured in Settings.")
-    parsed = parse_time_slot(slot)
-    if start == today and parsed and ist_now().time() >= parsed[1]:
-        raise HTTPException(422, "This time slot is already over for today. Choose a later slot or another date.")
+    fixed = plan_slots(plan)
+    if fixed:
+        slot = normalize_slot(slot) or slot
+        if not slot:
+            if len(fixed) == 1:
+                slot = fixed[0]
+            elif strict:
+                raise HTTPException(422, "Select a time slot for this pooja.")
+            else:
+                return None
+        elif strict and slot not in fixed:
+            raise HTTPException(422, f"This pooja's timings are fixed — choose one of: {', '.join(fixed)}.")
+    else:
+        if not slot:
+            return None
+        if strict and slot not in time_slots(db):
+            raise HTTPException(422, "Select a time slot from the list configured in Settings.")
+    if start == today and slot_is_over(slot, ist_now().time()):
+        raise HTTPException(422, f"Today's {slot} slot is already over. Choose a later slot or another date.")
     return slot
 
 
@@ -190,13 +208,15 @@ def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_l
     if isinstance(start, str):
         start = date.fromisoformat(start)
     data["scheduled_date"] = start
-    data["time_slot"] = _check_date_and_slot(db, start, data.get("time_slot"))
+    data["time_slot"] = _check_date_and_slot(db, start, data.get("time_slot"), plan)
     assert_pournami(db, plan, start)
 
     # Festival poojas must fall inside their festival window; the committee's
     # per-festival price, when configured, is authoritative.
     fest_fee = None
     pj = db.get(Pooja, data["pooja_id"]) if data.get("pooja_id") else None
+    if pj and not data.get("category"):
+        data["category"] = pj.category   # the ticket's devotee notes go by category
     if pj and pj.category == "Festival":
         fests = (db.query(Festival)
                  .filter(Festival.status == "Active",
@@ -558,7 +578,7 @@ def lookup_ticket(ticket: str, db: Session = Depends(get_db), user=Depends(read)
     if b.last_performed_on == today:
         perf = (db.query(BookingPerformance)
                 .filter(BookingPerformance.booking_id == b.id, BookingPerformance.performed_on == today).first())
-    slot = parse_time_slot(b.time_slot) if b.time_slot else None
+    slot = parse_slot_bounds(b.time_slot) if b.time_slot else None
     slot_passed = bool(ok and slot and ist_now().time() > slot[1])
 
     visits, last_visit = 0, None
@@ -728,8 +748,9 @@ def reschedule_booking(bid: int, body: dict, request: Request,
     except ValueError:
         raise HTTPException(422, "Invalid scheduled date")
     new_slot = (body.get("time_slot") or "").strip()
-    # A newly chosen slot must come from Settings; the booking's existing slot is kept as-is
-    slot = _check_date_and_slot(db, nd, new_slot or b.time_slot, slot_from_settings=bool(new_slot))
+    plan = db.get(PoojaPlan, b.plan_id) if b.plan_id else None
+    # A newly chosen slot must be one this plan offers; the booking's existing slot is kept as-is
+    slot = _check_date_and_slot(db, nd, new_slot or b.time_slot, plan, strict=bool(new_slot))
     assert_txn_date_open(db, nd, allow_future=True, label="scheduled date")
     # Festival poojas: the new date must still fall in the festival window.
     if b.pooja_id:
@@ -747,7 +768,6 @@ def reschedule_booking(bid: int, body: dict, request: Request,
                     raise HTTPException(422, f"The new date must fall within the festival window ({windows}).")
                 b.festival_id = match.id
     old = b.scheduled_date
-    plan = db.get(PoojaPlan, b.plan_id) if b.plan_id else None
     assert_pournami(db, plan, nd)
     b.scheduled_date = nd
     b.performances_allowed, b.valid_until = plan_terms(plan, nd)
@@ -1172,6 +1192,7 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
                 "amount": float(b.amount) if b.amount else 0,
                 "valid_until": str(b.valid_until) if b.valid_until else None,
                 "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
+                "time_slot": b.time_slot,
                 # Sankalpam details
                 "gothram": b.gothram,
                 "nakshatram": b.nakshatram,

@@ -8,7 +8,7 @@ import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { SettingsAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select } from '../../components/common/Field.jsx'
-import { T, tr, stamp, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
+import { T, tr, trLocal, stamp, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
 
 const CATS = [
   {
@@ -232,6 +232,10 @@ export default function Settings() {
                     <>
                       <textarea className="input min-h-[5rem]" maxLength={f.max} value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)} />
                       {f.max && <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{(data[f.k] || '').length} / {f.max}</div>}
+                      {/* The box holds the saved (English) text; show its Telugu reading beneath it. */}
+                      {lang === 'te' && trLocal(data[f.k]) && (
+                        <p className="text-[0.75rem] text-gray-500 mt-1"><T>Shown in Telugu as</T>: {trLocal(data[f.k])}</p>
+                      )}
                     </>
                   ) : f.type === 'slots' ? (
                     <SlotsEditor value={data[f.k] || ''} onChange={(v) => set(f.k, v)} />

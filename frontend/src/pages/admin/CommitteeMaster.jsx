@@ -7,7 +7,7 @@ import { CommitteeAPI, PoojasAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, useLang, teTerm } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail, poojaFeeError } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -460,11 +460,11 @@ function FestivalPricingTab() {
             <div className="space-y-4">
               <div>
                 <label className="label"><T>Pooja</T></label>
-                <div className="text-[0.9375rem] font-semibold text-gray-800">{editPlan.pooja_name}</div>
+                <div className="text-[0.9375rem] font-semibold text-gray-800">{teTerm(editPlan.pooja_name)}</div>
               </div>
               <div>
                 <label className="label"><T>Plan</T></label>
-                <div className="text-[0.9375rem] text-gray-600">{editPlan.plan_name}</div>
+                <div className="text-[0.9375rem] text-gray-600">{teTerm(editPlan.plan_name)}</div>
               </div>
               <div>
                 <label className="label"><T>Amount (₹)</T></label>

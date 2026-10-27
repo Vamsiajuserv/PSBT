@@ -6,6 +6,7 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, Combobox } from '../../../components/common/Field.jsx'
 import { toast } from '../../../components/common/Dialog.jsx'
 import { T, tr } from '../../../i18n/LanguageContext.jsx'
+import { staffName } from './shared.jsx'
 
 const TYPES = ['Valuables', 'Cloth', 'Utensils', 'Consumables', 'General']
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
@@ -52,7 +53,7 @@ export default function StoreLocations() {
                 <td className="px-4 py-3 font-mono text-[0.78rem] text-gray-500">{l.code}</td>
                 <td className="px-4 py-3 font-semibold text-gray-800">{tr(l.name)}</td>
                 <td className="px-4 py-3 text-gray-700">{tr(l.loc_type || '—')}</td>
-                <td className="px-4 py-3 text-gray-700">{l.custodian || '—'}</td>
+                <td className="px-4 py-3 text-gray-700">{staffName(l.custodian) || '—'}</td>
                 <td className="px-4 py-3 tabular-nums">{num(l.pieces)}</td>
                 <td className="px-4 py-3"><Pill tone={l.active ? 'green' : 'gray'}>{tr(l.active ? 'Active' : 'Inactive')}</Pill></td>
                 <td className="px-4 py-3"><button onClick={() => setDrawer({ ...l, custodian: l.custodian || '', loc_type: l.loc_type || '' })} title={tr('Edit')} aria-label={tr('Edit')} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-700 hover:text-maroon-700"><Pencil size={15} /></button></td>

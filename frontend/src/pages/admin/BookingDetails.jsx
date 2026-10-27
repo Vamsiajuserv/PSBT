@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Printer, Download, User, Landmark, IndianRupee, CreditCard, ClipboardList,
-  Ticket, Calendar, UserCheck, Building2, CheckCircle2, ShieldCheck, CalendarDays, Tag, Info,
+  Ticket, Calendar, UserCheck, Building2, CheckCircle2, ShieldCheck, CalendarDays, Tag, Info, Clock,
 } from 'lucide-react'
 import { PageTitle, inr, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
@@ -10,7 +10,7 @@ import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { PoojaHistoryAPI, BookingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, trLocal, personName, useLang, teText } from '../../i18n/LanguageContext.jsx'
+import { T, tr, trLocal, personName, useLang, teText, clock12 } from '../../i18n/LanguageContext.jsx'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Shri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
@@ -109,13 +109,14 @@ export default function BookingDetails() {
 
         {/* Right — ticket */}
         <div id="print-area">
-          <TicketShell code={d.booking_code}>
+          <TicketShell code={d.booking_code} categories={d.category}>
             <TF icon={ClipboardList} label={tr("Booking ID")} value={d.booking_code} mono />
             <TF icon={Ticket} label={tr("Ticket Number")} value={ticketNo} mono />
             <TF icon={User} label={tr("Devotee")} value={personName(dev, lang)} sub={dev.mobile} />
             <TF icon={Landmark} label={tr("Pooja")} value={d.pooja_name} />
             <TF icon={CalendarDays} label={tr("Plan")} value={`${tr(plan.plan_name || '')} ${tr(shortPooja(d.pooja_name))}`} />
             <TF icon={Tag} label={tr("Plan Type")} value={tr(plan.plan_name)} />
+            {d.time_slot && <TF icon={Clock} label={tr("Time Slot")} value={clock12(d.time_slot)} />}
             <TF icon={Calendar} label={tr("Booking Date")} value={fmtDate(d.created_at)} sub={fmtStamp(d.created_at).split(', ')[1]} />
             <TF icon={ShieldCheck} label={tr("Validity")} value={tr(validityShort(plan))} sub={validRange.includes('(') ? validRange.slice(validRange.indexOf('(')) : ''} />
             <TF icon={IndianRupee} label={tr("Rate Type")} value={tr(plan.rate_type)} />

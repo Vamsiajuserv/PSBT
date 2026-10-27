@@ -11,7 +11,7 @@ import { isAdminRole } from '../../auth/access.js'
 import { PoojarisAPI, BookingsAPI, ApiError, getErrorMessage } from '../../api/client.js'
 import { DateField, Select } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, clock12, personName, useLang, stamp } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, personName, useLang, stamp, staffName } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
 // Sortable fields for the cards (applied within each group)
@@ -563,7 +563,7 @@ function QueueCard({ b, lang, user, isAdmin, isQueueMode, isToday, busy, poojari
               </Select>
             </div>
             {b.performed_at && <span>· {fmtTime(b.performed_at)}</span>}
-            {!b.performed_by_poojari_id && b.performed_by && <span className="text-gray-500">· {tr('marked by')} {b.performed_by}</span>}
+            {!b.performed_by_poojari_id && b.performed_by && <span className="text-gray-500">· {tr('marked by')} {staffName(b.performed_by)}</span>}
           </div>
         ) : performed && (who || b.performed_at) && (
           <div className="text-[0.6875rem] text-emerald-700 mt-1">

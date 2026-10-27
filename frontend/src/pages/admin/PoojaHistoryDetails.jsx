@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Printer, Download, User, Landmark, IndianRupee, CreditCard, ClipboardList,
-  Ticket, Calendar, CalendarDays, Tag, CheckCircle2, UserCog,
+  Ticket, Calendar, CalendarDays, Tag, CheckCircle2, UserCog, Clock,
 } from 'lucide-react'
 import { PageTitle, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
@@ -106,13 +106,14 @@ export default function PoojaHistoryDetails() {
         {/* Right column */}
         <div className="space-y-5">
           <div id="print-area">
-            <TicketShell code={d.booking_code}>
+            <TicketShell code={d.booking_code} categories={d.category}>
               <TF icon={ClipboardList} label={tr("Booking ID")} value={d.booking_code} mono />
               <TF icon={Ticket} label={tr("Ticket Number")} value={ticketNo} mono />
               <TF icon={User} label={tr("Devotee")} value={personName(dev, lang)} sub={dev.mobile} />
               <TF icon={Landmark} label={tr("Pooja")} value={d.pooja_name} />
               <TF icon={CalendarDays} label={tr("Plan")} value={`${tr(plan.plan_name || '')} ${tr(shortPooja(d.pooja_name))}`} />
               <TF icon={Tag} label={tr("Plan Type")} value={plan.plan_name} />
+            {d.time_slot && <TF icon={Clock} label={tr("Time Slot")} value={clock12(d.time_slot)} />}
               <TF icon={Calendar} label={tr("Pooja Date")} value={fmtDate(d.scheduled_date)} />
               <TF icon={CheckCircle2} label={tr("Status")} value={<span className="text-emerald-700">{tr(d.completion)}</span>} />
               <TF icon={IndianRupee} label={tr("Rate Type")} value={plan.rate_type} />

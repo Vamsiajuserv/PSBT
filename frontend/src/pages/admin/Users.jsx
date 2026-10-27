@@ -10,12 +10,12 @@ import { UsersAPI, RolesAPI, PoojarisAPI, CommitteeAPI } from '../../api/client.
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Checkbox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { alertDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, personName, loginId, initialsOf, useLang } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail, validatePassword, getPasswordStrength } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
 const AVATAR_TONES = ['bg-maroon-700', 'bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600']
-const initials = (n) => (n || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+const initials = (n) => initialsOf(n)
 const tone = (n) => AVATAR_TONES[(n || '').length % AVATAR_TONES.length]
 const emptyUser = () => ({ name: '', email: '', mobile: '', role: '', is_active: true, password: '', confirm: '', modules: [], poojari_id: '', committee_member_id: '' })
 
@@ -255,7 +255,7 @@ export default function Users() {
                       {u.role === 'Administrator' && <span className="text-[0.625rem] font-semibold text-maroon-700 bg-maroon-50 rounded px-1.5 py-0.5"><T>Admin</T></span>}
                     </div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-[0.8125rem] text-gray-700 whitespace-nowrap">{u.username}</td>
+                  <td className="px-4 py-3 font-mono text-[0.8125rem] text-gray-700 whitespace-nowrap">{loginId(u.username)}</td>
                   <td className="px-4 py-3"><div className="text-gray-700 text-[0.8125rem]">{u.email}</div><div className="text-[0.6875rem] text-gray-400">{u.mobile || '—'}</div></td>
                   <td className="px-4 py-3 text-gray-600">{tr(u.role)}</td>
                   <td className="px-4 py-3"><Pill tone={u.is_active ? 'green' : 'red'}>{u.is_active ? tr('Active') : tr('Inactive')}</Pill></td>
@@ -387,7 +387,7 @@ export default function Users() {
                   <div className="space-y-1.5">
                     {catalog.map((m) => (
                       <label key={m.key} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-100 hover:bg-gray-50">
-                        <span><span className="text-[0.8125rem] font-medium text-gray-700">{m.label}</span><span className="block text-[0.6875rem] text-gray-400">{m.description}</span></span>
+                        <span><span className="text-[0.8125rem] font-medium text-gray-700">{tr(m.label)}</span><span className="block text-[0.6875rem] text-gray-400">{tr(m.description)}</span></span>
                         <Checkbox checked={drawer.data.modules.includes(m.key)} onChange={() => toggleMod(m.key)} />
                       </label>
                     ))}

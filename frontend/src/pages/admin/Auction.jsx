@@ -13,7 +13,7 @@ import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filt
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, TimeField, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
-import { T, tr, clock12, personName, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, personName, useLang, staffName, auditDetail } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -755,7 +755,7 @@ export default function Auction() {
                   <span className="flex flex-wrap gap-1">{view.pieces.map((p) => (
                     <span key={p.id} className={`font-mono text-[0.7rem] px-1.5 py-0.5 rounded ${p.result === 'Sold' ? 'bg-emerald-50 text-emerald-700' : p.result === 'Unsold' ? 'bg-orange-50 text-orange-700' : 'bg-gray-100 text-gray-600'}`}>{p.tag_id}</span>
                   ))}</span>} />}
-                {view.from_stock && view.sales.length > 0 && <VField label={tr('Buyers')} wide value={view.sales.map((x) => `${x.buyer_name}: ${inr(x.amount)} (${tr(x.payment_status)})`).join(' · ')} />}
+                {view.from_stock && view.sales.length > 0 && <VField label={tr('Buyers')} wide value={view.sales.map((x) => `${staffName(x.buyer_name)}: ${inr(x.amount)} (${tr(x.payment_status)})`).join(' · ')} />}
               </div>
               {/* Verification Section */}
               {RESULT_STATES.includes(view.status) && (
@@ -763,9 +763,9 @@ export default function Auction() {
                   <h4 className="text-[0.8125rem] font-semibold text-gray-700 mb-3"><T>Committee Verification</T></h4>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-4">
                     <VField label={tr("Verification Status")} value={<Pill tone={VERIFY_TONE[view.verification_status] || 'gray'}>{tr(view.verification_status)}</Pill>} />
-                    {view.verified_by && <VField label={tr("Verified By")} value={view.verified_by} />}
+                    {view.verified_by && <VField label={tr("Verified By")} value={staffName(view.verified_by)} />}
                     {view.verified_at && <VField label={tr("Verified At")} value={fmtStamp(view.verified_at)} />}
-                    {view.rejection_reason && <VField label={tr("Rejection Reason")} value={view.rejection_reason} wide />}
+                    {view.rejection_reason && <VField label={tr("Rejection Reason")} value={tr(view.rejection_reason)} wide />}
                   </div>
                 </div>
               )}
@@ -779,7 +779,7 @@ export default function Auction() {
                     {view.payment_ref && <VField label={tr("Transaction Ref")} value={view.payment_ref} />}
                     {view.receipt_no && <VField label={tr("Receipt No")} value={view.receipt_no} />}
                     {view.paid_at && <VField label={tr("Paid At")} value={fmtStamp(view.paid_at)} />}
-                    {view.paid_by && <VField label={tr("Collected By")} value={view.paid_by} />}
+                    {view.paid_by && <VField label={tr("Collected By")} value={staffName(view.paid_by)} />}
                   </div>
                 </div>
               )}
@@ -790,8 +790,8 @@ export default function Auction() {
                 <ol className="space-y-2">
                   {view.history.map((h, i) => (
                     <li key={i} className="text-[0.75rem] border-l-2 border-maroon-200 pl-3">
-                      <div className="font-semibold text-gray-800">{tr(h.action)} <span className="font-normal text-gray-500">· {h.by} · {fmtStamp(h.at)}</span></div>
-                      {h.detail && <div className="text-gray-600">{h.detail}</div>}
+                      <div className="font-semibold text-gray-800">{tr(h.action)} <span className="font-normal text-gray-500">· {staffName(h.by)} · {fmtStamp(h.at)}</span></div>
+                      {h.detail && <div className="text-gray-600">{auditDetail(h.detail)}</div>}
                     </li>
                   ))}
                 </ol>
@@ -831,7 +831,7 @@ export default function Auction() {
               </div>
               <div className="px-5 py-4 space-y-4">
                 {m.a.verification_status === 'Rejected' && m.a.rejection_reason && (
-                  <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-[0.75rem] text-red-700"><b><T>Rejected</T>:</b> {m.a.rejection_reason}</div>
+                  <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-[0.75rem] text-red-700"><b><T>Rejected</T>:</b> {tr(m.a.rejection_reason)}</div>
                 )}
                 <div className="grid gap-2">
                   {OUTCOMES.map(([v, label, hint]) => (

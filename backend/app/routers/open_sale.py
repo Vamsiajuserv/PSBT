@@ -12,14 +12,15 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator, model_validator
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..helpers import assert_txn_date_open, next_code_seq
+from ..helpers import assert_txn_date_open, next_code_seq, validate_pagination
 from ..models import DonationCategory, OpenSale, StockItem, StockMovement, StoreLocation
 from ..security import RequireModule, RequireRole, log_action, client_ip, get_current_user
 from .stores import _item_dict, _loc_names, _who
+from .stores_issue import _day_bounds_utc
 
 router = APIRouter(prefix="/api/stores/open-sale", tags=["open-sale"])
 read = RequireModule("Stores")
@@ -81,11 +82,42 @@ def _sale_dict(s: OpenSale) -> dict:
 
 
 @router.get("")
-def list_open_sale(db: Session = Depends(get_db), user=Depends(read)):
+def list_open_sale(db: Session = Depends(get_db), user=Depends(read),
+                   q: str = "", category_id: int | None = None, location_id: int | None = None):
+    """Pieces on sale now; q matches the ID, item, donor or receipt."""
     names = _loc_names(db)
-    items = db.query(StockItem).filter(StockItem.status == "In Open Sale").order_by(StockItem.tag_id).all()
-    sales = db.query(OpenSale).order_by(OpenSale.id.desc()).limit(100).all()
-    return {"items": [_item_dict(i, names) for i in items], "sales": [_sale_dict(s) for s in sales]}
+    query = db.query(StockItem).filter(StockItem.status == "In Open Sale")
+    if q.strip():
+        like = f"%{q.strip()}%"
+        query = query.filter(or_(StockItem.tag_id.ilike(like), StockItem.item_name.ilike(like), StockItem.description.ilike(like),
+                                 StockItem.donor_name.ilike(like), StockItem.source_ref.ilike(like)))
+    if category_id:
+        query = query.filter(StockItem.category_id == category_id)
+    if location_id:
+        query = query.filter(StockItem.location_id == location_id)
+    return {"items": [_item_dict(i, names) for i in query.order_by(StockItem.tag_id).all()]}
+
+
+@router.get("/sales")
+def list_open_sales(db: Session = Depends(get_db), user=Depends(read), q: str = "", mode: str = "",
+                    date_from: date | None = None, date_to: date | None = None, page: int = 1, size: int = 25):
+    """Sold in Open Sale, newest first; q matches the receipt, piece ID, item, buyer or mobile; dates are IST."""
+    page, size = validate_pagination(page, size)
+    query = db.query(OpenSale)
+    if q.strip():
+        like = f"%{q.strip()}%"
+        query = query.filter(or_(OpenSale.receipt_no.ilike(like), OpenSale.tag_id.ilike(like), OpenSale.item_name.ilike(like),
+                                 OpenSale.buyer_name.ilike(like), OpenSale.buyer_mobile.ilike(like)))
+    if mode:
+        query = query.filter(OpenSale.payment_mode == mode)
+    start, end = _day_bounds_utc(date_from, date_to)
+    if start:
+        query = query.filter(OpenSale.sold_at >= start)
+    if end:
+        query = query.filter(OpenSale.sold_at < end)
+    total, amount = query.with_entities(func.count(OpenSale.id), func.coalesce(func.sum(OpenSale.amount), 0)).one()
+    rows = query.order_by(OpenSale.id.desc()).offset((page - 1) * size).limit(size).all()
+    return {"items": [_sale_dict(s) for s in rows], "total": total, "amount": float(amount)}
 
 
 @router.get("/count")

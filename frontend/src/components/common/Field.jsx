@@ -10,7 +10,7 @@
 // empty form submit via an invisible proxy input that focuses open the widget.
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useLang, tr, clock12 } from '../../i18n/LanguageContext.jsx'
+import { useLang, tr, clock12, getLang } from '../../i18n/LanguageContext.jsx'
 import {
   ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Calendar as CalendarIcon, Check, Clock, Search, X,
@@ -1050,7 +1050,7 @@ export function CountryCodeSelect({ value = '+91', onChange, className = '', dis
         onClick={() => setOpen((o) => !o)}
         className={`input flex items-center justify-between gap-1 text-left disabled:bg-gray-50 disabled:text-gray-400 !w-[5.5rem] shrink-0 !rounded-r-none !border-r-0 text-[0.75rem] !px-2 !py-2 ${open ? 'ring-2 ring-gold-400 border-transparent' : ''} ${className}`}
       >
-        <span className="text-gray-800 font-medium">{current.abbr} {current.code}</span>
+        <span className="text-gray-800 font-medium">{getLang() === 'te' ? current.flag : current.abbr} {current.code}</span>
         <ChevronDown size={12} className={`shrink-0 text-maroon-700/50 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
@@ -1079,7 +1079,7 @@ export function CountryCodeSelect({ value = '+91', onChange, className = '', dis
                     sel ? 'bg-maroon-800 text-cream font-semibold' : 'text-gray-700 hover:bg-gold-100/70'
                   }`}
                 >
-                  <span className="truncate">{tr(c.country)} ({c.abbr}) {c.code}</span>
+                  <span className="truncate">{tr(c.country)}{getLang() === 'te' ? '' : ` (${c.abbr})`} {c.code}</span>
                   {sel && <Check size={14} className="shrink-0" />}
                 </button>
               )
@@ -1156,7 +1156,10 @@ export function Combobox({
   const filtered = q
     ? options.filter((opt) => {
         const label = typeof opt === 'string' ? opt : opt.label
-        return label.toLowerCase().includes(q)
+        const val = typeof opt === 'string' ? opt : opt.value
+        // In Telugu the box opens on the stored English value, so match the
+        // value and the Telugu label as well as the label itself.
+        return [label, t(label), val].some((s) => String(s ?? '').toLowerCase().includes(q))
       })
     : options
 

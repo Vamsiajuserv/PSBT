@@ -169,7 +169,15 @@ WRITE_MATRIX = {
     "Poojari": {"Bookings"},                 # may mark bookings complete only
     "Accountant": {"Reports"},               # daily closing only — reconciles cash, never collects it
     "Committee": {"Hundi", "Auction", "Reports"},  # hundi verification, auction decisions, daily closing
+    # Stores Officer: runs Stores & Inventory only — tag, move, write off, consumable use,
+    # manual entries, stock checks, store locations. Never collects money (Open Sale selling,
+    # auction payments) and never approves (manual-entry verification, Open Sale price stay
+    # with the Committee), so the maker-checker split is unchanged.
+    "Stores Officer": {"Stores"},
 }
+
+# Role name constant for the Stores-only role (used by RequireRole on Stores endpoints).
+STORES_OFFICER = "Stores Officer"
 
 
 class RequireRole:

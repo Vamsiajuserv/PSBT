@@ -19,10 +19,23 @@ MIGRATION_LOCK_TIMEOUT = "10s"
 
 COLUMN_MIGRATIONS = {
     "waste_vendors": [("name_te", "VARCHAR(160)")],
+    # Hundi gold / silver lines valued at the collection day's rate × purity
+    "hundi_collection_items": [("purity", "VARCHAR(10)"), ("rate_per_g", "NUMERIC(12,2)")],
+    # Receive at store for hundi valuables (store_receipts itself is created by create_all)
+    "store_receipts": [("hundi_id", "INTEGER REFERENCES hundi_collections(id)"), ("lines", "TEXT")],
+    # Stores Day Closing: Administrator reopen (with reason), earlier closings kept in history
+    "stores_day_closings": [("status", "VARCHAR(12) DEFAULT 'Closed' NOT NULL"), ("reopened_by", "VARCHAR(120)"),
+                            ("reopened_at", "TIMESTAMP"), ("reopen_reason", "TEXT"), ("history", "TEXT")],
     "donation_categories": [
         ("tracking", "VARCHAR(20)"), ("id_prefix", "VARCHAR(10)"), ("default_value", "NUMERIC(12,2)"),
         ("low_stock_level", "NUMERIC(12,3)"), ("auctionable", "BOOLEAN"),
+        ("track_expiry", "BOOLEAN"),          # consumables: ask a best-before date
     ],
+    # Consumable batches: best-before date; a use notes the batch it was taken from
+    "manual_stock_entries": [("expiry_date", "DATE")],
+    "consumable_uses": [("batch_note", "TEXT")],
+    # Festival Kits: an issue slip made from a kit
+    "issue_slips": [("kit_id", "INTEGER REFERENCES festival_kits(id)"), ("kit_name", "VARCHAR(120)")],
     "stock_items": [("last_auction_code", "VARCHAR(30)"), ("unsold_count", "INTEGER DEFAULT 0 NOT NULL"),
                     ("open_sale_price", "NUMERIC(12,2)"), ("open_sale_by", "VARCHAR(120)"), ("open_sale_at", "TIMESTAMP")],
     "committee_members": [("name_te", "VARCHAR(160)")],
@@ -57,8 +70,14 @@ COLUMN_MIGRATIONS = {
         ("donation_code", "VARCHAR(30)"), ("txn_ref", "VARCHAR(60)"), ("notes", "TEXT"),
         ("voided", "BOOLEAN DEFAULT FALSE"), ("void_reason", "TEXT"),
         ("mobile", "VARCHAR(20)"), ("address", "TEXT"),
+        # Gold / silver at the counter: purity, description and estimated value at the day's rate
+        ("purity", "VARCHAR(10)"), ("item_desc", "VARCHAR(120)"), ("rate_per_g", "NUMERIC(12,2)"),
+        ("est_value", "NUMERIC(14,2)"),
+        ("expiry_date", "DATE"),              # consumables: best before
     ],
     "hundi_collections": [
+        # Receive at store: custody recorded from now on is counted in by the Stores Officer
+        ("store_receive_required", "BOOLEAN"),
         ("committee_member", "VARCHAR(160)"), ("notes", "TEXT"),
         ("bank_ref", "VARCHAR(60)"), ("deposited_on", "DATE"),
         ("counting_completed_on", "TIMESTAMP"), ("committee_members", "TEXT"),
@@ -102,7 +121,7 @@ COLUMN_MIGRATIONS = {
     ],
     "pooja_plans": [
         ("validity_type", "VARCHAR(40)"), ("validity_value", "INTEGER"), ("validity_unit", "VARCHAR(20)"),
-        ("tithi_type", "VARCHAR(40)"),
+        ("tithi_type", "VARCHAR(40)"), ("time_slots", "TEXT"),
     ],
     "waste_sales": [
         ("mobile", "VARCHAR(20)"), ("unit", "VARCHAR(20) DEFAULT 'Kilogram (kg)'"),
@@ -340,6 +359,24 @@ def run_migrations(engine) -> None:
         conn.execute(text("INSERT INTO settings (skey, svalue, updated_by) "
                           "SELECT 'consumables_start_date', CAST(CURRENT_DATE AS TEXT), 'system' "
                           "WHERE NOT EXISTS (SELECT 1 FROM settings WHERE skey = 'consumables_start_date')"))
+        # A hundi store receipt has no donation; one store receipt per hundi.
+        conn.execute(text("ALTER TABLE store_receipts ALTER COLUMN donation_id DROP NOT NULL"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_store_receipts_hundi ON store_receipts (hundi_id) "
+                          "WHERE hundi_id IS NOT NULL"))
+        # Receive at store: counter receipts made from now on are counted in by the Stores
+        # Officer before tagging; every receipt already made counts as received. Set once.
+        conn.execute(text("INSERT INTO settings (skey, svalue, updated_by) "
+                          "SELECT 'stores_receive_after_donation', CAST(COALESCE(MAX(id), 0) AS TEXT), 'system' "
+                          "FROM donations "
+                          "HAVING NOT EXISTS (SELECT 1 FROM settings WHERE skey = 'stores_receive_after_donation')"))
+        # Stores Officer role (Stores & Inventory only). Added once if missing; an existing
+        # row — and any module change the admin made to it — is never touched again.
+        conn.execute(text(
+            "INSERT INTO roles (code, name, description, modules, active, created_by, updated_by, created_at, updated_at) "
+            "SELECT 'STORES_OFFICER', 'Stores Officer', "
+            "'Manages stock, tagging, consumables, store locations and stock checks', "
+            "'Stores', TRUE, 'system', 'system', NOW(), NOW() "
+            "WHERE NOT EXISTS (SELECT 1 FROM roles WHERE code = 'STORES_OFFICER')"))
         # Staff email is optional (login uses username), so allow NULL. No-op once done.
         conn.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
         # Vendor material types now hold a multi-select from the Waste Material Master,
@@ -396,6 +433,7 @@ _ROLE_CANON = {
     "POOJARI": ["Sevas", "Bookings"],
     "ACCOUNTANT": ["Bookings", "Donations", "Hundi", "Auction", "Annadanam", "Counter", "Stores", "Reports"],
     "COMMITTEE": ["Hundi", "Auction", "Reports", "Counter", "Stores"],
+    "STORES_OFFICER": ["Stores"],
 }
 _CANON = set(_ROLE_CANON["ADMINISTRATOR"])
 

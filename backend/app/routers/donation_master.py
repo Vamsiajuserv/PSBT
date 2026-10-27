@@ -21,7 +21,7 @@ def _dict(c: DonationCategory) -> dict:
             "tracking": c.tracking, "id_prefix": c.id_prefix,
             "default_value": float(c.default_value) if c.default_value is not None else None,
             "low_stock_level": float(c.low_stock_level) if c.low_stock_level is not None else None,
-            "auctionable": c.auctionable is not False}
+            "auctionable": c.auctionable is not False, "track_expiry": bool(c.track_expiry)}
 
 
 def _stock_use(db: Session, c: DonationCategory) -> dict:
@@ -65,7 +65,7 @@ def _is_valuable(name: str | None, prefix: str | None) -> bool:
 def _apply_tracking(c: DonationCategory, body: dict) -> None:
     """Stores & Inventory settings — Material categories only."""
     if c.type != "Material":
-        c.tracking = c.id_prefix = c.default_value = c.low_stock_level = None
+        c.tracking = c.id_prefix = c.default_value = c.low_stock_level = c.track_expiry = None
         return
     if "tracking" in body:
         if body["tracking"] not in ("Tagged", "Quantity"):
@@ -94,6 +94,10 @@ def _apply_tracking(c: DonationCategory, body: dict) -> None:
         c.auctionable = bool(body["auctionable"])
     elif c.auctionable is None and c.tracking == "Tagged":
         c.auctionable = not _is_valuable(c.name, c.id_prefix)
+    if "track_expiry" in body and body["track_expiry"] is not None:
+        c.track_expiry = bool(body["track_expiry"])
+    if c.tracking != "Quantity":
+        c.track_expiry = None       # best-before dates are for consumables only
     if c.tracking == "Tagged" and not c.id_prefix:
         raise HTTPException(422, "A Tagged category needs an ID prefix, e.g. PAN or SLV.")
 
