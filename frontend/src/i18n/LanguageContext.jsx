@@ -4737,7 +4737,7 @@ const UI_TE = {
   '{month} Pournami, tithi at {kala}': '{month} పౌర్ణమి, {kala} సమయంలో తిథి',
   '{month} Amavasya, tithi at {kala}': '{month} అమావాస్య, {kala} సమయంలో తిథి',
   'Tithi at {kala}': '{kala} సమయంలో తిథి',
-  'Sun enters at {time} IST': 'సూర్యుడు {time} భారత కాలమానం కి ప్రవేశిస్తాడు',
+  'Sun enters at {time} IST': 'సూర్యుడు ప్రవేశించే సమయం: {time} (భారత కాలమానం)',
   'Tithi boundary only {n} min from sunrise': 'తిథి సరిహద్దు సూర్యోదయానికి కేవలం {n} నిమిషాల దూరంలో ఉంది',
   'Sankranti {h} h from new moon (month name)': 'సంక్రాంతి అమావాస్య నుండి {h} గంటల దూరంలో ఉంది (మాస నామం)',
   'Tithi kshaya: the tithi is at no sunrise': 'తిథి క్షయం: ఏ సూర్యోదయానికీ ఈ తిథి ఉండదు',
@@ -4769,6 +4769,9 @@ const UI_TE = {
   'Bulk performed {n} pooja(s) for {day}': '{day} కి {n} పూజ(లు) బల్క్‌గా నిర్వహించబడ్డాయి',
   'Bulk assigned {name} → {n} bookings': '{name} కు {n} బుకింగ్‌లు బల్క్‌గా కేటాయించబడ్డాయి',
   'Assigned {name} → {code}': '{code} కు {name} కేటాయించబడ్డారు',
+  // The backend writes "none" when the poojari is taken off — that is an unassignment, not a name.
+  'Assigned none → {code}': '{code} కు పూజారి కేటాయింపు తొలగించబడింది',
+  'Bulk assigned none → {n} bookings': '{n} బుకింగ్‌లకు పూజారి కేటాయింపు తొలగించబడింది',
   'no change': 'మార్పు లేదు',
   'Closed {date} · ₹{total}': '{date} ముగించబడింది · ₹{total}',
   'Reopened {date}': '{date} తిరిగి తెరవబడింది',
@@ -4776,6 +4779,7 @@ const UI_TE = {
   '{file} ({n} records)': '{file} ({n} రికార్డులు)',
   '{file} ({n} records) [encrypted]': '{file} ({n} రికార్డులు) [ఎన్‌క్రిప్ట్ చేయబడింది]',
   '{pooja} → {n} pooja(s) {when}': '{pooja} → {n} పూజ(లు) {when}',
+  '{pooja} → {n} pooja(s) on {day}': '{pooja} → {day} న {n} పూజ(లు)',
   'Payment {receipt} ₹{amount} {mode}': 'చెల్లింపు {receipt} ₹{amount} {mode}',
   'Cash deposited {code} ₹{amount} → {bank}': 'నగదు జమ {code} ₹{amount} → {bank}',
   'Valuables stored {code} ₹{amount} → {store}': 'విలువైన వస్తువులు భద్రపరచబడ్డాయి {code} ₹{amount} → {store}',
@@ -5696,6 +5700,47 @@ const UI_TE = {
   // Manual stock entry written when a purchase request is received
   'Purchase {code} — bill {bill}, {amount}': 'కొనుగోలు {code} — బిల్లు {bill}, {amount}',
   'Purchase {code} — bill {bill}, {amount} · {note}': 'కొనుగోలు {code} — బిల్లు {bill}, {amount} · {note}',
+  // Booking / time-slot screens
+  'Book for Tomorrow': 'రేపటికి బుక్ చేయండి',
+  'Book it for another date from Advance Booking.': 'ముందస్తు బుకింగ్ నుండి మరో తేదీకి బుక్ చేయండి.',
+  'Pick a time first.': 'ముందుగా సమయాన్ని ఎంచుకోండి.',
+  'Please choose another date.': 'దయచేసి మరో తేదీని ఎంచుకోండి.',
+  'Please inform the devotee before booking.': 'బుకింగ్ చేసే ముందు దయచేసి భక్తునికి తెలియజేయండి.',
+  'Pooja timings are fixed and cannot be changed.': 'పూజ సమయాలు నిర్ణీతం, వాటిని మార్చలేరు.',
+  'Select a time slot.': 'సమయ స్లాట్‌ను ఎంచుకోండి.',
+  'Select a time slot for this pooja.': 'ఈ పూజకు సమయ స్లాట్‌ను ఎంచుకోండి.',
+  "This pooja's timings are fixed — choose one of: {slots}.": 'ఈ పూజ సమయాలు నిర్ణీతం — వీటిలో ఒకటి ఎంచుకోండి: {slots}.',
+  'Invalid time slot: {slot}. Use 08:15 AM, or a range like 09:00 AM - 11:30 AM with the end after the start.':
+    'చెల్లని సమయ స్లాట్: {slot}. 08:15 AM లాగా, లేదా 09:00 AM - 11:30 AM లాంటి వ్యవధిగా, ముగింపు ప్రారంభం తర్వాత ఉండేలా నమోదు చేయండి.',
+  'Select a time slot for': 'సమయ స్లాట్‌ను ఎంచుకోండి:',
+  'Time Slots': 'సమయ స్లాట్లు',
+  'Time window': 'సమయ వ్యవధి',
+  'Temple hours': 'ఆలయ సమయాలు',
+  'Valid during temple hours.': 'ఆలయ సమయాల్లో చెల్లుబాటు అవుతుంది.',
+  'Subject to poojari availability': 'పూజారి లభ్యతకు లోబడి',
+  'Subject to poojari availability.': 'పూజారి లభ్యతకు లోబడి.',
+  "Today's time slot for this pooja is over": 'ఈ పూజకు నేటి సమయ స్లాట్ ముగిసింది',
+  "Today's time slot for this pooja is over. Choose another date.": 'ఈ పూజకు నేటి సమయ స్లాట్ ముగిసింది. మరో తేదీని ఎంచుకోండి.',
+  "today's slot is over, choose another date": 'నేటి స్లాట్ ముగిసింది, మరో తేదీని ఎంచుకోండి',
+  'No fixed timing — bookings offer the slots from Settings.': 'నిర్ణీత సమయం లేదు — బుకింగ్‌లు సెట్టింగ్స్‌లోని స్లాట్లను చూపుతాయి.',
+  'Enter a valid time — for a range, the end must be after the start.': 'సరైన సమయాన్ని నమోదు చేయండి — వ్యవధికి, ముగింపు సమయం ప్రారంభం తర్వాత ఉండాలి.',
+  // Search boxes and filters
+  'Search ID, item or donor': 'ఐడి, వస్తువు లేదా విరాళదారు వెతకండి',
+  'Search ID, item or stock check': 'ఐడి, వస్తువు లేదా స్టాక్ తనిఖీ వెతకండి',
+  'Search receipt, ID or buyer': 'రసీదు, ఐడి లేదా కొనుగోలుదారు వెతకండి',
+  'OSR-2026-0001, PAN-00003, name, mobile…': 'OSR-2026-0001, PAN-00003, పేరు, మొబైల్…',
+  'SLV-00003, CHK-0001, donor…': 'SLV-00003, CHK-0001, విరాళదారు…',
+  'No pieces match these filters.': 'ఈ ఫిల్టర్‌లకు సరిపోయే వస్తువులు లేవు.',
+  'No sales match these filters.': 'ఈ ఫిల్టర్‌లకు సరిపోయే అమ్మకాలు లేవు.',
+  // Other screen words
+  'OK, Continue': 'సరే, కొనసాగించండి',
+  'Range': 'వ్యవధి',
+  'slots': 'స్లాట్లు',
+  'Missing from': 'తప్పిపోయిన తేదీ నుండి',
+  'Sold from': 'అమ్మిన తేదీ నుండి',
+  // Donation funds (site content)
+  'Annadanam Fund': 'అన్నదాన నిధి',
+  'Go Samrakshana': 'గో సంరక్షణ',
 }
 
 // Keys holding {name} slots, compiled once into anchored patterns. A slot value
@@ -5724,7 +5769,9 @@ function fillTemplate(s, nested = false) {
       const v = m[i + 1]
       // A date the server formatted ("05 Nov 2026") keeps its digits; only the month is Telugu.
       // A quantity with its unit ("5 Liters") keeps the number; the unit is Telugu.
-      const date = /^\d{1,2} [A-Za-z]{3,9} \d{4}$/.test(v) ? v.replace(/[A-Za-z]+/, (w) => UI_TE[w] || w) : null
+      // "14 Jan 08:42 AM" (no year, with a clock time) gets the same treatment, and its time reads as clock12 does.
+      const dm = v.match(/^(\d{1,2} )([A-Za-z]{3,9})((?: \d{4})?)(?: (\d{1,2}:\d{2}\s*(?:AM|PM)))?$/i)
+      const date = dm && (dm[3] || dm[4]) ? `${dm[1]}${UI_TE[dm[2]] || dm[2]}${dm[3]}${dm[4] ? ` ${clock12(dm[4])}` : ''}` : null
       const qty = v.match(/^([\d.,]+\s*)([A-Za-z].*)$/)
       const qtyTe = qty && (UI_TE[qty[2]] || glossaryTe(qty[2])) ? qty[1] + (UI_TE[qty[2]] || glossaryTe(qty[2])) : null
       // A name from the masters ("Rice", "Gold chain", a devotee) is written in Telugu
@@ -6018,6 +6065,16 @@ const slotTe = (x) => { const o = reg.t(x, { local: true }); return o === x ? te
 const nameRole = (x) => { const m = x.match(/^(.+?) \((.+)\)$/); return m ? `${staffName(m[1])} (${slotTe(m[2])})` : staffName(x) }
 const SIGNER_TE = { 'outgoing officer': 'వెళ్తున్న అధికారి', 'incoming officer': 'వస్తున్న అధికారి', witness: 'సాక్షి' }
 const AUDIT_FORMS = [
+  // Almanac engine, consumables, poojari queue, handover count, kits, payments
+  [/^Auto-generated (\d{4}) (\S+) days at (.+?): (\d+) published, (\d+) awaiting review$/, (m) => `${m[1]} ${slotTe(m[2])} రోజులు (${slotTe(m[3])}) స్వయంచాలకంగా రూపొందించబడ్డాయి: ${m[4]} ప్రచురించబడ్డాయి, ${m[5]} సమీక్ష కోసం వేచి ఉన్నాయి`],
+  [/^Consumables start date (.+) → (.+)$/, (m) => `వినియోగ వస్తువుల ప్రారంభ తేదీ ${m[1] === 'None' ? '—' : m[1]} → ${m[2]}`],
+  [/^Performed by (.+) → (\S+) \((.+)\)$/, (m) => `${m[2]} (${m[3]}) — నిర్వహించినవారు: ${m[1] === 'none' ? 'ఎవరూ లేరు' : staffName(m[1])}`],
+  [/^(\S+) counted: (\d+)\/(\d+)$/, (m) => `${m[1]} లెక్కించబడింది: ${m[2]}/${m[3]}`],
+  [/^(\S+) (.+?) ([\d.]+) +(?:(\S+) )?written off as expired — (.*)$/, (m) => `${m[1]} ${slotTe(m[2])} ${m[3]}${m[4] ? ` ${reg.t(m[4])}` : ''} గడువు ముగిసినందున రద్దు చేయబడింది — ${teScript(m[5])}`],
+  [/^(.+) (\S+): best before (.+) → (.+)$/, (m) => `${slotTe(m[1])} ${m[2]}: ఉపయోగించాల్సిన గడువు ${m[3]} → ${m[4]}`],
+  [/^(\S+) (.+): (\d+) piece\(s\), (\d+) consumable\(s\)$/, (m) => `${m[1]} ${slotTe(m[2])}: ${m[3]} ముక్క(లు), ${m[4]} వినియోగ వస్తువు(లు)`],
+  [/^(.+) (₹[\d.,]+) \(Paid\)$/, (m) => `${slotTe(m[1])} ${m[2]} (చెల్లించబడింది)`],
+  [/^Verified (\S+) (₹\S+) — admin override \((\d+) member approval\(s\) recorded\)$/, (m) => `${m[1]} ${m[2]} — నిర్వాహకుడి ప్రత్యేక అనుమతితో ధృవీకరించబడింది (${m[3]} సభ్యుల ఆమోదం(లు) నమోదయ్యాయి)`],
   // Stores: handover between officers
   [/^(\S+) signed by (outgoing officer|incoming officer|witness)( — completed)?$/, (m) => `${m[1]}పై ${SIGNER_TE[m[2]]} సంతకం చేశారు${m[3] ? ' — పూర్తయింది' : ''}`],
   [/^(\S+): (.+) → (.+), witness (.+)$/, (m) => `${m[1]}: ${nameRole(m[2])} → ${nameRole(m[3])}, సాక్షి ${nameRole(m[4])}`],
