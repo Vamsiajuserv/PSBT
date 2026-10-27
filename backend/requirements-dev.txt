@@ -1,0 +1,4 @@
+# Development / CI only — the app's own packages plus what the tests need.
+# Azure installs requirements.txt alone (Oryx), so nothing here reaches production.
+-r requirements.txt
+httpx==0.28.1   # FastAPI TestClient (tests/test_panchangam.py)

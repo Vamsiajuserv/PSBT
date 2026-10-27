@@ -42,9 +42,10 @@ backend/concurrent_*.py
 backend/db_connection_*.py
 backend/failure_*.py
 backend/final_*.py
-
 # Test output files
 backend/*.txt
+!backend/requirements.txt
+!backend/requirements-dev.txt
 uat-evidence/
 
 # Debug/test scripts (root level)
