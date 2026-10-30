@@ -166,7 +166,7 @@ export default function PoojaMaster() {
     } })
   }
   async function remove(p) {
-    if (!(await confirmDialog({ title: tr('Delete pooja') + ` "${p.name}"?`, message: tr('This cannot be undone. Poojas with bookings must be marked Inactive instead.'), tone: 'danger', confirmLabel: tr('Delete') }))) return
+    if (!(await confirmDialog({ title: tr('Delete pooja') + ` "${tr(p.name)}"?`, message: tr('This cannot be undone. Poojas with bookings must be marked Inactive instead.'), tone: 'danger', confirmLabel: tr('Delete') }))) return
     try { await PoojasAPI.remove(p.id); toast(tr('Pooja deleted.')); load() }
     catch (ex) { toast(ex?.detail || tr('Could not delete this pooja.'), 'error') }
   }

@@ -34,7 +34,7 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
   const pickedIds = useMemo(() => new Set(picked.map((p) => p.id)), [picked])
 
   // The "Issued to" box lists the Poojari Master; any other name can be typed
-  const poojariOptions = meta.poojaris.map((p) => ({ value: p.name, label: getLang() === 'te' && p.name_te ? p.name_te : p.name }))
+  const poojariOptions = meta.poojaris.map((p) => ({ value: p.name, label: getLang() === 'te' ? (p.name_te || staffName(p.name)) : p.name }))
   const setIssuedTo = (name) => {
     const pj = meta.poojaris.find((p) => p.name === name)
     setF({ ...f, issued_to: name, poojari_id: pj ? pj.id : '' })

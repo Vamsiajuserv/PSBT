@@ -67,7 +67,7 @@ export default function MissingItems() {
   }
   async function approve(c) {
     const ok = await confirmDialog({ title: `${tr('Approve write-off')} — ${c.tag_id}`, tone: 'danger', confirmLabel: tr('Approve'),
-      message: `${tr(c.item_name)}${c.weight_g != null ? ` · ${qty(c.weight_g)} ${gramUnit()}` : ''} · ${inr(c.est_value || 0)} — ${c.report_reason}. ${tr('The piece is written off as lost.')}` })
+      message: `${tr(c.item_name)}${c.weight_g != null ? ` · ${qty(c.weight_g)} ${gramUnit()}` : ''} · ${inr(c.est_value || 0)} — ${tr(c.report_reason)}. ${tr('The piece is written off as lost.')}` })
     if (!ok) return
     try { await StoresAPI.approveLost(c.id); done(`${c.tag_id}: ${tr('written off as lost.')}`) }
     catch (ex) { toast(errText(ex, 'Could not approve.'), 'error') }
@@ -133,10 +133,10 @@ export default function MissingItems() {
                   <td className="px-3 py-3 tabular-nums">{c.days ?? '—'}</td>
                   <td className="px-3 py-3 tabular-nums">{c.est_value != null ? inr(c.est_value) : '—'}</td>
                   <td className="px-3 py-3"><Pill tone={CASE_TONE[c.status] || 'gray'}>{tr(c.status)}</Pill>
-                    {c.status === 'Write-off requested' && <div className="text-[0.6875rem] text-gray-600 mt-1">{c.report_reason} — {staffName(c.reported_by)}</div>}
-                    {c.status === 'Missing' && c.decision_note && <div className="text-[0.6875rem] text-amber-700 mt-1">{tr('Write-off rejected')}: {c.decision_note} — {staffName(c.decided_by)}</div>}
-                    {c.status === 'Found' && <div className="text-[0.6875rem] text-gray-600 mt-1">{tr(c.found_location || '')} · {staffName(c.found_by)} · {fmtStamp(c.found_at)}{c.found_note ? ` · ${c.found_note}` : ''}</div>}
-                    {c.status === 'Lost' && <div className="text-[0.6875rem] text-gray-600 mt-1">{c.report_reason} — {tr('Approved by')} {staffName(c.decided_by)}</div>}</td>
+                    {c.status === 'Write-off requested' && <div className="text-[0.6875rem] text-gray-600 mt-1">{tr(c.report_reason)} — {staffName(c.reported_by)}</div>}
+                    {c.status === 'Missing' && c.decision_note && <div className="text-[0.6875rem] text-amber-700 mt-1">{tr('Write-off rejected')}: {tr(c.decision_note)} — {staffName(c.decided_by)}</div>}
+                    {c.status === 'Found' && <div className="text-[0.6875rem] text-gray-600 mt-1">{tr(c.found_location || '')} · {staffName(c.found_by)} · {fmtStamp(c.found_at)}{c.found_note ? ` · ${tr(c.found_note)}` : ''}</div>}
+                    {c.status === 'Lost' && <div className="text-[0.6875rem] text-gray-600 mt-1">{tr(c.report_reason)} — {tr('Approved by')} {staffName(c.decided_by)}</div>}</td>
                   <td className="px-3 py-3"><div className="flex flex-wrap items-center gap-1.5">
                     {canFollow && (c.status === 'Missing' || c.status === 'Write-off requested') && (
                       <button onClick={() => setFoundFor({ case: c, location_id: c.location_id ? String(c.location_id) : '', note: '' })} className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-[0.75rem] font-semibold whitespace-nowrap"><CheckCircle2 size={14} />{tr('Found')}</button>)}

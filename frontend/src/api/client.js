@@ -398,6 +398,9 @@ export const StoresAPI = {
   rejectPurchase: (id, reason) => api.post(`/stores/purchase/${id}/reject`, { reason }),
   cancelPurchase: (id, reason) => api.post(`/stores/purchase/${id}/cancel`, { reason }),
   receivePurchase: (id, b) => api.post(`/stores/purchase/${id}/receive`, b),
+  reviewPurchase: (id, note) => api.post(`/stores/purchase/${id}/review`, { note }),
+  purchaseBill: (id) => api.get(`/stores/purchase/${id}/bill`),
+  addPurchaseBill: (id, b) => api.post(`/stores/purchase/${id}/bill`, b),
   // Festival kits
   kits: () => api.get('/stores/kits'),
   kitsIssued: (params = {}) => api.get('/stores/kits/issued' + qs(params)),

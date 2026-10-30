@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { X, Moon, Star, Sunrise, Sunset, Clock, AlertTriangle, Sparkles, IndianRupee, Users } from 'lucide-react'
 import { fmtDate } from '../../../components/admin/ui.jsx'
-import { T, tr, personName, clock12, shortUnit } from '../../../i18n/LanguageContext.jsx'
+import { T, tr, personName, clock12, shortUnit, staffName } from '../../../i18n/LanguageContext.jsx'
 import { Select } from '../../../components/common/Field.jsx'
 
 // ── Shared pieces of the admin Calendar ─────────────────────────────────────
@@ -216,7 +216,7 @@ function DayBookings({ events, lang, canSeeAmounts }) {
                 <span className="text-[0.625rem] font-semibold px-1.5 py-0.5 rounded-full bg-white/70 shrink-0">{tr(e.status)}</span>
               </div>
               <div className="flex items-center justify-between gap-2 text-[0.6875rem] opacity-80">
-                <span className="truncate">{e.devotee ? personName({ name: e.devotee }, lang) : '—'}{e.time ? ` · ${clock12(e.time)}` : ''}{e.poojari ? ` · ${tr('Poojari')}: ${e.poojari}` : ''}</span>
+                <span className="truncate">{e.devotee ? personName({ name: e.devotee }, lang) : '—'}{e.time ? ` · ${clock12(e.time)}` : ''}{e.poojari ? ` · ${tr('Poojari')}: ${staffName(e.poojari)}` : ''}</span>
                 {canSeeAmounts && e.amount > 0 && <span className="font-semibold shrink-0">₹{Math.round(e.amount).toLocaleString('en-IN')}</span>}
               </div>
             </li>

@@ -234,7 +234,7 @@ function IssueKit({ kit, onClose }) {
   useEffect(() => { StoresAPI.issueMeta().then(setMeta).catch(() => {}) }, [])
   const ids = kit.pieces.filter((p) => p.available && tick[p.id]).map((p) => p.id)
   const short = useCons && kit.consumables.some((c) => !c.enough)
-  const poojariOptions = meta.poojaris.map((p) => ({ value: p.name, label: getLang() === 'te' && p.name_te ? p.name_te : p.name }))
+  const poojariOptions = meta.poojaris.map((p) => ({ value: p.name, label: getLang() === 'te' ? (p.name_te || staffName(p.name)) : p.name }))
 
   async function save(e) {
     e.preventDefault()

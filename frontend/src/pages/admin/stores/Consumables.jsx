@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { X, MinusCircle, BookOpen, Plus, CalendarDays, Ban, Printer, Receipt as ReceiptIcon, ShoppingCart, Trash2, Pencil, AlertTriangle } from 'lucide-react'
+import { X, MinusCircle, BookOpen, Plus, CalendarDays, Ban, Printer, Receipt as ReceiptIcon, ShoppingCart, Trash2, Pencil, AlertTriangle, RotateCcw } from 'lucide-react'
 import { PageTitle, Pill, fmtDate, fmtStamp } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
-import { NumberField, DateField, Combobox } from '../../../components/common/Field.jsx'
+import { NumberField, DateField, Combobox, Select } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, getLang } from '../../../i18n/LanguageContext.jsx'
 import { canWriteStores, canManageStores, staffName, storeDetail } from './shared.jsx'
@@ -35,6 +35,8 @@ export default function Consumables() {
   const [loadErr, setLoadErr] = useState('')
   const [useFor, setUseFor] = useState(null)
   const [ledger, setLedger] = useState(null)
+  const NO_LEDGER_FILTER = { q: '', kind: '', from: '', to: '' }
+  const [lf, setLf] = useState(NO_LEDGER_FILTER)    // ledger filters (the whole ledger is loaded; filtered here)
   const [startEdit, setStartEdit] = useState(null)
   const [slip, setSlip] = useState(null)
   const [tab, setTab] = useState('balance')
@@ -47,7 +49,7 @@ export default function Consumables() {
       .finally(() => setLoading(false))
   }, [])
   useEffect(() => { load() }, [load])
-  const openLedger = (cid) => StoresAPI.ledger(cid).then(setLedger).catch((ex) => toast(errText(ex, 'Could not load the ledger.'), 'error'))
+  const openLedger = (cid) => StoresAPI.ledger(cid).then((d) => { if (ledger?.category_id !== d.category_id) setLf(NO_LEDGER_FILTER); setLedger(d) }).catch((ex) => toast(errText(ex, 'Could not load the ledger.'), 'error'))
 
   async function saveUse(e) {
     e.preventDefault()
@@ -71,7 +73,7 @@ export default function Consumables() {
   }
   async function writeOff(i) {
     const res = await promptDialog({ title: `${tr('Write off expired')} — ${tr(i.name)}`, tone: 'danger', confirmLabel: tr('Write off'),
-      message: `${q3(i.expired_left)} ${tr(i.unit || '')} ${tr('is past its best-before date. It is taken out of stock and shown in the ledger as "Expired — written off".')}`,
+      message: `${q3(i.expired_left)} ${tr(i.unit || '')} ${tr('is past its expiry date. It is taken out of stock and shown in the ledger as "Expired — written off".')}`,
       fields: [{ k: 'quantity', label: `${tr('Quantity')} (${tr(i.unit || '')})`, required: true, type: 'number', defaultValue: String(i.expired_left) },
         { k: 'reason', label: tr('Reason'), required: true, placeholder: tr('e.g. Expired, smells bad') }] })
     if (!res) return
@@ -85,6 +87,17 @@ export default function Consumables() {
   }
 
   const items = data?.items || []
+  // Ledger filters: the running balance stays the item's real balance on that day
+  const ledgerView = (() => {
+    if (!ledger) return { rows: [], inSum: 0, outSum: 0 }
+    const q = lf.q.trim().toLowerCase()
+    const rows = ledger.entries.filter((e) => (!lf.from || (e.date && e.date >= lf.from)) && (!lf.to || (e.date && e.date <= lf.to))
+      && (!lf.kind || (lf.kind === 'in' ? e.in != null : e.out != null))
+      && (!q || `${e.ref} ${e.detail || ''} ${e.by || ''}`.toLowerCase().includes(q)))
+    const active = rows.filter((e) => e.status === 'Active')
+    return { rows, inSum: active.reduce((t, e) => t + (e.in || 0), 0), outSum: active.reduce((t, e) => t + (e.out || 0), 0) }
+  })()
+
   return (
     <div>
       <PageTitle title={tr('Consumables Stock')} subtitle={tr('Oil, ghee, rice and other items used in the temple — received, used and what is left.')}
@@ -181,6 +194,21 @@ export default function Consumables() {
                 <p className="text-[0.8125rem] text-gray-500 mt-0.5">{tr('Received')} {q3(ledger.received)} · {tr('Used')} {q3(ledger.used)} · {tr('Remaining')} <b>{q3(ledger.remaining)} {tr(ledger.unit || '')}</b> · {tr('from')} {fmtDate(ledger.start_date)}</p></div>
               <button onClick={() => setLedger(null)} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={20} /></button>
             </div>
+            <div className="px-6 py-3 flex flex-wrap items-end gap-3 border-b border-gray-100 bg-gray-50/40">
+              <div className="flex-1 min-w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>Search</T></label>
+                <input className="input" value={lf.q} onChange={(e) => setLf({ ...lf, q: e.target.value })} placeholder={tr('Receipt, donor, purpose…')} /></div>
+              <div className="w-[8.5rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>Show</T></label>
+                <Select className="input" value={lf.kind} onChange={(e) => setLf({ ...lf, kind: e.target.value })}>
+                  <option value="">{tr('All')}</option><option value="in">{tr('Received')}</option><option value="out">{tr('Used')}</option></Select></div>
+              <div className="w-[9.5rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>From</T></label>
+                <DateField value={lf.from} max={lf.to || undefined} onChange={(e) => setLf({ ...lf, from: e.target.value })} className="input" /></div>
+              <div className="w-[9.5rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>To</T></label>
+                <DateField value={lf.to} min={lf.from || undefined} onChange={(e) => setLf({ ...lf, to: e.target.value })} className="input" /></div>
+              {Object.values(lf).some((v) => v !== '') && <button type="button" onClick={() => setLf(NO_LEDGER_FILTER)} className="btn-outline !py-2.5"><RotateCcw size={14} />{' '}<T>Clear</T></button>}
+            </div>
+            {Object.values(lf).some((v) => v !== '') && (
+              <div className="px-6 py-2.5 text-[0.8125rem] text-gray-700 border-b border-gray-100">
+                {tr('In this view')}: <b className="text-emerald-700">+{q3(ledgerView.inSum)}</b> {tr('received')} · <b className="text-red-600">−{q3(ledgerView.outSum)}</b> {tr('used')} {tr(ledger.unit || '')} · {ledgerView.rows.length} {tr('entries')}</div>)}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
@@ -189,12 +217,12 @@ export default function Consumables() {
                   <th className="px-4 py-3 font-semibold text-right">{tr('Out')}</th><th className="px-4 py-3 font-semibold text-right">{tr('Balance')}</th><th className="px-2 py-3"></th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100">
-                  {ledger.entries.map((e, k) => (
+                  {ledgerView.rows.map((e, k) => (
                     <tr key={k} className={e.status === 'Cancelled' ? 'text-gray-400 line-through' : ''}>
                       <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(e.date)}</td>
                       <td className="px-4 py-2.5"><Pill tone={KIND_TONE[e.kind] || 'gray'}>{tr(e.kind === 'Use' ? 'Used' : e.kind)}</Pill><div className="font-mono text-[0.7rem] text-gray-500 mt-0.5">{e.ref}</div></td>
                       <td className="px-4 py-2.5 text-[0.8125rem]">{e.kind === 'Donation' ? personName({ name: e.detail }, lang) : storeDetail(e.detail)}
-                        {e.expiry_date && <div className="text-[0.6875rem] text-amber-700">{tr('Best before')} {fmtDate(e.expiry_date)}</div>}
+                        {e.expiry_date && <div className="text-[0.6875rem] text-amber-700">{tr('Expiry date')} {fmtDate(e.expiry_date)}</div>}
                         <div className="text-[0.6875rem] text-gray-400">{staffName(e.by)} · {fmtStamp(e.at)}</div></td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-emerald-700">{e.in != null ? `+${q3(e.in)}` : ''}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-red-600">{e.out != null ? `−${q3(e.out)}` : ''}</td>
@@ -205,7 +233,7 @@ export default function Consumables() {
                         <button onClick={() => cancelUse(e)} title={tr('Cancel use')} aria-label={tr('Cancel use')} className="w-7 h-7 grid place-items-center rounded-lg border border-gray-200 text-red-500 hover:border-red-300"><Ban size={13} /></button>)}</div></td>
                     </tr>
                   ))}
-                  {ledger.entries.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500"><T>Nothing received or used yet.</T></td></tr>}
+                  {ledgerView.rows.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-500">{ledger.entries.length ? tr('No entries match these filters.') : tr('Nothing received or used yet.')}</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -275,7 +303,7 @@ function Batches({ canEdit }) {
   useEffect(() => { load() }, [load])
   async function saveDate(e) {
     e.preventDefault()
-    try { await StoresAPI.setBatchExpiry(edit.kind, edit.id, edit.expiry_date || null); toast(tr('Best-before date saved.')); setEdit(null); load(); changed() }
+    try { await StoresAPI.setBatchExpiry(edit.kind, edit.id, edit.expiry_date || null); toast(tr('Expiry date saved.')); setEdit(null); load(); changed() }
     catch (ex) { toast(errText(ex, 'Could not save the date.'), 'error') }
   }
   return (
@@ -287,7 +315,7 @@ function Batches({ canEdit }) {
       </div>
       <div className="overflow-x-auto"><table className="w-full text-sm">
         <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-          {['Item', 'Batch', 'Received', 'Left', 'Best before', 'Status', ''].map((h) => <th key={h} className={`px-4 py-3 font-semibold ${h === 'Left' ? 'text-right' : ''}`}>{tr(h)}</th>)}</tr></thead>
+          {['Item', 'Batch', 'Received', 'Left', 'Expiry date', 'Status', ''].map((h) => <th key={h} className={`px-4 py-3 font-semibold ${h === 'Left' ? 'text-right' : ''}`}>{tr(h)}</th>)}</tr></thead>
         <tbody className="divide-y divide-gray-100">
           {rows.map((b) => (
             <tr key={`${b.kind}-${b.id}`} className={b.status === 'Expired' ? 'bg-red-50/60' : ''}>
@@ -297,7 +325,7 @@ function Batches({ canEdit }) {
               <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap"><b>{q3(b.left)}</b> <span className="text-gray-500">/ {q3(b.quantity)} {tr(b.unit || '')}</span></td>
               <td className="px-4 py-2.5 whitespace-nowrap">{b.expiry_date ? fmtDate(b.expiry_date) : '—'}</td>
               <td className="px-4 py-2.5"><ExpiryPill b={b} /></td>
-              <td className="px-4 py-2.5">{canEdit && <button onClick={() => setEdit({ ...b, expiry_date: b.expiry_date || '' })} title={tr('Set best-before date')} aria-label={tr('Set best-before date')}
+              <td className="px-4 py-2.5">{canEdit && <button onClick={() => setEdit({ ...b, expiry_date: b.expiry_date || '' })} title={tr('Set expiry date')} aria-label={tr('Set expiry date')}
                 className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-700 hover:text-maroon-700"><Pencil size={14} /></button>}</td>
             </tr>))}
           {!rows.length && <TableStates colSpan={7} loading={loading} error={err} onRetry={load}
@@ -308,7 +336,7 @@ function Batches({ canEdit }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setEdit(null)} />
           <form onSubmit={saveDate} className="relative bg-white rounded-xl shadow-2xl w-full max-w-sm">
-            <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-serif text-lg font-bold text-maroon-800"><T>Best before</T></h3>
+            <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-serif text-lg font-bold text-maroon-800"><T>Expiry date</T></h3>
               <div className="text-[0.75rem] text-gray-500">{tr(edit.name)} · {edit.ref} · {tr('received')} {fmtDate(edit.received)}</div></div>
             <div className="px-5 py-4"><DateField min={edit.received || undefined} value={edit.expiry_date} onChange={(e) => setEdit({ ...edit, expiry_date: e.target.value })} /></div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">

@@ -599,7 +599,7 @@ export default function Donations() {
                     <NumberField min="0" max="99999999" step="1" allowDecimal={false} prefix="₹" value={drawer.est_value} onChange={(e) => setDrawer({ ...drawer, est_value: e.target.value })} />
                     <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('Ask the devotee (or see their bill). Printed on the receipt as "stated by donor" — not cash.')}</div></div>
                   {askExpiry && (
-                    <div className="col-span-2"><label className="label">{tr('Best before (optional)')}</label>
+                    <div className="col-span-2"><label className="label">{tr('Expiry date (optional)')}</label>
                       <DateField min={new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })} value={drawer.expiry_date} onChange={(e) => setDrawer({ ...drawer, expiry_date: e.target.value })} />
                       <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('From the packet. The Stores Officer can add it later if not known.')}</div></div>)}
                 </div>
@@ -673,7 +673,7 @@ export default function Donations() {
                   ...(printDoc.purity ? [{ en: 'Purity', value: printDoc.purity }] : []),
                   ...(printDoc.item_desc ? [{ en: 'Item', value: printDoc.item_desc }] : []),
                   ...(printDoc.rate_per_g != null ? [{ en: 'Rate', value: `₹${Number(printDoc.rate_per_g).toLocaleString('en-IN')} / g (${metalOf(printDoc.fund) === 'Silver' ? '999' : '24K'})` }] : []),
-                  ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref }] : []),
+                  ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref, valueTe: printDoc.txn_ref }] : []),
                   { en: 'Tax Exemption', value: printDoc.g80 ? tr('Eligible (80G)') : '—' },
                 ]}
                 footerNote={printDoc.g80 ? tr('Eligible for 80G tax exemption.') : undefined} />

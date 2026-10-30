@@ -20,6 +20,8 @@ from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, ist_
 hundi_router = APIRouter(prefix="/api/hundi", tags=["hundi"])
 h_read = RequireModule("Hundi")
 h_write = RequireModule("Hundi", write=True)
+# Correct & resubmit a rejected count: the counter staff who counted it, or an Administrator.
+h_resubmit = RequireRole("Counter Staff")
 
 # Item types classification for cash vs valuables tracking
 CASH_TYPES = {"Cash", "Coins"}
@@ -391,9 +393,9 @@ def reject_hundi(hid: int, body: HundiRejectIn, request: Request, db: Session = 
 
 @hundi_router.put("/{hid}/resubmit", response_model=HundiOut)
 def resubmit_hundi(hid: int, body: HundiResubmitIn, request: Request, db: Session = Depends(get_db),
-                   user=Depends(require_admin)):
-    """Administrator corrects a REJECTED count (item lines / amounts) and sends it back
-    for approval. The assigned members stay the same; their earlier approvals are
+                   user=Depends(h_resubmit)):
+    """Counter Staff (or an Administrator) corrects a REJECTED count (item lines / amounts)
+    and sends it back for approval. The assigned members stay the same; their earlier approvals are
     cleared, so two of them must approve the corrected count afresh."""
     h = db.get(HundiCollection, hid)
     if not h:

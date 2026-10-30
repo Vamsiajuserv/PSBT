@@ -82,7 +82,7 @@ export default function DonationMaster() {
     }
   }
   async function remove(c) {
-    if (!(await confirmDialog({ title: tr('Delete category') + ` "${c.name}"?`, message: tr('This cannot be undone.'), tone: 'danger', confirmLabel: tr('Delete') }))) return
+    if (!(await confirmDialog({ title: tr('Delete category') + ` "${tr(c.name)}"?`, message: tr('This cannot be undone.'), tone: 'danger', confirmLabel: tr('Delete') }))) return
     try { await DonationCategoriesAPI.remove(c.id); toast(tr('Category deleted.')); load() }
     catch (ex) { toast(tr(getErrorMessage(ex, 'Could not delete the category.')), 'error') }
   }
@@ -265,7 +265,7 @@ export default function DonationMaster() {
                       <NumberField min="0" step="0.001" value={drawer.data.low_stock_level ?? ''} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, low_stock_level: e.target.value } })} placeholder={tr('e.g. 10')} />
                       <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Consumables Stock shows "Low" when the balance falls to this level.</T></div>
                       <label className="mt-3 flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" className="accent-maroon-700 mt-0.5" checked={!!drawer.data.track_expiry} onChange={(e) => setDrawer({ ...drawer, data: { ...drawer.data, track_expiry: e.target.checked } })} />
-                        <span><T>Track expiry</T><span className="block text-[0.6875rem] text-gray-500"><T>Ask a best-before date at the counter and in manual entries (ghee, oil, rice). Use takes the batch that expires first.</T></span></span></label></div>
+                        <span><T>Track expiry</T><span className="block text-[0.6875rem] text-gray-500"><T>Ask an expiry date at the counter and in manual entries (ghee, oil, rice). Use takes the batch that expires first.</T></span></span></label></div>
                   )}
                   {drawer.data.tracking === 'Tagged' && (
                     <div className="grid grid-cols-2 gap-3">

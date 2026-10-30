@@ -25,7 +25,7 @@ const REGISTER_TO = '/admin/stores/register'   // badge: pieces tagged but not y
 const ISSUE_TO = '/admin/stores/issue'         // red badge: issued pieces past their return date
 const MISSING_TO = '/admin/stores/missing'     // red badge: open missing cases
 const CONSUMABLES_TO = '/admin/stores/consumables'   // red badge: batches expiring within 7 days (or expired)
-const PURCHASE_TO = '/admin/stores/purchase'   // badge: purchase requests waiting for approval
+const PURCHASE_TO = '/admin/stores/purchase'   // badge: purchase requests waiting for approval or an over-budget review
 const RED_BADGES = new Set([ISSUE_TO, MISSING_TO, CONSUMABLES_TO])
 function useStoresBadges(user, pathname) {
   const [counts, setCounts] = useState({})
@@ -39,7 +39,7 @@ function useStoresBadges(user, pathname) {
       StoresAPI.expiryCount().catch(() => null), StoresAPI.purchaseCount().catch(() => null)])
       .then(([p, u, o, a, i, m, e, pr]) => alive && setCounts({ [PENDING_TO]: p?.total || 0, shortages: p?.shortages || 0, [UNSOLD_TO]: u?.total || 0, [OPEN_SALE_TO]: o?.total || 0,
         [REGISTER_TO]: a?.total || 0, [ISSUE_TO]: i?.overdue || 0, [MISSING_TO]: m?.total || 0,
-        [CONSUMABLES_TO]: e?.total || 0, [PURCHASE_TO]: pr?.waiting || 0 }))
+        [CONSUMABLES_TO]: e?.total || 0, [PURCHASE_TO]: pr?.total || 0 }))
     load()
     window.addEventListener('stores:changed', load)
     return () => { alive = false; window.removeEventListener('stores:changed', load) }
@@ -51,7 +51,7 @@ const isRed = (to, counts) => RED_BADGES.has(to) || (to === PENDING_TO && counts
 const badgeTitle = (to, t, counts = {}) => (to === PENDING_TO && counts.shortages > 0 ? `${counts.shortages} ${t('shortage(s) open')}` : to === UNSOLD_TO ? t('Unsold pieces in store') : to === OPEN_SALE_TO ? t('Pieces on Open Sale')
   : to === REGISTER_TO ? t('Tagged pieces awaiting placement') : to === ISSUE_TO ? t('Issued pieces past their return date')
   : to === MISSING_TO ? t('Missing pieces to follow up') : to === CONSUMABLES_TO ? t('Batches expiring within 7 days')
-  : to === PURCHASE_TO ? t('Purchase requests waiting for approval') : t('Waiting to be tagged'))
+  : to === PURCHASE_TO ? t('Purchase requests waiting for approval or review') : t('Waiting to be tagged'))
 const Badge = ({ n, title, red }) => (n > 0
   ? <span title={title} className={`shrink-0 min-w-[1.25rem] h-5 px-1.5 rounded-full text-[0.6875rem] font-bold grid place-items-center ${red ? 'bg-red-500 text-white' : 'bg-gold-400 text-maroon-900'}`}>{n}</span>
   : null)

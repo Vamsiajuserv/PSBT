@@ -39,6 +39,10 @@ COLUMN_MIGRATIONS = {
     "stock_items": [("last_auction_code", "VARCHAR(30)"), ("unsold_count", "INTEGER DEFAULT 0 NOT NULL"),
                     ("open_sale_price", "NUMERIC(12,2)"), ("open_sale_by", "VARCHAR(120)"), ("open_sale_at", "TIMESTAMP")],
     "committee_members": [("name_te", "VARCHAR(160)")],
+    # Purchase Requests: over-budget bills reviewed by the Committee (purchase_bills is created by create_all)
+    "purchase_requests": [("received_by_user", "VARCHAR(60)"), ("over_budget", "BOOLEAN"), ("over_reason", "TEXT"),
+                          ("review_status", "VARCHAR(20)"), ("reviewed_by", "VARCHAR(120)"),
+                          ("reviewed_by_user", "VARCHAR(60)"), ("reviewed_at", "TIMESTAMP"), ("review_note", "TEXT")],
     "bookings": [
         ("pooja_id", "INTEGER"), ("plan_id", "INTEGER"), ("category", "VARCHAR(40)"),
         ("plan_name", "VARCHAR(60)"), ("valid_until", "DATE"),

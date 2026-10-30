@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Plus, X, CheckCircle2, XCircle, Tag } from 'lucide-react'
-import { PageTitle, Pill, fmtStamp, fmtDate } from '../../../components/admin/ui.jsx'
+import { Plus, X, CheckCircle2, XCircle, Tag, Search, RotateCcw } from 'lucide-react'
+import { PageTitle, Pill, Pager, fmtStamp, fmtDate } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
@@ -10,6 +10,8 @@ import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
 import { TagItemsDrawer, canWriteStores, useStoresMeta, staffName } from './shared.jsx'
 
 const SOURCES = ['Opening balance (physical count)', 'Old stock in store', 'Temple purchase', 'Received without receipt', 'Other']
+const SIZE = 25
+const NO_FILTER = { status: '', q: '', category_id: '', source: '', date_from: '', date_to: '' }
 const STATUS_TONE = { 'Pending Verification': 'amber', Verified: 'green', Rejected: 'red' }
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
 const empty = () => ({ category_id: '', quantity: '', source: SOURCES[0], donor_name: '', donor_mobile: '', location_id: '', reason: '', expiry_date: '' })
@@ -23,7 +25,10 @@ export default function ManualEntries() {
   // Tagged items are then tagged piece by piece; Quantity items just add to the Consumables balance
   const material = categories.filter((c) => c.tracking === 'Tagged' || c.tracking === 'Quantity')
   const trackingOf = (cid) => categories.find((c) => c.id === cid)?.tracking
-  const [status, setStatus] = useState('')
+  const [f, setF] = useState(NO_FILTER)
+  const [applied, setApplied] = useState(NO_FILTER)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
@@ -33,10 +38,13 @@ export default function ManualEntries() {
 
   const load = useCallback(() => {
     setLoading(true); setLoadErr('')
-    return StoresAPI.manual(status ? { status } : {}).then((r) => setRows(r.items || []))
-      .catch((ex) => { setLoadErr(errText(ex, "Couldn't load — check your connection and retry.")); setRows([]) })
+    const params = Object.fromEntries(Object.entries(applied).filter(([, v]) => v !== ''))
+    return StoresAPI.manual({ ...params, page, size: SIZE }).then((r) => { setRows(r.items || []); setTotal(r.total ?? (r.items || []).length) })
+      .catch((ex) => { setLoadErr(errText(ex, "Couldn't load — check your connection and retry.")); setRows([]); setTotal(0) })
       .finally(() => setLoading(false))
-  }, [status])
+  }, [applied, page])
+  const apply = (z) => { setF(z); setPage(1); setApplied(z) }
+  const filtered = Object.values(applied).some((v) => v !== '')
   useEffect(() => { load() }, [load])
 
   const cat = material.find((c) => String(c.id) === String(drawer?.category_id))
@@ -78,10 +86,26 @@ export default function ManualEntries() {
       <PageTitle title={tr('Manual Entries')} subtitle={tr('Stock that came in without a donation receipt. It counts only after a committee member verifies it.')}
         actions={canWrite && <button onClick={() => setDrawer(empty())} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Manual Stock Entry</T></button>} />
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4"><div className="w-[13rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-          <Select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">{tr('All')}</option>{Object.keys(STATUS_TONE).map((s) => <option key={s} value={s}>{tr(s)}</option>)}
-          </Select></div></div>
+        <form onSubmit={(e) => { e.preventDefault(); apply(f) }} className="px-5 py-4 flex flex-wrap items-end gap-3 border-b border-gray-100">
+          <div className="flex-1 min-w-[12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search entry, item, donor or reason</T></label>
+            <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input className="input !pl-9" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder={tr('MSE-0004, pancha, shop…')} /></div></div>
+          <div className="w-[11rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
+            <Select className="input" value={f.status} onChange={(e) => apply({ ...f, status: e.target.value })}>
+              <option value="">{tr('All')}</option>{Object.keys(STATUS_TONE).map((x) => <option key={x} value={x}>{tr(x)}</option>)}</Select></div>
+          <div className="w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Item</T></label>
+            <Select className="input" value={f.category_id} onChange={(e) => setF({ ...f, category_id: e.target.value })}><option value="">{tr('All')}</option>
+              {material.map((c) => <option key={c.id} value={c.id}>{tr(c.name)}</option>)}</Select></div>
+          <div className="w-[12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Source</T></label>
+            <Select className="input" value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}><option value="">{tr('All')}</option>
+              {SOURCES.map((x) => <option key={x} value={x}>{tr(x)}</option>)}</Select></div>
+          <div className="w-[9.5rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Entered from</T></label>
+            <DateField value={f.date_from} max={f.date_to || undefined} onChange={(e) => setF({ ...f, date_from: e.target.value })} className="input" /></div>
+          <div className="w-[9.5rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>To</T></label>
+            <DateField value={f.date_to} min={f.date_from || undefined} onChange={(e) => setF({ ...f, date_to: e.target.value })} className="input" /></div>
+          <button className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
+          <button type="button" onClick={() => apply(NO_FILTER)} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+        </form>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
@@ -94,7 +118,7 @@ export default function ManualEntries() {
                 <tr key={m.id} className="hover:bg-gray-50/60 align-top">
                   <td className="px-4 py-3"><div className="font-mono text-[0.78rem]">{m.code}</div><div className="text-[0.6875rem] text-gray-400">{staffName(m.created_by)} · {fmtStamp(m.created_at)}</div></td>
                   <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(m.item_name)}</div><div className="text-[0.75rem] text-gray-500">{m.quantity} {tr(m.unit || '')} · {tr(m.location || '—')}</div>
-                    {m.expiry_date && <div className="text-[0.6875rem] text-amber-700">{tr('Best before')} {fmtDate(m.expiry_date)}</div>}</td>
+                    {m.expiry_date && <div className="text-[0.6875rem] text-amber-700">{tr('Expiry date')} {fmtDate(m.expiry_date)}</div>}</td>
                   <td className="px-4 py-3 text-gray-700">{tr(m.source)}{m.donor_name && <div className="text-[0.75rem] text-gray-500">{personName({ name: m.donor_name }, lang)}</div>}</td>
                   <td className="px-4 py-3 text-gray-700 max-w-[18rem]">{tr(m.reason)}</td>
                   <td className="px-4 py-3"><Pill tone={STATUS_TONE[m.status]}>{tr(m.status)}</Pill>
@@ -109,9 +133,13 @@ export default function ManualEntries() {
                   </div></td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={6} loading={loading} error={loadErr} onRetry={load} empty={tr('No manual entries.')} />}
+              {rows.length === 0 && <TableStates colSpan={6} loading={loading} error={loadErr} onRetry={load}
+                empty={filtered ? tr('No entries match these filters.') : tr('No manual entries.')} />}
             </tbody>
           </table>
+        </div>
+        <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between">
+          <Pager page={page} size={SIZE} total={total} onPage={setPage} unit={tr('entries')} />
         </div>
       </div>
 
@@ -137,7 +165,7 @@ export default function ManualEntries() {
                 <div><label className="label"><T>Donor (optional)</T></label><input className="input" value={drawer.donor_name} onChange={(e) => setDrawer({ ...drawer, donor_name: e.target.value })} /></div>
                 <div><label className="label"><T>Mobile (optional)</T></label><input className="input" inputMode="numeric" maxLength={10} value={drawer.donor_mobile} onChange={(e) => setDrawer({ ...drawer, donor_mobile: e.target.value.replace(/\D/g, '') })} /></div>
               </div>
-              {isQty && cat?.track_expiry && <div><label className="label">{tr('Best before (optional)')}</label>
+              {isQty && cat?.track_expiry && <div><label className="label">{tr('Expiry date (optional)')}</label>
                 <DateField min={new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })} value={drawer.expiry_date} onChange={(e) => setDrawer({ ...drawer, expiry_date: e.target.value })} /></div>}
               {!isQty && <div><label className="label"><T>Store location *</T></label>
                 <Select required className="input" value={drawer.location_id} onChange={(e) => setDrawer({ ...drawer, location_id: e.target.value })}>

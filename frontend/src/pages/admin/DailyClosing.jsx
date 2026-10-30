@@ -61,9 +61,9 @@ function Donut({ cashPct, upiPct }) {
     <svg viewBox="0 0 140 140" className="w-36 h-36">
       <circle cx="70" cy="70" r={r} fill="none" stroke="#e5e7eb" strokeWidth="20" />
       <circle cx="70" cy="70" r={r} fill="none" stroke="#7a1220" strokeWidth="20"
-        strokeDasharray={`${cashLen} ${c}`} transform="rotate(-90 70 70)"><title>{`Cash: ${cashPct}%`}</title></circle>
+        strokeDasharray={`${cashLen} ${c}`} transform="rotate(-90 70 70)"><title>{`${tr('Cash')}: ${cashPct}%`}</title></circle>
       <circle cx="70" cy="70" r={r} fill="none" stroke="#c99a2e" strokeWidth="20"
-        strokeDasharray={`${(upiPct / 100) * c} ${c}`} strokeDashoffset={`-${cashLen}`} transform="rotate(-90 70 70)"><title>{`Online: ${upiPct}%`}</title></circle>
+        strokeDasharray={`${(upiPct / 100) * c} ${c}`} strokeDashoffset={`-${cashLen}`} transform="rotate(-90 70 70)"><title>{`${tr('Online')}: ${upiPct}%`}</title></circle>
       {cashPct >= 8 && <text x={pc.x} y={pc.y} textAnchor="middle" style={{ fontSize: 10, fontWeight: 700, fill: '#fff' }}>{Math.round(cashPct)}%</text>}
       {upiPct >= 8 && <text x={pu.x} y={pu.y} textAnchor="middle" style={{ fontSize: 10, fontWeight: 700, fill: '#fff' }}>{Math.round(upiPct)}%</text>}
     </svg>

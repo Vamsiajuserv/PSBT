@@ -65,6 +65,8 @@ export default function Hundi() {
   const { lang } = useLang()
   const canWrite = user?.role !== 'Accountant'
   const isAdmin = isAdminRole(user)
+  // Correct & Resubmit a rejected count: counter staff (who counted it) or an Administrator
+  const canResubmit = isAdmin || user?.role === 'Counter Staff'
   // Only the committee members assigned to a count may approve or reject it; an
   // Administrator may override. A Committee login acts through its linked member.
   const myMemberId = user?.role === 'Committee' ? user?.committee_member_id : null
@@ -225,7 +227,7 @@ export default function Hundi() {
 
   // DEF-009: Use language-aware names for committee members
   const committeeNames = committee.map((c) => personName(c, lang))
-  // Admin: correct a rejected count's items and send it back to the same members for approval
+  // Counter Staff / Admin: correct a rejected count's items and send it back to the same members for approval
   const openResubmit = (h) => {
     setDateServerErr(''); setCountServerErr('')
     setDrawer({
@@ -568,7 +570,7 @@ export default function Hundi() {
                       {canReject(h) && (
                         <IconAction onClick={() => rejectCollection(h)} label={tr("Reject")} icon={XCircle} tone="border-red-200 text-red-600 hover:bg-red-50" />
                       )}
-                      {isAdmin && h.verification_status === 'Rejected' && (
+                      {canResubmit && h.verification_status === 'Rejected' && (
                         <IconAction onClick={() => openResubmit(h)} label={tr("Correct & Resubmit")} icon={RotateCcw} tone="border-amber-300 text-amber-700 hover:bg-amber-50" />
                       )}
                       {canWrite && h.verification_status === 'Verified' && h.deposit_status === 'Pending Deposit' && h.cash_amount > 0 && (

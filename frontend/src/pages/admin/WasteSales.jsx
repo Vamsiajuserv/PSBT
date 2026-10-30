@@ -628,7 +628,7 @@ export default function WasteSales() {
                   { en: 'Quantity', value: `${money2(printDoc.weight_kg)} ${unitShort(printDoc.unit)}`, valueTe: `${money2(printDoc.weight_kg)} ${tr(unitShort(printDoc.unit))}` },
                   { en: 'Rate', value: `₹${money2(printDoc.rate)} / ${unitShort(printDoc.unit)}`, valueTe: `₹${money2(printDoc.rate)} / ${tr(unitShort(printDoc.unit))}` },
                   { en: 'Payment Mode', value: modeLabel(printDoc.mode) },
-                  ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref }] : []),
+                  ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref, valueTe: printDoc.txn_ref }] : []),
                   { en: 'Verification', value: printDoc.verification_status || 'Pending' },
                   ...(printDoc.verified_by ? [{ en: 'Verified By', value: `${printDoc.verified_by} on ${fmtDate(printDoc.verified_at)}`, valueTe: `${personName({ name: printDoc.verified_by }, 'te')} · ${fmtDate(printDoc.verified_at)}` }] : []),
                   ...(printDoc.rejection_reason ? [{ en: 'Rejection Reason', value: printDoc.rejection_reason }] : []),

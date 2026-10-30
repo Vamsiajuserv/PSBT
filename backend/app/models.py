@@ -6,7 +6,7 @@ master records managed by staff — they do NOT have login accounts.
 from datetime import datetime, date
 from sqlalchemy import (
     Column, Integer, String, Boolean, Text, Date, DateTime, Numeric, ForeignKey, func,
-    UniqueConstraint,
+    UniqueConstraint, LargeBinary,
 )
 from sqlalchemy.orm import relationship
 
@@ -1156,6 +1156,30 @@ class PurchaseRequest(Base):
     receive_note = Column(Text, nullable=True)
     manual_entry_id = Column(Integer, ForeignKey("manual_stock_entries.id"), nullable=True)   # the stock it added
     cancel_reason = Column(Text, nullable=True)
+    received_by_user = Column(String(60), nullable=True)
+    # Bill more than OVER_BUDGET_PCT over the approved approx. cost: the Stores Officer gives a
+    # reason and the Committee reviews it (never whoever marked it received).
+    over_budget = Column(Boolean, nullable=True)
+    over_reason = Column(Text, nullable=True)
+    review_status = Column(String(20), nullable=True)                     # Pending | Reviewed | NULL (not needed)
+    reviewed_by = Column(String(120), nullable=True)
+    reviewed_by_user = Column(String(60), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    review_note = Column(Text, nullable=True)
+
+
+class PurchaseBill(Base):
+    """The photo / scan of a purchase bill. One per request; once kept it is never replaced."""
+    __tablename__ = "purchase_bills"
+
+    id = Column(Integer, primary_key=True)
+    purchase_id = Column(Integer, ForeignKey("purchase_requests.id", ondelete="CASCADE"), unique=True, nullable=False)
+    filename = Column(String(120), nullable=False)
+    content_type = Column(String(40), nullable=False)        # image/jpeg | image/png | image/webp | application/pdf
+    size = Column(Integer, nullable=False)
+    data = Column(LargeBinary, nullable=False)
+    uploaded_by = Column(String(120), nullable=True)
+    uploaded_at = Column(DateTime, server_default=func.now())
 
 
 class FestivalKit(Base):

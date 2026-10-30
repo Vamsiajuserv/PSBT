@@ -151,7 +151,7 @@ export function AnnadanamReceiptModal({ doc, onClose }) {
               { en: 'No. of Persons', value: doc.plates },
               { en: 'Rate', value: `₹${num(doc.rate || RATE)} / ${tr('person')}` },
               { en: 'Payment Mode', value: modeLabel(doc.mode) },
-              ...(doc.txn_ref ? [{ en: 'Transaction', value: doc.txn_ref }] : []),
+              ...(doc.txn_ref ? [{ en: 'Transaction', value: doc.txn_ref, valueTe: doc.txn_ref }] : []),
             ]}
             footerNote={toWords(doc.amount)} />
         </div>

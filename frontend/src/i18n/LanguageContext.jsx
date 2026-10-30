@@ -5449,8 +5449,8 @@ const UI_TE = {
   'Low level': 'తక్కువ స్థాయి',
   'low level': 'తక్కువ స్థాయి',
   'Waiting for approval': 'ఆమోదం కోసం వేచి ఉంది',
-  'Best before': 'ఉపయోగించాల్సిన గడువు',
-  'Best before (optional)': 'ఉపయోగించాల్సిన గడువు (ఐచ్ఛికం)',
+  'Expiry date': 'గడువు తేదీ',
+  'Expiry date (optional)': 'గడువు తేదీ (ఐచ్ఛికం)',
   'Another committee member approves': 'మరో కమిటీ సభ్యుడు ఆమోదిస్తారు',
   'Mark received': 'అందినట్లు నమోదు',
   'Cancel request': 'అభ్యర్థన రద్దు',
@@ -5468,6 +5468,61 @@ const UI_TE = {
   'Item *': 'వస్తువు *',
   'Approx. cost': 'సుమారు ఖర్చు',
   'Bill no *': 'బిల్లు నం. *',
+  'Over budget – review': 'బడ్జెట్ మించింది – సమీక్ష',
+  'Approx. → Bill': 'సుమారు → బిల్లు',
+  'View bill': 'బిల్లు చూడండి',
+  'No bill photo': 'బిల్లు ఫోటో లేదు',
+  'Over budget – reviewed': 'బడ్జెట్ మించింది – సమీక్షించబడింది',
+  'Over budget – committee review': 'బడ్జెట్ మించింది – కమిటీ సమీక్ష',
+  'Review bill': 'బిల్లు సమీక్షించండి',
+  'Accept bill': 'బిల్లు ఆమోదించండి',
+  'Another committee member reviews': 'మరో కమిటీ సభ్యుడు సమీక్షిస్తారు',
+  'Add bill': 'బిల్లు జోడించండి',
+  'Keep bill': 'బిల్లు భద్రపరచండి',
+  'Add bill photo / PDF': 'బిల్లు ఫోటో / PDF జోడించండి',
+  'Change photo': 'ఫోటో మార్చండి',
+  'Reading…': 'చదువుతోంది…',
+  'Bill photo': 'బిల్లు ఫోటో',
+  'Bill is': 'బిల్లు',
+  'over the approved approx. cost': 'ఆమోదించిన సుమారు ఖర్చు కంటే ఎక్కువ',
+  'Enter why — the committee will review this bill.': 'ఎందుకో నమోదు చేయండి — కమిటీ ఈ బిల్లును సమీక్షిస్తుంది.',
+  'e.g. Ghee price went up this week': 'ఉదా. ఈ వారం నెయ్యి ధర పెరిగింది',
+  'Reason for the higher bill': 'బిల్లు ఎక్కువైన కారణం',
+  'Once kept, the bill cannot be replaced.': 'ఒకసారి భద్రపరచిన బిల్లును మార్చలేరు.',
+  'Bill reviewed.': 'బిల్లు సమీక్షించబడింది.',
+  'Bill kept.': 'బిల్లు భద్రపరచబడింది.',
+  'Choose the bill photo or PDF.': 'బిల్లు ఫోటో లేదా PDF ఎంచుకోండి.',
+  'sent to the committee to review the bill': 'బిల్లు సమీక్ష కోసం కమిటీకి పంపబడింది',
+  'bill': 'బిల్లు',
+  'Purchase requests waiting for approval or review': 'ఆమోదం లేదా సమీక్ష కోసం వేచి ఉన్న కొనుగోలు అభ్యర్థనలు',
+  'Search PR no, bill no or item': 'PR నం., బిల్లు నం. లేదా వస్తువు వెతకండి',
+  'PR-0006, bill no, ghee, shop…': 'PR-0006, బిల్లు నం., నెయ్యి, దుకాణం…',
+  'Received from': 'స్వీకరించిన తేదీ నుండి',
+  'Raised from': 'అభ్యర్థించిన తేదీ నుండి',
+  'Over budget': 'బడ్జెట్ మించినవి',
+  'No requests match these filters.': 'ఈ ఫిల్టర్లకు సరిపోయే అభ్యర్థనలు లేవు.',
+  'requests': 'అభ్యర్థనలు',
+  'Total bills': 'మొత్తం బిల్లులు',
+  'Search entry, item, donor or reason': 'ఎంట్రీ, వస్తువు, దాత లేదా కారణం వెతకండి',
+  'MSE-0004, pancha, shop…': 'MSE-0004, పంచ, దుకాణం…',
+  'Entered from': 'నమోదు చేసిన తేదీ నుండి',
+  'No entries match these filters.': 'ఈ ఫిల్టర్లకు సరిపోయే ఎంట్రీలు లేవు.',
+  'entries': 'ఎంట్రీలు',
+  'Receipt, donor, purpose…': 'రసీదు, దాత, ఉద్దేశ్యం…',
+  'In this view': 'ఈ వీక్షణలో',
+  'used': 'వాడబడింది',
+  'PAN-00012, silk, AUC-…': 'PAN-00012, పట్టు, AUC-…',
+  'No pieces match this search.': 'ఈ శోధనకు సరిపోయే వస్తువులు లేవు.',
+  'The bill file could not be read. Choose the photo again.': 'బిల్లు ఫైల్ చదవలేకపోయాం. ఫోటోను మళ్ళీ ఎంచుకోండి.',
+  'The bill file is too large (3 MB at most).': 'బిల్లు ఫైల్ చాలా పెద్దది (గరిష్టం 3 MB).',
+  'Keep the bill as a photo (JPG, PNG, WEBP) or a PDF.': 'బిల్లును ఫోటో (JPG, PNG, WEBP) లేదా PDF గా ఉంచండి.',
+  'Could not review the bill.': 'బిల్లును సమీక్షించలేకపోయాం.',
+  'Could not open the bill.': 'బిల్లును తెరవలేకపోయాం.',
+  'Could not keep the bill.': 'బిల్లును భద్రపరచలేకపోయాం.',
+  'The person who marked it received cannot review its bill.': 'స్వీకరించినట్లు నమోదు చేసిన వ్యక్తి ఆ బిల్లును సమీక్షించలేరు.',
+  'A bill can be kept only after the purchase is marked received.': 'కొనుగోలు స్వీకరించినట్లు నమోదు చేసిన తర్వాతే బిల్లును భద్రపరచవచ్చు.',
+  'The bill file is empty.': 'బిల్లు ఫైల్ ఖాళీగా ఉంది.',
+  'No bill kept for this request.': 'ఈ అభ్యర్థనకు బిల్లు భద్రపరచలేదు.',
   'Bill amount *': 'బిల్లు మొత్తం *',
   'PR No': 'అభ్యర్థన నం.',
   'Asked': 'అడిగినది',
@@ -5584,15 +5639,15 @@ const UI_TE = {
   'Expires today': 'ఈ రోజే గడువు',
   'days': 'రోజులు',
   'Write off expired': 'గడువు ముగిసినవి రద్దు చేయండి',
-  'is past its best-before date. It is taken out of stock and shown in the ledger as "Expired — written off".': 'గడువు దాటిపోయింది. ఇది స్టాక్ నుండి తీసివేయబడి, లెడ్జర్‌లో "గడువు ముగిసింది — రద్దు" అని చూపబడుతుంది.',
+  'is past its expiry date. It is taken out of stock and shown in the ledger as "Expired — written off".': 'గడువు దాటిపోయింది. ఇది స్టాక్ నుండి తీసివేయబడి, లెడ్జర్‌లో "గడువు ముగిసింది — రద్దు" అని చూపబడుతుంది.',
   'e.g. Expired, smells bad': 'ఉదా. గడువు ముగిసింది, వాసన వస్తోంది',
   'written off': 'రద్దు చేయబడింది',
   'Next expiry': 'తదుపరి గడువు',
   'No date entered': 'తేదీ నమోదు కాలేదు',
   'Taken from the batch that expires first': 'ముందు గడువు ముగిసే బ్యాచ్ నుండి తీసుకోబడుతుంది',
-  'Best-before date saved.': 'గడువు తేదీ భద్రపరచబడింది.',
+  'Expiry date saved.': 'గడువు తేదీ భద్రపరచబడింది.',
   'Uses take from the batch that expires first.': 'వాడకం ముందు గడువు ముగిసే బ్యాచ్ నుండి తీసుకోబడుతుంది.',
-  'Set best-before date': 'గడువు తేదీ నమోదు చేయండి',
+  'Set expiry date': 'గడువు తేదీ నమోదు చేయండి',
   'Nothing expires in the next 30 days.': 'రాబోయే 30 రోజుల్లో దేనికీ గడువు ముగియదు.',
   'No stock left in any batch.': 'ఏ బ్యాచ్‌లోనూ స్టాక్ లేదు.',
   'Expired stock: use "Write off expired" on the Balance tab.': 'గడువు ముగిసిన స్టాక్: నిల్వ ట్యాబ్‌లో "గడువు ముగిసినవి రద్దు చేయండి" వాడండి.',
@@ -5601,7 +5656,7 @@ const UI_TE = {
   'Batches expiring within 7 days': '7 రోజుల్లో గడువు ముగిసే బ్యాచ్‌లు',
   'Expiry': 'గడువు',
   'Track expiry': 'గడువు తేదీ నమోదు',
-  'Ask a best-before date at the counter and in manual entries (ghee, oil, rice). Use takes the batch that expires first.': 'కౌంటర్‌లో మరియు మాన్యువల్ ఎంట్రీలలో గడువు తేదీ అడగండి (నెయ్యి, నూనె, బియ్యం). వాడకం ముందు గడువు ముగిసే బ్యాచ్ నుండి.',
+  'Ask an expiry date at the counter and in manual entries (ghee, oil, rice). Use takes the batch that expires first.': 'కౌంటర్‌లో మరియు మాన్యువల్ ఎంట్రీలలో గడువు తేదీ అడగండి (నెయ్యి, నూనె, బియ్యం). వాడకం ముందు గడువు ముగిసే బ్యాచ్ నుండి.',
   'From the packet. The Stores Officer can add it later if not known.': 'ప్యాకెట్‌పై ఉన్నది. తెలియకపోతే స్టోర్స్ అధికారి తర్వాత నమోదు చేయవచ్చు.',
   'Batch': 'బ్యాచ్',
   'Left': 'మిగిలినది',
@@ -5633,10 +5688,10 @@ const UI_TE = {
   'Purchase request not found': 'కొనుగోలు అభ్యర్థన కనుగొనబడలేదు',
   'The person who raised the request cannot approve or reject it.': 'అభ్యర్థన చేసిన వ్యక్తి దాన్ని ఆమోదించలేరు లేదా తిరస్కరించలేరు.',
   'Only an approved request can be marked received.': 'ఆమోదించిన అభ్యర్థనను మాత్రమే స్వీకరించినట్లుగా గుర్తించవచ్చు.',
-  'This stock is already past its best-before date — do not add it to stock.': 'ఈ సరుకు గడువు తేదీ ఇప్పటికే దాటిపోయింది — దీన్ని స్టాక్‌లో చేర్చవద్దు.',
-  'The best-before date cannot be before the donation date.': 'గడువు తేదీ విరాళం తేదీ కంటే ముందు ఉండకూడదు.',
-  'The best-before date cannot be before the day it was received.': 'గడువు తేదీ స్వీకరించిన రోజు కంటే ముందు ఉండకూడదు.',
-  'Best-before dates are kept for consumables only.': 'గడువు తేదీలు వినియోగ వస్తువులకు మాత్రమే నమోదు చేయబడతాయి.',
+  'This stock is already past its expiry date — do not add it to stock.': 'ఈ సరుకు గడువు తేదీ ఇప్పటికే దాటిపోయింది — దీన్ని స్టాక్‌లో చేర్చవద్దు.',
+  'The expiry date cannot be before the donation date.': 'గడువు తేదీ విరాళం తేదీ కంటే ముందు ఉండకూడదు.',
+  'The expiry date cannot be before the day it was received.': 'గడువు తేదీ స్వీకరించిన రోజు కంటే ముందు ఉండకూడదు.',
+  'Expiry dates are kept for consumables only.': 'గడువు తేదీలు వినియోగ వస్తువులకు మాత్రమే నమోదు చేయబడతాయి.',
   'Say what it was used for.': 'దేనికి వినియోగించారో తెలపండి.',
   'Receipt not found': 'రసీదు కనుగొనబడలేదు',
   'Verified manual entry not found': 'ధృవీకరించిన మాన్యువల్ నమోదు కనుగొనబడలేదు',
@@ -5692,7 +5747,7 @@ const UI_TE = {
   '{plan} poojas are performed on Pournami — {date} is not a Pournami day. The next Pournami is {next}.':
     '{plan} పూజలు పౌర్ణమి రోజున జరుగుతాయి — {date} పౌర్ణమి రోజు కాదు. తదుపరి పౌర్ణమి {next}.',
   'Only {qty} of {item} is left.': '{item} {qty} మాత్రమే మిగిలి ఉంది.',
-  'No {item} batch is past its best-before date.': '{item} యొక్క ఏ బ్యాచ్ గడువు తేదీ దాటలేదు.',
+  'No {item} batch is past its expiry date.': '{item} యొక్క ఏ బ్యాచ్ గడువు తేదీ దాటలేదు.',
   'Only {qty} of {item} is expired.': '{item} {qty} మాత్రమే గడువు ముగిసింది.',
   "'{name}' already has stock in Stores & Inventory — its {field} cannot change.":
     "'{name}'కు స్టోర్స్ & ఇన్వెంటరీలో ఇప్పటికే స్టాక్ ఉంది — దాని {field} మార్చలేరు.",
@@ -5719,6 +5774,21 @@ const UI_TE = {
   'Valid during temple hours.': 'ఆలయ సమయాల్లో చెల్లుబాటు అవుతుంది.',
   'Subject to poojari availability': 'పూజారి లభ్యతకు లోబడి',
   'Subject to poojari availability.': 'పూజారి లభ్యతకు లోబడి.',
+  // Booking-ticket notes (lib/slots.js NOTE_FIXED_TIMINGS / NOTE_VEHICLE)
+  'Pooja timings are fixed and cannot be changed. The Pooja will be performed in the name of the concerned person, even if they are unable to attend in person.':
+    'పూజ సమయాలు నిర్ణీతం, వాటిని మార్చలేరు. సంబంధిత వ్యక్తి స్వయంగా హాజరు కాలేకపోయినా, పూజ వారి పేరు మీద నిర్వహించబడుతుంది.',
+  'All vehicle Poojas are performed based on the availability and schedule of the Poojari.':
+    'అన్ని వాహన పూజలు పూజారి లభ్యత మరియు షెడ్యూల్ ప్రకారం నిర్వహించబడతాయి.',
+  // Values staff typed into the Stores / Donations / Devotee forms (spelling as
+  // entered), so the Telugu screen shows their meaning, not letter-by-letter Telugu.
+  'Coin': 'నాణెం', 'liters': 'లీటర్లు', 'For Puja': 'పూజ కోసం', 'Annadhanam': 'అన్నదానం',
+  'Pouranami': 'పౌర్ణమి', 'Birthaday': 'పుట్టినరోజు', 'Panchas': 'పంచెలు',
+  'Diwali Kit': 'దీపావళి కిట్', 'Thursday special': 'గురువారం ప్రత్యేకం',
+  'item damged': 'వస్తువు దెబ్బతిన్నది', 'oil 1 Liters': 'నూనె 1 లీటరు',
+  '20*10 / green': '20*10 / ఆకుపచ్చ',
+  'its missing we will intimate soon.': 'ఇది కనిపించడం లేదు, త్వరలో తెలియజేస్తాము.',
+  'he is ready to donate for birthaday': 'పుట్టినరోజు సందర్భంగా విరాళం ఇవ్వడానికి సిద్ధంగా ఉన్నారు',
+  'Srinivas': 'శ్రీనివాస్', 'Rayechalla': 'రాయెచల్ల',
   "Today's time slot for this pooja is over": 'ఈ పూజకు నేటి సమయ స్లాట్ ముగిసింది',
   "Today's time slot for this pooja is over. Choose another date.": 'ఈ పూజకు నేటి సమయ స్లాట్ ముగిసింది. మరో తేదీని ఎంచుకోండి.',
   "today's slot is over, choose another date": 'నేటి స్లాట్ ముగిసింది, మరో తేదీని ఎంచుకోండి',
@@ -5894,8 +5964,11 @@ export function LanguageProvider({ children }) {
     // ones staff add later, instead of one entry per pooja.
     const parts = s.split(' — ')
     if (parts.length === 2) {
-      const head = UI_TE[parts[0]] || glossaryTe(parts[0])
-      const tail = UI_TE[parts[1]] || glossaryTe(parts[1])
+      // A record code ("AUCR-2026-0423 — vishnu") stays as written; a lower-case
+      // name after it resolves through its title-case entry.
+      const tc = (x) => x.charAt(0).toUpperCase() + x.slice(1).toLowerCase()
+      const head = UI_TE[parts[0]] || glossaryTe(parts[0]) || (/^[A-Z]{2,6}(-\d+)+$/.test(parts[0]) ? parts[0] : null)
+      const tail = UI_TE[parts[1]] || glossaryTe(parts[1]) || UI_TE[tc(parts[1])]
       if (head && tail) return `${head} — ${tail}`
     }
     // Parameterised entries: "Poojas can be booked at most {days} days ahead."
@@ -6071,7 +6144,7 @@ const AUDIT_FORMS = [
   [/^Performed by (.+) → (\S+) \((.+)\)$/, (m) => `${m[2]} (${m[3]}) — నిర్వహించినవారు: ${m[1] === 'none' ? 'ఎవరూ లేరు' : staffName(m[1])}`],
   [/^(\S+) counted: (\d+)\/(\d+)$/, (m) => `${m[1]} లెక్కించబడింది: ${m[2]}/${m[3]}`],
   [/^(\S+) (.+?) ([\d.]+) +(?:(\S+) )?written off as expired — (.*)$/, (m) => `${m[1]} ${slotTe(m[2])} ${m[3]}${m[4] ? ` ${reg.t(m[4])}` : ''} గడువు ముగిసినందున రద్దు చేయబడింది — ${teScript(m[5])}`],
-  [/^(.+) (\S+): best before (.+) → (.+)$/, (m) => `${slotTe(m[1])} ${m[2]}: ఉపయోగించాల్సిన గడువు ${m[3]} → ${m[4]}`],
+  [/^(.+) (\S+): expiry date (.+) → (.+)$/, (m) => `${slotTe(m[1])} ${m[2]}: గడువు తేదీ ${m[3]} → ${m[4]}`],
   [/^(\S+) (.+): (\d+) piece\(s\), (\d+) consumable\(s\)$/, (m) => `${m[1]} ${slotTe(m[2])}: ${m[3]} ముక్క(లు), ${m[4]} వినియోగ వస్తువు(లు)`],
   [/^(.+) (₹[\d.,]+) \(Paid\)$/, (m) => `${slotTe(m[1])} ${m[2]} (చెల్లించబడింది)`],
   [/^Verified (\S+) (₹\S+) — admin override \((\d+) member approval\(s\) recorded\)$/, (m) => `${m[1]} ${m[2]} — నిర్వాహకుడి ప్రత్యేక అనుమతితో ధృవీకరించబడింది (${m[3]} సభ్యుల ఆమోదం(లు) నమోదయ్యాయి)`],
@@ -6183,10 +6256,13 @@ export function teAddress(text) {
     // "H.No. 12-3-456" — house-number abbreviation; the number stays as written.
     if (/^H\.?\s?No\.?\s/i.test(p)) return part.replace(/H\.?\s?No\.?/i, 'ఇం.నం.')
     const look = (x) => { const tc = x.charAt(0).toUpperCase() + x.slice(1).toLowerCase(); return UI_TE[x] || glossaryTe(x) || UI_TE[tc] || glossaryTe(tc) }
+    // A locality the dictionary doesn't hold ("chandanagar") is written in Telugu
+    // letters, like any other unknown English on a Telugu screen.
+    const word = (x) => look(x) || (/[A-Za-z]{2,}/.test(x) ? teScript(x) : x)
     // "Hyderabad - 500082": translate the place, keep the PIN code as written.
     const pin = p.match(/^(.*?)(\s*[-–]?\s*\d{6})$/)
-    if (pin && look(pin[1].trim())) return look(pin[1].trim()) + pin[2]
-    return look(p) || part
+    if (pin && pin[1].trim()) return word(pin[1].trim()) + pin[2]
+    return part.replace(p, word(p))
   }).join('')
 }
 

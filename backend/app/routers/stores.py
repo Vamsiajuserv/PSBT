@@ -1101,12 +1101,33 @@ def _manual_dict(m: ManualStockEntry, names: dict) -> dict:
 
 
 @router.get("/manual")
-def list_manual(status: str = "", db: Session = Depends(get_db), user=Depends(read)):
-    q = db.query(ManualStockEntry)
+def list_manual(status: str = "", db: Session = Depends(get_db), user=Depends(read),
+                q: str = "", category_id: int | None = None, source: str = "",
+                date_from: date | None = None, date_to: date | None = None, page: int = 1, size: int = 25):
+    """Manual entries, newest first. Dates are the day the entry was made."""
+    from .stores_issue import _day_bounds_utc   # stores_issue imports this module
+    page, size = validate_pagination(page, size)
+    qry = db.query(ManualStockEntry)
     if status:
-        q = q.filter(ManualStockEntry.status == status)
+        qry = qry.filter(ManualStockEntry.status == status)
+    if q.strip():
+        like = f"%{q.strip()}%"
+        qry = qry.filter(or_(ManualStockEntry.code.ilike(like), ManualStockEntry.item_name.ilike(like),
+                             ManualStockEntry.donor_name.ilike(like), ManualStockEntry.donor_mobile.ilike(like),
+                             ManualStockEntry.reason.ilike(like)))
+    if category_id:
+        qry = qry.filter(ManualStockEntry.category_id == category_id)
+    if source:
+        qry = qry.filter(ManualStockEntry.source == source)
+    start, end = _day_bounds_utc(date_from, date_to)
+    if start:
+        qry = qry.filter(ManualStockEntry.created_at >= start)
+    if end:
+        qry = qry.filter(ManualStockEntry.created_at < end)
+    total = qry.count()
     names = _loc_names(db)
-    return {"items": [_manual_dict(m, names) for m in q.order_by(ManualStockEntry.id.desc()).limit(500).all()]}
+    rows = qry.order_by(ManualStockEntry.id.desc()).offset((page - 1) * size).limit(size).all()
+    return {"items": [_manual_dict(m, names) for m in rows], "total": total, "sources": list(MANUAL_SOURCES)}
 
 
 @router.post("/manual", status_code=201)

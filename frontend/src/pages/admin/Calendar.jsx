@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, ChevronDown, X } from 'lucide-react'
 import { BookingsAPI, FestivalsAPI, PanchangamAPI, AlmanacAPI } from '../../api/client.js'
 import { Select } from '../../components/common/Field.jsx'
-import { T, tr, useLang } from '../../i18n/LanguageContext.jsx'
+import { T, tr, useLang, staffName } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { isAdminRole } from '../../auth/access.js'
@@ -259,7 +259,7 @@ export default function Calendar() {
   const activeFilters = [
     service && ['Pooja', tr(service), () => setService('')],
     status && ['Status', tr(status), () => setStatus('')],
-    poojari && ['Poojari', poojari === UNASSIGNED ? tr('Not assigned') : poojari, () => setPoojari('')],
+    poojari && ['Poojari', poojari === UNASSIGNED ? tr('Not assigned') : staffName(poojari), () => setPoojari('')],
     ...LAYERS.filter(([k]) => hidden.has(k)).map(([k, label]) => ['Hidden', tr(label), () => toggleLayer(k)]),
   ].filter(Boolean)
   // One URL update: separate setters in the same click would overwrite each other
@@ -315,7 +315,7 @@ export default function Calendar() {
             </Select>
             <Select value={poojari} onChange={(e) => setPoojari(e.target.value)} className="input !w-auto !py-1.5 text-xs" aria-label={tr('Poojari')}>
               <option value="">{tr("All Poojaris")}</option>
-              {poojariOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+              {poojariOptions.map((p) => <option key={p} value={p}>{staffName(p)}</option>)}
               <option value={UNASSIGNED}>{tr("Not assigned")}</option>
             </Select>
           </div>

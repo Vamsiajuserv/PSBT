@@ -909,7 +909,7 @@ class HundiRejectIn(BaseModel):
 
 
 class HundiResubmitIn(BaseModel):
-    """Administrator corrects a rejected hundi count and sends it back for approval."""
+    """Counter Staff (or an Administrator) corrects a rejected hundi count and sends it back for approval."""
     items: list[HundiItemLine] = Field(..., min_length=1)
     counting_completed_on: Optional[datetime] = None
     denomination: Optional[str] = None
