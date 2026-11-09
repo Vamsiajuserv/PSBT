@@ -7,7 +7,7 @@ import { useAuth } from '../../../auth/AuthContext.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { useStoresMeta, staffName } from './shared.jsx'
+import { useStoresMeta, staffName, sourceRef } from './shared.jsx'
 
 // Who may record a check (backend: Counter Staff, Committee, Stores Officer, Administrator)
 const canCheck = (user) => ['Admin', 'Administrator', 'Stores Officer'].includes(user?.role)
@@ -77,7 +77,7 @@ export default function StockCheck() {
                     <span className="font-mono font-semibold text-maroon-700 w-24 shrink-0">{i.tag_id}</span>
                     <span className="flex-1 min-w-0"><span className="text-gray-800">{tr(i.description || i.item_name)}</span>{i.status === 'In Open Sale' && <> <Pill tone="violet">{tr('In Open Sale')}</Pill></>}
                       <span className="text-gray-500">{[tr(i.details), i.weight_g ? `${i.weight_g} ${gramUnit()}` : ''].filter(Boolean).map((x) => ` · ${x}`).join('')}</span></span>
-                    <span className="text-[0.75rem] text-gray-500 shrink-0 text-right">{personName({ name: i.donor_name }, lang)}<br /><span className="font-mono">{i.source_ref}</span></span>
+                    <span className="text-[0.75rem] text-gray-500 shrink-0 text-right">{personName({ name: i.donor_name }, lang)}<br /><span className="font-mono">{sourceRef(i)}</span></span>
                   </label>
                 ))}
                 {!items.length && <div className="px-5 py-10 text-center text-gray-500"><T>No pieces are expected at this location.</T></div>}

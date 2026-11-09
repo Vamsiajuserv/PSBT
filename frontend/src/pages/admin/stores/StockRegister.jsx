@@ -8,7 +8,7 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { STATUS_TONE, STATUSES, AWAITING, ISSUED, MISSING, StickerSheet, canWriteStores, canDamageStock, canPlaceStock, canIssueStock, staffName, useStoresMeta } from './shared.jsx'
+import { STATUS_TONE, STATUSES, AWAITING, ISSUED, MISSING, StickerSheet, canWriteStores, canDamageStock, canPlaceStock, canIssueStock, staffName, useStoresMeta, sourceRef, DeityBadge } from './shared.jsx'
 import { IssueDrawer } from './issue.jsx'
 
 const SIZE = 25
@@ -24,10 +24,11 @@ export default function StockRegister() {
   const { categories, locations, activeLocations } = useStoresMeta()
   const tagged = categories.filter((c) => c.tracking === 'Tagged')
 
-  // ?status=In Store (from the Stores Overview) opens the register already filtered
+  // ?status=In Store (from the Stores Overview), ?q=DON-… (a donation's items) or ?deity_used=true opens the register already filtered
   const [params] = useSearchParams()
   const initialStatus = STATUSES.includes(params.get('status')) ? params.get('status') : ''
-  const [f, setF] = useState({ q: '', category_id: '', status: initialStatus, location_id: '' })
+  const initialDeity = ['true', 'false'].includes(params.get('deity_used')) ? params.get('deity_used') : ''
+  const [f, setF] = useState({ q: params.get('q') || '', category_id: '', status: initialStatus, location_id: '', deity_used: initialDeity })
   const [applied, setApplied] = useState(f)
   const [page, setPage] = useState(1)
   const [rows, setRows] = useState([])
@@ -125,6 +126,7 @@ export default function StockRegister() {
           <span className="inline-flex items-center gap-1.5 font-semibold">{sum.balanced ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
             {tr('Received')} {num(sum.received)} = {tr('Awaiting Placement')} {num(c(AWAITING))} + {tr('In Store')} {num(c('In Store'))} + {tr('Issued')} {num(c(ISSUED))} + {tr('In Auction')} {num(c('In Auction'))} + {tr('In Open Sale')} {num(c('In Open Sale'))} + {tr('Missing')} {num(c(MISSING))} + {tr('Sold')} {num(c('Sold'))} + {tr('Written Off')} {num(c('Written Off'))}</span>
           {pendingCount > 0 && <Link to="/admin/stores/pending" className="text-amber-800 font-semibold hover:underline">{num(pendingCount)} {tr('receipt(s) waiting to be tagged')} →</Link>}
+          {sum.deity_used_in_store > 0 && <Link to="/admin/stores/deity-used" className="text-amber-800 font-semibold hover:underline">{num(sum.deity_used_in_store)} {tr('Deity-Used item(s) in store')} →</Link>}
           {sum.pending_manual > 0 && <Link to="/admin/stores/manual" className="text-amber-800 font-semibold hover:underline">{num(sum.pending_manual)} {tr('manual entry(s) waiting for committee')} →</Link>}
         </div>
       )}
@@ -133,7 +135,7 @@ export default function StockRegister() {
         <div className="px-5 py-5 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search ID, donor or receipt</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input className="input !pl-9" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && (setPage(1), setApplied(f))} placeholder={tr('PAN-00003, donor name, RCPT-…')} /></div></div>
+              <input className="input !pl-9" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && (setPage(1), setApplied(f))} placeholder={tr('PAN-00003, donor name, DON-… or RCPT-…')} /></div></div>
           <div className="w-[11rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Item type</T></label>
             <Select className="input" value={f.category_id} onChange={(e) => setF({ ...f, category_id: e.target.value })}><option value="">{tr('All')}</option>{tagged.map((x) => <option key={x.id} value={x.id}>{tr(x.name)}</option>)}</Select></div>
           <div className="w-[9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
@@ -141,7 +143,10 @@ export default function StockRegister() {
           <div className="w-[11rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Location</T></label>
             <Select className="input" value={f.location_id} onChange={(e) => setF({ ...f, location_id: e.target.value })}><option value="">{tr('All')}</option>{locations.map((l) => <option key={l.id} value={l.id}>{tr(l.name)}</option>)}</Select></div>
           <button onClick={() => { setPage(1); setApplied(f) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
-          <button onClick={() => { const z = { q: '', category_id: '', status: '', location_id: '' }; setF(z); setPage(1); setApplied(z) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+          <div className="w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Deity-Used</T></label>
+            <Select className="input" value={f.deity_used} onChange={(e) => setF({ ...f, deity_used: e.target.value })}><option value="">{tr('All')}</option>
+              <option value="true">{tr('Deity-Used Items')}</option><option value="false">{tr('Other items')}</option></Select></div>
+          <button onClick={() => { const z = { q: '', category_id: '', status: '', location_id: '', deity_used: '' }; setF(z); setPage(1); setApplied(z) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -161,10 +166,11 @@ export default function StockRegister() {
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50/60">
                   <td className="px-3 py-3"><Checkbox checked={!!picked[r.id]} onChange={() => setPicked((p) => ({ ...p, [r.id]: !p[r.id] }))} /></td>
-                  <td className="px-3 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link></td>
+                  <td className="px-3 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link>
+                    {r.deity_used && <div className="mt-1"><DeityBadge item={r} /></div>}</td>
                   <td className="px-3 py-3"><div className="font-semibold text-gray-800">{tr(r.description || r.item_name)}</div>
                     <div className="text-[0.6875rem] text-gray-500">{[tr(r.item_name), tr(r.details), r.weight_g ? `${num(r.weight_g)} ${gramUnit()}` : '', r.purity].filter(Boolean).join(' · ')}</div></td>
-                  <td className="px-3 py-3"><div className="text-gray-800">{personName({ name: r.donor_name }, lang)}</div><div className="text-[0.6875rem] font-mono text-gray-400">{r.source_ref}</div></td>
+                  <td className="px-3 py-3"><div className="text-gray-800">{personName({ name: r.donor_name }, lang)}</div><div className="text-[0.6875rem] font-mono text-gray-400">{sourceRef(r)}</div></td>
                   <td className="px-3 py-3 whitespace-nowrap text-gray-600 text-[0.8125rem]">{fmtDate(r.received_on)}</td>
                   <td className="px-3 py-3 text-gray-700">{['In Store', 'In Open Sale'].includes(r.status) ? tr(r.location || '—')
                     : r.status === AWAITING ? <span className="text-orange-700 text-[0.8125rem]">{tr('Not placed yet')}</span>

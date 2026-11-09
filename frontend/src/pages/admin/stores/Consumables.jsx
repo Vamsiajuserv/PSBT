@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { X, MinusCircle, BookOpen, Plus, CalendarDays, Ban, Printer, Receipt as ReceiptIcon, ShoppingCart, Trash2, Pencil, AlertTriangle, RotateCcw } from 'lucide-react'
 import { PageTitle, Pill, fmtDate, fmtStamp } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
@@ -8,11 +8,14 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { NumberField, DateField, Combobox, Select } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, getLang } from '../../../i18n/LanguageContext.jsx'
-import { canWriteStores, canManageStores, staffName, storeDetail } from './shared.jsx'
+import { canWriteStores, canManageStores, staffName, storeDetail, sourceRef, sourceSplit } from './shared.jsx'
 import { useTemple } from '../../../lib/SiteContext.jsx'
 
 const PURPOSES = ['Nithya Pooja – Deepam', 'Abhishekam', 'Annadanam', 'Prasadam', 'Festival', 'Homam', 'Other']
 const KIND_TONE = { Donation: 'blue', 'Manual entry': 'amber', Use: 'red' }
+// Where a receipt came from (ledger "Source" filter and pill)
+const SOURCES = ['Donated', 'Purchased', 'Opening & other']
+const SOURCE_TONE = { Donated: 'blue', Purchased: 'violet', 'Opening & other': 'amber' }
 const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
 const q3 = (n) => (n == null ? '—' : Number(n).toLocaleString('en-IN', { maximumFractionDigits: 3 }))
@@ -35,7 +38,7 @@ export default function Consumables() {
   const [loadErr, setLoadErr] = useState('')
   const [useFor, setUseFor] = useState(null)
   const [ledger, setLedger] = useState(null)
-  const NO_LEDGER_FILTER = { q: '', kind: '', from: '', to: '' }
+  const NO_LEDGER_FILTER = { q: '', kind: '', source: '', from: '', to: '' }
   const [lf, setLf] = useState(NO_LEDGER_FILTER)    // ledger filters (the whole ledger is loaded; filtered here)
   const [startEdit, setStartEdit] = useState(null)
   const [slip, setSlip] = useState(null)
@@ -50,6 +53,12 @@ export default function Consumables() {
   }, [])
   useEffect(() => { load() }, [load])
   const openLedger = (cid) => StoresAPI.ledger(cid).then((d) => { if (ledger?.category_id !== d.category_id) setLf(NO_LEDGER_FILTER); setLedger(d) }).catch((ex) => toast(errText(ex, 'Could not load the ledger.'), 'error'))
+  // ?item=<category id>&q=DON-… (from a donation in the Donations list) opens that item's ledger on the receipt
+  const [params] = useSearchParams()
+  useEffect(() => {
+    const cid = Number(params.get('item'))
+    if (cid) openLedger(cid).then(() => setLf({ ...NO_LEDGER_FILTER, q: params.get('q') || '' }))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveUse(e) {
     e.preventDefault()
@@ -93,7 +102,8 @@ export default function Consumables() {
     const q = lf.q.trim().toLowerCase()
     const rows = ledger.entries.filter((e) => (!lf.from || (e.date && e.date >= lf.from)) && (!lf.to || (e.date && e.date <= lf.to))
       && (!lf.kind || (lf.kind === 'in' ? e.in != null : e.out != null))
-      && (!q || `${e.ref} ${e.detail || ''} ${e.by || ''}`.toLowerCase().includes(q)))
+      && (!lf.source || e.source === lf.source)
+      && (!q || `${e.ref} ${e.donation_code || ''} ${e.detail || ''} ${e.by || ''}`.toLowerCase().includes(q)))
     const active = rows.filter((e) => e.status === 'Active')
     return { rows, inSum: active.reduce((t, e) => t + (e.in || 0), 0), outSum: active.reduce((t, e) => t + (e.out || 0), 0) }
   })()
@@ -137,7 +147,8 @@ export default function Consumables() {
                 <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(i.name)}</div>
                   {i.pending_manual > 0 && <div className="text-[0.6875rem] text-amber-700">{i.pending_manual} {tr('manual entry(s) waiting for committee')}</div>}</td>
                 <td className="px-4 py-3 text-gray-600">{tr(i.unit || '—')}</td>
-                <td className="px-4 py-3 text-right tabular-nums" title={`${tr('Donations')} ${q3(i.received_donations)} + ${tr('Manual entries')} ${q3(i.received_manual)}`}>{q3(i.received)}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{q3(i.received)}
+                  {i.received > 0 && <div className="text-[0.6875rem] text-gray-500 whitespace-nowrap">{sourceSplit(i.received_donations, i.received_purchased, i.received_other, i.purchased_amount)}</div>}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{q3(i.used)}</td>
                 <td className="px-4 py-3 text-right tabular-nums"><b>{q3(i.remaining)}</b>{i.low && <span className="ml-2"><Pill tone="red">{tr('Low')}</Pill></span>}</td>
                 <td className="px-4 py-3 whitespace-nowrap">{i.next_expiry ? <><ExpiryPill b={i.next_expiry} /><div className="text-[0.6875rem] text-gray-500 mt-0.5">{fmtDate(i.next_expiry.expiry_date)} · {q3(i.next_expiry.left)} {tr(i.unit || '')}</div></>
@@ -191,7 +202,8 @@ export default function Consumables() {
           <div className="relative w-full max-w-3xl bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
               <div><h3 className="font-serif text-xl font-bold text-maroon-800">{tr(ledger.name)} — <T>Ledger</T></h3>
-                <p className="text-[0.8125rem] text-gray-500 mt-0.5">{tr('Received')} {q3(ledger.received)} · {tr('Used')} {q3(ledger.used)} · {tr('Remaining')} <b>{q3(ledger.remaining)} {tr(ledger.unit || '')}</b> · {tr('from')} {fmtDate(ledger.start_date)}</p></div>
+                <p className="text-[0.8125rem] text-gray-500 mt-0.5">{tr('Received')} {q3(ledger.received)} · {tr('Used')} {q3(ledger.used)} · {tr('Remaining')} <b>{q3(ledger.remaining)} {tr(ledger.unit || '')}</b> · {tr('from')} {fmtDate(ledger.start_date)}</p>
+                {ledger.received > 0 && <p className="text-[0.75rem] text-gray-500">{tr('Received')}: {sourceSplit(ledger.received_donations, ledger.received_purchased, ledger.received_other, ledger.purchased_amount)}</p>}</div>
               <button onClick={() => setLedger(null)} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={20} /></button>
             </div>
             <div className="px-6 py-3 flex flex-wrap items-end gap-3 border-b border-gray-100 bg-gray-50/40">
@@ -200,6 +212,9 @@ export default function Consumables() {
               <div className="w-[8.5rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>Show</T></label>
                 <Select className="input" value={lf.kind} onChange={(e) => setLf({ ...lf, kind: e.target.value })}>
                   <option value="">{tr('All')}</option><option value="in">{tr('Received')}</option><option value="out">{tr('Used')}</option></Select></div>
+              <div className="w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>Source</T></label>
+                <Select className="input" value={lf.source} onChange={(e) => setLf({ ...lf, source: e.target.value })}>
+                  <option value="">{tr('All')}</option>{SOURCES.map((x) => <option key={x} value={x}>{tr(x)}</option>)}</Select></div>
               <div className="w-[9.5rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>From</T></label>
                 <DateField value={lf.from} max={lf.to || undefined} onChange={(e) => setLf({ ...lf, from: e.target.value })} className="input" /></div>
               <div className="w-[9.5rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>To</T></label>
@@ -220,7 +235,7 @@ export default function Consumables() {
                   {ledgerView.rows.map((e, k) => (
                     <tr key={k} className={e.status === 'Cancelled' ? 'text-gray-400 line-through' : ''}>
                       <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(e.date)}</td>
-                      <td className="px-4 py-2.5"><Pill tone={KIND_TONE[e.kind] || 'gray'}>{tr(e.kind === 'Use' ? 'Used' : e.kind)}</Pill><div className="font-mono text-[0.7rem] text-gray-500 mt-0.5">{e.ref}</div></td>
+                      <td className="px-4 py-2.5"><Pill tone={SOURCE_TONE[e.source] || KIND_TONE[e.kind] || 'gray'}>{tr(e.kind === 'Use' ? 'Used' : e.source || e.kind)}</Pill><div className="font-mono text-[0.7rem] text-gray-500 mt-0.5">{sourceRef(e, e.ref)}</div></td>
                       <td className="px-4 py-2.5 text-[0.8125rem]">{e.kind === 'Donation' ? personName({ name: e.detail }, lang) : storeDetail(e.detail)}
                         {e.expiry_date && <div className="text-[0.6875rem] text-amber-700">{tr('Expiry date')} {fmtDate(e.expiry_date)}</div>}
                         <div className="text-[0.6875rem] text-gray-400">{staffName(e.by)} · {fmtStamp(e.at)}</div></td>
@@ -320,7 +335,7 @@ function Batches({ canEdit }) {
           {rows.map((b) => (
             <tr key={`${b.kind}-${b.id}`} className={b.status === 'Expired' ? 'bg-red-50/60' : ''}>
               <td className="px-4 py-2.5 font-semibold text-gray-800">{tr(b.name)}</td>
-              <td className="px-4 py-2.5"><span className="font-mono text-[0.78rem]">{b.ref}</span><div className="text-[0.6875rem] text-gray-500">{b.kind === 'Donation' ? staffName(b.detail) : tr(b.detail)}</div></td>
+              <td className="px-4 py-2.5"><span className="font-mono text-[0.78rem]">{sourceRef(b, b.ref)}</span><div className="text-[0.6875rem] text-gray-500">{b.source && <b className="font-semibold">{tr(b.source)} · </b>}{b.kind === 'Donation' ? staffName(b.detail) : tr(b.detail)}</div></td>
               <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(b.received)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap"><b>{q3(b.left)}</b> <span className="text-gray-500">/ {q3(b.quantity)} {tr(b.unit || '')}</span></td>
               <td className="px-4 py-2.5 whitespace-nowrap">{b.expiry_date ? fmtDate(b.expiry_date) : '—'}</td>
@@ -337,7 +352,7 @@ function Batches({ canEdit }) {
           <div className="absolute inset-0 bg-black/40" onClick={() => setEdit(null)} />
           <form onSubmit={saveDate} className="relative bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-serif text-lg font-bold text-maroon-800"><T>Expiry date</T></h3>
-              <div className="text-[0.75rem] text-gray-500">{tr(edit.name)} · {edit.ref} · {tr('received')} {fmtDate(edit.received)}</div></div>
+              <div className="text-[0.75rem] text-gray-500">{tr(edit.name)} · {sourceRef(edit, edit.ref)} · {tr('received')} {fmtDate(edit.received)}</div></div>
             <div className="px-5 py-4"><DateField min={edit.received || undefined} value={edit.expiry_date} onChange={(e) => setEdit({ ...edit, expiry_date: e.target.value })} /></div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button type="button" onClick={() => setEdit(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>

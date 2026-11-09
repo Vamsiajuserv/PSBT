@@ -9,7 +9,7 @@ from ..database import get_db
 from ..models import Poojari, Booking, BookingPerformance
 from ..schemas import PoojariCreate, PoojariUpdate
 from ..security import RequireModule, require_admin, log_action, client_ip
-from ..helpers import gen_code, ist_today, ist_now
+from ..helpers import gen_code, ist_today, ist_now, normalize_slot, parse_slot_bounds
 
 router = APIRouter(prefix="/api/poojaris", tags=["poojaris"])
 
@@ -181,17 +181,7 @@ def queue(day: date | None = None, start: date | None = None, end: date | None =
         return {**base, "day": str(end), "items": items}
 
     day = day or today
-    # Due on `day`: paid, not cancelled, started, and either still active within its
-    # validity window or actually performed on that day (so done items stay visible).
-    q = db.query(Booking).filter(
-        Booking.payment_status == "Paid",
-        Booking.status != "Cancelled",
-        or_(Booking.scheduled_date.is_(None), Booking.scheduled_date <= day),
-    ).filter(or_(
-        and_(Booking.status == "Confirmed",
-             or_(Booking.valid_until.is_(None), Booking.valid_until >= day)),
-        Booking.last_performed_on == day,
-    ))
+    q = _due_on(db, day)
     if mine:
         q = q.filter(Booking.poojari_id == me) if me else q.filter(False)
     bookings = q.order_by(Booking.time_slot, Booking.id).all()
@@ -205,6 +195,179 @@ def queue(day: date | None = None, start: date | None = None, end: date | None =
 
 
 _NO_VISITS = {"visits": 0, "last_visit": None}
+
+
+def _due_on(db: Session, day: date):
+    """Bookings due on `day`: paid, not cancelled, started, and either still active within
+    its validity window or actually performed on that day (so done items stay visible)."""
+    return db.query(Booking).filter(
+        Booking.payment_status == "Paid",
+        Booking.status != "Cancelled",
+        or_(Booking.scheduled_date.is_(None), Booking.scheduled_date <= day),
+    ).filter(or_(
+        and_(Booking.status == "Confirmed",
+             or_(Booking.valid_until.is_(None), Booking.valid_until >= day)),
+        Booking.last_performed_on == day,
+    ))
+
+
+# Poojas valid all day ("as per temple operating timings 6:00 am to 9:00 pm" — the client's
+# Pooja Categories sheet: Namakaranam, festival poojas…) have no hour of their own: they are
+# one "Temple hours" group, listed first.
+TEMPLE_HOUR = -1
+
+
+def slot_hour(slot: str | None) -> int | None:
+    """The 1-hour window a slot falls in, by its start: '05:30 PM' → 17, '09:00 AM - 11:30 AM'
+    → 9; the temple-hours slot → TEMPLE_HOUR. None for a booking with no (or an unreadable)
+    time — "Any time"."""
+    from ..pooja_slot_sheet import TEMPLE_HOURS
+    bounds = parse_slot_bounds(slot)
+    if not bounds:
+        return None
+    return TEMPLE_HOUR if normalize_slot(slot) == TEMPLE_HOURS else bounds[0].hour
+
+
+GENERAL_SLOT = "General slot"
+
+
+def _master_slots(db: Session, pooja_id: int | None) -> tuple[list, bool]:
+    """Every timing in the Pooja Master: [(pooja, plan, slot)] of active plans of active
+    poojas, and whether any such plan has no fixed timing (it then takes the Settings slots).
+    Read live, so a pooja or timing added in the Pooja Master shows at once."""
+    from ..models import Pooja, PoojaPlan
+    from .poojas import plan_slots
+    q = (db.query(PoojaPlan, Pooja).join(Pooja, Pooja.id == PoojaPlan.pooja_id)
+         .filter(Pooja.active.is_(True), PoojaPlan.active.is_(True)))
+    if pooja_id:
+        q = q.filter(Pooja.id == pooja_id)
+    rows, open_timing = [], False
+    for plan, pooja in q.all():
+        fixed = plan_slots(plan)
+        open_timing = open_timing or not fixed
+        rows += [(pooja, plan, sl) for sl in fixed]
+    return rows, open_timing
+
+
+def _performed_on(db: Session, pooja, plan, day: date, fest_cache: dict) -> bool:
+    """Whether a free slot of this plan exists on `day`, by the booking rules: a tithi plan
+    (Sai Vratam) only on its tithi (Pournami / Amavasya); a festival pooja only inside the
+    window of a festival it is linked to (no linked festival = any day)."""
+    from ..models import Festival
+    from . import almanac
+    tithi = (plan.tithi_type or "").strip()
+    if tithi:
+        key = ("tithi", tithi)
+        if key not in fest_cache:
+            fest_cache[key] = any(e.event_date == day for e in almanac.almanac_days(db, day, day, (tithi,)))
+        if not fest_cache[key]:
+            return False
+    if pooja.category == "Festival":
+        if "festivals" not in fest_cache:
+            fest_cache["festivals"] = (db.query(Festival).filter(Festival.status == "Active", Festival.start_date.isnot(None),
+                                                                 Festival.end_date.isnot(None)).all())
+        linked = [f for f in fest_cache["festivals"] if str(pooja.id) in [x.strip() for x in (f.pooja_ids or "").split(",")]]
+        if linked and not any(f.start_date <= day <= f.end_date for f in linked):
+            return False
+    return True
+
+
+def _add_free_slots(db: Session, hours: dict, master: list, open_timing: bool, day: date) -> None:
+    """Every Pooja Master slot performed on `day` (0 devotees if nobody booked it), and the
+    Settings slots once each ("General slot") for plans without fixed timings."""
+    from .settings import time_slots
+    cache = {}
+    for pooja, plan, sl in master:
+        if _performed_on(db, pooja, plan, day, cache):
+            hours.setdefault(slot_hour(sl), {}).setdefault((pooja.id, sl), {
+                "pooja_id": pooja.id, "pooja": pooja.name, "slot": sl, "poojaris": set(), "devotees": []})
+    if open_timing:
+        for sl in time_slots(db):
+            h = slot_hour(sl)
+            if h is None or any(x["slot"] == sl for x in hours.get(h, {}).values()):
+                continue                       # a booking already shows this time
+            hours.setdefault(h, {})[(GENERAL_SLOT, sl)] = {
+                "pooja_id": None, "pooja": GENERAL_SLOT, "slot": sl, "poojaris": set(), "devotees": []}
+
+
+@router.get("/hourly")
+def hourly_slots(day: date | None = None, mine: bool = False, pooja_id: int | None = None, all_slots: bool = False,
+                 db: Session = Depends(get_db), user=Depends(read)):
+    """The day's due poojas in 1-hour windows (by each pooja's slot), with the devotees of
+    every slot — the Bookings "Hourly slots" view, its print sheet, and the poojari's hourly
+    alert. Each slot names the poojari responsible: the booking's own, else the one the
+    Poojari Schedule gives that pooja / day / slot. mine=true (a poojari) keeps the slots
+    they are responsible for, plus unassigned ones nobody is scheduled for (anyone may do those).
+    all_slots=true also lists every Pooja Master slot performed that day with 0 devotees, and
+    each Settings slot once as a "General slot" (poojas without fixed timings) — so free slots
+    show too. A tithi plan's slot shows only on its tithi day, a festival pooja's only inside
+    its festival window. `slot_hours` = every hour any Pooja Master timing falls in (the Hour
+    filter), so a new pooja / timing appears there as soon as it is saved."""
+    from .schedules import scheduled_poojari
+    day = day or ist_today()
+    me = user.poojari_id if user.role == "Poojari" else None
+    q = _due_on(db, day)
+    if pooja_id:
+        q = q.filter(Booking.pooja_id == pooja_id)
+    bookings = q.order_by(Booking.id).all()
+    done = {p.booking_id for p in db.query(BookingPerformance).filter(
+        BookingPerformance.performed_on == day, BookingPerformance.booking_id.in_([b.id for b in bookings] or [0]))}
+    names = {p.id: p.name for p in db.query(Poojari).all()}
+    sched = {}
+    hours = {}
+    for b in bookings:
+        who = b.poojari_id
+        if not who:
+            k = (b.pooja_id, b.time_slot)
+            if k not in sched:
+                p = scheduled_poojari(db, b.pooja_id, day, b.time_slot)
+                sched[k] = p.id if p else None
+            who = sched[k]
+        if mine and (not me or (who is not None and who != me)):
+            continue
+        h = slot_hour(b.time_slot)
+        slot = hours.setdefault(h, {}).setdefault((b.pooja_id or b.seva_name, b.time_slot or ""), {
+            "pooja_id": b.pooja_id, "pooja": b.seva_name, "slot": b.time_slot, "poojaris": set(), "devotees": []})
+        if who:
+            slot["poojaris"].add(names.get(who, b.poojari_name or ""))
+        slot["devotees"].append({
+            "booking_id": b.id, "ticket_no": b.ticket_no or b.receipt_no or b.booking_code,
+            "devotee_name": b.devotee_name, "beneficiary_name": b.beneficiary_name, "mobile": b.mobile,
+            "gothram": b.gothram, "nakshatram": b.nakshatram, "rasi": b.rasi, "plan": b.plan_name,
+            "special_notes": b.special_notes, "poojari_name": names.get(who) if who else None,
+            "done": b.id in done})
+
+    master, open_timing = _master_slots(db, pooja_id)
+    if all_slots:
+        _add_free_slots(db, hours, master, open_timing, day)
+
+    def start_of(slot):
+        bounds = parse_slot_bounds(slot["slot"])
+        return (bounds[0] if bounds else time.max, slot["pooja"] or "")
+
+    out = []
+    for h in sorted(hours, key=lambda x: (x is None, x or 0)):
+        slots = sorted(hours[h].values(), key=start_of)
+        for sl in slots:
+            sl["poojaris"] = sorted(n for n in sl["poojaris"] if n)
+            sl["devotees"].sort(key=lambda d: (d["ticket_no"] or "", d["booking_id"]))
+            sl["count"] = len(sl["devotees"])
+        out.append({"hour": h, "total": sum(sl["count"] for sl in slots), "slots": slots})
+    me_rec = db.get(Poojari, me) if me else None
+    return {"day": str(day), "mine": mine, "poojari_id": me, "poojari_name": me_rec.name if me_rec else None,
+            "linked": bool(me_rec), "hours": out, "total": sum(x["total"] for x in out),
+            "slot_hours": _slot_hours(db, master, open_timing, out)}
+
+
+def _slot_hours(db: Session, master: list, open_timing: bool, out: list) -> list:
+    """Hour filter options: every hour a Pooja Master timing (or, for plans without fixed
+    timings, a Settings slot) falls in, plus any hour a booking shows — Temple hours first."""
+    from .settings import time_slots
+    found = {slot_hour(sl) for _, _, sl in master}
+    if open_timing:
+        found |= {slot_hour(sl) for sl in time_slots(db)}
+    found |= {x["hour"] for x in out}
+    return sorted(found, key=lambda x: (x is None, x if x is not None else 0))
 
 
 @router.post("/queue/complete-due")

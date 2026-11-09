@@ -1,0 +1,343 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hourly Slots Designs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap">
+<style>
+/* Layout: one column of five full-width screen mockups, a sticky picker on top. Tokens = the app's maroon / gold / cream. */
+:root {
+  --page: #f3ede0;
+  --screen: #fbf6ea;
+  --surface: #ffffff;
+  --surface-2: #faf6ee;
+  --line: #ebe2d0;
+  --line-strong: #dccfb4;
+  --ink: #2a1a14;
+  --ink-2: #5e4d44;
+  --ink-3: #8c7c70;
+  --maroon: #5a0f0f;
+  --maroon-2: #8a1c1c;
+  --maroon-soft: #fbeeee;
+  --gold: #b88914;
+  --gold-soft: #fdf8e7;
+  --gold-line: #efd98a;
+  --ok: #1f7a4d;
+  --ok-soft: #e7f4ec;
+  --past: #b9ada0;
+  --display: "Playfair Display", Georgia, "Times New Roman", serif;
+  --body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #160d0b; --screen: #1e1310; --surface: #261915; --surface-2: #2d1e19; --line: #3b2a23; --line-strong: #4d382f;
+    --ink: #f3e9df; --ink-2: #cdbcb0; --ink-3: #9c897c; --maroon: #f0b4a8; --maroon-2: #e58f80; --maroon-soft: #3a1d19;
+    --gold: #e2c06a; --gold-soft: #33280f; --gold-line: #6b5520; --ok: #7fd1a3; --ok-soft: #173426; --past: #6f6158;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #160d0b; --screen: #1e1310; --surface: #261915; --surface-2: #2d1e19; --line: #3b2a23; --line-strong: #4d382f;
+  --ink: #f3e9df; --ink-2: #cdbcb0; --ink-3: #9c897c; --maroon: #f0b4a8; --maroon-2: #e58f80; --maroon-soft: #3a1d19;
+  --gold: #e2c06a; --gold-soft: #33280f; --gold-line: #6b5520; --ok: #7fd1a3; --ok-soft: #173426; --past: #6f6158;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--ink); font-family: var(--body); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 0 48px; }
+.wrap { max-width: 1120px; margin: 0 auto; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* page head + picker */
+.intro { padding-block: 28px 8px; display: grid; gap: 6px; }
+.intro h1 { font-family: var(--display); color: var(--maroon); font-size: 1.9rem; }
+.intro p { margin: 0; color: var(--ink-2); max-width: 62ch; }
+.picker { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--page); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--line); }
+.picker a { text-decoration: none; color: var(--ink-2); border: 1px solid var(--line-strong); background: var(--surface); padding: 6px 12px; border-radius: 999px; font-weight: 600; font-size: 0.8125rem; }
+.picker a:hover, .picker a:focus-visible { color: var(--maroon); border-color: var(--maroon-2); outline: none; }
+.picker b { color: var(--gold); margin-right: 4px; }
+
+/* one design section */
+.design { margin-top: 36px; display: grid; gap: 12px; scroll-margin-top: 64px; }
+.design-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.design-head .tag { font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+.design-head h2 { font-family: var(--display); font-size: 1.35rem; color: var(--ink); }
+.design-head p { margin: 0; color: var(--ink-2); flex-basis: 100%; max-width: 70ch; }
+.good { display: flex; flex-wrap: wrap; gap: 6px; }
+.good span { font-size: 0.75rem; color: var(--ok); background: var(--ok-soft); border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+
+/* the mocked app screen */
+.screen { background: var(--screen); border: 1px solid var(--line-strong); border-radius: 14px; padding: 18px; display: grid; gap: 14px; overflow: hidden; min-width: 0; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 9px; padding: 3px; }
+.seg span { padding: 5px 12px; border-radius: 6px; font-weight: 600; font-size: 0.8125rem; color: var(--ink-2); }
+.seg span.on { background: var(--maroon-2); color: #fff; }
+.field { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 9px; padding: 7px 11px; font-size: 0.8125rem; color: var(--ink); }
+.field small { color: var(--ink-3); font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 0.8125rem; color: var(--ink-2); }
+.toggle i { width: 28px; height: 16px; border-radius: 999px; background: var(--line-strong); position: relative; }
+.toggle i::after { content: ""; position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); }
+.spacer { flex: 1; }
+.btn { display: inline-flex; align-items: center; gap: 6px; font: 600 0.75rem var(--body); color: var(--maroon-2); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+.btn:hover, .btn:focus-visible { border-color: var(--maroon-2); outline: none; }
+.btn.solid { background: var(--maroon-2); color: #fff; border-color: var(--maroon-2); }
+.count { font-weight: 700; color: var(--ink); }
+.muted { color: var(--ink-3); }
+.who { color: var(--ink-3); font-size: 0.75rem; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.6875rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--maroon-soft); color: var(--maroon-2); white-space: nowrap; }
+.chip.gold { background: var(--gold-soft); color: var(--gold); }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.past { background: var(--surface-2); color: var(--past); }
+svg.ic { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* summary row used by several designs */
+.summary { display: flex; flex-wrap: wrap; gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; display: grid; gap: 2px; min-width: 120px; }
+.stat b { font-size: 1.25rem; font-family: var(--display); color: var(--ink); }
+.stat span { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); font-weight: 600; }
+.next { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; background: var(--gold-soft); border: 1px solid var(--gold-line); border-radius: 10px; padding: 10px 14px; }
+.next .lbl { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--gold); font-weight: 700; }
+.next b { color: var(--ink); }
+
+/* ── Design 1: clean list ── */
+.d1 .group { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.d1 .group.nextg { border-color: var(--gold-line); box-shadow: 0 0 0 3px var(--gold-soft); }
+.d1 .ghead { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.d1 .ghead h3 { font-size: 0.9375rem; color: var(--maroon); font-weight: 700; }
+.d1 .row { display: grid; grid-template-columns: minmax(0, 2.2fr) 0.9fr 0.7fr minmax(0, 2fr); gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+.d1 .row:first-of-type { border-top: 0; }
+.d1 .colhead { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); font-weight: 600; padding-block: 8px; background: var(--surface); }
+.d1 .pooja { font-weight: 600; }
+
+/* ── Design 2: timeline ── */
+.d2 .tl { position: relative; display: grid; gap: 0; }
+.d2 .slot { display: grid; grid-template-columns: 86px 22px minmax(0, 1fr); align-items: start; }
+.d2 .time { text-align: right; padding-top: 12px; font-weight: 700; font-size: 0.8125rem; color: var(--ink-2); }
+.d2 .time small { display: block; font-weight: 500; color: var(--ink-3); font-size: 0.6875rem; }
+.d2 .rail { position: relative; align-self: stretch; }
+.d2 .rail::before { content: ""; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: var(--line-strong); }
+.d2 .rail::after { content: ""; position: absolute; left: 5px; top: 15px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--maroon-2); }
+.d2 .slot.past .rail::after { border-color: var(--past); background: var(--past); }
+.d2 .slot.nexts .rail::after { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 0 4px var(--gold-soft); }
+.d2 .cards { padding: 6px 0 14px 8px; display: grid; gap: 6px; }
+.d2 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.d2 .slot.past .card { opacity: 0.6; }
+.d2 .slot.nexts .card { border-color: var(--gold-line); }
+.d2 .card .p { font-weight: 600; flex: 1 1 160px; }
+.d2 .now { display: grid; grid-template-columns: 86px 22px 1fr; align-items: center; }
+.d2 .now span { text-align: right; font-size: 0.6875rem; font-weight: 700; color: var(--maroon-2); text-transform: uppercase; letter-spacing: 0.08em; }
+.d2 .now i { height: 2px; background: var(--maroon-2); grid-column: 2 / 4; }
+
+/* ── Design 3: register table ── */
+.d3 .tablebox { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.d3 table { width: 100%; border-collapse: collapse; min-width: 640px; }
+.d3 th { text-align: left; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); font-weight: 600; padding: 9px 12px; border-bottom: 1px solid var(--line-strong); background: var(--surface-2); }
+.d3 td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.d3 tr.hr td { background: var(--maroon-soft); color: var(--maroon); font-weight: 700; font-size: 0.8125rem; padding-block: 7px; }
+.d3 tr.hr.nexth td { background: var(--gold-soft); color: var(--ink); }
+.d3 td.r { text-align: right; }
+
+/* ── Design 4: hour tiles + detail ── */
+.d4 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.d4 .tile { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 10px; display: grid; gap: 2px; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.d4 .tile .h { font-size: 0.75rem; color: var(--ink-3); font-weight: 600; }
+.d4 .tile .n { font-family: var(--display); font-size: 1.25rem; color: var(--ink); }
+.d4 .tile .bar2 { height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.d4 .tile .bar2 i { display: block; height: 100%; background: var(--maroon-2); }
+.d4 .tile.empty { opacity: 0.55; cursor: default; }
+.d4 .tile.nextt { border-color: var(--gold-line); background: var(--gold-soft); }
+.d4 .tile.sel { border-color: var(--maroon-2); box-shadow: 0 0 0 2px var(--maroon-soft); }
+.d4 .tile:focus-visible { outline: 2px solid var(--maroon-2); outline-offset: 2px; }
+.d4 .detail { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.d4 .dhead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.d4 .dhead h3 { font-family: var(--display); color: var(--maroon); font-size: 1.1rem; }
+.d4 .drow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.d4 .drow:first-of-type { border-top: 0; }
+.d4 .drow .p { font-weight: 600; flex: 1 1 180px; }
+
+/* ── Design 5: part-of-day board ── */
+.d5 .board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.d5 .col { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.d5 .colh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 2px 4px 6px; border-bottom: 1px solid var(--line); }
+.d5 .colh h3 { font-family: var(--display); font-size: 1rem; color: var(--maroon); }
+.d5 .k { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; display: grid; gap: 4px; }
+.d5 .k.nextk { border-color: var(--gold-line); box-shadow: 0 0 0 3px var(--gold-soft); }
+.d5 .k.pastk { opacity: 0.6; }
+.d5 .k .t { display: flex; justify-content: space-between; gap: 8px; font-size: 0.75rem; color: var(--ink-3); font-weight: 600; }
+.d5 .k .p { font-weight: 600; }
+.d5 .allday { background: var(--gold-soft); border: 1px solid var(--gold-line); border-radius: 10px; padding: 9px 12px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+
+@media (max-width: 720px) {
+  .d1 .row { grid-template-columns: minmax(0, 1fr) auto; }
+  .d1 .row .hide-sm { display: none; }
+  .d1 .colhead { display: none; }
+  .d5 .board { grid-template-columns: minmax(0, 1fr); }
+  .d2 .slot, .d2 .now { grid-template-columns: 64px 22px minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) { .tile, .btn, .picker a { transition: border-color .15s, background .15s; } }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h1>Hourly slots: five layouts</h1>
+    <p>Pooja Management, Hourly slots view, for Tuesday 3 Nov at 6:20 PM. All five use the same bookings, so you can compare only the layout. Pick one by its number.</p>
+  </header>
+  <nav class="picker" aria-label="Designs">
+    <a href="#d1"><b>1</b>Clean list</a>
+    <a href="#d2"><b>2</b>Day timeline</a>
+    <a href="#d3"><b>3</b>Register table</a>
+    <a href="#d4"><b>4</b>Hour tiles</a>
+    <a href="#d5"><b>5</b>Morning · Afternoon · Evening</a>
+  </nav>
+
+  <section class="design" id="d1">
+    <div class="design-head"><span class="tag">Design 1</span><h2>Clean list</h2>
+      <p>Closest to today's screen, tidied. Each hour is a card with columns that line up: pooja, time, devotees, Poojari. The next hour has a gold outline.</p></div>
+    <div class="good"><span>Least change for staff</span><span>Easy to read</span></div>
+    <div class="screen d1" id="m1"></div>
+  </section>
+
+  <section class="design" id="d2">
+    <div class="design-head"><span class="tag">Design 2</span><h2>Day timeline</h2>
+      <p>The day runs top to bottom on a time line. Past hours fade, a red "Now" line marks the current time, and the next hour is gold.</p></div>
+    <div class="good"><span>Best sense of time</span><span>Good for the Poojari</span></div>
+    <div class="screen d2" id="m2"></div>
+  </section>
+
+  <section class="design" id="d3">
+    <div class="design-head"><span class="tag">Design 3</span><h2>Register table</h2>
+      <p>One table, like a register book. Each hour is a coloured band, each pooja is a row. Fits the most on one screen.</p></div>
+    <div class="good"><span>Most compact</span><span>Matches the print sheet</span></div>
+    <div class="screen d3" id="m3"></div>
+  </section>
+
+  <section class="design" id="d4">
+    <div class="design-head"><span class="tag">Design 4</span><h2>Hour tiles</h2>
+      <p>The whole day as a row of hour tiles with counts. Tap a tile to see that hour below. Try clicking a tile.</p></div>
+    <div class="good"><span>Whole day at a glance</span><span>Busy hours stand out</span></div>
+    <div class="screen d4" id="m4"></div>
+  </section>
+
+  <section class="design" id="d5">
+    <div class="design-head"><span class="tag">Design 5</span><h2>Morning · Afternoon · Evening</h2>
+      <p>Three columns for the parts of the day, with all-day poojas in a strip on top. Works like a board on a wall.</p></div>
+    <div class="good"><span>Simple to explain</span><span>Good on a large screen</span></div>
+    <div class="screen d5" id="m5"></div>
+  </section>
+</div>
+
+<script>
+// Sample day (Tue 3 Nov, now 6:20 PM). hour -1 = Temple hours (6 AM – 9 PM).
+const NOW_HOUR = 18;
+const DATA = [
+  { hour: -1, slots: [{ pooja: "Annaprasana", time: "All day", n: 1, who: "Sri Vishnu Prasad" }, { pooja: "Namakaranam", time: "All day", n: 2, who: "Sri Vishnu Prasad" }] },
+  { hour: 6, slots: [{ pooja: "Nithya Pooja", time: "06:00 – 07:00 AM", n: 2, who: "Praneeth Oleti, Sri Sridhara Murthy" }, { pooja: "Sai Vratam (Pournami)", time: "06:00 – 07:00 AM", n: 1, who: "Sri Ramachandra Sastry" }] },
+  { hour: 8, slots: [{ pooja: "Abhishekam", time: "08:15 AM", n: 4, who: "Sri Sridhara Murthy" }] },
+  { hour: 9, slots: [{ pooja: "Ashtotharam / Archana", time: "09:30 AM", n: 3, who: "Praneeth Oleti" }, { pooja: "Car Pooja", time: "09:00 – 11:30 AM", n: 1, who: "Sri Krishna Murthy" }] },
+  { hour: 10, slots: [{ pooja: "Nithya Pooja", time: "10:30 – 11:30 AM", n: 1, who: "Sri Krishna Murthy" }] },
+  { hour: 16, slots: [{ pooja: "Sahasranama Archana", time: "04:30 PM", n: 2, who: "Sri Ramachandra Sastry" }] },
+  { hour: 17, slots: [{ pooja: "Ashtotharam / Archana", time: "05:30 PM", n: 6, who: "Praneeth Oleti" }] },
+  { hour: 19, slots: [{ pooja: "Ashtotharam / Archana", time: "07:00 PM", n: 1, who: "Praneeth Oleti" }, { pooja: "Auto Pooja", time: "07:00 – 09:00 PM", n: 2, who: "Sri Krishna Murthy" }] },
+  { hour: 20, slots: [{ pooja: "Ashtotharam / Archana", time: "08:00 PM", n: 1, who: "Praneeth Oleti" }] },
+];
+const NEXT = 19;
+const total = (h) => h.slots.reduce((t, s) => t + s.n, 0);
+const ALL = DATA.reduce((t, h) => t + total(h), 0);
+const dev = (n) => `${n} ${n === 1 ? "devotee" : "devotees"}`;
+const clock = (h) => `${String(h % 12 || 12).padStart(2, "0")}:00 ${h >= 12 ? "PM" : "AM"}`;
+const label = (h) => (h === -1 ? "Temple hours · 6 AM – 9 PM" : `${clock(h)} – ${clock(h + 1)}`);
+const shortH = (h) => (h === -1 ? "All day" : `${h % 12 || 12} ${h >= 12 ? "PM" : "AM"}`);
+const state = (h) => (h === -1 ? "allday" : h === NEXT ? "next" : h < NOW_HOUR ? "past" : "later");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const I = {
+  print: '<svg class="ic" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/></svg>',
+  clock: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  cal: '<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  user: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+};
+const filters = (extra = "") => `
+  <div class="bar">
+    <div class="seg"><span>All bookings</span><span class="on">Hourly slots</span></div>
+    <span class="field">${I.cal}<small>Date</small> 03 Nov 2026</span>
+    <span class="field"><small>Pooja</small> All poojas ▾</span>
+    <span class="field"><small>Hour</small> All hours ▾</span>
+    <span class="toggle"><i></i>Show free slots</span>
+    <span class="spacer"></span>${extra}
+  </div>`;
+const nextBox = () => {
+  const h = DATA.find((x) => x.hour === NEXT);
+  return `<div class="next"><span class="lbl">Next · in 40 min</span><b>${label(NEXT)}</b>
+    <span>${h.slots.map((s) => `${esc(s.pooja)} ${s.time} · <b class="num">${dev(s.n)}</b>`).join(" &nbsp;·&nbsp; ")}</span>
+    <span class="spacer"></span><button class="btn solid" type="button">${I.print}Print list</button></div>`;
+};
+const stats = () => `<div class="summary">
+  <div class="stat"><b class="num">${ALL}</b><span>Devotees today</span></div>
+  <div class="stat"><b class="num">${DATA.reduce((t, h) => t + h.slots.length, 0)}</b><span>Pooja slots</span></div>
+  <div class="stat"><b class="num">${DATA.filter((h) => h.hour >= NOW_HOUR || h.hour === -1).reduce((t, h) => t + total(h), 0)}</b><span>Still to do</span></div>
+  <div class="stat"><b>${shortH(NEXT)}</b><span>Next hour</span></div></div>`;
+
+// Design 1
+document.getElementById("m1").innerHTML = filters(`<span class="muted num">${dev(ALL)} today</span>`) + nextBox() +
+  DATA.map((h) => `<div class="group ${h.hour === NEXT ? "nextg" : ""}">
+    <div class="ghead">${I.clock}<h3>${label(h.hour)}</h3>${h.hour === NEXT ? '<span class="chip gold">Next</span>' : state(h.hour) === "past" ? '<span class="chip past">Done</span>' : ""}
+      <span class="spacer"></span><span class="count num">${dev(total(h))}</span><button class="btn" type="button">${I.print}Print</button></div>
+    <div class="row colhead"><span>Pooja</span><span class="hide-sm">Time</span><span>Devotees</span><span class="hide-sm">Poojari</span></div>
+    ${h.slots.map((s) => `<div class="row"><span class="pooja">${esc(s.pooja)}</span><span class="hide-sm num">${s.time}</span><span class="count num">${s.n}</span><span class="who hide-sm">${esc(s.who)}</span></div>`).join("")}
+  </div>`).join("");
+
+// Design 2
+let nowDrawn = false;
+document.getElementById("m2").innerHTML = filters() + `<div class="tl">` + DATA.map((h) => {
+  let line = "";
+  if (!nowDrawn && h.hour !== -1 && h.hour >= NOW_HOUR) { nowDrawn = true; line = `<div class="now"><span>Now 6:20</span><i></i></div>`; }
+  const st = state(h.hour);
+  return line + `<div class="slot ${st === "past" ? "past" : st === "next" ? "nexts" : ""}">
+    <div class="time num">${h.hour === -1 ? "All day" : shortH(h.hour)}<small>${dev(total(h))}</small></div><div class="rail"></div>
+    <div class="cards">${h.slots.map((s) => `<div class="card"><span class="p">${esc(s.pooja)}</span><span class="chip ${st === "next" ? "gold" : st === "past" ? "past" : ""} num">${s.time}</span>
+      <span class="count num">${dev(s.n)}</span><span class="who">${I.user} ${esc(s.who)}</span></div>`).join("")}
+      ${st === "next" ? `<div><button class="btn solid" type="button">${I.print}Print this hour</button></div>` : ""}</div></div>`;
+}).join("") + `</div>`;
+
+// Design 3
+document.getElementById("m3").innerHTML = filters(`<button class="btn" type="button">${I.print}Print day</button>`) + stats() +
+  `<div class="tablebox"><table><thead><tr><th>Pooja</th><th>Time</th><th class="num">Devotees</th><th>Poojari</th><th>Status</th><th></th></tr></thead><tbody>` +
+  DATA.map((h) => {
+    const st = state(h.hour);
+    return `<tr class="hr ${st === "next" ? "nexth" : ""}"><td colspan="2">${label(h.hour)}</td><td class="num">${total(h)}</td><td colspan="2">${st === "next" ? "Next hour" : ""}</td><td class="r"><button class="btn" type="button">${I.print}Print</button></td></tr>` +
+      h.slots.map((s) => `<tr><td><b>${esc(s.pooja)}</b></td><td class="num">${s.time}</td><td class="num count">${s.n}</td><td class="who">${esc(s.who)}</td>
+        <td>${st === "past" ? '<span class="chip ok">Done</span>' : st === "next" ? '<span class="chip gold">Next</span>' : st === "allday" ? '<span class="chip">All day</span>' : '<span class="chip">Due</span>'}</td><td></td></tr>`).join("");
+  }).join("") + `</tbody></table></div>`;
+
+// Design 4
+const HOURS = [-1, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
+const max = Math.max(...DATA.map(total));
+function drawD4(sel) {
+  const h = DATA.find((x) => x.hour === sel);
+  document.getElementById("m4").innerHTML = filters() + stats() +
+    `<div class="tiles" role="group" aria-label="Hours">` + HOURS.map((x) => {
+      const d = DATA.find((y) => y.hour === x), n = d ? total(d) : 0;
+      return `<button type="button" class="tile ${!n ? "empty" : ""} ${x === NEXT ? "nextt" : ""} ${x === sel ? "sel" : ""}" data-h="${x}" ${!n ? "disabled" : ""} aria-pressed="${x === sel}">
+        <span class="h">${shortH(x)}</span><span class="n num">${n || "–"}</span><span class="bar2"><i style="width:${n ? Math.max(12, (n / max) * 100) : 0}%"></i></span></button>`;
+    }).join("") + `</div>` +
+    `<div class="detail"><div class="dhead">${I.clock}<h3>${label(sel)}</h3>${sel === NEXT ? '<span class="chip gold">Next</span>' : ""}<span class="spacer"></span>
+      <span class="count num">${dev(total(h))}</span><button class="btn solid" type="button">${I.print}Print</button></div>` +
+    h.slots.map((s) => `<div class="drow"><span class="p">${esc(s.pooja)}</span><span class="chip num">${s.time}</span><span class="count num">${dev(s.n)}</span><span class="who">${I.user} ${esc(s.who)}</span><button class="btn" type="button">View names</button></div>`).join("") + `</div>`;
+  document.querySelectorAll("#m4 .tile:not(.empty)").forEach((b) => b.addEventListener("click", () => drawD4(Number(b.dataset.h))));
+}
+drawD4(NEXT);
+
+// Design 5
+const parts = [["Morning", "6 AM – 12 PM", (h) => h >= 6 && h < 12], ["Afternoon", "12 – 5 PM", (h) => h >= 12 && h < 17], ["Evening", "5 – 9 PM", (h) => h >= 17]];
+const allday = DATA.find((h) => h.hour === -1);
+document.getElementById("m5").innerHTML = filters() + nextBox() +
+  `<div class="allday"><span class="chip gold">All day · 6 AM – 9 PM</span>${allday.slots.map((s) => `<span><b>${esc(s.pooja)}</b> <span class="muted num">· ${dev(s.n)}</span></span>`).join("")}<span class="spacer"></span><button class="btn" type="button">${I.print}Print</button></div>` +
+  `<div class="board">` + parts.map(([name, range, test]) => {
+    const hs = DATA.filter((h) => h.hour !== -1 && test(h.hour));
+    const n = hs.reduce((t, h) => t + total(h), 0);
+    return `<div class="col"><div class="colh"><h3>${name}</h3><span class="muted num">${range} · ${dev(n)}</span></div>` +
+      (hs.length ? hs.flatMap((h) => h.slots.map((s) => `<div class="k ${h.hour === NEXT ? "nextk" : state(h.hour) === "past" ? "pastk" : ""}">
+        <div class="t num"><span>${s.time}</span><span>${h.hour === NEXT ? '<span class="chip gold">Next</span>' : ""}</span></div>
+        <div class="p">${esc(s.pooja)}</div><div class="who"><b class="count num">${dev(s.n)}</b> · ${esc(s.who)}</div></div>`)).join("")
+        : `<div class="muted" style="padding:8px 4px">No poojas booked.</div>`) + `</div>`;
+  }).join("") + `</div>`;
+</script>
+</html>

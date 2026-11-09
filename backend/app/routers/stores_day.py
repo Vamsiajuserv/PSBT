@@ -25,7 +25,7 @@ from ..models import DonationCategory, ManualStockEntry, StoreLocation, StoresDa
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip, STORES_OFFICER
 from .stock_report import _piece_histories, _quantity_rows
 from .stores import (PLACED, TAGGED_UNPLACED, ACT_ISSUED, ACT_RETURNED, ACT_MISSING, ACT_FOUND, _who, pending_count,
-                     receive_counts)
+                     receive_counts, donation_codes)
 
 router = APIRouter(prefix="/api/stores/day-closing", tags=["stores-day-closing"])
 read = RequireModule("Stores")
@@ -92,6 +92,7 @@ def _blank_loc() -> dict:
 def build_day(db: Session, day: date, user=None) -> dict:
     """The Stores Day Closing report for one IST day."""
     items, events = _piece_histories(db)
+    codes = donation_codes(db, items.values())
     current = {l.id: l.name for l in db.query(StoreLocation).all()}
     kpis = {"received": 0, "placed": 0, "moved": 0, "issued": 0, "returned": 0, "sold": 0, "written_off": 0,
             "missing": 0, "unplaced": 0, "out_on_issue": 0}
@@ -126,7 +127,8 @@ def build_day(db: Session, day: date, user=None) -> dict:
                     kpis["received"] += 1
                     tagged_today = True
                     g = received.setdefault(item.source_ref or "—", {
-                        "source_type": item.source_type, "source_ref": item.source_ref, "donor_name": item.donor_name,
+                        "source_type": item.source_type, "source_ref": item.source_ref,
+                        "donation_code": codes.get(item.donation_id), "donor_name": item.donor_name,
                         "item_name": item.item_name, "tagged": 0, "placed": 0})
                     g["tagged"] += 1
                 if action in ("Tagged", PLACED) and new in SHELF:
@@ -161,12 +163,18 @@ def build_day(db: Session, day: date, user=None) -> dict:
 
     lows = {c.id: c.low_stock_level for c in db.query(DonationCategory).filter(DonationCategory.tracking == "Quantity").all()}
     consumables = []
-    for r in _quantity_rows(db, day, day):
+    qrows = _quantity_rows(db, day, day)
+    for r in qrows:
         level = lows.get(r["category_id"])
         consumables.append({"category_id": r["category_id"], "name": r["name"], "unit": r["unit"],
                             "opening": r["opening"], "received": r["received"], "used": r["out"], "closing": r["closing"],
                             "low_stock_level": float(level) if level is not None else None,
                             "low": level is not None and r["closing"] <= float(level)})
+    # Received by source (Donated / Purchased / Opening & other). Kept apart from the signed
+    # "consumables" rows, so a closing signed before this split does not look changed.
+    consumables_sources = {r["category_id"]: {"donated": r["received_donated"], "purchased": r["received_purchased"],
+                                              "other": r["received_other"]}
+                           for r in qrows if r["received"]}
 
     from ..models import IssueLine, IssueSlip, MissingCase
     from .stores_receive import day_receipts
@@ -180,6 +188,7 @@ def build_day(db: Session, day: date, user=None) -> dict:
         "date": str(day), "kpis": kpis,
         "received": sorted(received.values(), key=lambda g: (g["source_type"] or "", g["source_ref"] or "")),
         "store_receipts": store_receipts, "locations": rows, "consumables": consumables,
+        "consumables_sources": consumables_sources,
         "attention": {"unplaced": kpis["unplaced"], "to_receive": rcv["to_receive"], "shortages": rcv["shortages"],
                       "out_on_issue": db.query(func.count(IssueLine.id)).filter(IssueLine.returned_at.is_(None)).scalar() or 0,
                       "overdue": overdue,

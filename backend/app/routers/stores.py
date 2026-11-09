@@ -12,8 +12,8 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, object_session
 
 from ..database import get_db
 from ..helpers import next_code_seq, validate_pagination
@@ -43,6 +43,10 @@ ACT_ISSUED, ACT_RETURNED = "Issued", "Returned"        # issue slip out / back
 ACT_MISSING, ACT_FOUND = "Missing", "Found"            # stock check not found / found again
 # Physically on a store shelf: an Open Sale piece stays at its location until it is sold
 ON_SHELF = ("In Store", "In Open Sale")
+# Deity-Used Items: worn / used by the deity — offered first at auction. A piece back from an
+# issue slip for one of these purposes is marked; the Stores Officer can mark / unmark by hand.
+DEITY_PURPOSES = ("alankaram", "festival")
+ACT_DEITY_ON, ACT_DEITY_OFF = "Marked Deity-Used", "Deity-Used mark removed"
 MANUAL_SOURCES = ("Opening balance (physical count)", "Old stock in store", "Temple purchase",
                   "Received without receipt", "Other")
 # Hundi lines that go to store custody (matches misc.VALUABLES_TYPES)
@@ -375,19 +379,38 @@ def _hundi_progress(db: Session, h: HundiCollection, pieces_of: dict | None = No
             "complete": bool(lines) and all(l["complete"] for l in lines), "receive": hundi_receive_info(h, rec)}
 
 
-def _item_dict(i: StockItem, loc_names: dict) -> dict:
+def donation_codes(db: Session, items) -> dict:
+    """The Donation ID (DON-…) of the counter donations these pieces came from, by donation
+    id — one query for a whole list. Pieces keep the receipt no. (RCPT-…) as source_ref."""
+    ids = {i.donation_id for i in items if i.donation_id}
+    if not ids:
+        return {}
+    return dict(db.query(Donation.id, Donation.donation_code).filter(Donation.id.in_(ids)).all())
+
+
+def donation_code_match(like: str):
+    """Pieces from a donation whose Donation ID (DON-…) matches — for the register searches."""
+    return StockItem.donation_id.in_(select(Donation.id).where(Donation.donation_code.ilike(like)))
+
+
+def _item_dict(i: StockItem, loc_names: dict, codes: dict | None = None) -> dict:
+    """codes: donation_codes() of the list being built; a single piece looks its own up."""
+    if codes is None:
+        codes = donation_codes(object_session(i), [i]) if i.donation_id else {}
     return {"id": i.id, "tag_id": i.tag_id, "category_id": i.category_id, "item_name": i.item_name,
             "description": i.description, "details": i.details,
             "weight_g": float(i.weight_g) if i.weight_g is not None else None, "purity": i.purity,
             "est_value": float(i.est_value) if i.est_value is not None else None,
             "location_id": i.location_id, "location": loc_names.get(i.location_id),
             "status": i.status, "source_type": i.source_type, "source_ref": i.source_ref,
+            "donation_code": codes.get(i.donation_id) if i.donation_id else None,
             "donor_name": i.donor_name, "donor_mobile": i.donor_mobile,
             "received_on": str(i.received_on) if i.received_on else None,
             "sold_amount": float(i.sold_amount) if i.sold_amount is not None else None,
             "last_auction_code": i.last_auction_code, "unsold_count": i.unsold_count or 0,
             "open_sale_price": float(i.open_sale_price) if i.open_sale_price is not None else None,
             "open_sale_by": i.open_sale_by, "open_sale_at": i.open_sale_at.isoformat() if i.open_sale_at else None,
+            "deity_used": bool(i.deity_used), "deity_used_note": i.deity_used_note,
             "created_by": i.created_by}
 
 
@@ -488,7 +511,7 @@ def _source_obj(db: Session, source_type: str, source_id: int):
 def _source_summary(db: Session, source_type: str, obj, cat) -> dict:
     if source_type == "Donation":
         base = {"source_type": "Donation", "source_id": obj.id, "source_ref": obj.receipt_no,
-                "donor_name": obj.donor_name, "donor_mobile": obj.mobile, "item_name": obj.fund,
+                "donation_code": obj.donation_code, "donor_name": obj.donor_name, "donor_mobile": obj.mobile, "item_name": obj.fund,
                 "quantity": float(obj.quantity or 0), "unit": obj.unit, "date": str(obj.donated_on) if obj.donated_on else None,
                 "billed_by": (db.query(User.name).filter(User.username == obj.created_by).scalar() or obj.created_by)
                 if obj.created_by else None,
@@ -547,7 +570,7 @@ def _pending_donations(db: Session, tagged: dict) -> list[dict]:
             continue
         pv = piece_value(db, d, None)
         out.append({"source_type": "Donation", "source_id": d.id, "source_ref": d.receipt_no,
-                    "donor_name": d.donor_name, "donor_mobile": d.mobile, "item_name": d.fund,
+                    "donation_code": d.donation_code, "donor_name": d.donor_name, "donor_mobile": d.mobile, "item_name": d.fund,
                     "quantity": float(d.quantity or 0), "unit": d.unit, "date": str(d.donated_on) if d.donated_on else None,
                     "billed_by": (names.get(d.created_by) or d.created_by) if d.created_by else None,
                     "billed_at": d.created_at.isoformat() if d.created_at else None,
@@ -678,19 +701,19 @@ def _unsold_query(db: Session):
 @router.get("/unsold")
 def unsold_items(category_id: int | None = None, db: Session = Depends(get_db), user=Depends(read)):
     """Pieces that came back unsold from an auction and are still in store — ready to re-auction
-    (and later, Open Sale). Most-tried first."""
+    (and later, Open Sale). Deity-Used pieces first (they go to auction first), then most-tried."""
     from ..models import Auction, AuctionPiece
     q = _unsold_query(db)
     if category_id:
         q = q.filter(StockItem.category_id == category_id)
-    items = q.order_by(StockItem.unsold_count.desc(), StockItem.tag_id).all()
+    items = q.order_by(StockItem.deity_used.desc(), StockItem.unsold_count.desc(), StockItem.tag_id).all()
     # Base price the piece was last offered at, from its latest lot
     last = {}
     for ap, code in (db.query(AuctionPiece, Auction.code).join(Auction, Auction.id == AuctionPiece.auction_id)
                      .filter(AuctionPiece.stock_item_id.in_([i.id for i in items] or [0])).order_by(AuctionPiece.id).all()):
         last[ap.stock_item_id] = float(ap.base_price)
-    names = _loc_names(db)
-    return {"items": [{**_item_dict(i, names), "last_base_price": last.get(i.id)} for i in items]}
+    names, codes = _loc_names(db), donation_codes(db, items)
+    return {"items": [{**_item_dict(i, names, codes), "last_base_price": last.get(i.id)} for i in items]}
 
 
 @router.get("/unsold/count")
@@ -706,7 +729,9 @@ def source_detail(source_type: str, source_id: int, db: Session = Depends(get_db
     s = _source_summary(db, source_type, obj, cat)
     col = {"Donation": StockItem.donation_id, "Hundi": StockItem.hundi_id, "Manual": StockItem.manual_entry_id}[source_type]
     names = _loc_names(db)
-    s["items"] = [_item_dict(i, names) for i in db.query(StockItem).filter(col == obj.id).order_by(StockItem.tag_id).all()]
+    pieces = db.query(StockItem).filter(col == obj.id).order_by(StockItem.tag_id).all()
+    codes = donation_codes(db, pieces)
+    s["items"] = [_item_dict(i, names, codes) for i in pieces]
     return s
 
 
@@ -818,7 +843,8 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
                detail=f"Tagged {len(created)} piece(s) from {common['source_ref']}: "
                       f"{created[0].tag_id}…{created[-1].tag_id}", ip=client_ip(request))
     names = _loc_names(db)
-    return {"items": [_item_dict(i, names) for i in created],
+    codes = donation_codes(db, created)
+    return {"items": [_item_dict(i, names, codes) for i in created],
             "progress": _progress(db, body.source_type, obj)}
 
 
@@ -826,13 +852,15 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
 @router.get("/items")
 def list_items(q: str = "", category_id: int | None = None, status: str = "", location_id: int | None = None,
                source_ref: str = "", ids: str = "", page: int = 1, size: int = 50,
-               db: Session = Depends(get_db), user=Depends(read)):
+               db: Session = Depends(get_db), user=Depends(read), deity_used: bool | None = None, order: str = ""):
+    """order=deity_first: Deity-Used pieces first, then by ID — the auction pick list."""
     page, size = validate_pagination(page, size)
     query = db.query(StockItem)
     if q:
         like = f"%{q.strip()}%"
         query = query.filter(or_(StockItem.tag_id.ilike(like), StockItem.donor_name.ilike(like),
-                                 StockItem.source_ref.ilike(like), StockItem.description.ilike(like)))
+                                 StockItem.source_ref.ilike(like), StockItem.description.ilike(like),
+                                 donation_code_match(like)))
     if category_id:
         query = query.filter(StockItem.category_id == category_id)
     if status:
@@ -843,10 +871,14 @@ def list_items(q: str = "", category_id: int | None = None, status: str = "", lo
         query = query.filter(StockItem.source_ref == source_ref)
     if ids:
         query = query.filter(StockItem.id.in_([int(x) for x in ids.split(",") if x.strip().isdigit()]))
+    if deity_used is not None:
+        query = query.filter(StockItem.deity_used.is_(deity_used))
     total = query.count()
-    rows = query.order_by(StockItem.id.desc()).offset((page - 1) * size).limit(size).all()
+    by = (StockItem.deity_used.desc(), StockItem.tag_id) if order == "deity_first" else (StockItem.id.desc(),)
+    rows = query.order_by(*by).offset((page - 1) * size).limit(size).all()
     names = _loc_names(db)
-    out = [_item_dict(i, names) for i in rows]
+    codes = donation_codes(db, rows)
+    out = [_item_dict(i, names, codes) for i in rows]
     _attach_issue_and_missing(db, out)
     return {"total": total, "page": page, "size": size, "items": out}
 
@@ -886,9 +918,23 @@ def summary(category_id: int | None = None, db: Session = Depends(get_db), user=
     received = sum(v["count"] for v in by.values())
     pending_manual = db.query(func.count(ManualStockEntry.id)).filter(
         ManualStockEntry.status == "Pending Verification").scalar() or 0
+    deity = db.query(func.count(StockItem.id)).filter(StockItem.deity_used.is_(True), StockItem.status == "In Store")
+    if category_id:
+        deity = deity.filter(StockItem.category_id == category_id)
     return {"received": received, "by_status": by,
             "balanced": received == sum(by[s]["count"] for s in STATUSES),
-            "pending_manual": pending_manual}
+            "pending_manual": pending_manual, "deity_used_in_store": deity.scalar() or 0}
+
+
+@router.get("/deity-used/summary")
+def deity_used_summary(category_id: int | None = None, db: Session = Depends(get_db), user=Depends(read)):
+    """Deity-Used Items screen tiles: pieces per status with their estimated / sold value."""
+    q = (db.query(StockItem.status, func.count(StockItem.id), func.coalesce(func.sum(StockItem.est_value), 0),
+                  func.coalesce(func.sum(StockItem.sold_amount), 0)).filter(StockItem.deity_used.is_(True)))
+    if category_id:
+        q = q.filter(StockItem.category_id == category_id)
+    by = {st: {"count": n, "est_value": float(est), "sold_amount": float(sold)} for st, n, est, sold in q.group_by(StockItem.status).all()}
+    return {"total": sum(v["count"] for v in by.values()), "by_status": by}
 
 
 @router.get("/activity")
@@ -1036,6 +1082,52 @@ def move_item(iid: int, body: MoveIn, request: Request, db: Session = Depends(ge
     return _item_dict(item, _loc_names(db))
 
 
+class DeityUsedIn(BaseModel):
+    used: bool
+    note: str = Field(..., max_length=200)
+
+    @field_validator("note")
+    @classmethod
+    def _note(cls, v):
+        v = (v or "").strip()
+        if len(v) < 3:
+            raise ValueError("Enter the occasion or reason (at least 3 characters).")
+        return v
+
+
+def mark_deity_used(db: Session, item: StockItem, user, note: str) -> None:
+    """Mark a piece Deity-Used (no-op if it already is), with a line in its history."""
+    if item.deity_used:
+        return
+    item.deity_used, item.deity_used_note = True, note[:200]
+    _move(db, item, user, ACT_DEITY_ON, f"Used for {note}")
+
+
+@router.put("/items/{iid}/deity-used")
+def set_deity_used(iid: int, body: DeityUsedIn, request: Request, db: Session = Depends(get_db),
+                   user=Depends(RequireRole(STORES_OFFICER))):
+    """Mark / unmark a piece as Deity-Used by hand (pieces used before this was tracked, or a
+    mistake) — Stores Officer + Administrator, with the occasion / reason kept in its history."""
+    item = db.query(StockItem).filter(StockItem.id == iid).with_for_update().first()
+    if not item:
+        raise HTTPException(404, "Item not found")
+    if item.status in ("Sold", "Written Off"):
+        raise HTTPException(409, f"{item.tag_id} is {item.status} — it cannot be changed.")
+    if body.used and item.deity_used:
+        raise HTTPException(409, f"{item.tag_id} is already marked Deity-Used — reload the page.")
+    if not body.used and not item.deity_used:
+        raise HTTPException(409, f"{item.tag_id} is not marked Deity-Used — reload the page.")
+    if body.used:
+        mark_deity_used(db, item, user, body.note)
+    else:
+        item.deity_used, item.deity_used_note = False, None
+        _move(db, item, user, ACT_DEITY_OFF, body.note)
+    db.commit()
+    log_action(db, username=user.username, action="UPDATE", entity="StockItem",
+               detail=f"{item.tag_id}: {ACT_DEITY_ON if body.used else ACT_DEITY_OFF} — {body.note}", ip=client_ip(request))
+    return _item_dict(item, _loc_names(db))
+
+
 @router.post("/items/place")
 def place_items(body: PlaceIn, request: Request, db: Session = Depends(get_db),
                 user=Depends(RequireRole("Counter Staff", STORES_OFFICER))):
@@ -1059,7 +1151,8 @@ def place_items(body: PlaceIn, request: Request, db: Session = Depends(get_db),
     log_action(db, username=user.username, action="UPDATE", entity="StockItem",
                detail=f"Placed {len(items)} piece(s) in {to.name}: {', '.join(tags[:20])}", ip=client_ip(request))
     names = _loc_names(db)
-    return {"items": [_item_dict(i, names) for i in items]}
+    codes = donation_codes(db, items)
+    return {"items": [_item_dict(i, names, codes) for i in items]}
 
 
 @router.get("/awaiting/count")

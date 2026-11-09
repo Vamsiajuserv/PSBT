@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Search, Eye, Ticket, RotateCcw, SlidersHorizontal, Ban, CheckCircle2,
   ChevronLeft, ChevronRight, CalendarClock, CalendarPlus, Users, X,
@@ -13,6 +13,8 @@ import { Select, DateField, Checkbox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, stamp, teTerm } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
+import { HourlySlotsView, hourLabel, TEMPLE_HOUR } from '../../components/admin/HourlySlots.jsx'
+import { isTempleHours } from '../../lib/slots.js'
 
 // Page-number list with ellipsis, e.g. 1 … 4 5 [6] 7 8 … 12
 function pagesFor(page, count) {
@@ -43,6 +45,8 @@ const STATUS_TONE = {
   Confirmed: 'bg-emerald-50 text-emerald-700', Pending: 'bg-amber-50 text-amber-700',
   Cancelled: 'bg-red-50 text-red-700', Completed: 'bg-blue-50 text-blue-700',
 }
+// A booking's slot as shown: "05:30 PM", "09:00 AM - 11:30 AM", or "All day" for temple hours
+const slotName = (sl) => (isTempleHours(sl) ? tr('All day') : clock12(sl))
 const fmtDT = (d, slot) => (d
   ? `${stamp(new Date(d).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }))}`
     + (slot ? ', ' + clock12(slot) : '')
@@ -64,6 +68,14 @@ export default function Bookings() {
   const canOperate = isAdmin || ['Counter Staff', 'Poojari'].includes(user?.role)
   // View-only roles (e.g. Accountant) see the list without booking/assignment controls.
   const canBook = canAccessKey(user, 'bookings/new')
+  // Time Slot filter: "h:17" = the 5–6 PM hour, "h:-1" = Temple hours, "s:05:30 PM" = one exact slot
+  const [slotOptions, setSlotOptions] = useState([])
+  // ?view=hourly: the day's poojas in 1-hour windows with a print sheet per hour
+  const [params, setParams] = useSearchParams()
+  const hourly = params.get('view') === 'hourly'
+  const tslot = params.get('ts') || ''
+  const setTslot = (v) => setParams((p) => { const n = new URLSearchParams(p); if (v) n.set('ts', v); else n.delete('ts'); return n }, { replace: true })
+  const setView = (v) => setParams((p) => { const n = new URLSearchParams(p); if (v === 'hourly') n.set('view', 'hourly'); else n.delete('view'); return n }, { replace: true })
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [poojas, setPoojas] = useState([])
@@ -132,7 +144,8 @@ export default function Bookings() {
     { key: 'seva_name', label: 'Pooja Name', type: 'text' },
     { key: 'devotee_name', label: 'Devotee Name', type: 'text' },
     { key: 'plan_name', label: 'Plan', type: 'text', filterable: true, filterOptions: ['One-Time', 'Daily', 'Monthly', 'Life Long'] },
-    { key: 'scheduled_date', label: 'Date & Time', type: 'date' },
+    { key: 'scheduled_date', label: 'Date', type: 'date' },
+    { key: 'time_slot', label: 'Time Slot', type: 'text' },
     { key: 'amount', label: 'Amount (₹)', type: 'money' },
     { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['Confirmed', 'Pending', 'Cancelled', 'Completed'] },
     { key: 'ticket_no', label: 'Ticket No.', type: 'text' },
@@ -165,12 +178,17 @@ export default function Bookings() {
   const loadList = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
-      const d = await BookingsAPI.list({ q, pooja, plan, status, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'created_at', sort_dir: sorts[0]?.direction || 'desc', col_filters: filtersToParam(filters) })
+      const d = await BookingsAPI.list({ q, pooja, plan, status, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'created_at', sort_dir: sorts[0]?.direction || 'desc', col_filters: filtersToParam(filters),
+        hour: tslot.startsWith('h:') ? tslot.slice(2) : undefined, slot: tslot.startsWith('s:') ? tslot.slice(2) : undefined })
       setRows(d.items); setTotal(d.total)
     } catch (ex) {
       setLoadErr(ex?.detail || LOAD_ERROR); setRows([]); setTotal(0)
     } finally { setLoading(false) }
-  }, [q, pooja, plan, status, payment, start, end, page, sorts, filters])
+  }, [q, pooja, plan, status, payment, start, end, page, sorts, filters, tslot])
+  // Time Slot options come from the Pooja Master (live) — every hour and exact slot, or one pooja's
+  useEffect(() => {
+    BookingsAPI.slotOptions(pooja ? { pooja } : {}).then((d) => setSlotOptions(d.hours || [])).catch(() => setSlotOptions([]))
+  }, [pooja])
 
   useEffect(() => {
     PoojasAPI.list().then((d) => setPoojas(d.items)).catch(() => toast(tr('Failed to load poojas'), 'error'))
@@ -263,6 +281,14 @@ export default function Bookings() {
         {canBook && <Link to="/admin/bookings/new" className="btn-maroon !py-2.5"><CalendarPlus size={16} />{' '}<T>Advance Booking</T></Link>}
       </div>
 
+      <div role="tablist" className="inline-flex rounded-lg border border-gray-200 bg-white p-1 mb-4 text-[0.8125rem] font-semibold">
+        {[['list', 'All bookings'], ['hourly', 'Hourly slots']].map(([k, l]) => (
+          <button key={k} role="tab" aria-selected={(k === 'hourly') === hourly} onClick={() => setView(k)}
+            className={`px-3.5 py-1.5 rounded-md ${(k === 'hourly') === hourly ? 'bg-maroon-700 text-white' : 'text-gray-600 hover:text-maroon-700'}`}>{tr(l)}</button>))}
+      </div>
+
+      {hourly ? <HourlySlotsView controls poojas={poojas} /> : <>
+
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-6">
         <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
@@ -278,7 +304,7 @@ export default function Bookings() {
             <button onClick={search} className="btn-maroon !py-2.5 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-1" aria-label={tr("Search bookings")}><Search size={15} aria-hidden="true" />{' '}<T>Search</T></button>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3 sm:gap-4 mt-4">
           <div>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
             <DateField value={start} onChange={(e) => { setStart(e.target.value); if (end && e.target.value > end) setEnd('') }} className="input" />
@@ -292,6 +318,17 @@ export default function Bookings() {
             <Select value={pooja} onChange={(e) => setPooja(e.target.value)} className="input">
               <option value="">{tr("All Poojas")}</option>
               {poojas.map((p) => <option key={p.id} value={p.name}>{teTerm(p.name)}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Time Slot</T></label>
+            <Select value={tslot} onChange={(e) => setTslot(e.target.value)} className="input">
+              <option value="">{tr('All Slots')}</option>
+              {slotOptions.map((h) => (
+                <optgroup key={h.hour} label={hourLabel(h.hour)}>
+                  <option value={`h:${h.hour}`}>{h.hour === TEMPLE_HOUR ? tr('All temple-hours poojas') : `${tr('Whole hour')} · ${hourLabel(h.hour)}`}</option>
+                  {h.hour !== TEMPLE_HOUR && h.slots.map((sl) => <option key={sl} value={`s:${sl}`}>{slotName(sl)}</option>)}
+                </optgroup>))}
             </Select>
           </div>
           <div>
@@ -415,7 +452,9 @@ export default function Bookings() {
                   <td className="px-4 py-3.5 font-semibold text-gray-800">{tr(b.seva_name)}</td>
                   <td className="px-4 py-3.5 text-gray-700 whitespace-nowrap">{personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)}</td>
                   <td className="px-4 py-3.5">{/* -ml cancels the badge's own padding, so the plan name starts directly under the PLAN title (like Amount) */}<span className={`inline-flex -ml-2.5 px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold whitespace-nowrap ${planTone(b.plan_name)}`}>{b.plan_name ? tr(b.plan_name) : '—'}</span></td>
-                  <td className="px-4 py-3.5 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDT(b.scheduled_date, b.time_slot)}</td>
+                  <td className="px-4 py-3.5 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDT(b.scheduled_date)}</td>
+                  <td className="px-4 py-3.5 text-[0.8125rem] whitespace-nowrap">{b.time_slot
+                    ? <span className="font-semibold text-maroon-700">{slotName(b.time_slot)}</span> : <span className="text-gray-400">—</span>}</td>
                   <td className="px-4 py-3.5 font-semibold text-gray-800 tabular-nums whitespace-nowrap">{Number(b.amount).toLocaleString('en-IN')}</td>
                   <td className="px-4 py-3.5">{/* -ml: status text starts directly under the STATUS title, like Plan */}<span className={`inline-flex -ml-2.5 px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold whitespace-nowrap ${STATUS_TONE[b.status] || 'bg-gray-100 text-gray-500'}`}>{tr(b.status)}</span></td>
                   <td className="px-4 py-3.5 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{b.ticket_no || '—'}</td>
@@ -452,6 +491,7 @@ export default function Bookings() {
         </div>
       </div>
 
+      </>}
       <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-amber-50/60 border border-amber-100 rounded-lg px-4 py-2.5">
         <span className="text-amber-500">ⓘ</span>{' '}<T>Counter staff books the pooja and issues the ticket to the devotee.</T>{' '}</div>
     </div>

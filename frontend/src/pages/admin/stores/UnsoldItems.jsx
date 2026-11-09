@@ -8,7 +8,7 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { useStoresMeta, isCommitteeUser } from './shared.jsx'
+import { useStoresMeta, isCommitteeUser, sourceRef, DeityBadge } from './shared.jsx'
 import { StockAuctionDrawer } from '../auction/LotAuction.jsx'
 
 // Creating an auction needs Auction write: Counter Staff, Committee, Administrator
@@ -37,7 +37,7 @@ export default function UnsoldItems() {
 
   const view = useMemo(() => {
     const t = q.trim().toLowerCase()
-    return t ? rows.filter((r) => `${r.tag_id} ${r.description || ''} ${r.details || ''} ${r.donor_name || ''} ${r.source_ref || ''} ${r.last_auction_code || ''}`.toLowerCase().includes(t)) : rows
+    return t ? rows.filter((r) => `${r.tag_id} ${r.description || ''} ${r.details || ''} ${r.donor_name || ''} ${r.source_ref || ''} ${r.donation_code || ''} ${r.last_auction_code || ''}`.toLowerCase().includes(t)) : rows
   }, [rows, q])
   const chosen = view.filter((r) => picked[r.id])   // only ticked pieces still on screen
   const oneType = useMemo(() => new Set(chosen.map((r) => r.category_id)).size <= 1, [chosen])
@@ -94,14 +94,14 @@ export default function UnsoldItems() {
               {view.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50/60">
                   <td className="pl-5 pr-2 py-3"><Checkbox checked={!!picked[r.id]} onChange={() => setPicked((p) => ({ ...p, [r.id]: !p[r.id] }))} /></td>
-                  <td className="px-4 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link></td>
+                  <td className="px-4 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link>{r.deity_used && <div className="mt-1"><DeityBadge item={r} /></div>}</td>
                   <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(r.description || r.item_name)}</div>
                     <div className="text-[0.6875rem] text-gray-500">{[tr(r.item_name), tr(r.details), r.weight_g ? `${r.weight_g} ${gramUnit()}` : ''].filter(Boolean).join(' · ')}</div></td>
                   <td className="px-4 py-3 text-center"><Pill tone={r.unsold_count >= 2 ? 'red' : 'orange'}>×{r.unsold_count}</Pill></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] whitespace-nowrap">{r.last_auction_code || '—'}</td>
                   <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{r.last_base_price != null ? inr(r.last_base_price) : '—'}</td>
                   <td className="px-4 py-3">{tr(r.location || '—')}</td>
-                  <td className="px-4 py-3"><div>{personName({ name: r.donor_name }, lang)}</div><div className="text-[0.6875rem] font-mono text-gray-400">{r.source_ref}</div></td>
+                  <td className="px-4 py-3"><div>{personName({ name: r.donor_name }, lang)}</div><div className="text-[0.6875rem] font-mono text-gray-400">{sourceRef(r)}</div></td>
                   <td className="pl-4 pr-5 py-3 text-right tabular-nums whitespace-nowrap">{r.est_value != null ? inr(r.est_value) : '—'}</td>
                 </tr>
               ))}

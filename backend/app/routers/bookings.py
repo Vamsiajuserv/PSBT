@@ -5,9 +5,9 @@ those are Admin-only, matching the frozen role matrix.
 """
 import json
 import threading
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import case, or_, func
+from sqlalchemy import Integer, case, cast, or_, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -291,6 +291,7 @@ SORT_COLUMNS = {
     "devotee_name": Booking.devotee_name,
     "plan_name": Booking.plan_name,
     "scheduled_date": Booking.scheduled_date,
+    "time_slot": Booking.time_slot,          # sorted by the slot's time, see list_bookings
     "amount": Booking.amount,
     "status": Booking.status,
     "ticket_no": Booking.ticket_no,
@@ -345,8 +346,10 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
 def list_bookings(q: str = "", status: str = "", payment: str = "",
                   pooja: str = "", plan: str = "", start: date | None = None, end: date | None = None,
                   sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
-                  page: int = 1, size: int = 50,
+                  page: int = 1, size: int = 50, hour: str = "", slot: str = "",
                   db: Session = Depends(get_db), user=Depends(read)):
+    """hour: a 1-hour window ("17" = 5–6 PM, "-1" = Temple hours) by each booking's slot;
+    slot: one exact slot ("05:30 PM"). Sorting by Date & Time orders a day's bookings by time."""
     # Validate pagination parameters (DoS prevention)
     page, size = validate_pagination(page, size)
     query = db.query(Booking)
@@ -372,6 +375,10 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
         query = query.filter(func.date(Booking.scheduled_date) >= start)
     if end:
         query = query.filter(func.date(Booking.scheduled_date) <= end)
+    if slot.strip():
+        query = query.filter(Booking.time_slot == (normalize_slot(slot) or slot.strip()))
+    if hour.strip():
+        query = query.filter(Booking.time_slot.in_(_slots_in_hour(db, hour)))
     # Column-filter dropdowns apply to the whole result set, not just the visible page
     query = apply_column_filters(query, col_filters, SORT_COLUMNS)
     total = query.count()
@@ -389,12 +396,14 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
         )
         query = query.order_by(rank, Booking.id.desc())
     elif sort_by and sort_by in SORT_COLUMNS:
-        col = sort_expr(SORT_COLUMNS[sort_by])
+        col = _slot_minutes() if sort_by == "time_slot" else sort_expr(SORT_COLUMNS[sort_by])
+        # Date & Time: within a day, by the slot's time (09:30 AM before 05:30 PM)
+        then = [_slot_minutes()] if sort_by == "scheduled_date" else []
         # id tie-breaker keeps page boundaries stable when many rows share a date
         if sort_dir == "asc":
-            query = query.order_by(col.asc().nullslast(), Booking.id)
+            query = query.order_by(col.asc().nullslast(), *[t.asc().nullslast() for t in then], Booking.id)
         else:
-            query = query.order_by(col.desc().nullslast(), Booking.id.desc())
+            query = query.order_by(col.desc().nullslast(), *[t.desc().nullslast() for t in then], Booking.id.desc())
     else:
         query = query.order_by(Booking.id.desc())
 
@@ -409,6 +418,51 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
         d["devotee_name_te"] = te.get(r.devotee_id)
         items.append(d)
     return {"total": total, "page": page, "size": size, "items": items}
+
+
+def _slot_minutes():
+    """Minutes after midnight of a booking's slot start ("05:30 PM…" → 1050), for sorting by
+    time; NULL for no slot or one not in the canonical "hh:mm AM" form."""
+    t = Booking.time_slot
+    hh, mm = cast(func.substr(t, 1, 2), Integer), cast(func.substr(t, 4, 2), Integer)
+    pm = case((func.substr(t, 7, 2) == "PM", 12), else_=0)
+    return case((t.like("__:__ _M%"), (hh % 12 + pm) * 60 + mm), else_=None)
+
+
+def _slots_in_hour(db: Session, hour: str) -> list[str]:
+    """Every slot text bookings hold that falls in this 1-hour window ("-1" = Temple hours)."""
+    from .poojaris import slot_hour
+    try:
+        h = int(hour)
+    except ValueError:
+        raise HTTPException(422, "Choose an hour from the list.")
+    return [sl for (sl,) in db.query(Booking.time_slot).filter(Booking.time_slot.isnot(None)).distinct()
+            if slot_hour(sl) == h]       # an empty IN matches nothing
+
+
+@router.get("/slot-options")
+def slot_options(pooja: str = "", db: Session = Depends(get_db), user=Depends(read)):
+    """Time Slot filter of All bookings: every hour and exact slot of the Pooja Master (or of
+    one pooja, by name), plus slots bookings already hold — read live, so a new pooja or
+    timing appears at once. hour -1 = Temple hours (6 AM – 9 PM)."""
+    from .poojaris import _master_slots, slot_hour
+    pid = None
+    if pooja:
+        pj = db.query(Pooja).filter(Pooja.name == pooja).first()
+        pid = pj.id if pj else 0
+    master, open_timing = _master_slots(db, pid) if pid != 0 else ([], False)
+    slots = {sl for _, _, sl in master} | (set(time_slots(db)) if open_timing else set())
+    booked = db.query(Booking.time_slot).filter(Booking.time_slot.isnot(None))
+    if pooja:
+        booked = booked.filter(Booking.seva_name == pooja)
+    slots |= {sl for (sl,) in booked.distinct()}
+    hours = {}
+    for sl in slots:
+        h = slot_hour(sl)
+        if h is not None:
+            hours.setdefault(h, set()).add(sl)
+    by_start = lambda sl: (parse_slot_bounds(sl) or (None,))[0] or datetime.max.time()
+    return {"hours": [{"hour": h, "slots": sorted(hours[h], key=lambda sl: (by_start(sl), sl))} for h in sorted(hours)]}
 
 
 @router.post("", response_model=BookingOut, status_code=201)

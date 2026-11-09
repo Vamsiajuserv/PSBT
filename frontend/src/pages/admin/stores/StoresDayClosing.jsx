@@ -9,7 +9,7 @@ import { DateField } from '../../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import ExportButtons from '../../../components/common/ExportButtons.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { canManageStores, isAdminUser, staffName, AWAITING } from './shared.jsx'
+import { canManageStores, isAdminUser, staffName, AWAITING, sourceRef, sourceSplit } from './shared.jsx'
 
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const q3 = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 })
@@ -90,7 +90,7 @@ export default function StoresDayClosing() {
       .map(([key, label]) => ({ section: tr('Summary'), name: tr(label), a: k[key] })),
     ...(rep.store_receipts || []).map((g) => ({ section: tr('Received at store'), name: `${g.receipt_no} · ${tr(g.item_name)}${g.short_code ? ` · ${g.short_code}` : ''}`,
       a: `${q3(g.billed)}`, b: `${q3(g.received)}${g.short ? ` (${tr('short')} ${q3(g.short)})` : ''}`, c: staffName(g.by || '') })),
-    ...rep.received.map((g) => ({ section: tr('Received today'), name: `${tr(g.source_type)} ${g.source_ref} · ${personName({ name: g.donor_name }, lang)} · ${tr(g.item_name)}`, a: g.tagged, b: g.placed })),
+    ...rep.received.map((g) => ({ section: tr('Received today'), name: `${tr(g.source_type)} ${sourceRef(g)} · ${personName({ name: g.donor_name }, lang)} · ${tr(g.item_name)}`, a: g.tagged, b: g.placed })),
     ...rep.locations.map((x) => ({ section: tr('Location-wise'), name: x.location ? tr(x.location) : tr('Not placed'), a: x.opening,
       b: x.location ? `+${x.placed_in + x.moved_in + x.returned + (x.back_from_issue || 0)} / −${x.moved_out + (x.issued_out || 0) + x.left}` : '', c: x.closing })),
     ...rep.consumables.map((c) => ({ section: tr('Consumables'), name: `${tr(c.name)} (${tr(c.unit || '')})`, a: q3(c.opening),
@@ -177,7 +177,7 @@ export default function StoresDayClosing() {
                   {rep.received.map((g) => (
                     <tr key={g.source_ref}>
                       <td className={td}><Pill tone={SOURCE_TONE[g.source_type] || 'gray'}>{tr(g.source_type === 'Manual' ? 'Manual entry' : g.source_type)}</Pill></td>
-                      <td className={`${td} font-mono text-[0.78rem]`}>{g.source_ref}</td>
+                      <td className={`${td} font-mono text-[0.78rem]`}>{sourceRef(g)}</td>
                       <td className={td}>{personName({ name: g.donor_name }, lang)}</td>
                       <td className={td}>{tr(g.item_name)}</td>
                       <td className={tdr}>{g.tagged}</td>
@@ -236,7 +236,8 @@ export default function StoresDayClosing() {
                   {rep.consumables.map((c) => (
                     <tr key={c.category_id}>
                       <td className={`${td} font-medium text-gray-800`}>{tr(c.name)}</td><td className={td}>{tr(c.unit || '')}</td>
-                      <td className={tdr}>{q3(c.opening)}</td><td className={tdr}>{c.received ? q3(c.received) : '—'}</td>
+                      <td className={tdr}>{q3(c.opening)}</td><td className={tdr}>{c.received ? q3(c.received) : '—'}
+                        {rep.consumables_sources?.[c.category_id] && <div className="text-[0.6875rem] text-gray-500 whitespace-nowrap">{(({ donated, purchased, other }) => sourceSplit(donated, purchased, other))(rep.consumables_sources[c.category_id])}</div>}</td>
                       <td className={tdr}>{c.used ? q3(c.used) : '—'}</td><td className={`${tdr} font-bold`}>{q3(c.closing)}</td>
                       <td className={td}>{c.low && <Pill tone="red">{tr('Low')}</Pill>}</td>
                     </tr>))}

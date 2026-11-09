@@ -24,8 +24,9 @@ from ..helpers import next_code_seq
 from ..models import (ConsumableUse, Donation, DonationCategory, ManualStockEntry, StockCheck, StockItem,
                       StockMovement, StoreLocation)
 from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
-from .consumables import _start as consumables_start
-from .stores import ON_SHELF, PLACED, TAGGED_UNPLACED, ACT_ISSUED, ACT_RETURNED, ACT_MISSING, ACT_FOUND, MISSING, _who
+from .consumables import SRC_DONATED, SRC_OTHER, SRC_PURCHASED, manual_source, _start as consumables_start
+from .stores import (ON_SHELF, PLACED, TAGGED_UNPLACED, ACT_ISSUED, ACT_RETURNED, ACT_MISSING, ACT_FOUND, MISSING, _who,
+                     donation_codes)
 
 router = APIRouter(prefix="/api/stores", tags=["stock-report"])
 read = RequireModule("Stores")
@@ -164,6 +165,7 @@ def stock_report_detail(category_id: int, start: date, end: date, db: Session = 
     if end < start:
         raise HTTPException(422, "The end date is before the start date.")
     items, events = _piece_histories(db, cat.id)
+    codes = donation_codes(db, items.values())
     locs = {l.id: l.name for l in db.query(StoreLocation).all()}
     # Latest lot-auction line of each piece: auction code, buyer, payment
     sale_of = {}
@@ -199,7 +201,7 @@ def stock_report_detail(category_id: int, start: date, end: date, db: Session = 
                          "receipt_no": sale.receipt_no if sale else None,
                          "payment_mode": sale.payment_mode if sale else None, "date": str(p["sold_ev"][0])})
         if p["tag_ev"]:
-            received[(item.source_ref, item.donor_name)].append((item.tag_id, p["tag_ev"][0]))
+            received[(item.source_ref, codes.get(item.donation_id), item.donor_name)].append((item.tag_id, p["tag_ev"][0]))
         if p["out_ev"] and p["end_state"] == "out":
             written.append({"tag_id": item.tag_id, "reason": p["out_ev"][1], "by": p["out_ev"][2], "date": str(p["out_ev"][0])})
     auctions = []
@@ -217,9 +219,9 @@ def stock_report_detail(category_id: int, start: date, end: date, db: Session = 
         "category": cat.name, "start": str(start), "end": str(end),
         "remaining": [{"location": k, **v} for k, v in sorted(remaining.items())],
         "sold": sorted(sold, key=lambda x: (x["date"], x["tag_id"])),
-        "received": [{"pieces": _tag_range([t for t, _ in tags]), "count": len(tags), "source_ref": ref, "donor": donor,
-                      "date": str(min(d for _, d in tags))}
-                     for (ref, donor), tags in sorted(received.items(), key=lambda kv: min(t for t, _ in kv[1]))],
+        "received": [{"pieces": _tag_range([t for t, _ in tags]), "count": len(tags), "source_ref": ref,
+                      "donation_code": code, "donor": donor, "date": str(min(d for _, d in tags))}
+                     for (ref, code, donor), tags in sorted(received.items(), key=lambda kv: min(t for t, _ in kv[1]))],
         "written_off": sorted(written, key=lambda x: (x["date"], x["tag_id"])),
         "auctions": auctions,
     }
@@ -230,21 +232,25 @@ def _quantity_rows(db: Session, start: date, end: date) -> list[dict]:
     out = []
     for cat in (db.query(DonationCategory).filter(DonationCategory.type == "Material", DonationCategory.tracking == "Quantity")
                 .order_by(DonationCategory.name).all()):
-        ins = [(d.donated_on, float(d.quantity or 0)) for d in db.query(Donation).filter(
+        ins = [(d.donated_on, float(d.quantity or 0), SRC_DONATED) for d in db.query(Donation).filter(
             Donation.donation_type == "Material", Donation.voided.isnot(True), Donation.fund == cat.name,
             Donation.donated_on >= cstart).all()]
-        ins += [(_ist_date(m.verified_at), float(m.quantity)) for m in db.query(ManualStockEntry).filter(
+        ins += [(_ist_date(m.verified_at), float(m.quantity), manual_source(m)) for m in db.query(ManualStockEntry).filter(
             ManualStockEntry.category_id == cat.id, ManualStockEntry.status == "Verified").all()]
         uses = [(u.used_on, float(u.quantity)) for u in db.query(ConsumableUse).filter(
             ConsumableUse.category_id == cat.id, ConsumableUse.status == "Active").all()]
         if not ins and not uses:
             continue
-        before = sum(q for d, q in ins if d and d < start) - sum(q for d, q in uses if d and d < start)
-        received = sum(q for d, q in ins if d and start <= d <= end)
+        before = sum(q for d, q, _ in ins if d and d < start) - sum(q for d, q in uses if d and d < start)
+        received = sum(q for d, q, _ in ins if d and start <= d <= end)
+        by_src = {src: sum(q for d, q, s in ins if d and start <= d <= end and s == src)
+                  for src in (SRC_DONATED, SRC_PURCHASED, SRC_OTHER)}
         used = sum(q for d, q in uses if d and start <= d <= end)
         out.append({"category_id": cat.id, "name": cat.name, "unit": cat.unit, "tracking": "Quantity",
                     "opening": before, "received": received, "sold": None, "out": used,
-                    "closing": before + received - used, "value_in_store": None, "realised": None})
+                    "closing": before + received - used, "value_in_store": None, "realised": None,
+                    "received_donated": by_src[SRC_DONATED], "received_purchased": by_src[SRC_PURCHASED],
+                    "received_other": by_src[SRC_OTHER]})
     return out
 
 
@@ -285,11 +291,14 @@ def expected_pieces(location_id: int, db: Session = Depends(get_db), user=Depend
     loc = db.get(StoreLocation, location_id)
     if not loc:
         raise HTTPException(404, "Location not found")
+    pieces = _expected(db, location_id)
+    codes = donation_codes(db, pieces)
     return {"location": loc.name, "items": [{"id": i.id, "tag_id": i.tag_id, "item_name": i.item_name,
                                              "description": i.description, "details": i.details,
                                              "weight_g": float(i.weight_g) if i.weight_g is not None else None,
-                                             "donor_name": i.donor_name, "source_ref": i.source_ref, "status": i.status}
-                                            for i in _expected(db, location_id)]}
+                                             "donor_name": i.donor_name, "source_ref": i.source_ref,
+                                             "donation_code": codes.get(i.donation_id), "status": i.status}
+                                            for i in pieces]}
 
 
 @router.post("/checks", status_code=201)

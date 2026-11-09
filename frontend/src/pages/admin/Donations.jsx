@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Plus, X, Printer, Eye, Search, RotateCcw, Calendar, Info, ChevronDown,
-  Sprout, CalendarDays, Package, HandHeart, User,
+  Sprout, CalendarDays, Package, HandHeart, User, Boxes,
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
@@ -17,7 +17,8 @@ import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountry
 import { T, tr, clock12, stamp, personName, useLang, teTerm } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
-import { TagItemsDrawer, canWriteStores } from './stores/shared.jsx'
+import { TagItemsDrawer, canWriteStores, DonationItemsDialog } from './stores/shared.jsx'
+import { canAccessKey } from '../../auth/access.js'
 import { metalOf, isGrams, factorOf, estValue, pct, useMetalDay } from '../../lib/metal.js'
 import { AnnadanamForm, AnnadanamRegister, AnnadanamReceiptModal, canWriteAnnadanam } from './annadanam/shared.jsx'
 
@@ -67,6 +68,7 @@ export default function Donations() {
   const [tagSource, setTagSource] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [printDoc, setPrintDoc] = useState(null)
+  const [itemsFor, setItemsFor] = useState(null)   // material donation whose tagged pieces are shown
   // Gold / silver weighed at the counter: valued at today's rate × purity
   const metalDay = useMetalDay()
   // Row 🖨 prints straight away: the receipt renders invisibly (print-only), prints, then closes.
@@ -335,6 +337,21 @@ export default function Donations() {
     }
   }
 
+  // Material donation → its items in Stores: the tagged pieces (popup), or the Consumables
+  // Stock ledger for quantity goods (rice, ghee…). Shown to staff who can open those screens.
+  const storeLink = (d) => {
+    const st = d.stock
+    if (!st) return null
+    const cls = 'mt-1 inline-flex items-center gap-1 text-[0.6875rem] font-semibold text-maroon-700 hover:underline'
+    if (st.tracking === 'Quantity') {
+      return canAccessKey(user, 'stores/consumables')
+        ? <div><Link to={`/admin/stores/consumables?item=${st.category_id}&q=${encodeURIComponent(d.donation_code || d.receipt_no)}`} className={cls}><Boxes size={12} />{tr('In Consumables Stock')}</Link></div>
+        : null
+    }
+    if (!canAccessKey(user, 'stores/register')) return null
+    return <div><button type="button" onClick={() => setItemsFor(d)} className={`${cls} ${st.pieces ? '' : '!text-amber-700'}`}>
+      <Boxes size={12} />{st.pieces ? `${st.pieces} ${(st.pieces === 1 ? tr('item') : tr('items'))}` : tr('Not tagged yet')}</button></div>
+  }
   const amountCell = (d) => d.donation_type === 'Material'
     ? (d.quantity ? `${num(d.quantity)} ${tr(d.unit || '')}${d.purity ? ` · ${d.purity}` : ''}`.trim() : (Number(d.amount) > 0 ? inr(d.amount) : '—'))
     : inr(d.amount)
@@ -455,7 +472,7 @@ export default function Donations() {
                   <td className="px-4 py-3 font-semibold text-gray-800">{personName({ name: d.donor_name, name_te: d.donor_name_te }, lang)}</td>
                   <td className="px-4 py-3 text-gray-600">{tr(TYPE_LABEL[d.donation_type] || d.donation_type)}</td>
                   <td className="px-4 py-3 text-gray-600">{teTerm(d.fund)}{d.g80 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-bold bg-emerald-50 text-emerald-700 align-middle">80G</span>}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? amountCell(d) : '—'}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? amountCell(d) : '—'}{storeLink(d)}</td>
                   <td className="px-4 py-3 text-gray-600">{d.donation_type !== 'Material' && d.mode && d.mode !== '-' ? tr(d.mode === 'UPI/QR Code' ? 'Online' : d.mode) : <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(d.donated_on)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(d.created_at)}</div></td>
                   <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500">{d.receipt_no}</td>
@@ -654,6 +671,7 @@ export default function Donations() {
 
       <AnnadanamReceiptModal doc={annadanamDoc} onClose={() => setAnnadanamDoc(null)} />
       {tagSource && !printDoc && <TagItemsDrawer source={tagSource} onClose={() => setTagSource(null)} />}
+      {itemsFor && <DonationItemsDialog donation={itemsFor} onClose={() => setItemsFor(null)} />}
       {printDoc && (
         <div className={`fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal ${directPrint ? 'opacity-0 pointer-events-none print:opacity-100' : ''}`} onClick={() => setPrintDoc(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg my-auto">

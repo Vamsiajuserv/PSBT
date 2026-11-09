@@ -242,6 +242,7 @@ export const PaymentsAPI = {
 
 export const BookingsAPI = {
   list: (params = {}) => api.get('/bookings' + qs(params)),
+  slotOptions: (params = {}) => api.get('/bookings/slot-options' + qs(params)),
   stats: () => api.get('/bookings/stats'),
   create: (b) => api.post('/bookings', b),
   // Optimized endpoint: combines create + payment in single call (for Counter)
@@ -363,6 +364,8 @@ export const StoresAPI = {
   rejectLost: (id, reason) => api.post(`/stores/missing/${id}/reject`, { reason }),
   // Receive at store: count a counter receipt in before tagging; shortages
   correctItem: (id, b) => api.put(`/stores/items/${id}/correct`, b),
+  setDeityUsed: (id, b) => api.put(`/stores/items/${id}/deity-used`, b),
+  deityUsedSummary: (params = {}) => api.get('/stores/deity-used/summary' + qs(params)),
   receiveSummary: () => api.get('/stores/receive/summary'),
   shortages: (params = {}) => api.get('/stores/receive/shortages' + qs(params)),
   receive: (donationId, b) => api.post(`/stores/receive/${donationId}`, b),
@@ -460,6 +463,7 @@ export const PoojarisAPI = {
   remove: (id) => api.del(`/poojaris/${id}`),
   schedule: (day) => api.get('/poojaris/schedule' + qs({ day })),
   queue: (params = {}) => api.get('/poojaris/queue' + qs(params)),
+  hourly: (params = {}) => api.get('/poojaris/hourly' + qs(params)),
   completeDue: (body = {}) => api.post('/poojaris/queue/complete-due', body),
   assign: (booking_id, poojari_id) => api.post('/poojaris/assign', { booking_id, poojari_id }),
   setPerformer: (booking_id, performed_on, poojari_id) => api.post('/poojaris/performer', { booking_id, performed_on, poojari_id }),

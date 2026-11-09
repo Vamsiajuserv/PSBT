@@ -37,7 +37,9 @@ COLUMN_MIGRATIONS = {
     # Festival Kits: an issue slip made from a kit
     "issue_slips": [("kit_id", "INTEGER REFERENCES festival_kits(id)"), ("kit_name", "VARCHAR(120)")],
     "stock_items": [("last_auction_code", "VARCHAR(30)"), ("unsold_count", "INTEGER DEFAULT 0 NOT NULL"),
-                    ("open_sale_price", "NUMERIC(12,2)"), ("open_sale_by", "VARCHAR(120)"), ("open_sale_at", "TIMESTAMP")],
+                    ("open_sale_price", "NUMERIC(12,2)"), ("open_sale_by", "VARCHAR(120)"), ("open_sale_at", "TIMESTAMP"),
+                    # Deity-Used Items: offered first at auction
+                    ("deity_used", "BOOLEAN DEFAULT FALSE NOT NULL"), ("deity_used_note", "VARCHAR(200)")],
     "committee_members": [("name_te", "VARCHAR(160)")],
     # Purchase Requests: over-budget bills reviewed by the Committee (purchase_bills is created by create_all)
     "purchase_requests": [("received_by_user", "VARCHAR(60)"), ("over_budget", "BOOLEAN"), ("over_reason", "TEXT"),
@@ -373,6 +375,21 @@ def run_migrations(engine) -> None:
                           "SELECT 'stores_receive_after_donation', CAST(COALESCE(MAX(id), 0) AS TEXT), 'system' "
                           "FROM donations "
                           "HAVING NOT EXISTS (SELECT 1 FROM settings WHERE skey = 'stores_receive_after_donation')"))
+        # Deity-Used Items: pieces already back from an Alankaram / Festival issue slip are
+        # marked once (with a history line), when the feature goes live. Set once, so a mark
+        # the Stores Officer later removes is never put back.
+        if not conn.execute(text("SELECT 1 FROM settings WHERE skey = 'deity_used_backfill'")).fetchone():
+            used = ("WITH used AS (SELECT DISTINCT ON (l.stock_item_id) l.stock_item_id AS item_id, "
+                    "s.purpose || ' — ' || s.code AS note FROM issue_lines l JOIN issue_slips s ON s.id = l.slip_id "
+                    "WHERE l.returned_at IS NOT NULL AND LOWER(s.purpose) IN ('alankaram', 'festival') "
+                    "ORDER BY l.stock_item_id, l.returned_at DESC) ")
+            conn.execute(text(used + "INSERT INTO stock_movements (item_id, action, detail, \"by\", \"at\") "
+                              "SELECT u.item_id, 'Marked Deity-Used', 'Used for ' || u.note, 'system', NOW() FROM used u "
+                              "JOIN stock_items i ON i.id = u.item_id WHERE NOT i.deity_used"))
+            conn.execute(text(used + "UPDATE stock_items i SET deity_used = TRUE, deity_used_note = u.note "
+                                     "FROM used u WHERE i.id = u.item_id AND NOT i.deity_used"))
+            conn.execute(text("INSERT INTO settings (skey, svalue, updated_by) "
+                              "VALUES ('deity_used_backfill', CAST(CURRENT_DATE AS TEXT), 'system')"))
         # Stores Officer role (Stores & Inventory only). Added once if missing; an existing
         # row — and any module change the admin made to it — is never touched again.
         conn.execute(text(

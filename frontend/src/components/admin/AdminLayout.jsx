@@ -6,13 +6,14 @@ import {
   Menu, LogOut, Bell, Calendar, Clock, ChevronDown, ChevronRight, ChevronLeft, KeyRound, Wallet,
   Receipt, ClipboardList, ScanLine, TrendingUp, Boxes,
   Tag, Droplets, FilePlus2, Undo2, Store, ClipboardCheck, History, MapPin, CalendarCheck, ArrowRightLeft, SearchX,
-  ShoppingCart, PackageOpen, UserCheck, Coins,
+  ShoppingCart, PackageOpen, Coins, Sparkles,
 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey, keyOf } from '../../auth/access.js'
 import { useLang, T, tr, clock12, personName, initialsOf, getLang } from '../../i18n/LanguageContext.jsx'
 import { getFontScale, setFontScale } from '../../lib/fontScale.js'
 import ChangePasswordModal from './ChangePasswordModal.jsx'
+import { HourlySlotAlert } from './HourlySlots.jsx'
 import { StoresAPI } from '../../api/client.js'
 
 // Stores & Inventory badges: donations / custodies still waiting for ID tagging, and pieces
@@ -70,6 +71,7 @@ const STORES_OFFICER_NAV = [
     { to: '/admin/stores/manual', label: tr('Manual Entries'), icon: FilePlus2 },
   ] },
   { heading: tr('Sales'), items: [
+    { to: '/admin/stores/deity-used', label: tr('Deity-Used Items'), icon: Sparkles },
     { to: '/admin/stores/unsold', label: tr('Unsold Items'), icon: Undo2 },
     { to: '/admin/stores/open-sale', label: tr('Open Sale'), icon: Store },
   ] },
@@ -77,7 +79,6 @@ const STORES_OFFICER_NAV = [
     { to: '/admin/stores/day-closing', label: tr('Stores Day Closing'), icon: CalendarCheck },
     { to: '/admin/stores/check', label: tr('Stock Check'), icon: ClipboardCheck },
     { to: '/admin/stores/missing', label: tr('Missing Items'), icon: SearchX },
-    { to: '/admin/stores/handover', label: tr('Handover'), icon: UserCheck },
     { to: '/admin/stores/report', label: tr('Stock Report'), icon: FileBarChart },
     { to: '/admin/stores/valuables', label: tr('Valuables Statement'), icon: Coins },
     { to: '/admin/stores/item', label: tr('Item History'), icon: History },
@@ -133,6 +134,7 @@ const NAV = [
       { to: '/admin/stores/pending', label: tr('Pending Tagging') },
       { to: '/admin/stores/issue', label: tr('Issue & Return') },
       { to: '/admin/stores/kits', label: tr('Festival Kits') },
+      { to: '/admin/stores/deity-used', label: tr('Deity-Used Items') },
       { to: '/admin/stores/unsold', label: tr('Unsold Items') },
       { to: '/admin/stores/open-sale', label: tr('Open Sale') },
       { to: '/admin/stores/consumables', label: tr('Consumables Stock') },
@@ -463,6 +465,8 @@ export default function AdminLayout() {
 
         <main className="flex-1 px-4 lg:px-6 pt-2 lg:pt-3 pb-[max(2.5rem,env(safe-area-inset-bottom))] max-w-[100rem] w-full mx-auto">
           <Outlet context={{ role }} />
+          {/* Poojari: in-app alert 15 minutes before each hour that has their poojas */}
+          {user?.role === 'Poojari' && canAccessKey(user, 'my-poojas') && <HourlySlotAlert />}
         </main>
       </div>
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { X, Plus, Trash2, Printer, Tag } from 'lucide-react'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { Pill, inr, fmtDate } from '../../../components/admin/ui.jsx'
@@ -17,6 +18,25 @@ export const MISSING = 'Missing'
 export const STATUS_TONE = { [AWAITING]: 'orange', 'In Store': 'green', [ISSUED]: 'maroon', 'In Auction': 'amber', 'In Open Sale': 'violet',
   [MISSING]: 'red', Sold: 'blue', 'Written Off': 'gray' }
 export const STATUSES = [AWAITING, 'In Store', ISSUED, 'In Auction', 'In Open Sale', MISSING, 'Sold', 'Written Off']
+
+// Where a piece (or a consumables receipt) came from. A counter donation shows its Donation ID
+// and receipt no. ("DON-0002797 · RCPT-2797"); hundi / manual pieces keep their own code.
+export const sourceRef = (r, ref = r?.source_ref) =>
+  (r?.donation_code && r.donation_code !== ref ? `${r.donation_code} · ${ref || '—'}` : ref || '—')
+
+// Consumables received by source. The balance stays one per item; this only says where the
+// stock came from: "Donated 200 · Purchased 55 (₹3,000) · Opening & other 30" (zero parts left out).
+export const sourceSplit = (donated, purchased, other, amount) => [
+  donated ? `${tr('Donated')} ${num3(donated)}` : '',
+  purchased ? `${tr('Purchased')} ${num3(purchased)}${amount ? ` (${inr(amount)})` : ''}` : '',
+  other ? `${tr('Opening & other')} ${num3(other)}` : '',
+].filter(Boolean).join(' · ')
+const num3 = (n) => Number(n).toLocaleString('en-IN', { maximumFractionDigits: 3 })
+
+// Deity-Used Items: worn / used by the deity (alankaram, festival) — offered first at auction.
+export const DeityBadge = ({ item }) => (item?.deity_used
+  ? <span title={item.deity_used_note || ''} className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">{tr('Deity-Used')}</span>
+  : null)
 
 // Tagging, moving and manual entries: Counter Staff, Stores Officer and Administrator (backend WRITE_MATRIX).
 // Committee and Accountant see the registers; the Committee verifies manual entries.
@@ -133,7 +153,8 @@ export function StickerSheet({ items, title, onClose }) {
                   <div className="font-semibold text-gray-800">{tr(i.description || i.item_name)}</div>
                   {(i.details || i.weight_g) && <div className="text-gray-600">{[tr(i.details), i.weight_g ? `${qty(i.weight_g)} ${gramUnit()}` : '', i.purity].filter(Boolean).join(' · ')}</div>}
                   <div className="text-gray-700"><T>Donor</T>: <b>{personName({ name: i.donor_name }, lang)}</b></div>
-                  <div className="text-gray-500">{i.source_ref} · {fmtDate(i.received_on)}</div>
+                  {i.donation_code && <div className="text-gray-700"><T>Donation</T>: <b className="font-mono">{i.donation_code}</b> ({tr('Receipt')} {i.source_ref})</div>}
+                  <div className="text-gray-500">{i.donation_code ? fmtDate(i.received_on) : `${i.source_ref} · ${fmtDate(i.received_on)}`}</div>
                   <div className="text-gray-500">{i.location ? tr(i.location) : i.status === AWAITING ? tr('Awaiting placement') : '—'}</div>
                 </div>
               ))}
@@ -289,14 +310,14 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
     } finally { setSaving(false) }
   }
 
-  if (stickers) return <StickerSheet items={stickers} title={src?.source_ref} onClose={onClose} />
+  if (stickers) return <StickerSheet items={stickers} title={src ? sourceRef(src) : ''} onClose={onClose} />
 
   const p = src?.progress
   // Closing without tagging everything: say where the pieces wait, so nothing is forgotten
   const close = () => {
     if (src && p && !p.complete) {
       const left = p.mode === 'lines' ? progressText(p) : p.mode === 'weight' ? `${qty(p.needed - p.done)} ${gramUnit()}` : `${Math.round(p.needed - p.done)} ${tr('piece(s)')}`
-      toast(`${src.source_ref}: ${left} ${tr('waiting in Stores → Pending Tagging')}`, 'info')
+      toast(`${sourceRef(src)}: ${left} ${tr('waiting in Stores → Pending Tagging')}`, 'info')
       window.dispatchEvent(new Event('stores:changed'))
     }
     onClose()
@@ -315,7 +336,7 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
           <div className="px-6 py-5 space-y-5 flex-1">
             <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-50 rounded-lg px-4 py-3 text-[0.8125rem]">
               <div><b>{personName({ name: src.donor_name }, lang)}</b>{src.donor_mobile ? ` · ${src.donor_mobile}` : ''} · {tr(src.item_name)}
-                {src.quantity != null && <> · <b>{qty(src.quantity)} {tr(src.unit || '')}</b></>}{src.purity && <> · <b>{src.purity}</b></>} · <span className="font-mono">{src.source_ref}</span>
+                {src.quantity != null && <> · <b>{qty(src.quantity)} {tr(src.unit || '')}</b></>}{src.purity && <> · <b>{src.purity}</b></>} · <span className="font-mono">{sourceRef(src)}</span>
                 {src.rate_per_g == null && src.piece_value != null && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{tr('Value per piece')} = {inr(src.piece_value)} ({tr('value stated by the devotee')} {inr(src.est_value)} ÷ {qty(src.quantity)})</div>}
                 {src.rate_per_g != null && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{tr('Value per piece')} = {tr('grams')} × ₹{Number(src.rate_per_g).toLocaleString('en-IN')}{src.purity_factor ? ` × ${pct(src.purity_factor)}` : ''} ({tr('rate on the receipt day')})</div>}</div>
               <Pill tone={p.complete ? 'green' : 'amber'}>{p.complete ? tr('All tagged') : `${tr('Tagged')} ${progressText(p)}`}</Pill>
@@ -420,6 +441,65 @@ function TagRow({ r, i, weight, categories = [], hundi, locations, setRow, remov
               placeholder={tr('Why is the value different? *')} />
           </>}
         </div>)}
+    </div>
+  )
+}
+
+// ── A donation's items (Donations list → "2 items") ─────────────────────────
+/** The pieces tagged from one counter donation: ID, item, location and status, each ID
+ *  linked to its history. Read-only; tagging stays in Stores → Pending Tagging. */
+export function DonationItemsDialog({ donation, onClose }) {
+  const { lang } = useLang()
+  const [src, setSrc] = useState(null)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    StoresAPI.source('Donation', donation.id).then(setSrc)
+      .catch((ex) => setErr(tr(getErrorMessage(ex, "Couldn't load — check your connection and retry."))))
+  }, [donation.id])
+  const ref = sourceRef({ donation_code: donation.donation_code, source_ref: donation.receipt_no })
+  const p = src?.progress
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+          <div><h3 className="font-serif text-lg font-bold text-maroon-800"><T>Donated items</T> — <span className="font-mono">{ref}</span></h3>
+            <div className="text-[0.75rem] text-gray-500">{personName({ name: donation.donor_name, name_te: donation.donor_name_te }, lang)} · {tr(donation.fund)}
+              {p && <> · <Pill tone={p.complete ? 'green' : 'amber'}>{p.complete ? tr('All tagged') : `${tr('Tagged')} ${progressText(p)}`}</Pill></>}</div></div>
+          <button onClick={onClose} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={18} /></button>
+        </div>
+        <div className="overflow-y-auto p-5">
+          {err && <div className="text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-3 text-sm">{err}</div>}
+          {!src && !err && <div className="text-sm text-gray-500"><T>Loading...</T></div>}
+          {src && src.items.length === 0 && (
+            <div className="text-sm text-gray-600"><T>No pieces are tagged yet.</T>{' '}
+              <Link to="/admin/stores/pending" className="text-maroon-700 font-semibold hover:underline"><T>Pending Tagging</T></Link></div>
+          )}
+          {src && src.items.length > 0 && (
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-[0.6875rem] uppercase tracking-wide text-gray-500 border-b border-gray-100">
+                {['ID', 'Item', 'Location', 'Status'].map((h) => <th key={h} className="pb-2 pr-3 font-semibold">{tr(h)}</th>)}</tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {src.items.map((i) => (
+                  <tr key={i.id}>
+                    <td className="py-2.5 pr-3 font-mono text-[0.78rem] whitespace-nowrap"><Link to={`/admin/stores/item/${i.tag_id}`} className="text-maroon-700 font-semibold hover:underline">{i.tag_id}</Link></td>
+                    <td className="py-2.5 pr-3 text-gray-800">{tr(i.description || i.item_name)}
+                      {(i.details || i.weight_g || i.purity) && <div className="text-[0.6875rem] text-gray-500">{[tr(i.details), i.weight_g ? `${qty(i.weight_g)} ${gramUnit()}` : '', i.purity].filter(Boolean).join(' · ')}</div>}</td>
+                    <td className="py-2.5 pr-3 text-gray-700">{i.location ? tr(i.location) : '—'}</td>
+                    <td className="py-2.5"><Pill tone={STATUS_TONE[i.status] || 'gray'}>{tr(i.status)}</Pill></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+          <button onClick={onClose} className="btn-outline flex-1 justify-center"><T>Close</T></button>
+          {src && src.items.length > 0 && (
+            <Link to={`/admin/stores/register?q=${encodeURIComponent(donation.donation_code || donation.receipt_no)}`} className="btn-maroon flex-1 justify-center"><T>Open in Stock Register</T></Link>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

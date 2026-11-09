@@ -111,8 +111,27 @@ def list_donations(q: str = "", type: str = "", category: str = "", mode: str = 
         query = query.order_by(Donation.id.desc())
 
     rows = query.offset((page - 1) * size).limit(size).all()
-    return {"total": total, "page": page, "size": size,
-            "items": [DonationOut.model_validate(r).model_dump() for r in rows]}
+    items = [DonationOut.model_validate(r).model_dump() for r in rows]
+    _attach_stock(db, rows, items)
+    return {"total": total, "page": page, "size": size, "items": items}
+
+
+def _attach_stock(db: Session, rows: list[Donation], items: list[dict]) -> None:
+    """Material rows: where the goods went in Stores & Inventory — "Tagged" pieces (with how
+    many are tagged so far) or a "Quantity" balance under Consumables Stock — so the list can
+    link a donation to its items. Two queries for the whole page."""
+    from ..models import DonationCategory, StockItem
+    mats = [r for r in rows if r.donation_type == "Material"]
+    if not mats:
+        return
+    cats = {c.name: c for c in db.query(DonationCategory).filter(
+        DonationCategory.type == "Material", DonationCategory.name.in_({r.fund for r in mats})).all()}
+    pieces = dict(db.query(StockItem.donation_id, func.count(StockItem.id))
+                  .filter(StockItem.donation_id.in_([r.id for r in mats])).group_by(StockItem.donation_id).all())
+    for r, d in zip(rows, items):
+        cat = cats.get(r.fund) if r.donation_type == "Material" else None
+        if cat and cat.tracking in ("Tagged", "Quantity"):
+            d["stock"] = {"tracking": cat.tracking, "category_id": cat.id, "pieces": pieces.get(r.id, 0)}
 
 
 def _value_metal(db: Session, data: dict) -> None:

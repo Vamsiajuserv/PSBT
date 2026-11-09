@@ -54,6 +54,7 @@ export const ACCESS = {
   'stores/pending': { module: 'Stores' },
   'stores/consumables': { module: 'Stores' },
   'stores/unsold': { module: 'Stores' },
+  'stores/deity-used': { module: 'Stores' },
   'stores/open-sale': { module: 'Stores' },
   'stores/report': { module: 'Stores' },
   'stores/check': { module: 'Stores' },
@@ -69,11 +70,12 @@ export const ACCESS = {
   'stores/issue': { module: 'Stores' },
   'stores/missing': { module: 'Stores' },
   // Purchase Requests (Stores Officer raises, Committee approves, Accountant views) · Valuables
-  // Statement (view / print) · Festival Kits and Handover (Stores Officer works, Committee views / witnesses)
+  // Statement (view / print) · Festival Kits (Stores Officer works, Committee views)
+  // Handover: not used by the client for the Stores Officer (removed 2026-11-09) — Committee + Administrator only.
   'stores/purchase': { module: 'Stores', roles: ['Stores Officer', 'Committee', 'Accountant'] },
   'stores/valuables': { module: 'Stores', roles: ['Stores Officer', 'Committee', 'Accountant'] },
   'stores/kits': { module: 'Stores', roles: ['Stores Officer', 'Committee'] },
-  'stores/handover': { module: 'Stores', roles: ['Stores Officer', 'Committee'] },
+  'stores/handover': { module: 'Stores', roles: ['Committee'] },
 
   // ── Poojari workflow screens (Poojari + Administrator) ──
   'my-poojas': { module: 'Bookings', roles: ['Poojari'] },

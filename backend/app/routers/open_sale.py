@@ -19,7 +19,7 @@ from ..database import get_db
 from ..helpers import assert_txn_date_open, next_code_seq, validate_pagination
 from ..models import DonationCategory, OpenSale, StockItem, StockMovement, StoreLocation
 from ..security import RequireModule, RequireRole, log_action, client_ip, get_current_user
-from .stores import _item_dict, _loc_names, _who
+from .stores import _item_dict, _loc_names, _who, donation_codes, donation_code_match
 from .stores_issue import _day_bounds_utc
 
 router = APIRouter(prefix="/api/stores/open-sale", tags=["open-sale"])
@@ -90,12 +90,15 @@ def list_open_sale(db: Session = Depends(get_db), user=Depends(read),
     if q.strip():
         like = f"%{q.strip()}%"
         query = query.filter(or_(StockItem.tag_id.ilike(like), StockItem.item_name.ilike(like), StockItem.description.ilike(like),
-                                 StockItem.donor_name.ilike(like), StockItem.source_ref.ilike(like)))
+                                 StockItem.donor_name.ilike(like), StockItem.source_ref.ilike(like),
+                                 donation_code_match(like)))
     if category_id:
         query = query.filter(StockItem.category_id == category_id)
     if location_id:
         query = query.filter(StockItem.location_id == location_id)
-    return {"items": [_item_dict(i, names) for i in query.order_by(StockItem.tag_id).all()]}
+    items = query.order_by(StockItem.tag_id).all()
+    codes = donation_codes(db, items)
+    return {"items": [_item_dict(i, names, codes) for i in items]}
 
 
 @router.get("/sales")
@@ -146,7 +149,8 @@ def move_to_open_sale(body: MoveIn, request: Request, db: Session = Depends(get_
     db.commit()
     log_action(db, username=user.username, action="UPDATE", entity="StockItem",
                detail=f"Open Sale at {_inr(body.price)}: {', '.join(sorted(i.tag_id for i in items))[:200]}", ip=client_ip(request))
-    return {"items": [_item_dict(i, names) for i in items]}
+    codes = donation_codes(db, items)
+    return {"items": [_item_dict(i, names, codes) for i in items]}
 
 
 def _on_sale(db: Session, iid: int, lock: bool = False) -> StockItem:

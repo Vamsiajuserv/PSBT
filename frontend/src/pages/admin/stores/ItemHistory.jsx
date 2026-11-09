@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { Search, ArrowLeft, Pencil, Save } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Search, ArrowLeft, Pencil, Save, Sparkles } from 'lucide-react'
 import { PageTitle, Pill, inr, num, fmtDate, fmtStamp } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { T, tr, gramUnit } from '../../../i18n/LanguageContext.jsx'
 import { NumberField } from '../../../components/common/Field.jsx'
 import { toast } from '../../../components/common/Dialog.jsx'
 import { useAuth } from '../../../auth/AuthContext.jsx'
-import { STATUS_TONE, staffName, storeDetail, canManageStores } from './shared.jsx'
+import { STATUS_TONE, staffName, storeDetail, canManageStores, sourceRef, DeityBadge } from './shared.jsx'
+import { canAccessKey } from '../../../auth/access.js'
 
 export default function ItemHistory() {
   const { tag } = useParams()
@@ -18,6 +19,7 @@ export default function ItemHistory() {
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
   const [fixing, setFixing] = useState(null)   // the correction form
+  const [deity, setDeity] = useState(null)     // mark / unmark Deity-Used: { note }
 
   useEffect(() => {
     setQ(tag || ''); setItem(null); setErr('')
@@ -26,7 +28,14 @@ export default function ItemHistory() {
     StoresAPI.item(tag).then(setItem).catch((ex) => setErr(tr(getErrorMessage(ex, 'Not found.')))).finally(() => setLoading(false))
   }, [tag])
 
-  const go = (e) => { e.preventDefault(); const v = q.trim().toUpperCase(); if (v) navigate(`/admin/stores/item/${v}`) }
+  // One piece by its ID. A donation / receipt / hundi / manual-entry number can cover many
+  // pieces, so it opens the Stock Register filtered to them instead.
+  const go = (e) => {
+    e.preventDefault()
+    const v = q.trim().toUpperCase()
+    if (!v) return
+    navigate(/^(DON|RCPT|HUN|MSE)-/.test(v) ? `/admin/stores/register?q=${encodeURIComponent(v)}` : `/admin/stores/item/${v}`)
+  }
   const Row = ({ label, value }) => <div><div className="text-[0.6875rem] text-gray-400">{label}</div><div className="text-[0.8125rem] font-medium text-gray-800 break-words">{value ?? '—'}</div></div>
 
   return (
@@ -49,10 +58,14 @@ export default function ItemHistory() {
                 <div className="font-semibold text-gray-800">{tr(item.description || item.item_name)}</div></div>
               <div className="flex flex-col items-end gap-2">
                 <Pill tone={STATUS_TONE[item.status] || 'gray'}>{tr(item.status)}</Pill>
+                <DeityBadge item={item} />
                 {canManageStores(user) && !['Sold', 'Written Off'].includes(item.status) && (
                   <button onClick={() => setFixing({ description: item.description || '', details: item.details || '', weight_g: item.weight_g ?? '',
                     purity: item.purity || '', est_value: item.est_value ?? '', reason: '' })}
                     className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-[0.75rem] font-semibold"><Pencil size={13} />{tr('Correct details')}</button>)}
+                {canManageStores(user) && !['Sold', 'Written Off'].includes(item.status) && (
+                  <button onClick={() => setDeity({ note: '' })}
+                    className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-50 text-[0.75rem] font-semibold whitespace-nowrap"><Sparkles size={13} />{item.deity_used ? tr('Remove Deity-Used mark') : tr('Mark as Deity-Used')}</button>)}
               </div>
             </div>
             {item.receipt_value != null && item.est_value != null && Math.abs(item.est_value - item.receipt_value) >= 1 && (
@@ -67,7 +80,7 @@ export default function ItemHistory() {
               {item.purity && <Row label={tr('Purity')} value={item.purity} />}
               <Row label={tr('Donor')} value={staffName(item.donor_name)} />
               <Row label={tr('Donor mobile')} value={item.donor_mobile} />
-              <Row label={tr('Source')} value={`${tr(item.source_type)} · ${item.source_ref}`} />
+              <Row label={tr('Source')} value={<SourceLink item={item} user={user} />} />
               <Row label={tr('Received')} value={fmtDate(item.received_on)} />
               <Row label={tr('Location')} value={['In Store', 'In Open Sale'].includes(item.status) ? tr(item.location || '—') : item.status === 'Awaiting Placement' ? tr('Not placed yet')
                 : ['Issued', 'Missing'].includes(item.status) ? `${tr(item.status)} — ${tr('last at')} ${tr(item.location || '—')}` : '—'} />
@@ -75,6 +88,7 @@ export default function ItemHistory() {
               {item.sold_amount != null && <Row label={tr('Sold for')} value={inr(item.sold_amount)} />}
               {item.last_auction_code && <Row label={tr('Last auction')} value={item.last_auction_code} />}
               {item.unsold_count > 0 && <Row label={tr('Times unsold')} value={item.unsold_count} />}
+              {item.deity_used && <Row label={tr('Deity-Used')} value={item.deity_used_note || tr('Yes')} />}
             </div>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -103,6 +117,7 @@ export default function ItemHistory() {
         </div>
       )}
       {fixing && item && <CorrectDialog item={item} form={fixing} setForm={setFixing} onDone={(d) => { setItem(d); setFixing(null) }} />}
+      {deity && item && <DeityUsedDialog item={item} form={deity} setForm={setDeity} onDone={(d) => { setItem({ ...item, ...d }); setDeity(null); StoresAPI.item(item.tag_id).then(setItem).catch(() => {}) }} />}
     </div>
   )
 }
@@ -152,4 +167,47 @@ function CorrectDialog({ item, form, setForm, onDone }) {
       </form>
     </div>
   )
+}
+
+// Mark / unmark a piece as Deity-Used (worn or used by the deity — offered first at auction).
+// For pieces used before this was tracked, or a mistake; the reason goes into its history.
+function DeityUsedDialog({ item, form, setForm, onDone }) {
+  const [saving, setSaving] = useState(false)
+  const marking = !item.deity_used
+  async function submit(e) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const d = await StoresAPI.setDeityUsed(item.id, { used: marking, note: form.note.trim() })
+      toast(`${item.tag_id}: ${marking ? tr('marked as Deity-Used.') : tr('Deity-Used mark removed.')}`); onDone(d)
+    } catch (ex) { toast(tr(getErrorMessage(ex, 'Could not save.')).replace(/^Value error, /, ''), 'error') } finally { setSaving(false) }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={() => setForm(null)} />
+      <form onSubmit={submit} className="relative bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-serif text-lg font-bold text-maroon-800">{marking ? tr('Mark as Deity-Used') : tr('Remove Deity-Used mark')} — <span className="font-mono">{item.tag_id}</span></h3>
+          <div className="text-[0.75rem] text-gray-500">{marking ? tr('Deity-Used items are offered first at auction.') : tr('The piece will be auctioned like any other piece.')}</div></div>
+        <div className="px-5 py-4">
+          <label className="label">{marking ? tr('Occasion *') : tr('Reason *')}</label>
+          <input required autoFocus minLength={3} maxLength={200} className="input" value={form.note} onChange={(e) => setForm({ note: e.target.value })}
+            placeholder={marking ? tr('e.g. Dasara 2025 alankaram') : tr('e.g. Marked by mistake')} />
+        </div>
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+          <button type="button" onClick={() => setForm(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+          <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60"><Save size={15} className="mr-1" />{saving ? tr('Saving…') : tr('Save')}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+// The piece's source, linked back to it: a counter donation opens the Donations list on its
+// Donation ID, a hundi custody the Hundi list on its code — for staff who can open that screen.
+function SourceLink({ item, user }) {
+  const text = `${tr(item.source_type)} · ${sourceRef(item)}`
+  const to = item.source_type === 'Donation' && canAccessKey(user, 'donations')
+    ? `/admin/donations?q=${encodeURIComponent(item.donation_code || item.source_ref)}`
+    : item.source_type === 'Hundi' && canAccessKey(user, 'hundi') ? `/admin/hundi?q=${encodeURIComponent(item.source_ref)}` : null
+  return to ? <Link to={to} className="text-maroon-700 hover:underline">{text}</Link> : text
 }

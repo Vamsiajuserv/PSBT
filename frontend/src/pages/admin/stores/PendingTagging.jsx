@@ -7,7 +7,7 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { TagItemsDrawer, canWriteStores, canReceiveStock, canCloseShortage, progressText, staffName } from './shared.jsx'
+import { TagItemsDrawer, canWriteStores, canReceiveStock, canCloseShortage, progressText, staffName, sourceRef } from './shared.jsx'
 
 const SOURCE_TONE = { Donation: 'blue', Hundi: 'violet', Manual: 'amber' }
 const SHORT_REASONS = ['Not handed over yet by counter', 'Counted wrong at counter', 'Other']
@@ -118,7 +118,7 @@ export default function PendingTagging() {
                 <tbody className="divide-y divide-gray-100">
                   {cut(toReceive).map((r) => (
                     <tr key={`${r.source_type}-${r.source_id}`} className="hover:bg-gray-50/60">
-                      <td className="px-4 py-3"><div className="font-mono text-[0.78rem] font-semibold text-gray-700">{r.source_ref}</div><Pill tone={SOURCE_TONE[r.source_type]}>{tr(r.source_type)}</Pill></td>
+                      <td className="px-4 py-3"><div className="font-mono text-[0.78rem] font-semibold text-gray-700">{sourceRef(r)}</div><Pill tone={SOURCE_TONE[r.source_type]}>{tr(r.source_type)}</Pill></td>
                       <td className="px-4 py-3 text-gray-800">{personName({ name: r.donor_name }, lang)}{r.donor_mobile && <div className="text-[0.6875rem] text-gray-400">{r.donor_mobile}</div>}</td>
                       <td className="px-4 py-3 font-semibold text-gray-800">{tr(r.item_name)}</td>
                       <td className="px-4 py-3 font-semibold">{isHundi(r)
@@ -152,7 +152,7 @@ export default function PendingTagging() {
                   const rc = r.progress?.receive
                   return (
                     <tr key={`${r.source_type}-${r.source_id}`} className="hover:bg-gray-50/60">
-                      <td className="px-4 py-3"><div className="font-mono text-[0.78rem] text-gray-700">{r.source_ref}</div><Pill tone={SOURCE_TONE[r.source_type]}>{tr(r.source_type === 'Manual' ? 'Manual entry' : r.source_type)}</Pill></td>
+                      <td className="px-4 py-3"><div className="font-mono text-[0.78rem] text-gray-700">{sourceRef(r)}</div><Pill tone={SOURCE_TONE[r.source_type]}>{tr(r.source_type === 'Manual' ? 'Manual entry' : r.source_type)}</Pill></td>
                       <td className="px-4 py-3 text-gray-800">{personName({ name: r.donor_name }, lang)}{r.donor_mobile && <div className="text-[0.6875rem] text-gray-400">{r.donor_mobile}</div>}</td>
                       <td className="px-4 py-3 font-semibold text-gray-800">{tr(r.item_name)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{r.quantity != null ? `${Number(r.quantity).toLocaleString('en-IN')} ${tr(r.unit || '')}` : '—'}
@@ -230,7 +230,7 @@ function ReceiveDialog({ row, rest, onClose, onDone }) {
   const billed = rest ? row.billed : row.quantity
   const already = rest ? row.received : 0
   const left = billed - already
-  const ref = rest ? row.receipt_no : row.source_ref
+  const ref = rest ? row.receipt_no : sourceRef(row)
   const [n, setN] = useState(String(rest ? left : billed))
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')

@@ -5,6 +5,7 @@ import { Pill, inr } from '../../../components/admin/ui.jsx'
 import { Select, NumberField, DateField, TimeField, Checkbox } from '../../../components/common/Field.jsx'
 import { toast, confirmDialog } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit, teTerm } from '../../../i18n/LanguageContext.jsx'
+import { DeityBadge } from '../stores/shared.jsx'
 
 // Lot auctions: a set of tagged pieces from the Stock Register, sold to one or more buyers.
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
@@ -29,7 +30,8 @@ export const saleAsPayable = (au, sale) => ({
 export const lotPaidCount = (au) => (au.sales || []).filter((s) => s.payment_status === 'Paid').length
 
 // ── Create an auction from stock ─────────────────────────────────────────────
-// preset: { category_id, piece_ids, base_price } — opened from Unsold Items to re-auction them
+// preset: { category_id, piece_ids, base_price, title?, notes? } — opened from Unsold Items to re-auction them,
+// or from Deity-Used Items to auction those pieces first
 export function StockAuctionDrawer({ onClose, onCreated, preset }) {
   const [cats, setCats] = useState([])
   const [catId, setCatId] = useState(preset ? String(preset.category_id) : '')
@@ -37,16 +39,18 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
   const [picked, setPicked] = useState({})
   const [q, setQ] = useState('')
   const [range, setRange] = useState({ from: '', to: '' })
+  const [count, setCount] = useState('')
   const [f, setF] = useState({ base_price: preset?.base_price ? String(preset.base_price) : '', auction_date: todayISO(), start_time: '', description: '',
-    notes: preset ? tr('Re-auction of unsold items') : '' })
+    notes: preset ? (preset.notes ?? tr('Re-auction of unsold items')) : '' })
   const [saving, setSaving] = useState(false)
   useEffect(() => { StoresAPI.categories().then((r) => setCats((r.items || []).filter((c) => c.tracking === 'Tagged' && c.auctionable !== false))).catch(() => setCats([])) }, [])
   useEffect(() => {
     setPicked({}); setPieces([])
     if (!catId) return
-    StoresAPI.items({ category_id: catId, status: 'In Store', size: 200 })
+    // Deity-Used pieces come first: they are offered at auction before the others
+    StoresAPI.items({ category_id: catId, status: 'In Store', size: 200, order: 'deity_first' })
       .then((r) => {
-        const list = (r.items || []).sort((a, b) => a.tag_id.localeCompare(b.tag_id))
+        const list = (r.items || []).sort((a, b) => (b.deity_used ? 1 : 0) - (a.deity_used ? 1 : 0) || a.tag_id.localeCompare(b.tag_id))
         setPieces(list)
         if (preset && String(preset.category_id) === String(catId)) {
           setPicked(Object.fromEntries(preset.piece_ids.filter((id) => list.some((p) => p.id === id)).map((id) => [id, true])))
@@ -61,6 +65,16 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
     const hit = pieces.filter((p) => p.tag_id >= a && p.tag_id <= b)
     if (!hit.length) { toast(tr('No pieces in store between those IDs.'), 'error'); return }
     setPicked((x) => ({ ...x, ...Object.fromEntries(hit.map((p) => [p.id, true])) }))
+  }
+  // Pick N: Deity-Used pieces first; if there are not enough, the rest from the other pieces
+  const deityCount = pieces.filter((p) => p.deity_used).length
+  const pickCount = () => {
+    const n = Math.floor(Number(count))
+    if (!(n > 0)) { toast(tr('Enter how many pieces to pick.'), 'error'); return }
+    const hit = pieces.slice(0, n)
+    setPicked(Object.fromEntries(hit.map((p) => [p.id, true])))
+    const d = hit.filter((p) => p.deity_used).length
+    toast(`${hit.length} ${tr('picked')}: ${d} ${tr('Deity-Used')} + ${hit.length - d} ${tr('other')}${n > pieces.length ? ` — ${tr('only these are in store')}` : ''}`)
   }
   async function save(e) {
     e.preventDefault()
@@ -81,7 +95,7 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
       <form onSubmit={save} className="relative w-full max-w-2xl bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
         <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
-          <div><h3 className="font-serif text-xl font-bold text-maroon-800">{preset ? <T>Re-auction Unsold Items</T> : <T>Auction from Stock</T>}</h3>
+          <div><h3 className="font-serif text-xl font-bold text-maroon-800">{preset ? (preset.title || <T>Re-auction Unsold Items</T>) : <T>Auction from Stock</T>}</h3>
             <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Pick tagged pieces from the store. They show as In Auction until the result is approved.</T></p></div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={20} /></button>
         </div>
@@ -98,13 +112,17 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
                 <input className="input !py-1.5 !w-[8rem] font-mono uppercase" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} placeholder="PAN-00001" aria-label={tr('From ID')} />
                 <input className="input !py-1.5 !w-[8rem] font-mono uppercase" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} placeholder="PAN-00010" aria-label={tr('To ID')} />
                 <button type="button" onClick={pickRange} className="btn-outline !py-1.5 !px-3 text-[0.78rem]"><T>Pick range</T></button>
+                <input type="number" min="1" className="input !py-1.5 !w-[5rem]" value={count} onChange={(e) => setCount(e.target.value)} placeholder="10" aria-label={tr('How many')} />
+                <button type="button" onClick={pickCount} title={tr('Deity-Used pieces first, then the others')} className="btn-outline !py-1.5 !px-3 text-[0.78rem]"><T>Pick count</T></button>
               </div>
+              {deityCount > 0 && <div className="px-3 py-1.5 text-[0.75rem] bg-amber-50 text-amber-800 border-b border-amber-100">{deityCount} {tr('Deity-Used piece(s) are listed first — offer them first.')}</div>}
               <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
                 {shown.map((p) => (
                   <label key={p.id} className="flex items-center gap-3 px-3 py-2 text-[0.8125rem] cursor-pointer hover:bg-gray-50">
                     <Checkbox checked={!!picked[p.id]} onChange={() => setPicked((x) => ({ ...x, [p.id]: !x[p.id] }))} />
                     <span className="font-mono font-semibold text-maroon-700 w-24 shrink-0">{p.tag_id}</span>
                     <span className="flex-1 min-w-0 truncate">{tr(p.description || p.item_name)}{p.weight_g ? ` · ${p.weight_g} ${gramUnit()}` : ''}</span>
+                    <DeityBadge item={p} />
                     <span className="text-[0.75rem] text-gray-500 shrink-0">{teTerm(p.location)}{p.est_value != null ? ` · ${inr(p.est_value)}` : ''}</span>
                   </label>
                 ))}

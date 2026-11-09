@@ -22,7 +22,8 @@ from ..database import get_db
 from ..helpers import ist_today, next_code_seq, validate_pagination
 from ..models import IssueLine, IssueSlip, MissingCase, Poojari, StockItem, StockMovement, StoreLocation
 from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
-from .stores import (ISSUED, MISSING, ACT_ISSUED, ACT_RETURNED, ACT_FOUND, _location, _loc_names, _move, _who)
+from .stores import (ISSUED, MISSING, ACT_ISSUED, ACT_RETURNED, ACT_FOUND, DEITY_PURPOSES, _location, _loc_names, _move, _who,
+                     mark_deity_used)
 
 router = APIRouter(prefix="/api/stores", tags=["stores-issue-missing"])
 read = RequireModule("Stores")
@@ -223,6 +224,8 @@ def return_items(sid: int, body: ReturnIn, request: Request, db: Session = Depen
         item.status, item.location_id = "In Store", dest.id
         cond = "Good" if r.condition == "Good" else "Damaged on return"
         _move(db, item, user, ACT_RETURNED, f"{slip.code} · {cond}" + (f" · {note}" if note else "") + f" — back to {dest.name}")
+        if slip.purpose.strip().lower() in DEITY_PURPOSES:      # used by the deity: offered first at auction
+            mark_deity_used(db, item, user, f"{slip.purpose} — {slip.code}" + (f" ({slip.kit_name})" if slip.kit_name else ""))
     left = sum(1 for l in slip.lines if not l.returned_at)
     slip.status = "Returned" if left == 0 else "Partly returned"
     db.commit(); db.refresh(slip)

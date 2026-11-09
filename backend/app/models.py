@@ -879,6 +879,10 @@ class StockItem(Base):
     open_sale_price = Column(Numeric(12, 2), nullable=True)
     open_sale_by = Column(String(120), nullable=True)         # committee member who set the price
     open_sale_at = Column(DateTime, nullable=True)
+    # Deity-Used: worn / used by the deity (alankaram, festival) — offered first at auction.
+    # Set on return from an Alankaram / Festival issue slip, or marked by the Stores Officer.
+    deity_used = Column(Boolean, default=False, nullable=False)
+    deity_used_note = Column(String(200), nullable=True)     # "Alankaram — ISS-0012" / the officer's reason
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 

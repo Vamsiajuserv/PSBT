@@ -8,7 +8,7 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, DateField } from '../../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
-import { isCommitteeUser, canSellOrDamage, canDamageStock, isStoresOfficer, staffName, useStoresMeta } from './shared.jsx'
+import { isCommitteeUser, canSellOrDamage, canDamageStock, isStoresOfficer, staffName, useStoresMeta, sourceRef, DeityBadge } from './shared.jsx'
 import { useTemple } from '../../../lib/SiteContext.jsx'
 
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
@@ -106,7 +106,7 @@ export default function OpenSale() {
         <form onSubmit={(e) => { e.preventDefault(); applyOn(fOn) }} className="px-5 py-4 flex flex-wrap items-end gap-3 border-b border-gray-100">
           <div className="flex-1 min-w-[12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search ID, item or donor</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input className="input !pl-9" value={fOn.q} onChange={(e) => setFOn({ ...fOn, q: e.target.value })} placeholder={tr('PAN-00003, donor name, RCPT-…')} /></div></div>
+              <input className="input !pl-9" value={fOn.q} onChange={(e) => setFOn({ ...fOn, q: e.target.value })} placeholder={tr('PAN-00003, donor name, DON-… or RCPT-…')} /></div></div>
           <div className="w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Item type</T></label>
             <Select className="input" value={fOn.category_id} onChange={(e) => setFOn({ ...fOn, category_id: e.target.value })}><option value="">{tr('All')}</option>{tagged.map((x) => <option key={x.id} value={x.id}>{tr(x.name)}</option>)}</Select></div>
           <div className="w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Location</T></label>
@@ -125,13 +125,13 @@ export default function OpenSale() {
             <tbody className="divide-y divide-gray-100">
               {items.map((i) => (
                 <tr key={i.id} className="hover:bg-gray-50/60">
-                  <td className="pl-5 pr-4 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${i.tag_id}`}>{i.tag_id}</Link></td>
+                  <td className="pl-5 pr-4 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${i.tag_id}`}>{i.tag_id}</Link>{i.deity_used && <div className="mt-1"><DeityBadge item={i} /></div>}</td>
                   <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(i.description || i.item_name)}</div><div className="text-[0.6875rem] text-gray-500">{[tr(i.item_name), tr(i.details)].filter(Boolean).join(' · ')}</div></td>
                   <td className="px-4 py-3 text-right tabular-nums font-bold text-maroon-800 whitespace-nowrap">{inr(i.open_sale_price)}</td>
                   <td className="px-4 py-3 text-[0.8125rem]">{staffName(i.open_sale_by)}<div className="text-[0.6875rem] text-gray-400">{fmtStamp(i.open_sale_at)}</div></td>
                   <td className="px-4 py-3 text-center"><Pill tone={i.unsold_count >= 2 ? 'red' : 'orange'}>×{i.unsold_count}</Pill></td>
                   <td className="px-4 py-3">{tr(i.location || '—')}</td>
-                  <td className="px-4 py-3"><div>{personName({ name: i.donor_name }, lang)}</div><div className="text-[0.6875rem] font-mono text-gray-400">{i.source_ref}</div></td>
+                  <td className="px-4 py-3"><div>{personName({ name: i.donor_name }, lang)}</div><div className="text-[0.6875rem] font-mono text-gray-400">{sourceRef(i)}</div></td>
                   <td className="pl-4 pr-5 py-3"><div className="flex gap-1.5 flex-nowrap">
                     {canSell && <button onClick={() => setSelling({ item: i, buyer_name: '', buyer_mobile: '', mode: 'Cash', txn_ref: '' })} title={tr('Sell')} aria-label={tr('Sell')} className="w-8 h-8 grid place-items-center rounded-lg border border-green-200 text-green-700 hover:bg-green-50"><Banknote size={15} /></button>}
                     {committee && <button onClick={() => changePrice(i)} title={tr('Change price')} aria-label={tr('Change price')} className="w-8 h-8 grid place-items-center rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50"><Pencil size={15} /></button>}

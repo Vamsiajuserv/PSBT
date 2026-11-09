@@ -5,7 +5,7 @@ import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { DateField } from '../../../components/common/Field.jsx'
 import ExportButtons from '../../../components/common/ExportButtons.jsx'
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
-import { staffName } from './shared.jsx'
+import { staffName, sourceRef, sourceSplit } from './shared.jsx'
 
 const ist = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const monthStart = () => { const t = ist(new Date()); return `${t.slice(0, 8)}01` }
@@ -42,6 +42,7 @@ export default function StockReport() {
   ] : []
   const exportCols = [
     { key: 'name', label: tr('Item type') }, { key: 'opening', label: tr('Opening') }, { key: 'received', label: tr('Received') },
+    { key: 'received_donated', label: tr('Received: donated') }, { key: 'received_purchased', label: tr('Received: purchased') }, { key: 'received_other', label: tr('Received: opening & other') },
     { key: 'sold', label: tr('Sold') }, { key: 'sold_open_sale', label: tr('of which Open Sale') }, { key: 'out', label: tr('Used / Written Off') }, { key: 'closing', label: tr('Closing') },
     { key: 'awaiting_placement', label: tr('Awaiting Placement') }, { key: 'in_store', label: tr('In Store') },
     { key: 'issued', label: tr('Issued') }, { key: 'missing', label: tr('Missing') },
@@ -52,7 +53,7 @@ export default function StockReport() {
   const detailExport = detail ? [
     ...detail.remaining.map((x) => ({ section: tr('Remaining'), pieces: `${x.awaiting_placement ? `${x.awaiting_placement} ${tr('awaiting placement')} · ` : ''}${x.in_store} ${tr('in store')} · ${x.in_auction} ${tr('in auction')} · ${x.in_open_sale || 0} ${tr('in Open Sale')}`, ref: x.location, person: '', amount: null, status: x.unsold_before.length ? `${tr('Unsold before')}: ${x.unsold_before.join(', ')}` : '', date: '' })),
     ...detail.sold.map((x) => ({ section: tr('Sold'), pieces: x.tag_id, ref: x.auction, person: x.buyer || '', amount: x.amount, status: x.payment === 'Paid' ? `${tr('Paid')} · ${tr(modeLabel(x.payment_mode))} · ${x.receipt_no}` : tr(x.payment || '—'), date: fmtDate(x.date) })),
-    ...detail.received.map((x) => ({ section: tr('Received'), pieces: x.pieces, ref: x.source_ref, person: x.donor || '', amount: null, status: '', date: fmtDate(x.date) })),
+    ...detail.received.map((x) => ({ section: tr('Received'), pieces: x.pieces, ref: sourceRef(x), person: x.donor || '', amount: null, status: '', date: fmtDate(x.date) })),
     ...detail.written_off.map((x) => ({ section: tr('Written Off'), pieces: x.tag_id, ref: '', person: x.by || '', amount: null, status: x.reason || '', date: fmtDate(x.date) })),
     ...detail.auctions.map((x) => ({ section: tr('Auction'), pieces: `${x.pieces} · ${tr('sold')} ${x.sold ?? '—'} · ${tr('unsold')} ${x.unsold ?? '—'}`, ref: x.code, person: '', amount: x.amount, status: `${tr(x.status)} · ${tr(x.verification)} · ${tr('paid')} ${x.paid}`, date: fmtDate(x.date) })),
   ] : []
@@ -140,7 +141,7 @@ export default function StockReport() {
                                 <table className="w-full text-[0.8125rem]"><Head cols={[[tr('Pieces')], [tr('Donor')], [tr('Receipt')], [tr('Tagged on')]]} />
                                   <tbody className="divide-y divide-gray-100">{detail.received.map((x) => (
                                     <tr key={`${x.source_ref}-${x.pieces}`}><td className="px-3 py-2 font-mono">{x.pieces}</td><td className="px-3 py-2">{personName({ name: x.donor }, lang)}</td>
-                                      <td className="px-3 py-2 font-mono">{x.source_ref}</td><td className="px-3 py-2 whitespace-nowrap">{fmtDate(x.date)}</td></tr>))}
+                                      <td className="px-3 py-2 font-mono">{sourceRef(x)}</td><td className="px-3 py-2 whitespace-nowrap">{fmtDate(x.date)}</td></tr>))}
                                     {!detail.received.length && <Empty cols={4} text={tr('Nothing received in this period.')} />}</tbody></table>
                               </Section>
                               {detail.written_off.length > 0 && (
@@ -181,7 +182,8 @@ export default function StockReport() {
                 <tbody className="divide-y divide-gray-100">
                   {data.quantity.map((r) => (
                     <tr key={r.category_id}><td className="px-3 py-3 font-semibold text-gray-800">{tr(r.name)}</td><td className="px-3 py-3">{tr(r.unit || '—')}</td>
-                      <td className="px-3 py-3 text-right">{q3(r.opening)}</td><td className="px-3 py-3 text-right">{q3(r.received)}</td>
+                      <td className="px-3 py-3 text-right">{q3(r.opening)}</td><td className="px-3 py-3 text-right">{q3(r.received)}
+                        {r.received > 0 && <div className="text-[0.6875rem] text-gray-500 font-normal whitespace-nowrap">{sourceSplit(r.received_donated, r.received_purchased, r.received_other)}</div>}</td>
                       <td className="px-3 py-3 text-right">{q3(r.out)}</td><td className="px-3 py-3 text-right font-bold">{q3(r.closing)}</td></tr>
                   ))}
                   {!data.quantity.length && <Empty cols={6} text={tr('No consumables received or used yet.')} />}

@@ -83,6 +83,7 @@ const ConsumablesStock = lazy(() => import('./pages/admin/stores/Consumables.jsx
 const StockReport = lazy(() => import('./pages/admin/stores/StockReport.jsx'))
 const StockCheck = lazy(() => import('./pages/admin/stores/StockCheck.jsx'))
 const UnsoldItems = lazy(() => import('./pages/admin/stores/UnsoldItems.jsx'))
+const DeityUsedItems = lazy(() => import('./pages/admin/stores/DeityUsedItems.jsx'))
 const OpenSale = lazy(() => import('./pages/admin/stores/OpenSale.jsx'))
 const StoreLocations = lazy(() => import('./pages/admin/stores/StoreLocations.jsx'))
 const StoresOverview = lazy(() => import('./pages/admin/stores/StoresOverview.jsx'))
@@ -207,6 +208,7 @@ export default function App() {
         <Route path="stores/report" element={<Guard k="stores/report"><StockReport /></Guard>} />
         <Route path="stores/check" element={<Guard k="stores/check"><StockCheck /></Guard>} />
         <Route path="stores/unsold" element={<Guard k="stores/unsold"><UnsoldItems /></Guard>} />
+        <Route path="stores/deity-used" element={<Guard k="stores/deity-used"><DeityUsedItems /></Guard>} />
         <Route path="stores/open-sale" element={<Guard k="stores/open-sale"><OpenSale /></Guard>} />
         <Route path="stores/item" element={<Guard k="stores/item"><ItemHistory /></Guard>} />
         <Route path="stores/item/:tag" element={<Guard k="stores/item"><ItemHistory /></Guard>} />

@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Coins, Save, Plus, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Coins, Save, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { PageTitle, Section, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { MetalRatesAPI, getErrorMessage } from '../../api/client.js'
 import { DateField, NumberField } from '../../components/common/Field.jsx'
 import { toast } from '../../components/common/Dialog.jsx'
 import { T, tr, staffName } from '../../i18n/LanguageContext.jsx'
-import { pct, useMetalDay } from '../../lib/metal.js'
+import { useMetalDay } from '../../lib/metal.js'
 
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const rupee = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
@@ -14,16 +14,16 @@ const METALS = [['Gold', '24K'], ['Silver', '999']]
 
 // Gold & Silver Rate (Administrator): the day's rate per gram, used to value gold and silver
 // at the counter and in hundi counts. A day without a rate blocks gold / silver receipts.
+// The purity table editor was removed from this screen (2026-11-09, not needed by the client);
+// the saved purities are still used for valuation (grams × rate × purity).
 export default function MetalRates() {
   const todayRates = useMetalDay()
   const [form, setForm] = useState({ rate_date: today(), Gold: '', Silver: '', note: '' })
   const [saving, setSaving] = useState(false)
   const [history, setHistory] = useState([])
-  const [pur, setPur] = useState(null)
 
   const loadHistory = useCallback(() => MetalRatesAPI.history(90).then((d) => setHistory(d.items || [])).catch(() => setHistory([])), [])
   useEffect(() => { loadHistory() }, [loadHistory])
-  useEffect(() => { if (todayRates.purities && !pur) setPur(JSON.parse(JSON.stringify(todayRates.purities))) }, [todayRates.purities, pur])
 
   const byDay = useMemo(() => {
     const m = new Map()
@@ -43,15 +43,6 @@ export default function MetalRates() {
       todayRates.reload(); loadHistory()
     } catch (ex) { toast(errText(ex, 'Could not save the rate.'), 'error') } finally { setSaving(false) }
   }
-
-  async function savePurities() {
-    try {
-      const body = Object.fromEntries(METALS.map(([m]) => [m, pur[m].map((p) => ({ label: p.label.trim(), factor: Number(p.factor) }))]))
-      const d = await MetalRatesAPI.setPurities(body)
-      setPur(d.purities); todayRates.reload(); toast(tr('Purity table saved.'))
-    } catch (ex) { toast(errText(ex, 'Could not save the purity table.'), 'error') }
-  }
-  const setP = (m, i, patch) => setPur((x) => ({ ...x, [m]: x[m].map((p, j) => (j === i ? { ...p, ...patch } : p)) }))
 
   return (
     <div>
@@ -74,46 +65,21 @@ export default function MetalRates() {
         })}
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-5">
-        <Section title={tr('Enter rate')}>
-          <form onSubmit={save} className="space-y-4">
-            <div><label className="label"><T>Date *</T></label>
-              <DateField required value={form.rate_date} max={today()} onChange={(e) => setForm({ ...form, rate_date: e.target.value > today() ? today() : e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              {METALS.map(([m, basis]) => (
-                <div key={m}><label className="label">{tr(m)} {basis} (₹ / {tr('gram')})</label>
-                  <NumberField min="1" max="10000000" step="0.01" prefix="₹" value={form[m]} onChange={(e) => setForm({ ...form, [m]: e.target.value })} /></div>))}
-            </div>
-            <div><label className="label"><T>Note</T></label>
-              <input className="input" maxLength={200} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={tr('e.g. Hyderabad market rate, 10 AM')} /></div>
-            <div className="text-[0.75rem] text-gray-500">{tr('Entering a rate again for the same day corrects it. Receipts already made keep the rate they used.')}</div>
-            <button disabled={saving} className="btn-maroon !py-2.5 disabled:opacity-60"><Save size={15} />{' '}{saving ? tr('Saving…') : tr('Save rate')}</button>
-          </form>
-        </Section>
-
-        <Section title={tr('Purity table')}>
-          {pur ? (
-            <div className="space-y-4">
-              {METALS.map(([m, basis]) => (
-                <div key={m}>
-                  <div className="text-[0.8125rem] font-semibold text-gray-700 mb-2">{tr(m)} — {tr('value as a part of the')} {basis} {tr('rate')}</div>
-                  <div className="space-y-2">
-                    {pur[m].map((p, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <input className="input !py-1.5 w-24" maxLength={10} value={p.label} onChange={(e) => setP(m, i, { label: e.target.value })} />
-                        <NumberField min="0.01" max="1" step="0.001" className="!py-1.5 w-28" value={p.factor} onChange={(e) => setP(m, i, { factor: e.target.value })} />
-                        <span className="text-[0.75rem] text-gray-500 w-16">{Number(p.factor) > 0 ? pct(p.factor) : ''}</span>
-                        <button type="button" onClick={() => setPur((x) => ({ ...x, [m]: x[m].filter((_, j) => j !== i) }))} disabled={pur[m].length <= 1}
-                          className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-600 hover:text-red-600 disabled:opacity-40" aria-label={tr('Remove')}><Trash2 size={14} /></button>
-                      </div>))}
-                  </div>
-                  <button type="button" onClick={() => setPur((x) => ({ ...x, [m]: [...x[m], { label: '', factor: '' }] }))} className="mt-2 inline-flex items-center gap-1 text-[0.75rem] font-semibold text-maroon-700"><Plus size={13} />{tr('Add purity')}</button>
-                </div>))}
-              <button type="button" onClick={savePurities} className="btn-outline !py-2"><Save size={14} />{' '}<T>Save purity table</T></button>
-            </div>
-          ) : <div className="text-[0.8125rem] text-gray-400">{tr('Loading…')}</div>}
-        </Section>
-      </div>
+      <Section title={tr('Enter rate')} className="lg:max-w-2xl">
+        <form onSubmit={save} className="space-y-4">
+          <div><label className="label"><T>Date *</T></label>
+            <DateField required value={form.rate_date} max={today()} onChange={(e) => setForm({ ...form, rate_date: e.target.value > today() ? today() : e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            {METALS.map(([m, basis]) => (
+              <div key={m}><label className="label">{tr(m)} {basis} (₹ / {tr('gram')})</label>
+                <NumberField min="1" max="10000000" step="0.01" prefix="₹" value={form[m]} onChange={(e) => setForm({ ...form, [m]: e.target.value })} /></div>))}
+          </div>
+          <div><label className="label"><T>Note</T></label>
+            <input className="input" maxLength={200} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={tr('e.g. Hyderabad market rate, 10 AM')} /></div>
+          <div className="text-[0.75rem] text-gray-500">{tr('Entering a rate again for the same day corrects it. Receipts already made keep the rate they used.')}</div>
+          <button disabled={saving} className="btn-maroon !py-2.5 disabled:opacity-60"><Save size={15} />{' '}{saving ? tr('Saving…') : tr('Save rate')}</button>
+        </form>
+      </Section>
 
       <Section title={tr('Rate history')} className="mt-5" bodyClass="p-0">
         <div className="overflow-x-auto"><table className="w-full text-sm">

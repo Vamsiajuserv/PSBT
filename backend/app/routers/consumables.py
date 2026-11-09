@@ -1,7 +1,8 @@
 """Consumables Stock — quantity items (oil, ghee, rice, flowers…) as a running balance.
 
 Received = material donations from the start date + verified manual entries (incl. the
-opening balance counted in the store, and temple purchases). Used = use entries. Remaining =
+opening balance counted in the store, and temple purchases). Received is also shown split by
+source — Donated / Purchased / Opening & other — while the balance stays one per item. Used = use entries. Remaining =
 received − used, and a use can never take more than what remains. Nothing here is per piece;
 tagged items live in stores.py.
 
@@ -19,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..helpers import ist_today, next_code_seq
-from ..models import ConsumableUse, Donation, DonationCategory, ManualStockEntry, Setting, User
+from ..models import ConsumableUse, Donation, DonationCategory, ManualStockEntry, PurchaseRequest, Setting, User
 from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
 from .stores import ReasonIn, _qty, _who
 
@@ -70,13 +71,39 @@ def _quantity_category(db: Session, cid: int, lock: bool = False) -> DonationCat
     return cat
 
 
-def _received(db: Session, cat: DonationCategory, start: date) -> tuple[Decimal, Decimal]:
+# Where stock came from: a "Temple purchase" manual entry (a Purchase Request marked received,
+# or one entered by hand) is Purchased; every other manual entry is Opening & other.
+PURCHASE_SOURCE = "Temple purchase"
+SRC_DONATED, SRC_PURCHASED, SRC_OTHER = "Donated", "Purchased", "Opening & other"
+
+
+def manual_source(m: ManualStockEntry) -> str:
+    return SRC_PURCHASED if m.source == PURCHASE_SOURCE else SRC_OTHER
+
+
+def _received(db: Session, cat: DonationCategory, start: date) -> tuple[Decimal, Decimal, Decimal]:
+    """(donated, purchased, opening & other) received since the start date."""
     don = db.query(func.coalesce(func.sum(Donation.quantity), 0)).filter(
         Donation.donation_type == "Material", Donation.voided.isnot(True), Donation.fund == cat.name,
         Donation.donated_on >= start).scalar()
-    man = db.query(func.coalesce(func.sum(ManualStockEntry.quantity), 0)).filter(
-        ManualStockEntry.category_id == cat.id, ManualStockEntry.status == "Verified").scalar()
-    return Decimal(str(don or 0)), Decimal(str(man or 0))
+    man = dict(db.query(ManualStockEntry.source == PURCHASE_SOURCE, func.coalesce(func.sum(ManualStockEntry.quantity), 0))
+               .filter(ManualStockEntry.category_id == cat.id, ManualStockEntry.status == "Verified")
+               .group_by(ManualStockEntry.source == PURCHASE_SOURCE).all())
+    return Decimal(str(don or 0)), Decimal(str(man.get(True) or 0)), Decimal(str(man.get(False) or 0))
+
+
+def purchase_amounts(db: Session, cat_ids: list[int]) -> dict:
+    """{category id: ₹ of bills} for Purchase Requests received into the balance."""
+    return {cid: float(v) for cid, v in (
+        db.query(PurchaseRequest.category_id, func.coalesce(func.sum(PurchaseRequest.bill_amount), 0))
+        .join(ManualStockEntry, ManualStockEntry.id == PurchaseRequest.manual_entry_id)
+        .filter(PurchaseRequest.category_id.in_(cat_ids or [0]), ManualStockEntry.status == "Verified")
+        .group_by(PurchaseRequest.category_id).all())}
+
+
+def _split(don: Decimal, pur: Decimal, other: Decimal) -> dict:
+    return {"received_donations": float(don), "received_purchased": float(pur), "received_other": float(other),
+            "received_manual": float(pur + other), "received": float(don + pur + other)}
 
 
 def _used(db: Session, cat_id: int) -> Decimal:
@@ -86,24 +113,22 @@ def _used(db: Session, cat_id: int) -> Decimal:
 
 
 def _balance(db: Session, cat: DonationCategory, start: date) -> dict:
-    don, man = _received(db, cat, start)
+    don, pur, other = _received(db, cat, start)
     used = _used(db, cat.id)
-    remaining = don + man - used
+    remaining = don + pur + other - used
     low = cat.low_stock_level is not None and remaining <= Decimal(str(cat.low_stock_level))
-    return {"category_id": cat.id, "name": cat.name, "unit": cat.unit,
-            "received_donations": float(don), "received_manual": float(man), "received": float(don + man),
+    return {"category_id": cat.id, "name": cat.name, "unit": cat.unit, **_split(don, pur, other),
             "used": float(used), "remaining": float(remaining),
             "low_stock_level": float(cat.low_stock_level) if cat.low_stock_level is not None else None, "low": low}
 
 
 def _balance_of(cat: DonationCategory, rows: list[dict], used: Decimal) -> dict:
     """_balance from already-loaded batches (no queries) — same figures."""
-    don = sum((r["qty"] for r in rows if r["kind"] == "Donation"), Decimal("0"))
-    man = sum((r["qty"] for r in rows if r["kind"] == "Manual"), Decimal("0"))
-    remaining = don + man - used
+    total = lambda src: sum((r["qty"] for r in rows if r["source"] == src), Decimal("0"))
+    don, pur, other = total(SRC_DONATED), total(SRC_PURCHASED), total(SRC_OTHER)
+    remaining = don + pur + other - used
     low = cat.low_stock_level is not None and remaining <= Decimal(str(cat.low_stock_level))
-    return {"category_id": cat.id, "name": cat.name, "unit": cat.unit,
-            "received_donations": float(don), "received_manual": float(man), "received": float(don + man),
+    return {"category_id": cat.id, "name": cat.name, "unit": cat.unit, **_split(don, pur, other),
             "used": float(used), "remaining": float(remaining),
             "low_stock_level": float(cat.low_stock_level) if cat.low_stock_level is not None else None, "low": low}
 
@@ -121,9 +146,11 @@ def balances(db: Session = Depends(get_db), user=Depends(read)):
     used = dict(db.query(ConsumableUse.category_id, func.coalesce(func.sum(ConsumableUse.quantity), 0))
                 .filter(ConsumableUse.category_id.in_([c.id for c in cats] or [0]), ConsumableUse.status == "Active")
                 .group_by(ConsumableUse.category_id).all())
+    spent = purchase_amounts(db, [c.id for c in cats])
     for c in cats:
         b = _balance_of(c, every[c.id], Decimal(str(used.get(c.id) or 0)))
         b["pending_manual"] = pending.get(c.id, 0)
+        b["purchased_amount"] = spent.get(c.id, 0.0)
         b["track_expiry"] = bool(c.track_expiry)
         dated = sorted((x for x in every[c.id] if x["left"] > 0 and x["expiry"]), key=lambda x: x["expiry"])
         b["next_expiry"] = _batch_dict(dated[0], c, today) if dated else None
@@ -141,11 +168,12 @@ def ledger(cid: int, db: Session = Depends(get_db), user=Depends(read)):
     for d in db.query(Donation).filter(Donation.donation_type == "Material", Donation.voided.isnot(True),
                                        Donation.fund == cat.name, Donation.donated_on >= start).all():
         rows.append({"date": d.donated_on, "at": d.created_at, "kind": "Donation", "ref": d.receipt_no,
+                     "donation_code": d.donation_code, "source": SRC_DONATED,
                      "detail": d.donor_name, "in": Decimal(str(d.quantity or 0)), "out": None, "status": "Active", "by": d.created_by,
                      "expiry_date": str(d.expiry_date) if d.expiry_date else None})
     for m in db.query(ManualStockEntry).filter(ManualStockEntry.category_id == cid, ManualStockEntry.status == "Verified").all():
         rows.append({"date": m.verified_at.date() if m.verified_at else None, "at": m.verified_at, "kind": "Manual entry",
-                     "ref": m.code, "detail": f"{m.source} — {m.reason} (verified by {m.verified_by})",
+                     "ref": m.code, "detail": f"{m.source} — {m.reason} (verified by {m.verified_by})", "source": manual_source(m),
                      "in": Decimal(str(m.quantity)), "out": None, "status": "Active", "by": m.created_by,
                      "expiry_date": str(m.expiry_date) if m.expiry_date else None})
     for u in db.query(ConsumableUse).filter(ConsumableUse.category_id == cid).all():
@@ -154,7 +182,7 @@ def ledger(cid: int, db: Session = Depends(get_db), user=Depends(read)):
             detail += f" · {u.batch_note}"
         if u.status == "Cancelled":
             detail += f" · cancelled by {u.cancelled_by}: {u.cancel_reason}"
-        rows.append({"date": u.used_on, "at": u.created_at, "kind": "Use", "ref": u.code, "id": u.id, "detail": detail,
+        rows.append({"date": u.used_on, "at": u.created_at, "kind": "Use", "ref": u.code, "id": u.id, "detail": detail, "source": None,
                      "in": None, "out": Decimal(str(u.quantity)), "status": u.status, "by": u.created_by})
     rows.sort(key=lambda r: (r["date"] or date.min, r["at"] or datetime.min))
     bal = Decimal("0")
@@ -165,7 +193,8 @@ def ledger(cid: int, db: Session = Depends(get_db), user=Depends(read)):
         out.append({**r, "date": str(r["date"]) if r["date"] else None, "at": r["at"].isoformat() if r["at"] else None,
                     "in": float(r["in"]) if r["in"] is not None else None,
                     "out": float(r["out"]) if r["out"] is not None else None, "balance": float(bal)})
-    return {**_balance(db, cat, start), "start_date": str(start), "entries": out}
+    return {**_balance(db, cat, start), "purchased_amount": purchase_amounts(db, [cat.id]).get(cat.id, 0.0),
+            "start_date": str(start), "entries": out}
 
 
 # ── Batches & expiry ─────────────────────────────────────────────────────────
@@ -179,12 +208,14 @@ def _receipts(db: Session, cats: list[DonationCategory], start: date) -> dict[in
     out = {c.id: [] for c in cats}
     for d in db.query(Donation).filter(Donation.donation_type == "Material", Donation.voided.isnot(True),
                                        Donation.fund.in_(list(by_name) or [""]), Donation.donated_on >= start).all():
-        out[by_name[d.fund]].append({"kind": "Donation", "id": d.id, "ref": d.receipt_no, "received": d.donated_on,
+        out[by_name[d.fund]].append({"kind": "Donation", "source": SRC_DONATED, "id": d.id, "ref": d.receipt_no,
+                                     "donation_code": d.donation_code,
+                                     "received": d.donated_on,
                                      "at": d.created_at, "qty": Decimal(str(d.quantity or 0)), "expiry": d.expiry_date,
                                      "detail": d.donor_name})
     for m in db.query(ManualStockEntry).filter(ManualStockEntry.category_id.in_(list(out) or [0]),
                                                ManualStockEntry.status == "Verified").all():
-        out[m.category_id].append({"kind": "Manual", "id": m.id, "ref": m.code, "received": _ist_day(m.verified_at) or start,
+        out[m.category_id].append({"kind": "Manual", "source": manual_source(m), "id": m.id, "ref": m.code, "received": _ist_day(m.verified_at) or start,
                                    "at": m.verified_at, "qty": Decimal(str(m.quantity)), "expiry": m.expiry_date,
                                    "detail": m.source})
     return out
@@ -245,6 +276,7 @@ def _batch_status(expiry: date | None, today: date) -> tuple[int | None, str]:
 def _batch_dict(b: dict, cat: DonationCategory, today: date) -> dict:
     days, status = _batch_status(b["expiry"], today)
     return {"category_id": cat.id, "name": cat.name, "unit": cat.unit, "kind": b["kind"], "id": b["id"], "ref": b["ref"],
+            "donation_code": b.get("donation_code"), "source": b.get("source"),
             "detail": b["detail"], "received": str(b["received"]) if b["received"] else None,
             "quantity": float(b["qty"]), "left": float(b["left"]),
             "expiry_date": str(b["expiry"]) if b["expiry"] else None, "days_left": days, "status": status,

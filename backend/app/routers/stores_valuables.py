@@ -21,7 +21,7 @@ from ..models import DonationCategory, MetalRate, StoreLocation
 from ..security import RequireModule
 from .metal_rates import BASIS, metal_of, purities
 from .stock_report import IN_STOCK, _piece_histories, _replay
-from .stores import _is_weight
+from .stores import _is_weight, donation_codes
 
 router = APIRouter(prefix="/api/stores/valuables", tags=["stores-valuables"])
 read = RequireModule("Stores")
@@ -61,6 +61,7 @@ def statement(month: str | None = None, db: Session = Depends(get_db), user=Depe
     rows = {"Gold": zero(), "Silver": zero()}
     pieces = []
     items, events = _piece_histories(db)
+    codes = donation_codes(db, items.values())
     for iid, item in items.items():
         if item.category_id not in cats or item.weight_g is None:
             continue
@@ -89,6 +90,7 @@ def statement(month: str | None = None, db: Session = Depends(get_db), user=Depe
         pieces.append({"tag_id": item.tag_id, "metal": metal, "item_name": item.item_name, "description": item.description,
                        "weight_g": float(g), "purity": item.purity, "location": locs.get(item.location_id),
                        "state": STATE.get(p["end_state"], p["end_state"]), "source_ref": item.source_ref,
+                       "donation_code": codes.get(item.donation_id),
                        "value": float(value) if value is not None else None, "value_basis": basis})
     pieces.sort(key=lambda x: (x["metal"], x["tag_id"]))
     out = []
