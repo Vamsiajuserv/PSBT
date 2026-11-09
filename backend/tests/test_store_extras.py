@@ -164,6 +164,92 @@ class Purchase(Store):
         with self.assertRaises(ValidationError):
             sp.ReceiveIn(quantity=1, bill_no="  ", bill_amount=1)
 
+    def test_list_filters_and_paging(self):
+        a = self.approved()                                              # Ghee, approx. 5,400
+        self.receive(a, "6500", over_reason="Price went up", bill_file=None)
+        b = self.raise_(qty="5")                                         # waiting
+        L = lambda status="", **kw: sp.list_requests(status, self.db, self.officer, **kw)
+        self.assertEqual((L()["total"], L(size=1)["total"], len(L(size=1)["items"])), (2, 2, 1))
+        self.assertEqual([x["code"] for x in L(q="pr-0002")["items"]], [b["code"]])
+        self.assertEqual([x["code"] for x in L("Received", q="B-9")["items"]], [a["code"]])
+        self.assertEqual(L(category_id=2)["total"], 0)
+        self.assertEqual(L("Received", flag="over")["total"], 1)
+        self.assertEqual(L("Received", flag="nobill")["total"], 1)
+        self.assertEqual(L("Received")["bill_total"], 6500.0)
+        self.assertEqual(L("Received", date_from=TODAY, date_to=TODAY)["total"], 1)
+        self.assertEqual(L("Received", date_from=TODAY + timedelta(days=1))["total"], 0)
+        self.assertEqual(L("Received", date_to=TODAY - timedelta(days=1))["total"], 0)
+
+    def test_manual_list_filters(self):
+        mk = lambda cid, src, why, **kw: r.create_manual(r.ManualIn(category_id=cid, quantity=Decimal("2"), source=src, reason=why,
+                                                                    **kw), self.req, self.db, self.officer)
+        mk(1, "Old stock in store", "Found in back room")
+        mk(2, "Temple purchase", "Silver lamp bought", location_id=1, donor_name="Lakshmi Traders")
+        M = lambda **kw: r.list_manual("", self.db, self.officer, **kw)
+        self.assertEqual((M()["total"], len(M(size=1)["items"])), (2, 1))
+        self.assertIn("Temple purchase", M()["sources"])
+        self.assertEqual([x["item_name"] for x in M(q="lakshmi")["items"]], ["Silver"])
+        self.assertEqual(M(category_id=1)["total"], 1)
+        self.assertEqual(M(source="Temple purchase")["total"], 1)
+        self.assertEqual(M(date_from=TODAY + timedelta(days=1))["total"], 0)
+
+    def approved(self, user=None):
+        p = self.raise_(user=user)                                       # approx. ₹5,400
+        sp.approve(p["id"], sp.NoteIn(), self.req, self.db, self.committee)
+        return p
+
+    def receive(self, p, amount, **kw):
+        return sp.mark_received(p["id"], sp.ReceiveIn(quantity=Decimal("30"), bill_no="B-9", bill_amount=Decimal(amount), **kw),
+                                self.req, self.db, self.officer)
+
+    def test_within_ten_percent_needs_no_review(self):
+        out = self.receive(self.approved(), "5940")                      # exactly +10%
+        self.assertEqual((out["over_budget"], out["review_status"], out["over_pct"]), (False, None, 10.0))
+        self.assertEqual(sp.request_count(self.db, self.officer)["review"], 0)
+
+    def test_over_budget_needs_reason_and_committee_review(self):
+        p = self.approved()
+        self.assertIn("over the approved approx. cost", self.status(422, lambda: self.receive(p, "6000")))
+        self.assertEqual(self.db.get(sp.PurchaseRequest, p["id"]).status, "Approved")   # nothing saved
+        out = self.receive(p, "6000", over_reason="Ghee price went up this week")
+        self.assertEqual((out["over_budget"], out["review_status"], out["over_pct"]), (True, "Pending", 11.1))
+        lst = sp.list_requests(sp.REVIEW, self.db, self.committee)
+        self.assertEqual(([r["code"] for r in lst["items"]], lst["counts"]["Review"]), ([p["code"]], 1))
+        cnt = sp.request_count(self.db, self.officer)
+        self.assertEqual((cnt["review"], cnt["total"]), (1, 1))
+        self.status(403, lambda: sp.review(p["id"], sp.NoteIn(), self.req, self.db, login("store1", "Administrator")))
+        out = sp.review(p["id"], sp.NoteIn(note="Market rate, ok"), self.req, self.db, self.committee)
+        self.assertEqual((out["review_status"], out["review_note"]), ("Reviewed", "Market rate, ok"))
+        self.status(409, lambda: sp.review(p["id"], sp.NoteIn(), self.req, self.db, self.committee))
+        self.assertEqual(sp.request_count(self.db, self.officer)["review"], 0)
+
+    def test_no_approx_cost_is_never_over_budget(self):
+        p = sp.raise_request(sp.RaiseIn(category_id=1, quantity=Decimal("5"), reason="Daily deepam"), self.req, self.db, self.officer)
+        sp.approve(p["id"], sp.NoteIn(), self.req, self.db, self.committee)
+        self.assertEqual(self.receive(p, "99999")["review_status"], None)
+
+    def test_bill_photo_kept_once_and_checked(self):
+        import base64
+        jpg = "data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8\xff\xe0" + b"x" * 100).decode()
+        out = self.receive(self.approved(), "5000", bill_file=sp.BillFileIn(name="bill.jpg", data=jpg))
+        self.assertEqual((out["bill_file"]["type"], out["bill_file"]["size"]), ("image/jpeg", 104))
+        got = sp.get_bill(out["id"], self.db, self.officer)
+        self.assertEqual(base64.b64decode(got["data"])[:3], b"\xff\xd8\xff")
+        self.assertIn("cannot be replaced", self.status(409, lambda: sp.add_bill(
+            out["id"], sp.BillFileIn(name="b.jpg", data=jpg), self.req, self.db, self.officer)))
+        self.assertEqual(sp.list_requests("Received", self.db, self.officer)["items"][0]["bill_file"]["name"], "bill.jpg")
+
+        q = self.raise_()
+        self.status(409, lambda: sp.add_bill(q["id"], sp.BillFileIn(name="b.jpg", data=jpg), self.req, self.db, self.officer))
+        sp.approve(q["id"], sp.NoteIn(), self.req, self.db, self.committee)
+        exe = base64.b64encode(b"MZ\x90\x00 not a bill").decode()
+        self.assertIn("photo", self.status(422, lambda: self.receive(q, "5000", bill_file=sp.BillFileIn(name="x.exe", data=exe))))
+        self.assertIn("could not be read", self.status(422, lambda: self.receive(q, "5000", bill_file=sp.BillFileIn(name="x", data="@@@"))))
+        self.receive(q, "5000")                                          # no photo yet — add it later
+        pdf = base64.b64encode(b"%PDF-1.4 bill").decode()
+        self.assertEqual(sp.add_bill(q["id"], sp.BillFileIn(name="bill.pdf", data=pdf), self.req, self.db, self.officer)["bill_file"]["type"],
+                         "application/pdf")
+
 
 class Kits(Store):
     def setUp(self):

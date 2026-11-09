@@ -108,7 +108,9 @@ class DayClosing(unittest.TestCase):
             self.assertEqual(x["opening"] + x["placed_in"] + x["moved_in"] + x["returned"] + x["back_from_issue"]
                              - x["moved_out"] - x["issued_out"] - x["left"],
                              x["closing"], x["location"])
-        self.assertEqual(rep["received"], [{"source_type": "Donation", "source_ref": "R2", "donor_name": "Lakshmi",
+        # donation_code: the piece's Donation ID (DON-…); these pieces carry no donation link
+        self.assertEqual(rep["received"], [{"source_type": "Donation", "source_ref": "R2", "donation_code": None,
+                                            "donor_name": "Lakshmi",
                                             "item_name": "Cloth / Vastram", "tagged": 2, "placed": 1}])
         ghee = rep["consumables"][0]
         self.assertEqual((ghee["opening"], ghee["used"], ghee["closing"], ghee["low"]), (8, 4, 4, True))

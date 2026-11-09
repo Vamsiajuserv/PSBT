@@ -123,7 +123,7 @@ class TwoMemberApproval(unittest.TestCase):
         r.reject_hundi(h.id, HundiRejectIn(reason="Short by 500"), self.req, self.db, login("m2", member_id=2))
         fix = HundiResubmitIn(items=[{"item_name": "Notes", "item_type": "Cash", "value": 500}],
                               note="Recounted")
-        # Only a rejected count, and only the admin (require_admin guards the route)
+        # Only a rejected count (the h_resubmit guard limits it to Counter Staff / Admin)
         h = r.resubmit_hundi(h.id, fix, self.req, self.db, self.admin)
         self.assertEqual(h.verification_status, "Pending Verification")
         self.assertEqual(float(h.counted_amount), 500)
@@ -136,6 +136,25 @@ class TwoMemberApproval(unittest.TestCase):
         self.verify(h, login("m1", member_id=1))
         h = self.verify(h, login("m2", member_id=2))
         self.assertEqual(h.verification_status, "Verified")
+
+    def test_counter_staff_resubmits_rejected_count(self):
+        h = self.create([1, 2])
+        r.reject_hundi(h.id, HundiRejectIn(reason="Short by 500"), self.req, self.db, login("m1", member_id=1))
+        fix = HundiResubmitIn(items=[{"item_name": "Notes", "item_type": "Cash", "value": 500}], note="Recounted")
+        h = r.resubmit_hundi(h.id, fix, self.req, self.db, self.counter)
+        self.assertEqual(h.verification_status, "Pending Verification")
+        self.assertIn("Corrected by Counter1", h.notes)
+        self.verify(h, login("m1", member_id=1))
+        self.assertEqual(self.verify(h, login("m2", member_id=2)).verification_status, "Verified")
+
+    def test_resubmit_guard_roles(self):
+        # Counter Staff and Administrator may resubmit; Committee and Accountant may not
+        self.assertIs(r.h_resubmit(self.counter), self.counter)
+        self.assertIs(r.h_resubmit(self.admin), self.admin)
+        for role in ("Committee", "Accountant", "Poojari", "Stores Officer"):
+            with self.assertRaises(HTTPException) as cm:
+                r.h_resubmit(login("x", role=role))
+            self.assertEqual(cm.exception.status_code, 403, role)
 
     def test_resubmit_rejects_bad_lines(self):
         h = self.create([1, 2])
