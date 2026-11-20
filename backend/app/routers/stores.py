@@ -16,7 +16,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, object_session
 
 from ..database import get_db
-from ..helpers import next_code_seq, validate_pagination
+from ..helpers import IST_OFFSET, ist_today, next_code_seq, validate_pagination
 from ..models import (ConsumableUse, Donation, DonationCategory, HundiCollection, HundiCollectionItem, ManualStockEntry,
                       Setting, StockItem, StockMovement, StoreLocation, StoreReceipt, User)
 from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
@@ -34,21 +34,36 @@ AWAITING = "Awaiting Placement"
 # Missing: not found at a stock check, until found again or written off as lost.
 ISSUED = "Issued"
 MISSING = "Missing"
-STATUSES = (AWAITING, "In Store", ISSUED, "In Auction", "In Open Sale", MISSING, "Sold", "Written Off")
+# Kept by Poojari: taken out on an issue slip and kept by the poojari / performer (a pancha, a
+# towel…) — it leaves stock with the reason in its history; never gold / silver (2026-11-15).
+KEPT = "Kept by Poojari"
+# Write-off Requested: a damaged piece waiting for a Committee member to approve its write-off — it can
+# not be issued, auctioned or sold meanwhile; rejected → back In Store (2026-11-15)
+WRITEOFF_REQ = "Write-off Requested"
+STATUSES = (AWAITING, "In Store", ISSUED, "In Auction", "In Open Sale", MISSING, "Sold", "Written Off", KEPT, WRITEOFF_REQ)
+# Stock Register tabs (2026-11-16): what the temple still holds / what has left for good
+IN_HAND = (AWAITING, "In Store", ISSUED, "In Auction", "In Open Sale", MISSING, WRITEOFF_REQ)
+GONE_OUT = ("Sold", "Written Off", KEPT)
 # Movement actions: "Tagged" = tagged straight into a location (unchanged); the other two are
 # the two halves of the placement step. The Stock Report replays these.
 TAGGED_UNPLACED = "Tagged — awaiting placement"
 PLACED = "Placed"
 ACT_ISSUED, ACT_RETURNED = "Issued", "Returned"        # issue slip out / back
+ACT_KEPT = "Kept by poojari"                             # issue slip: not coming back
 ACT_MISSING, ACT_FOUND = "Missing", "Found"            # stock check not found / found again
 # Physically on a store shelf: an Open Sale piece stays at its location until it is sold
 ON_SHELF = ("In Store", "In Open Sale")
-# Deity-Used Items: worn / used by the deity — offered first at auction. A piece back from an
-# issue slip for one of these purposes is marked; the Stores Officer can mark / unmark by hand.
-DEITY_PURPOSES = ("alankaram", "festival")
-ACT_DEITY_ON, ACT_DEITY_OFF = "Marked Deity-Used", "Deity-Used mark removed"
-MANUAL_SOURCES = ("Opening balance (physical count)", "Old stock in store", "Temple purchase",
+# Used items (2026-11-15; was "Deity-Used"): any piece that went out on an issue slip and came
+# back is marked Used, with what it was used for in its history. Only a mark — no order at
+# auction. The Stores Officer can still mark / unmark by hand (the column stays `deity_used`).
+DEITY_PURPOSES = ("alankaram", "festival")          # kept for old callers; every purpose marks now
+ACT_DEITY_ON, ACT_DEITY_OFF = "Marked as used", "Used mark removed"
+# Bought items have their own entry with the shop bill ("Add Bought Items", 2026-11-15); a manual
+# entry is for stock with no receipt and no bill — counted once at go-live, found later, …
+BOUGHT_SOURCE = "Temple purchase"
+MANUAL_SOURCES = ("Opening balance (physical count)", "Old stock in store",
                   "Received without receipt", "Other")
+ALL_SOURCES = MANUAL_SOURCES + (BOUGHT_SOURCE,)
 # Hundi lines that go to store custody (matches misc.VALUABLES_TYPES)
 HUNDI_VALUABLES = {"Gold", "Silver", "Jewellery", "Valuables", "Foreign Currency"}
 WEIGHT_TOLERANCE = Decimal("0.01")
@@ -105,28 +120,32 @@ class ReasonIn(BaseModel):
 
 
 class ManualIn(BaseModel):
+    """Stock that did not come from a donation (2026-11-16: Bought Items merged in here). Source
+    "Temple purchase" = bought from a shop; its bill fields are optional — with a bill no. the entry
+    counts at once, without one a Committee member verifies it like any other manual entry."""
     category_id: int
     quantity: Decimal = Field(..., gt=0, le=1000000)
     source: str
     donor_name: str | None = Field(default=None, max_length=120)
     donor_mobile: str | None = Field(default=None, max_length=20)
     location_id: int | None = None          # required for tagged pieces; quantity items have no location
-    reason: str = Field(..., max_length=500)
+    reason: str | None = Field(default=None, max_length=500)
     expiry_date: date | None = None         # quantity items: best before (optional)
+    shop_name: str | None = Field(default=None, max_length=120)
+    bill_no: str | None = Field(default=None, max_length=60)
+    bill_date: date | None = None
+    bill_amount: Decimal | None = Field(default=None, ge=0, le=100000000)   # optional — never counter cash
 
-    @field_validator("reason")
+    @field_validator("reason", "shop_name", "bill_no")
     @classmethod
-    def _reason(cls, v):
-        v = (v or "").strip()
-        if len(v) < 5:
-            raise ValueError("Enter the reason (at least 5 characters).")
-        return v
+    def _strip(cls, v):
+        return (v or "").strip() or None
 
     @field_validator("source")
     @classmethod
     def _source(cls, v):
-        if v not in MANUAL_SOURCES:
-            raise ValueError(f"Source must be one of: {', '.join(MANUAL_SOURCES)}.")
+        if v not in ALL_SOURCES:
+            raise ValueError(f"Source must be one of: {', '.join(ALL_SOURCES)}.")
         return v
 
 
@@ -142,6 +161,11 @@ def _is_weight(unit: str | None) -> bool:
 
 def _move(db: Session, item: StockItem, user, action: str, detail: str = "") -> None:
     db.add(StockMovement(item_id=item.id, action=action, detail=detail, by=_who(user)))
+
+
+def _ist_date(dt):
+    """A stored UTC timestamp → the temple's (IST) calendar day."""
+    return (dt + IST_OFFSET.utcoffset(None)).date() if dt else None
 
 
 def _location(db: Session, lid: int) -> StoreLocation:
@@ -206,7 +230,10 @@ def receive_cutoff(db: Session) -> int | None:
 
 
 def needs_receiving(d: Donation, cutoff: int | None) -> bool:
-    return cutoff is not None and d.id > cutoff
+    """Receive at store merged into tagging (2026-11-15): every receipt is tagged straight away;
+    when fewer pieces arrived the tagger records it ("Fewer arrived" → shortage for the Committee).
+    So any receipt may carry a store count — callers load it, and it caps the tagging."""
+    return True
 
 
 def _receipt_rows(db: Session, ids) -> dict:
@@ -215,16 +242,13 @@ def _receipt_rows(db: Session, ids) -> dict:
 
 
 def receive_state(d: Donation, rec: StoreReceipt | None, cutoff: int | None) -> str | None:
-    if not needs_receiving(d, cutoff):
-        return None
-    return rec.status if rec else TO_RECEIVE
+    return rec.status if rec else None
 
 
 def taggable_quantity(d: Donation, rec: StoreReceipt | None, cutoff: int | None) -> Decimal:
-    """How much of a receipt may be tagged: all of it for old receipts, else what the store received."""
-    if not needs_receiving(d, cutoff):
-        return Decimal(str(d.quantity or 0))
-    return Decimal(str(rec.received)) if rec else Decimal("0")
+    """How much of a receipt may be tagged: all of it, or — once the store recorded that fewer
+    arrived — what arrived."""
+    return Decimal(str(rec.received)) if rec else Decimal(str(d.quantity or 0))
 
 
 def receive_info(d: Donation, rec: StoreReceipt | None, cutoff: int | None) -> dict | None:
@@ -329,6 +353,12 @@ def hundi_receipt(db: Session, h: HundiCollection) -> StoreReceipt | None:
     return db.query(StoreReceipt).filter(StoreReceipt.hundi_id == h.id).first() if h.store_receive_required else None
 
 
+def _hundi_counted(h: HundiCollection, rec: StoreReceipt | None) -> bool:
+    """A hundi custody is capped by a store count only when one was recorded (the separate
+    receive step was merged into tagging on 2026-11-15)."""
+    return bool(h.store_receive_required) and rec is not None
+
+
 def receipt_lines(rec: StoreReceipt | None) -> dict:
     """A hundi store receipt's lines by hundi line id."""
     if not rec or not rec.lines:
@@ -340,7 +370,7 @@ def receipt_lines(rec: StoreReceipt | None) -> dict:
 
 
 def hundi_receive_info(h: HundiCollection, rec: StoreReceipt | None) -> dict | None:
-    if not h.store_receive_required:
+    if not _hundi_counted(h, rec):
         return None
     out = {"state": rec.status if rec else TO_RECEIVE}
     if rec:
@@ -361,7 +391,7 @@ def _hundi_progress(db: Session, h: HundiCollection, pieces_of: dict | None = No
     for li in _hundi_lines(h):
         mode, need = _line_need(li)
         counted = need
-        if h.store_receive_required:
+        if _hundi_counted(h, rec):
             r = got.get(li.id)
             need = Decimal(str(r.get("received") or 0)) if r else Decimal("0")
             if mode == "value":
@@ -463,7 +493,20 @@ def update_location(lid: int, body: LocationIn, request: Request, db: Session = 
                                                           StockItem.status.in_(ON_SHELF)).scalar() or 0
     if not body.active and in_store:
         raise HTTPException(409, f"{in_store} piece(s) are still kept here — move them before deactivating.")
-    loc.name, loc.loc_type, loc.custodian, loc.active = body.name.strip(), body.loc_type, body.custodian, body.active
+    # pieces out on issue, missing or waiting for a write-off still belong to this shelf (2026-11-15)
+    away = db.query(func.count(StockItem.id)).filter(StockItem.location_id == lid,
+                                                     StockItem.status.in_((ISSUED, MISSING, WRITEOFF_REQ))).scalar() or 0
+    if not body.active and away:
+        raise HTTPException(409, f"{away} piece(s) of this location are out on issue, missing or waiting for a write-off — "
+                                 "settle them before deactivating.")
+    name = body.name.strip()
+    if db.query(StoreLocation).filter(func.lower(StoreLocation.name) == name.lower(), StoreLocation.id != lid).first():
+        raise HTTPException(409, "A location with this name already exists.")
+    if name != loc.name:
+        # hundi custody names its location by name — keep the link when the location is renamed
+        db.query(HundiCollection).filter(func.lower(HundiCollection.store_location) == (loc.name or "").lower()) \
+          .update({HundiCollection.store_location: name}, synchronize_session=False)
+    loc.name, loc.loc_type, loc.custodian, loc.active = name, body.loc_type, body.custodian, body.active
     db.commit(); db.refresh(loc)
     log_action(db, username=user.username, action="UPDATE", entity="StoreLocation", detail=loc.name, ip=client_ip(request))
     return _loc_dict(loc, {lid: in_store})
@@ -538,7 +581,7 @@ def _source_summary(db: Session, source_type: str, obj, cat) -> dict:
 
 
 def _pending_donations(db: Session, tagged: dict) -> list[dict]:
-    """The donation rows of Pending Tagging, built from a few bulk queries (receipts, store
+    """The donation rows of Receive & Tag, built from a few bulk queries (receipts, store
     counts, tagging done, who billed) instead of several queries per receipt — the same
     fields as _source_summary("Donation", …)."""
     from .metal_rates import purities
@@ -676,22 +719,9 @@ def pending_count(db: Session = Depends(get_db), user=Depends(read)):
 
 def receive_counts(db: Session) -> dict:
     """Counter receipts not yet counted in at the store, and open shortages."""
-    hundi_waiting = (db.query(func.count(HundiCollection.id))
-                     .outerjoin(StoreReceipt, StoreReceipt.hundi_id == HundiCollection.id)
-                     .filter(HundiCollection.store_receive_required.is_(True), HundiCollection.valuables_status == "In Store",
-                             HundiCollection.verification_status == "Verified", StoreReceipt.id.is_(None)).scalar() or 0)
-    cutoff = receive_cutoff(db)
-    if cutoff is None:
-        shortages = db.query(func.count(StoreReceipt.id)).filter(StoreReceipt.status == SHORT).scalar() or 0
-        return {"to_receive": hundi_waiting, "shortages": shortages}
-    names = [c.name for c in db.query(DonationCategory).filter(DonationCategory.type == "Material",
-                                                               DonationCategory.tracking == "Tagged").all()]
-    to_receive = (db.query(func.count(Donation.id))
-                  .outerjoin(StoreReceipt, StoreReceipt.donation_id == Donation.id)
-                  .filter(Donation.id > cutoff, Donation.donation_type == "Material", Donation.voided.isnot(True),
-                          Donation.fund.in_(names or [""]), StoreReceipt.id.is_(None)).scalar() or 0)
+    # Nothing waits to be "received" any more (merged into tagging, 2026-11-15) — only shortages
     shortages = db.query(func.count(StoreReceipt.id)).filter(StoreReceipt.status == SHORT).scalar() or 0
-    return {"to_receive": to_receive + hundi_waiting, "shortages": shortages}
+    return {"to_receive": 0, "shortages": shortages}
 
 
 def _unsold_query(db: Session):
@@ -701,12 +731,12 @@ def _unsold_query(db: Session):
 @router.get("/unsold")
 def unsold_items(category_id: int | None = None, db: Session = Depends(get_db), user=Depends(read)):
     """Pieces that came back unsold from an auction and are still in store — ready to re-auction
-    (and later, Open Sale). Deity-Used pieces first (they go to auction first), then most-tried."""
+    (and later, Open Sale). Most-tried first; a Used piece only carries its mark (no forced order, 2026-11-15)."""
     from ..models import Auction, AuctionPiece
     q = _unsold_query(db)
     if category_id:
         q = q.filter(StockItem.category_id == category_id)
-    items = q.order_by(StockItem.deity_used.desc(), StockItem.unsold_count.desc(), StockItem.tag_id).all()
+    items = q.order_by(StockItem.unsold_count.desc(), StockItem.tag_id).all()
     # Base price the piece was last offered at, from its latest lot
     last = {}
     for ap, code in (db.query(AuctionPiece, Auction.code).join(Auction, Auction.id == AuctionPiece.auction_id)
@@ -738,6 +768,10 @@ def source_detail(source_type: str, source_id: int, db: Session = Depends(get_db
 @router.post("/tag", status_code=201)
 def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user=Depends(write)):
     """Create the tagged pieces for a source. Never more pieces (or grams) than were received."""
+    # Two people tagging the same receipt at once: the second waits for the first, then sees what is
+    # already tagged — so together they can never tag more than was received (2026-11-15)
+    lock_model = {"Donation": Donation, "Hundi": HundiCollection, "Manual": ManualStockEntry}[body.source_type]
+    db.query(lock_model.id).filter(lock_model.id == body.source_id).with_for_update().first()
     obj, cat = _source_obj(db, body.source_type, body.source_id)
     common = {"source_type": body.source_type, "created_by": user.username}
     if body.source_type == "Donation":
@@ -746,7 +780,7 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
     elif body.source_type == "Manual":
         common.update(source_ref=obj.code, manual_entry_id=obj.id,
                       donor_name=obj.donor_name or f"Manual — {obj.source}", donor_mobile=obj.donor_mobile,
-                      received_on=obj.verified_at.date() if obj.verified_at else date.today())
+                      received_on=_ist_date(obj.verified_at) if obj.verified_at else ist_today())
     else:
         common.update(source_ref=obj.code, hundi_id=obj.id, donor_name="Anonymous (Hundi)",
                       received_on=obj.collected_on)
@@ -789,7 +823,11 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
             if line["mode"] == "value":
                 if line["needed"] <= 0:
                     raise HTTPException(422, f"{line['item_name']} was not received at the store — nothing to tag.")
-                continue   # counted by value only: any number of pieces is fine
+                # counted by value only (no count / weight): its pieces are tagged together, once — a later
+                # batch could add any number of pieces to it (2026-11-15)
+                if line["done"] >= 1:
+                    raise HTTPException(409, f"{line['item_name']} is already tagged — its pieces are tagged together, once.")
+                continue
             left = Decimal(str(line["needed"])) - Decimal(str(line["done"]))
             tol = WEIGHT_TOLERANCE if line["mode"] == "weight" else Decimal("0")
             if add > left + tol:
@@ -802,6 +840,9 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
         for r in body.rows:
             if r.location_id is None and custody:
                 r.location_id = custody.id
+    # Every piece goes on a shelf when it is tagged (Awaiting Placement removed, 2026-11-15)
+    if any(r.location_id is None for r in body.rows):
+        raise HTTPException(422, "Choose the store location for every piece.")
     locations = {r.location_id: _location(db, r.location_id) for r in body.rows if r.location_id is not None}
     # A receipt / hundi line that carries a value (gold / silver at the day's rate, or the value
     # a devotee stated for cloth…): a piece's value defaults to its share of it; a different
@@ -852,15 +893,19 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
 @router.get("/items")
 def list_items(q: str = "", category_id: int | None = None, status: str = "", location_id: int | None = None,
                source_ref: str = "", ids: str = "", page: int = 1, size: int = 50,
-               db: Session = Depends(get_db), user=Depends(read), deity_used: bool | None = None, order: str = ""):
-    """order=deity_first: Deity-Used pieces first, then by ID — the auction pick list."""
+               db: Session = Depends(get_db), user=Depends(read), deity_used: bool | None = None, order: str = "",
+               origin: str = "", held: str = ""):
+    """origin: Donated (counter / hundi) · Bought (with a shop bill) · Other (opening / old stock).
+    order=deity_first: by ID — the auction pick list."""
     page, size = validate_pagination(page, size)
     query = db.query(StockItem)
     if q:
         like = f"%{q.strip()}%"
         query = query.filter(or_(StockItem.tag_id.ilike(like), StockItem.donor_name.ilike(like),
                                  StockItem.source_ref.ilike(like), StockItem.description.ilike(like),
-                                 donation_code_match(like)))
+                                 donation_code_match(like),
+                                 StockItem.manual_entry_id.in_(select(ManualStockEntry.id).where(or_(  # shop / bill no.
+                                     ManualStockEntry.bill_no.ilike(like), ManualStockEntry.shop_name.ilike(like))))))
     if category_id:
         query = query.filter(StockItem.category_id == category_id)
     if status:
@@ -873,14 +918,93 @@ def list_items(q: str = "", category_id: int | None = None, status: str = "", lo
         query = query.filter(StockItem.id.in_([int(x) for x in ids.split(",") if x.strip().isdigit()]))
     if deity_used is not None:
         query = query.filter(StockItem.deity_used.is_(deity_used))
+    if held == "in":                    # In hand: still the temple's
+        query = query.filter(StockItem.status.in_(IN_HAND))
+    elif held == "out":                 # Gone out: sold, written off, kept by the poojari
+        query = query.filter(StockItem.status.in_(GONE_OUT))
+    bought = select(ManualStockEntry.id).where(ManualStockEntry.source == BOUGHT_SOURCE)
+    if origin == "Donated":
+        query = query.filter(StockItem.source_type.in_(("Donation", "Hundi")))
+    elif origin == "Bought":
+        query = query.filter(StockItem.manual_entry_id.in_(bought))
+    elif origin == "Other":
+        query = query.filter(StockItem.source_type == "Manual", StockItem.manual_entry_id.notin_(bought))
     total = query.count()
-    by = (StockItem.deity_used.desc(), StockItem.tag_id) if order == "deity_first" else (StockItem.id.desc(),)
+    # order=deity_first (the auction pick list) now just lists by ID — Used pieces are not forced first
+    by = (StockItem.tag_id,) if order == "deity_first" else (StockItem.id.desc(),)
     rows = query.order_by(*by).offset((page - 1) * size).limit(size).all()
     names = _loc_names(db)
     codes = donation_codes(db, rows)
     out = [_item_dict(i, names, codes) for i in rows]
+    bought_ids = {m for (m,) in db.query(ManualStockEntry.id).filter(
+        ManualStockEntry.source == BOUGHT_SOURCE,
+        ManualStockEntry.id.in_([i.manual_entry_id for i in rows if i.manual_entry_id] or [0])).all()}
+    for d, i in zip(out, rows):
+        d["origin"] = ("Donated" if i.source_type in ("Donation", "Hundi")
+                       else "Bought" if i.manual_entry_id in bought_ids else "Other")
+    _attach_came_from(db, out, rows)
     _attach_issue_and_missing(db, out)
     return {"total": total, "page": page, "size": size, "items": out}
+
+
+def _attach_came_from(db: Session, out: list[dict], rows: list[StockItem]) -> None:
+    """Where each piece came from, with its proof (Stock Register "Came from", 2026-11-16):
+    Donated (donor · receipt) · Hundi (count no.) · Bought (shop · bill) · Opening / old stock (entry no.)."""
+    mids = [i.manual_entry_id for i in rows if i.manual_entry_id]
+    entries = {m.id: m for m in db.query(ManualStockEntry).filter(ManualStockEntry.id.in_(mids or [0])).all()}
+    for d, i in zip(out, rows):
+        when = str(i.received_on) if i.received_on else None
+        if i.source_type == "Donation":
+            d["came_from"] = {"kind": "Donated", "who": i.donor_name, "ref": i.source_ref, "code": d.get("donation_code"), "date": when}
+        elif i.source_type == "Hundi":
+            d["came_from"] = {"kind": "Hundi", "who": None, "ref": i.source_ref, "date": when}
+        else:
+            m = entries.get(i.manual_entry_id)
+            if m and m.source == BOUGHT_SOURCE:
+                d["came_from"] = {"kind": "Bought", "who": m.shop_name, "ref": m.code, "bill": m.bill_no, "date": when}
+            else:
+                kind = ("Opening stock" if m and m.source.startswith("Opening") else "Old stock" if m and m.source.startswith("Old")
+                        else "Manual entry")
+                d["came_from"] = {"kind": kind, "who": None, "ref": i.source_ref or (m.code if m else None),
+                                  "verified_by": m.verified_by if m else None, "date": when}
+
+
+@router.get("/items/by-type")
+def items_by_type(location_id: int | None = None, origin: str = "", db: Session = Depends(get_db), user=Depends(read)):
+    """Stock Register "By item" (2026-11-16): how many pieces of each item type are in store, issued,
+    in auction / Open Sale, missing — in hand in all — and how many have gone out; grams for gold / silver."""
+    q = db.query(StockItem.category_id, StockItem.item_name, StockItem.status, func.count(StockItem.id),
+                 func.coalesce(func.sum(StockItem.weight_g), 0), func.coalesce(func.sum(StockItem.est_value), 0))
+    if location_id:
+        q = q.filter(StockItem.location_id == location_id)
+    bought = select(ManualStockEntry.id).where(ManualStockEntry.source == BOUGHT_SOURCE)
+    if origin == "Donated":
+        q = q.filter(StockItem.source_type.in_(("Donation", "Hundi")))
+    elif origin == "Bought":
+        q = q.filter(StockItem.manual_entry_id.in_(bought))
+    elif origin == "Other":
+        q = q.filter(StockItem.source_type == "Manual", StockItem.manual_entry_id.notin_(bought))
+    rows = {}
+    for cid, name, status, n, grams, value in q.group_by(StockItem.category_id, StockItem.item_name, StockItem.status).all():
+        r = rows.setdefault(cid, {"category_id": cid, "name": name, "in_store": 0, "issued": 0, "on_sale": 0, "missing": 0,
+                                  "in_hand": 0, "gone_out": 0, "grams_in_hand": 0.0, "value_in_hand": 0.0, "weighed": False})
+        if status in ("In Store", AWAITING):
+            r["in_store"] += n
+        elif status == ISSUED:
+            r["issued"] += n
+        elif status in ("In Auction", "In Open Sale"):
+            r["on_sale"] += n
+        elif status in (MISSING, WRITEOFF_REQ):
+            r["missing"] += n
+        if status in IN_HAND:
+            r["in_hand"] += n
+            r["grams_in_hand"] += float(grams or 0)
+            r["value_in_hand"] += float(value or 0)
+        else:
+            r["gone_out"] += n
+        if grams:
+            r["weighed"] = True
+    return {"items": sorted(rows.values(), key=lambda r: r["name"])}
 
 
 def _attach_issue_and_missing(db: Session, rows: list[dict]) -> None:
@@ -893,7 +1017,7 @@ def _attach_issue_and_missing(db: Session, rows: list[dict]) -> None:
             for r in rows:
                 if r["id"] == line.stock_item_id:
                     r["issue"] = {"slip_id": slip.id, "code": slip.code, "issued_to": slip.issued_to,
-                                  "purpose": slip.purpose, "return_by": str(slip.return_by)}
+                                  "purpose": slip.purpose, "return_by": str(slip.return_by) if slip.return_by else None}
     missing = [r["id"] for r in rows if r["status"] == MISSING]
     if missing:
         for c in (db.query(MissingCase).filter(MissingCase.stock_item_id.in_(missing),
@@ -987,6 +1111,8 @@ def item_detail(key: str, db: Session = Depends(get_db), user=Depends(read)):
     v = piece_value(db, src, item.weight_g, item.purity) if src is not None else None
     d["receipt_value"] = float(v) if v is not None else None      # what the receipt valuation gives this piece
     d["rate_per_g"] = float(src.rate_per_g) if src is not None and getattr(src, "rate_per_g", None) is not None else None
+    pend = open_change(db, item.id)
+    d["pending_change"] = pend.report_reason if pend else None      # waiting for the committee
     return d
 
 
@@ -1031,18 +1157,24 @@ def correct_item(iid: int, body: CorrectIn, request: Request, db: Session = Depe
            "weight_g": body.weight_g if item.weight_g is not None else None, "est_value": body.est_value}
     if item.weight_g is not None and body.weight_g is None:
         raise HTTPException(422, "Enter the weight (g).")
-    labels = {"description": "Description", "details": "Size / colour", "weight_g": "Weight",
-              "purity": "Purity", "est_value": "Value"}
-    shown = lambda k, v: ("—" if v is None else f"₹{_qty(v)}" if k == "est_value" else f"{_qty(v)} g" if k == "weight_g" else str(v))
-    changes = []
+    labels = CORRECT_LABELS
+    shown = _shown
+    changes, held = [], {}
+    gold = item.weight_g is not None            # gold / silver: kept by grams
     for k, v in new.items():
         old = getattr(item, k)
         same = (Decimal(str(old)) == Decimal(str(v))) if (old is not None and v is not None and k in ("weight_g", "est_value")) else old == v
-        if not same:
-            changes.append(f"{labels[k]} {shown(k, old)} → {shown(k, v)}")
-            setattr(item, k, v)
-    if not changes:
+        if same:
+            continue
+        # gold / silver: a lower weight or another purity needs a Committee member's approval (2026-11-15)
+        if gold and ((k == "weight_g" and old is not None and Decimal(str(v)) < Decimal(str(old))) or k == "purity"):
+            held[k] = str(v) if k == "weight_g" else v
+            continue
+        changes.append(f"{labels[k]} {shown(k, old)} → {shown(k, v)}")
+        setattr(item, k, v)
+    if not changes and not held:
         raise HTTPException(422, "Nothing was changed.")
+    case = request_change(db, item, user, "Correction", held, body.reason) if held else None
     if item.weight_g is not None and (item.donation_id or item.hundi_id or item.manual_entry_id):
         st, sid = (("Donation", item.donation_id) if item.donation_id else ("Hundi", item.hundi_id) if item.hundi_id
                    else ("Manual", item.manual_entry_id))
@@ -1055,11 +1187,69 @@ def correct_item(iid: int, body: CorrectIn, request: Request, db: Session = Depe
             db.rollback()
             raise HTTPException(422, f"Weight: the pieces of {item.source_ref} would weigh more than was received "
                                      f"({_qty(over[0]['needed'])} g).")
-    _move(db, item, user, CORRECTED, " · ".join(changes) + f" — {body.reason}")
+    if changes:
+        _move(db, item, user, CORRECTED, " · ".join(changes) + f" — {body.reason}")
     db.commit(); db.refresh(item)
+    if case:
+        change_alert(db, case, item, user)
     log_action(db, username=user.username, action="UPDATE", entity="StockItem",
-               detail=f"Corrected {item.tag_id}: " + " · ".join(changes)[:300], ip=client_ip(request))
+               detail=f"Corrected {item.tag_id}: " + " · ".join(changes + [f"asked: {k}" for k in held])[:300],
+               ip=client_ip(request))
     return item_detail(item.tag_id, db, user)
+
+
+CORRECT_LABELS = {"description": "Description", "details": "Size / colour", "weight_g": "Weight",
+                  "purity": "Purity", "est_value": "Value"}
+
+
+def _shown(k, v):
+    return "—" if v is None else f"₹{_qty(v)}" if k == "est_value" else f"{_qty(v)} g" if k == "weight_g" else str(v)
+
+
+CHANGE_OPEN = "Change requested"
+
+
+def open_change(db: Session, item_id: int):
+    from ..models import MissingCase
+    return (db.query(MissingCase).filter(MissingCase.stock_item_id == item_id, MissingCase.status == CHANGE_OPEN)
+            .first())
+
+
+def request_change(db: Session, item: StockItem, user, kind: str, changes: dict, reason: str) -> None:
+    """Gold / silver: a lower weight or another purity (kind Correction), or the weight found when a lent
+    piece came back (kind Weight), waits for one Committee member — never the one who asked — in
+    Missing Items. The piece itself stays where it is (2026-11-15)."""
+    from ..models import MissingCase
+    if open_change(db, item.id):
+        raise HTTPException(409, f"A change to {item.tag_id} is already waiting for the committee.")
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    text_ = " · ".join(f"{CORRECT_LABELS[k]} {_shown(k, getattr(item, k))} → {_shown(k, v)}" for k, v in changes.items())
+    case = MissingCase(stock_item_id=item.id, tag_id=item.tag_id, kind=kind, location_id=item.location_id,
+                       status=CHANGE_OPEN, missing_since=now, reported_by=_who(user), reported_by_user=user.username,
+                       reported_at=now, report_reason=f"{text_} — {reason}"[:1000], changes=json.dumps(changes))
+    db.add(case)
+    _move(db, item, user, "Change requested", f"{text_} — {reason}")
+    db.flush()
+    return case
+
+
+def change_alert(db: Session, case, item: StockItem, user) -> None:
+    """The Committee hears about a gold / silver change (after the caller's commit)."""
+    from ..staff_alerts import stores_alert
+    stores_alert(db, "change", entity="MissingCase", entity_id=case.id, actor=user,
+                 params={"tag": item.tag_id, "item": item.description or item.item_name, "kind": case.kind,
+                         "what": (case.report_reason or "")[:200]})
+
+
+def apply_change(db: Session, item: StockItem, case, user) -> None:
+    """Committee approved: the asked values are set and the change goes into the piece's history."""
+    vals = json.loads(case.changes or "{}")
+    done = []
+    for k, v in vals.items():
+        v = Decimal(str(v)) if k == "weight_g" else v
+        done.append(f"{CORRECT_LABELS[k]} {_shown(k, getattr(item, k))} → {_shown(k, v)}")
+        setattr(item, k, v)
+    _move(db, item, user, CORRECTED, " · ".join(done) + f" (approved by {_who(user)})")
 
 
 @router.post("/items/{iid}/move")
@@ -1096,8 +1286,9 @@ class DeityUsedIn(BaseModel):
 
 
 def mark_deity_used(db: Session, item: StockItem, user, note: str) -> None:
-    """Mark a piece Deity-Used (no-op if it already is), with a line in its history."""
+    """Mark a piece Used, with a line in its history. Already marked: the latest use is noted."""
     if item.deity_used:
+        item.deity_used_note = note[:200]
         return
     item.deity_used, item.deity_used_note = True, note[:200]
     _move(db, item, user, ACT_DEITY_ON, f"Used for {note}")
@@ -1163,21 +1354,33 @@ def awaiting_count(db: Session = Depends(get_db), user=Depends(read)):
 
 @router.post("/items/{iid}/write-off")
 def write_off(iid: int, body: ReasonIn, request: Request, db: Session = Depends(get_db),
-              user=Depends(RequireRole("Counter Staff", STORES_OFFICER))):
-    """Mark a piece damaged / lost (Counter Staff, Stores Officer or Administrator, reason mandatory). It
-    leaves stock; works for pieces in store, waiting in Open Sale, or damaged on arrival
-    (Awaiting Placement)."""
-    item = db.get(StockItem, iid)
+              user=Depends(RequireRole(STORES_OFFICER))):
+    """Ask to write a damaged piece off (Stores Officer / Administrator, reason mandatory, 2026-11-15).
+    Nobody writes a piece off alone: it waits as Write-off Requested until a Committee member — never
+    the one who asked — approves (Missing Items › approve) or rejects it (back In Store). A piece in
+    Open Sale goes back to the store first (the Committee does that)."""
+    from ..models import MissingCase
+    item = db.query(StockItem).filter(StockItem.id == iid).with_for_update().first()
     if not item:
         raise HTTPException(404, "Item not found")
-    if item.status not in ("In Store", "In Open Sale", AWAITING):
-        raise HTTPException(409, f"Only a piece in store, in Open Sale or awaiting placement can be written off (this one is {item.status}).")
-    item.status = "Written Off"
-    item.open_sale_price = None
-    _move(db, item, user, "Written off", body.reason)
+    if item.status == "In Open Sale":
+        raise HTTPException(409, f"{item.tag_id} is in Open Sale — the Committee takes it back to the store first.")
+    if item.status not in ("In Store", AWAITING):
+        raise HTTPException(409, f"Only a piece in store can be written off (this one is {item.status}).")
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    case = MissingCase(stock_item_id=item.id, tag_id=item.tag_id, kind="Damaged", location_id=item.location_id,
+                       status="Write-off requested", missing_since=now, reported_by=_who(user),
+                       reported_by_user=user.username, reported_at=now, report_reason=body.reason)
+    db.add(case)
+    item.status = WRITEOFF_REQ
+    _move(db, item, user, "Write-off requested", f"Damaged — {body.reason}")
     db.commit()
+    from ..staff_alerts import stores_alert
+    stores_alert(db, "write_off", entity="MissingCase", entity_id=case.id, actor=user,
+                 params={"tag": item.tag_id, "item": item.description or item.item_name, "what": "Damaged",
+                         "reason": body.reason})
     log_action(db, username=user.username, action="UPDATE", entity="StockItem",
-               detail=f"Wrote off {item.tag_id}: {body.reason[:120]}", ip=client_ip(request))
+               detail=f"{item.tag_id}: write-off requested — {body.reason[:120]}", ip=client_ip(request))
     return _item_dict(item, _loc_names(db))
 
 
@@ -1190,14 +1393,18 @@ def _manual_dict(m: ManualStockEntry, names: dict) -> dict:
             "verified_at": m.verified_at.isoformat() if m.verified_at else None,
             "rejection_reason": m.rejection_reason, "created_by": m.created_by,
             "expiry_date": str(m.expiry_date) if m.expiry_date else None,
+            "shop_name": m.shop_name, "bill_no": m.bill_no, "bill_date": str(m.bill_date) if m.bill_date else None,
+            "bill_amount": float(m.bill_amount) if m.bill_amount is not None else None,
             "created_at": m.created_at.isoformat() if m.created_at else None}
 
 
 @router.get("/manual")
 def list_manual(status: str = "", db: Session = Depends(get_db), user=Depends(read),
                 q: str = "", category_id: int | None = None, source: str = "",
-                date_from: date | None = None, date_to: date | None = None, page: int = 1, size: int = 25):
-    """Manual entries, newest first. Dates are the day the entry was made."""
+                date_from: date | None = None, date_to: date | None = None, page: int = 1, size: int = 25,
+                bought: bool | None = None):
+    """Manual entries, newest first. Dates are the day the entry was made. bought=false: stock with no
+    receipt (Manual Entries screen); source=Temple purchase: the Bought Items screen."""
     from .stores_issue import _day_bounds_utc   # stores_issue imports this module
     page, size = validate_pagination(page, size)
     qry = db.query(ManualStockEntry)
@@ -1207,11 +1414,14 @@ def list_manual(status: str = "", db: Session = Depends(get_db), user=Depends(re
         like = f"%{q.strip()}%"
         qry = qry.filter(or_(ManualStockEntry.code.ilike(like), ManualStockEntry.item_name.ilike(like),
                              ManualStockEntry.donor_name.ilike(like), ManualStockEntry.donor_mobile.ilike(like),
-                             ManualStockEntry.reason.ilike(like)))
+                             ManualStockEntry.reason.ilike(like), ManualStockEntry.shop_name.ilike(like),
+                             ManualStockEntry.bill_no.ilike(like)))
     if category_id:
         qry = qry.filter(ManualStockEntry.category_id == category_id)
     if source:
         qry = qry.filter(ManualStockEntry.source == source)
+    if bought is not None:
+        qry = qry.filter((ManualStockEntry.source == BOUGHT_SOURCE) if bought else (ManualStockEntry.source != BOUGHT_SOURCE))
     start, end = _day_bounds_utc(date_from, date_to)
     if start:
         qry = qry.filter(ManualStockEntry.created_at >= start)
@@ -1220,37 +1430,73 @@ def list_manual(status: str = "", db: Session = Depends(get_db), user=Depends(re
     total = qry.count()
     names = _loc_names(db)
     rows = qry.order_by(ManualStockEntry.id.desc()).offset((page - 1) * size).limit(size).all()
-    return {"items": [_manual_dict(m, names) for m in rows], "total": total, "sources": list(MANUAL_SOURCES)}
+    return {"items": [_manual_dict(m, names) for m in rows], "total": total, "sources": list(ALL_SOURCES)}
 
 
 @router.post("/manual", status_code=201)
-def create_manual(body: ManualIn, request: Request, db: Session = Depends(get_db), user=Depends(write)):
-    cat = db.get(DonationCategory, body.category_id)
-    if not cat or cat.type != "Material" or cat.tracking not in ("Tagged", "Quantity"):
-        raise HTTPException(422, "Choose a material item from Donation Master.")
-    if cat.tracking == "Tagged":
-        cat = _tagged_category(db, cat.id)
-        if not _is_weight(cat.unit) and body.quantity != body.quantity.to_integral_value():
-            raise HTTPException(422, "Enter a whole number of pieces.")
-        if not body.location_id:
-            raise HTTPException(422, "Choose the store location for these pieces.")
-        _location(db, body.location_id)
-    else:
-        body.location_id = None   # quantity items are a balance, not kept per location
-        from ..helpers import ist_today
-        if body.expiry_date and body.expiry_date < ist_today():
-            raise HTTPException(422, "This stock is already past its best-before date — do not add it to stock.")
-    if cat.tracking != "Quantity":
-        body.expiry_date = None
+def create_manual(body: ManualIn, request: Request, db: Session = Depends(get_db),
+                  user=Depends(RequireRole(STORES_OFFICER))):
+    """One screen for stock that did not come from a donation (Stores Officer / Administrator,
+    2026-11-16). Bought from a shop WITH a bill no. counts at once — the bill is the proof; anything
+    without a bill (opening balance, old stock, a purchase with no bill…) waits for one Committee
+    member to verify it."""
+    from ..helpers import ist_today
+    cat, body.location_id, body.expiry_date = _stock_category(db, body.category_id, body.quantity, body.location_id,
+                                                              body.expiry_date)
+    bought = body.source == BOUGHT_SOURCE
+    if not bought:
+        body.shop_name = body.bill_no = body.bill_date = body.bill_amount = None
+    with_bill = bought and bool(body.bill_no)
+    if with_bill:
+        if body.bill_date and body.bill_date > ist_today():
+            raise HTTPException(422, "The bill date cannot be in the future.")
+        dup = (db.query(ManualStockEntry).filter(ManualStockEntry.source == BOUGHT_SOURCE,
+                                                 ManualStockEntry.category_id == cat.id,
+                                                 func.lower(ManualStockEntry.bill_no) == body.bill_no.lower(),
+                                                 func.lower(func.coalesce(ManualStockEntry.shop_name, "")) == (body.shop_name or "").lower(),
+                                                 ManualStockEntry.status != "Rejected").first())
+        if dup:
+            raise HTTPException(409, f"{cat.name} on bill {body.bill_no} is already entered ({dup.code}).")
+    reason = body.reason
+    if not reason and bought:
+        reason = "Bought" + (f" from {body.shop_name}" if body.shop_name else "") + (f", bill {body.bill_no}" if body.bill_no else "")
+    if not reason or len(reason) < 5:
+        raise HTTPException(422, "Enter the reason (at least 5 characters).")
     seq = next_code_seq(db, "manual_stock", db.query(func.max(ManualStockEntry.id)).scalar() or 0)
     m = ManualStockEntry(code=f"MSE-{seq:04d}", category_id=cat.id, item_name=cat.name, quantity=body.quantity,
                          unit=cat.unit, source=body.source, donor_name=(body.donor_name or "").strip() or None,
                          donor_mobile=(body.donor_mobile or "").strip() or None, location_id=body.location_id,
-                         reason=body.reason, expiry_date=body.expiry_date, created_by=user.username)
+                         reason=reason, expiry_date=body.expiry_date, created_by=user.username,
+                         shop_name=body.shop_name, bill_no=body.bill_no,
+                         bill_date=(body.bill_date or ist_today()) if with_bill else body.bill_date,
+                         bill_amount=body.bill_amount)
+    if with_bill:      # the shop bill is the proof — counts at once
+        m.status, m.verified_by, m.verified_at = "Verified", _who(user), datetime.now(timezone.utc)
     db.add(m); db.commit(); db.refresh(m)
     log_action(db, username=user.username, action="CREATE", entity="ManualStockEntry",
-               detail=f"{m.code} {cat.name} {_qty(body.quantity)} — {body.reason[:80]}", ip=client_ip(request))
+               detail=(f"{m.code} bought {cat.name} {_qty(body.quantity)} — {body.shop_name or '—'}, bill {body.bill_no}" if with_bill
+                       else f"{m.code} {cat.name} {_qty(body.quantity)} — {reason[:80]}"), ip=client_ip(request))
     return _manual_dict(m, _loc_names(db))
+
+
+def _stock_category(db: Session, category_id: int, quantity: Decimal, location_id: int | None,
+                    expiry_date: date | None) -> tuple:
+    """The category of a manual / bought entry and its checked location and best-before date."""
+    from ..helpers import ist_today
+    cat = db.get(DonationCategory, category_id)
+    if not cat or cat.type != "Material" or cat.tracking not in ("Tagged", "Quantity"):
+        raise HTTPException(422, "Choose a material item from Donation Master.")
+    if cat.tracking == "Tagged":
+        cat = _tagged_category(db, cat.id)
+        if not _is_weight(cat.unit) and quantity != quantity.to_integral_value():
+            raise HTTPException(422, "Enter a whole number of pieces.")
+        if not location_id:
+            raise HTTPException(422, "Choose the store location for these pieces.")
+        _location(db, location_id)
+        return cat, location_id, None
+    if expiry_date and expiry_date < ist_today():
+        raise HTTPException(422, "This stock is already past its best-before date — do not add it to stock.")
+    return cat, None, expiry_date   # quantity items are a balance, not kept per location
 
 
 def _pending_manual(db: Session, mid: int, user) -> ManualStockEntry:

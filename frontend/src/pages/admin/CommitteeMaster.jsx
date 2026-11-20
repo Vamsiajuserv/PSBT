@@ -139,7 +139,7 @@ function MembersTab() {
 
   return (
     <>
-      <KpiGrid>
+      <KpiGrid variant="note">
         <StatTile icon={Users} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Members")} value={stats ? num(stats.total) : '—'} sub={tr("All committee members")} />
         <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Active")} value={stats ? num(stats.active) : '—'} sub={tr("Currently serving")} />
         <StatTile icon={UserCog} color="#dc2626" bg="bg-red-50" title={tr("Inactive")} value={stats ? num(stats.inactive) : '—'} sub={tr("Not serving")} />
@@ -385,7 +385,7 @@ function FestivalPricingTab() {
 
   return (
     <>
-      <KpiGrid>
+      <KpiGrid variant="note">
         <StatTile icon={Flame} color="#ea580c" bg="bg-orange-50" title={tr("Total Plans")} value={num(plans.length)} sub={tr("All pooja plans")} />
         <StatTile icon={IndianRupee} color="#059669" bg="bg-emerald-50" title={tr("Fixed Price")} value={num(plans.filter((p) => !p.committee_decided).length)} sub={tr("Pre-defined amounts")} />
         <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("Committee Decided")} value={num(plans.filter((p) => p.committee_decided).length)} sub={tr("Editable by committee")} />

@@ -13,8 +13,10 @@ import { canAccessKey, keyOf } from '../../auth/access.js'
 import { useLang, T, tr, clock12, personName, initialsOf, getLang } from '../../i18n/LanguageContext.jsx'
 import { getFontScale, setFontScale } from '../../lib/fontScale.js'
 import ChangePasswordModal from './ChangePasswordModal.jsx'
-import { HourlySlotAlert } from './HourlySlots.jsx'
+import AlertBell from './AlertBell.jsx'
+import { useAlertUnread } from '../../lib/alerts.js'
 import { StoresAPI } from '../../api/client.js'
+import { storesSectionsFor, entryActive } from '../../lib/storesMenu.js'
 
 // Stores & Inventory badges: donations / custodies still waiting for ID tagging, and pieces
 // that came back unsold. Refreshed on every page change and whenever stock changes
@@ -26,71 +28,53 @@ const REGISTER_TO = '/admin/stores/register'   // badge: pieces tagged but not y
 const ISSUE_TO = '/admin/stores/issue'         // red badge: issued pieces past their return date
 const MISSING_TO = '/admin/stores/missing'     // red badge: open missing cases
 const CONSUMABLES_TO = '/admin/stores/consumables'   // red badge: batches expiring within 7 days (or expired)
-const PURCHASE_TO = '/admin/stores/purchase'   // badge: purchase requests waiting for approval or an over-budget review
 const RED_BADGES = new Set([ISSUE_TO, MISSING_TO, CONSUMABLES_TO])
+// The client does not want the count badges on the Stores & Inventory menu (2026-11-10).
+// false = no badges and no count requests; set true to bring them back.
+const SHOW_STORES_BADGES = false
 function useStoresBadges(user, pathname) {
   const [counts, setCounts] = useState({})
-  const allowed = canAccessKey(user, keyOf(PENDING_TO))
+  const allowed = SHOW_STORES_BADGES && canAccessKey(user, keyOf(PENDING_TO))
   useEffect(() => {
     if (!allowed) return undefined
     let alive = true
     const load = () => Promise.all([StoresAPI.pendingCount().catch(() => null), StoresAPI.unsoldCount().catch(() => null),
       StoresAPI.openSaleCount().catch(() => null), StoresAPI.awaitingCount().catch(() => null),
       StoresAPI.issueCount().catch(() => null), StoresAPI.missingCount().catch(() => null),
-      StoresAPI.expiryCount().catch(() => null), StoresAPI.purchaseCount().catch(() => null)])
-      .then(([p, u, o, a, i, m, e, pr]) => alive && setCounts({ [PENDING_TO]: p?.total || 0, shortages: p?.shortages || 0, [UNSOLD_TO]: u?.total || 0, [OPEN_SALE_TO]: o?.total || 0,
+      StoresAPI.expiryCount().catch(() => null)])
+      .then(([p, u, o, a, i, m, e]) => alive && setCounts({ [PENDING_TO]: p?.total || 0, shortages: p?.shortages || 0, [UNSOLD_TO]: u?.total || 0, [OPEN_SALE_TO]: o?.total || 0,
         [REGISTER_TO]: a?.total || 0, [ISSUE_TO]: i?.overdue || 0, [MISSING_TO]: m?.total || 0,
-        [CONSUMABLES_TO]: e?.total || 0, [PURCHASE_TO]: pr?.total || 0 }))
+        [CONSUMABLES_TO]: e?.total || 0 }))
     load()
     window.addEventListener('stores:changed', load)
     return () => { alive = false; window.removeEventListener('stores:changed', load) }
   }, [allowed, pathname])
   return allowed ? counts : {}
 }
-// Pending Tagging turns red while a receive shortage is open
+// Receive & Tag turns red while a receive shortage is open
 const isRed = (to, counts) => RED_BADGES.has(to) || (to === PENDING_TO && counts.shortages > 0)
 const badgeTitle = (to, t, counts = {}) => (to === PENDING_TO && counts.shortages > 0 ? `${counts.shortages} ${t('shortage(s) open')}` : to === UNSOLD_TO ? t('Unsold pieces in store') : to === OPEN_SALE_TO ? t('Pieces on Open Sale')
   : to === REGISTER_TO ? t('Tagged pieces awaiting placement') : to === ISSUE_TO ? t('Issued pieces past their return date')
   : to === MISSING_TO ? t('Missing pieces to follow up') : to === CONSUMABLES_TO ? t('Batches expiring within 7 days')
-  : to === PURCHASE_TO ? t('Purchase requests waiting for approval or review') : t('Waiting to be tagged'))
+  : t('Waiting to be tagged'))
 const Badge = ({ n, title, red }) => (n > 0
   ? <span title={title} className={`shrink-0 min-w-[1.25rem] h-5 px-1.5 rounded-full text-[0.6875rem] font-bold grid place-items-center ${red ? 'bg-red-500 text-white' : 'bg-gold-400 text-maroon-900'}`}>{n}</span>
   : null)
 
-// Stores Officer: Stores & Inventory only, as a flat menu under small headings —
-// everything one click away, nothing to expand. Other roles keep NAV below.
-const STORES_OFFICER_NAV = [
-  { items: [{ to: '/admin/stores/overview', label: tr('Stores Overview'), icon: LayoutDashboard }] },
-  { heading: tr('Daily Work'), items: [
-    { to: '/admin/stores/register', label: tr('Stock Register'), icon: Boxes },
-    { to: '/admin/stores/pending', label: tr('Pending Tagging'), icon: Tag },
-    { to: '/admin/stores/issue', label: tr('Issue & Return'), icon: ArrowRightLeft },
-    { to: '/admin/stores/kits', label: tr('Festival Kits'), icon: PackageOpen },
-    { to: '/admin/stores/consumables', label: tr('Consumables Stock'), icon: Droplets },
-    { to: '/admin/stores/purchase', label: tr('Purchase Requests'), icon: ShoppingCart },
-    { to: '/admin/stores/manual', label: tr('Manual Entries'), icon: FilePlus2 },
-  ] },
-  { heading: tr('Sales'), items: [
-    { to: '/admin/stores/deity-used', label: tr('Deity-Used Items'), icon: Sparkles },
-    { to: '/admin/stores/unsold', label: tr('Unsold Items'), icon: Undo2 },
-    { to: '/admin/stores/open-sale', label: tr('Open Sale'), icon: Store },
-  ] },
-  { heading: tr('Control'), items: [
-    { to: '/admin/stores/day-closing', label: tr('Stores Day Closing'), icon: CalendarCheck },
-    { to: '/admin/stores/check', label: tr('Stock Check'), icon: ClipboardCheck },
-    { to: '/admin/stores/missing', label: tr('Missing Items'), icon: SearchX },
-    { to: '/admin/stores/report', label: tr('Stock Report'), icon: FileBarChart },
-    { to: '/admin/stores/valuables', label: tr('Valuables Statement'), icon: Coins },
-    { to: '/admin/stores/item', label: tr('Item History'), icon: History },
-    { to: '/admin/stores/locations', label: tr('Store Locations'), icon: MapPin },
-  ] },
-]
+// Stores & Inventory: one menu definition for every role (lib/storesMenu.js), in the order
+// the work happens. The Stores Officer gets it as a flat menu under small headings — everything
+// one click away; everyone else gets it as the "Stores & Inventory" group, with the same headings.
+// Badges on a merged entry (tabs) add up its tabs.
+const entryBadge = (entry, badgeFor) => entry.match.reduce((sum, to) => sum + badgeFor(to), 0)
+const entryRed = (entry, counts, badgeFor) => entry.match.some((to) => badgeFor(to) > 0 && isRed(to, counts))
+const entryBadgeTitle = (entry, t, counts, badgeFor) => badgeTitle(entry.match.find((to) => badgeFor(to) > 0) || entry.to, t, counts)
 
 const NAV = [
   { to: '/admin', label: tr('Dashboard'), icon: LayoutDashboard, end: true },
   { to: '/admin/counter', label: tr('Counter Billing'), icon: Receipt },
   { to: '/admin/my-poojas', label: tr('Pooja Queue'), poojariLabel: tr('My Poojas'), icon: ClipboardList },
   { to: '/admin/verify-ticket', label: tr('Verify Ticket'), icon: ScanLine },
+  { to: '/admin/alerts', label: tr('Alerts'), icon: Bell, alerts: true },   // every role; red unread badge
   { to: '/admin/devotees', label: tr('Devotee Management'), icon: UsersIcon },
   {
     label: tr('Pooja Management'), icon: Flame,
@@ -110,7 +94,6 @@ const NAV = [
     children: [
       { to: '/admin/donations', label: tr('Donations') },
       { to: '/admin/donation-master', label: tr('Donation Master') },
-      { to: '/admin/metal-rates', label: tr('Gold & Silver Rate') },
     ],
   },
   {
@@ -127,29 +110,7 @@ const NAV = [
       { to: '/admin/auction-items', label: tr('Auction Item Master') },
     ],
   },
-  {
-    label: tr('Stores & Inventory'), icon: Boxes,
-    children: [
-      { to: '/admin/stores/register', label: tr('Stock Register') },
-      { to: '/admin/stores/pending', label: tr('Pending Tagging') },
-      { to: '/admin/stores/issue', label: tr('Issue & Return') },
-      { to: '/admin/stores/kits', label: tr('Festival Kits') },
-      { to: '/admin/stores/deity-used', label: tr('Deity-Used Items') },
-      { to: '/admin/stores/unsold', label: tr('Unsold Items') },
-      { to: '/admin/stores/open-sale', label: tr('Open Sale') },
-      { to: '/admin/stores/consumables', label: tr('Consumables Stock') },
-      { to: '/admin/stores/purchase', label: tr('Purchase Requests') },
-      { to: '/admin/stores/manual', label: tr('Manual Entries') },
-      { to: '/admin/stores/item', label: tr('Item History') },
-      { to: '/admin/stores/report', label: tr('Stock Report') },
-      { to: '/admin/stores/valuables', label: tr('Valuables Statement') },
-      { to: '/admin/stores/check', label: tr('Stock Check') },
-      { to: '/admin/stores/missing', label: tr('Missing Items') },
-      { to: '/admin/stores/handover', label: tr('Handover') },
-      { to: '/admin/stores/day-closing', label: tr('Stores Day Closing') },
-      { to: '/admin/stores/locations', label: tr('Store Locations') },
-    ],
-  },
+  { label: tr('Stores & Inventory'), icon: Boxes, stores: true },
   {
     label: tr('Other Material Sales'), icon: Recycle,
     children: [
@@ -168,7 +129,7 @@ const NAV = [
     children: [
       { to: '/admin/settings', label: tr('System Settings') },
       { to: '/admin/committee', label: tr('Committee Member Master') },
-      { to: '/admin/notifications', label: tr('Notifications') },
+      { to: '/admin/notifications', label: tr('SMS / Email Settings') },
       { to: '/admin/audit', label: tr('Audit Trail') },
       { to: '/admin/backup', label: tr('Backup & Restore') },
     ],
@@ -214,9 +175,15 @@ function SidebarNav({ onNavigate, collapsed }) {
   const { user } = useAuth()
   const { t } = useLang()
   const storesBadges = useStoresBadges(user, location.pathname)
+  const alertUnread = useAlertUnread()
   const badgeFor = (to) => storesBadges[to] || 0
 
   const nav = NAV.map((n) => {
+    if (n.stores) {
+      const sections = storesSectionsFor(user)
+      const children = sections.flatMap((sec) => [...(sec.heading ? [{ heading: sec.heading }] : []), ...sec.items])
+      return children.some((c) => !c.heading) ? { ...n, children } : null
+    }
     if (n.children) {
       const kids = n.children.filter((c) => canAccessKey(user, keyOf(c.to)))
       // Poojari / Counter Staff / Accountant / Committee: a group with a single reachable screen becomes
@@ -233,7 +200,7 @@ function SidebarNav({ onNavigate, collapsed }) {
   const isTopLevelRoute = nav.some((n) => !n.children && (
     n.end ? location.pathname === n.to : location.pathname === n.to || location.pathname.startsWith(n.to + '/')
   ))
-  const activeGroup = isTopLevelRoute ? null : nav.find((n) => n.children?.some((c) => location.pathname.startsWith(c.to)))
+  const activeGroup = isTopLevelRoute ? null : nav.find((n) => n.children?.some((c) => (c.match ? entryActive(c, location.pathname) : c.to && location.pathname.startsWith(c.to))))
   // Accordion: only one section open at a time. On every page change only the current
   // page's section stays open — a single-link page (Dashboard, Daily Closing…) closes it.
   const [openGroup, setOpenGroup] = useState(activeGroup?.label ?? null)
@@ -247,26 +214,35 @@ function SidebarNav({ onNavigate, collapsed }) {
   if (user?.role === 'Stores Officer') {
     return (
       <nav className={`flex-1 overflow-y-auto overflow-x-hidden sidebar-scroll py-2 transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'px-0' : 'px-3'}`}>
-        {STORES_OFFICER_NAV.map((sec, i) => (
+        {storesSectionsFor(user).map((sec, i) => (
           <div key={sec.heading || i} className={i ? 'mt-3' : ''}>
             {sec.heading && (collapsed
               ? <div className="mx-auto my-1 w-5 border-t border-white/15" aria-hidden="true" />
               : <div className="px-3 pb-1 text-[0.65625rem] font-semibold uppercase tracking-wider text-gold-200/70">{t(sec.heading)}</div>)}
             <div className="space-y-0.5">
-              {sec.items.filter((n) => canAccessKey(user, keyOf(n.to))).map((n) => {
+              {sec.items.map((n) => {
                 const Icon = n.icon
+                const active = entryActive(n, location.pathname)
                 return (
-                  <NavLink key={n.to} to={n.to} onClick={onNavigate} title={collapsed ? t(n.label) : undefined}
-                    className={({ isActive }) =>
-                      `w-full flex items-center py-2 rounded-lg text-[0.84375rem] font-medium transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${
+                  <NavLink key={n.label} to={n.to} onClick={onNavigate} title={collapsed ? t(n.label) : undefined}
+                    className={`w-full flex items-center py-2 rounded-lg text-[0.84375rem] font-medium transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${
                         collapsed ? 'justify-center px-0' : 'gap-3 px-3'
-                      } ${isActive ? 'bg-ivory text-maroon-800 font-semibold' : 'text-cream/85 hover:bg-white/10'}`}>
+                      } ${active ? 'bg-ivory text-maroon-800 font-semibold' : 'text-cream/85 hover:bg-white/10'}`}>
                     <Icon size={collapsed ? 16 : 18} className="shrink-0" />
                     <span className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
-                    {!collapsed && <Badge n={badgeFor(n.to)} title={badgeTitle(n.to, t, storesBadges)} red={isRed(n.to, storesBadges)} />}
+                    {!collapsed && <Badge n={entryBadge(n, badgeFor)} title={entryBadgeTitle(n, t, storesBadges, badgeFor)} red={entryRed(n, storesBadges, badgeFor)} />}
                   </NavLink>
                 )
               })}
+              {i === 0 && (
+                <NavLink to="/admin/alerts" onClick={onNavigate} title={collapsed ? t('Alerts') : undefined}
+                  className={({ isActive }) => `w-full flex items-center py-2 rounded-lg text-[0.84375rem] font-medium transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${
+                    collapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${isActive ? 'bg-ivory text-maroon-800 font-semibold' : 'text-cream/85 hover:bg-white/10'}`}>
+                  <Bell size={collapsed ? 16 : 18} className="shrink-0" />
+                  <span className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t('Alerts')}</span>
+                  {!collapsed && <Badge n={alertUnread} title={t('Unread alerts')} red />}
+                </NavLink>
+              )}
             </div>
           </div>
         ))}
@@ -279,9 +255,10 @@ function SidebarNav({ onNavigate, collapsed }) {
       {nav.map((n) => {
         const Icon = n.icon
         if (n.children) {
-          const groupActive = n.children.some((c) => location.pathname.startsWith(c.to))
+          const links = n.children.filter((c) => !c.heading)
+          const groupActive = links.some((c) => (c.match ? entryActive(c, location.pathname) : location.pathname.startsWith(c.to)))
           const isOpen = !collapsed && openGroup === n.label
-          const firstChild = n.children[0]
+          const firstChild = links[0]
 
           return (
             <div key={n.label}>
@@ -313,24 +290,29 @@ function SidebarNav({ onNavigate, collapsed }) {
               >
                 <Icon size={collapsed ? 16 : 18} className="shrink-0" />
                 <span className={`text-left transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
-                {!collapsed && !isOpen && <Badge n={n.children.reduce((s, c) => s + badgeFor(c.to), 0)} title={t('Waiting for action')} />}
+                {!collapsed && !isOpen && <Badge n={links.reduce((s, c) => s + (c.match ? entryBadge(c, badgeFor) : badgeFor(c.to)), 0)} title={t('Waiting for action')} />}
                 <span className={`shrink-0 transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${collapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
                   {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 </span>
               </NavLink>
               <div className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] overflow-hidden ${isOpen ? 'max-h-[48rem] opacity-100' : 'max-h-0 opacity-0'}`}>
                 <div className="mt-0.5 mb-1 ml-3 pl-3 border-l border-white/15 space-y-0.5">
-                  {n.children.map((c) => (
-                    <NavLink key={c.to} to={c.to} onClick={onNavigate}
-                      className={({ isActive }) =>
-                        `flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg text-[0.8125rem] transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${
-                          isActive ? 'bg-maroon-900/70 text-gold-200 font-semibold border-l-2 border-gold-400 -ml-[0.8125rem] pl-[1.5rem]' : 'text-cream/70 hover:text-cream hover:bg-white/5'
+                  {n.children.map((c) => c.heading ? (
+                    <div key={'h-' + c.heading} className="pl-3 pt-2 pb-0.5 text-[0.625rem] font-semibold uppercase tracking-wider text-gold-200/60">{t(c.heading)}</div>
+                  ) : (
+                    <NavLink key={c.to + c.label} to={c.to} onClick={onNavigate}
+                      className={({ isActive }) => {
+                        const on = c.match ? entryActive(c, location.pathname) : isActive
+                        return `flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg text-[0.8125rem] transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${
+                          on ? 'bg-maroon-900/70 text-gold-200 font-semibold border-l-2 border-gold-400 -ml-[0.8125rem] pl-[1.5rem]' : 'text-cream/70 hover:text-cream hover:bg-white/5'
                         }`
-                      }
+                      }}
                     >
                       <span className="w-1 h-1 rounded-full bg-current opacity-60 shrink-0" />
                       <span className="min-w-0 flex-1 break-words leading-snug">{t(c.label)}</span>
-                      <Badge n={badgeFor(c.to)} title={badgeTitle(c.to, t, storesBadges)} red={isRed(c.to, storesBadges)} />
+                      {c.match
+                        ? <Badge n={entryBadge(c, badgeFor)} title={entryBadgeTitle(c, t, storesBadges, badgeFor)} red={entryRed(c, storesBadges, badgeFor)} />
+                        : <Badge n={badgeFor(c.to)} title={badgeTitle(c.to, t, storesBadges)} red={isRed(c.to, storesBadges)} />}
                     </NavLink>
                   ))}
                 </div>
@@ -351,6 +333,7 @@ function SidebarNav({ onNavigate, collapsed }) {
           >
             <Icon size={collapsed ? 16 : 18} className="shrink-0" />
             <span className={`transition-all duration-700 ease-[cubic-bezier(0.22,0.61,0.36,1)] ${labelClass}`}>{t(n.label)}</span>
+            {!collapsed && n.alerts && <Badge n={alertUnread} title={t('Unread alerts')} red />}
           </NavLink>
         )
       })}
@@ -369,7 +352,7 @@ export default function AdminLayout() {
   const name = personName(user, lang) || tr('Administrator')
   const role = user?.role || 'Admin'
   const roleLabel = tr(role === 'Admin' ? 'Administrator' : role)
-  const initials = lang === 'te' ? initialsOf(personName(user, 'en') || name) : name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+  const initials = initialsOf(lang === 'te' ? (personName(user, 'en') || name) : name)
 
   const signOut = () => { logout(); navigate('/staff-login') }
 
@@ -431,30 +414,29 @@ export default function AdminLayout() {
           (switching tabs, paging) never shifts sideways when the scrollbar appears / disappears */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto [scrollbar-gutter:stable]">
         <header className="h-[4.25rem] min-h-[4.25rem] shrink-0 bg-gradient-to-b from-maroon-800 to-maroon-900 border-t border-b border-[#D4AF37] flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30" style={{ boxShadow: '0 2px 8px rgba(74, 5, 21, 0.15)' }}>
-          {/* Left: Menu + Temple Name */}
-          <div className="flex items-center gap-2">
+          {/* Left: Menu + Temple Name (shortens with … rather than pushing the controls off-screen) */}
+          <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
             <button className="lg:hidden text-[#E5B94F] hover:text-[#FFF1C7] focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:ring-offset-1 focus:ring-offset-[#5A071A] rounded p-1" title={tr("Menu")} aria-label={tr("Open navigation menu")}
               onClick={() => setOpen((o) => !o)}><Menu size={22} /></button>
-            <span className="font-serif font-bold text-gold-100 text-[1.375rem] whitespace-nowrap lg:ml-2"><T>Shri Shirdi Sai Baba Temple</T></span>
+            <span className="font-serif font-bold text-gold-100 text-[1.0625rem] sm:text-[1.375rem] whitespace-nowrap truncate min-w-0 lg:ml-2" title={tr('Shri Shirdi Sai Baba Temple')}><T>Shri Shirdi Sai Baba Temple</T></span>
           </div>
 
-          {/* Right: All controls */}
-          <div className="flex items-center gap-2 lg:gap-4">
+          {/* Right: All controls — never shrink; the less important ones hide on narrower screens */}
+          <div className="flex items-center gap-2 lg:gap-4 shrink-0">
             {role === 'Stores Officer'
               ? <span className="hidden md:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap"><Calendar size={15} className="text-[#E5B94F]" /> {todayLabel()}</span>
               : <button onClick={() => navigate('/admin/calendar')} title={tr("Open Calendar")} className="hidden md:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap hover:text-white hover:bg-white/10 rounded-lg px-2 py-1 -mx-2 transition-all duration-300 cursor-pointer"><Calendar size={15} className="text-[#E5B94F]" /> {todayLabel()}</button>}
-            <span className="hidden lg:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap tabular-nums"><Clock size={15} className="text-[#E5B94F]" /> {liveTime}</span>
+            <span className="hidden xl:flex items-center gap-1.5 text-[0.875rem] text-[#FFF1C7] whitespace-nowrap tabular-nums"><Clock size={15} className="text-[#E5B94F]" /> {liveTime}</span>
             <div className="inline-flex items-center rounded-full border border-[#D4AF37] overflow-hidden text-[0.6875rem] font-bold" role="group" aria-label={tr("Language selection")}>
               <button onClick={() => setLang('en')} title={tr("English")} aria-label={tr("English")} aria-pressed={lang === 'en'} className={`px-2 py-1 outline-none transition-none ${lang === 'en' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>EN</button>
               <button onClick={() => setLang('te')} title="తెలుగు" aria-label={tr("Switch to Telugu")} aria-pressed={lang === 'te'} className={`px-2 py-1 font-telugu outline-none transition-none ${lang === 'te' ? 'bg-[#D4AF37] text-[#4A0515]' : 'text-[#FFF1C7] hover:bg-white/10 active:bg-[#D4AF37] active:text-[#4A0515]'}`}>తెలుగు</button>
             </div>
-            {canAccessKey(user, 'notifications') && <button onClick={() => navigate('/admin/notifications')} title={tr("Notifications")} aria-label={tr("Notifications")} className="text-[#E5B94F] hover:text-[#FFF1C7] focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:ring-offset-1 focus:ring-offset-[#5A071A] rounded-full p-1">
-              <Bell size={18} />
-            </button>}
-            <FontSizeToggle />
+            {/* Staff alerts — every role; live over SSE */}
+            <AlertBell showSettingsLink={canAccessKey(user, 'notifications')} />
+            <div className="hidden sm:block"><FontSizeToggle /></div>
             <div className="flex items-center gap-2 pl-2 lg:pl-3 border-l border-[#D4AF37]/30">
-              <div className="w-9 h-9 rounded-full bg-[#D4AF37] text-[#4A0515] grid place-items-center text-xs font-bold shadow-sm">{initials}</div>
-              <div className="hidden md:block text-right leading-tight">
+              <div className="w-9 h-9 rounded-full bg-[#D4AF37] text-[#4A0515] grid place-items-center text-xs font-bold shadow-sm" title={`${name} · ${t(roleLabel)}`}>{initials}</div>
+              <div className="hidden xl:block text-right leading-tight">
                 <div className="text-[0.875rem] font-bold text-[#FFF1C7] whitespace-nowrap">{name}</div>
                 <div className="text-[0.75rem] text-[#E8D9B5] whitespace-nowrap">{t(roleLabel)}</div>
               </div>
@@ -465,8 +447,6 @@ export default function AdminLayout() {
 
         <main className="flex-1 px-4 lg:px-6 pt-2 lg:pt-3 pb-[max(2.5rem,env(safe-area-inset-bottom))] max-w-[100rem] w-full mx-auto">
           <Outlet context={{ role }} />
-          {/* Poojari: in-app alert 15 minutes before each hour that has their poojas */}
-          {user?.role === 'Poojari' && canAccessKey(user, 'my-poojas') && <HourlySlotAlert />}
         </main>
       </div>
 

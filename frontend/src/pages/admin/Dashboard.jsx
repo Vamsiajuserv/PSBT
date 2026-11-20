@@ -13,6 +13,8 @@ import FitText from '../../components/common/FitText.jsx'
 import { KpiGrid } from '../../components/admin/ui.jsx'
 import { T, tr, personName, useLang, stamp, clock12 } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
+import { statusChip } from '../../lib/bookingStatus.js'
+import { canAccessKey, keyOf } from '../../auth/access.js'
 
 const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -137,13 +139,15 @@ export default function Dashboard() {
   }
 
   const [d, setD] = useState(null)
-  const todayISO = new Date().toISOString().slice(0, 10)
+  const todayISO = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })   // IST, not UTC
   const monthStartISO = todayISO.slice(0, 8) + '01'
   // filters - persisted in URL for state preservation across navigation
   const { start, setStart, end, setEnd, setFilters } = useFilterParams({
     start: todayISO, end: todayISO,
   })
 
+  // "Pooja Bookings" counts bookings MADE in the period → open All bookings on the same dates (by=booked)
+  const bookingsLink = `/admin/bookings?by=booked&start=${d?.range?.start || start}&end=${d?.range?.end || end}`
   const load = useCallback(
     () => DashboardAPI.get({ start, end }).then(setD).catch(() => setD(null)),
     [start, end],
@@ -196,7 +200,7 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <DateField value={start} max={end || todayISO} onChange={(e) => setStart(e.target.value)}
               title={tr("From date")} className="!w-40 !py-2 text-[0.8125rem]" />
             <span className="text-gray-400 text-sm"><T>to</T></span>
@@ -218,8 +222,8 @@ export default function Dashboard() {
 
       {/* KPI tiles — each gated to the module its screen needs, so a counter
           user sees only the collections they actually handle. */}
-      {d && <KpiGrid className="mb-6 kpi-one-row" role="region" aria-label={tr('Key performance indicators')}>
-        {hasModule('Bookings') && <Kpi to="/admin/bookings" icon={CalendarDays} iconBg="bg-blue-50" iconColor="#2563eb" title={tr("Pooja Bookings")}
+      {d && <KpiGrid variant="cards" className="mb-6 kpi-one-row" role="region" aria-label={tr('Key performance indicators')}>
+        {hasModule('Bookings') && <Kpi to={bookingsLink} icon={CalendarDays} iconBg="bg-blue-50" iconColor="#2563eb" title={tr("Pooja Bookings")}
           value={t ? num(t.pooja_bookings.count) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
         {hasModule('Donations') && <Kpi to="/admin/donations" icon={HandHeart} iconBg="bg-emerald-50" iconColor="#059669" title={tr("Donations Received")}
           value={t ? num(t.donations.receipts) : '—'} footLabel={tr("Period")} footValue={rangeLabel || '—'} />}
@@ -242,7 +246,9 @@ export default function Dashboard() {
             {(d?.today_overview || []).map((o) => {
               const m = OVERVIEW_ICONS[o.label] || { icon: CalendarDays, c: '#6b7280', bg: 'bg-gray-50' }
               const Icon = m.icon
-              const to = OVERVIEW_ROUTE[o.label]
+              const link = o.label === 'Pooja Bookings' ? bookingsLink : OVERVIEW_ROUTE[o.label]
+              // Link only to screens this role can open (the Committee has no Bookings screen)
+              const to = link && canAccessKey(user, keyOf(link.split('?')[0])) ? link : null
               const row = (
                 <div className={`flex items-center gap-3 rounded-lg -mx-1 px-1 py-1 ${to ? 'hover:bg-gray-50' : ''}`}>
                   <div className={`w-9 h-9 rounded-lg grid place-items-center shrink-0 ${m.bg}`} style={{ color: m.c }}><Icon size={17} /></div>
@@ -273,7 +279,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
             <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Recent Pooja Bookings</T></h3>
-            <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600"><T>View All</T></Link>
+            {canAccessKey(user, 'bookings') && <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600"><T>View All</T></Link>}
           </div>
           <div className="mt-4 space-y-3">
             {(d?.recent_bookings || []).map((b, i) => (
@@ -285,7 +291,7 @@ export default function Dashboard() {
                 </div>
                 <div className="text-right">
                   <div className="text-[0.6875rem] text-gray-600 flex items-center gap-1 justify-end"><Clock size={10} /> {clock12(String(b.time || ''))}</div>
-                  <span className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-emerald-50 text-emerald-700">{tr(b.status)}</span>
+                  <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full border text-[0.625rem] font-semibold ${statusChip(b.status)}`}>{tr(b.status)}</span>
                 </div>
               </div>
             ))}
@@ -300,7 +306,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between">
             <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Upcoming Special Pooja Bookings</T></h3>
-            <Link to="/admin/bookings" className="text-[0.75rem] font-semibold text-maroon-600"><T>View All</T></Link>
+            {canAccessKey(user, 'bookings') && <Link to={`/admin/bookings?start=${todayISO}`} className="text-[0.75rem] font-semibold text-maroon-600"><T>View All</T></Link>}
           </div>
           <div className="mt-4 space-y-3">
             {(d?.upcoming_special || []).map((u, i) => (

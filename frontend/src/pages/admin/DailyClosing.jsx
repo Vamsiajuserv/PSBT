@@ -34,8 +34,9 @@ const dashN = (n) => (n ? String(n) : '-')
 
 function KpiCard({ icon: Icon, title, value, sub, valueClass, subClass }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 flex items-center gap-4 h-full overflow-hidden">
-      <div className="w-12 h-12 rounded-full bg-maroon-50 grid place-items-center shrink-0 ring-1 ring-maroon-100">
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-3.5 sm:px-5 py-4 flex items-center gap-4 h-full overflow-hidden">
+      {/* icon hidden on a phone so the full amount fits (no scrolling figures) */}
+      <div className="w-12 h-12 rounded-full bg-maroon-50 hidden sm:grid place-items-center shrink-0 ring-1 ring-maroon-100">
         <Icon size={22} className="text-maroon-700" />
       </div>
       <div className="min-w-0 flex-1">
@@ -177,7 +178,7 @@ export default function DailyClosing() {
       </div>
 
       {/* ── KPI row ── */}
-      <KpiGrid>
+      <KpiGrid variant="cards">
         <KpiCard icon={IndianRupee} title={tr("Total Collections (₹)")} value={hideAmount(inr(t.total))} sub={`${modules.length} ${tr('Modules')}`} valueClass="text-maroon-800" />
         <KpiCard icon={Wallet} title={tr("Cash Collections (₹)")} value={hideAmount(inr(t.cash))} sub={canSeeAmounts ? `${sum.cash_pct}% ${tr('of Total')}` : ''} />
         <KpiCard icon={CreditCard} title={tr("Online Collections (₹)")} value={hideAmount(inr(t.upi))} sub={canSeeAmounts ? `${sum.upi_pct}% ${tr('of Total')}` : ''} />
@@ -238,6 +239,15 @@ export default function DailyClosing() {
                 </tbody>
               </table>
             </div>
+            {/* Hundi goes straight to the bank — never through the counter drawer, so it is not in the
+                totals above (2026-11-15). Verified counts only, their cash part only. */}
+            {sum.hundi && (
+              <div className="px-4 py-3 border-t border-gray-100 bg-blue-50/40 text-[0.8125rem] text-gray-700 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="font-semibold text-gray-800">{tr('Hundi Collections')}</span>
+                <span>{tr('Verified cash for the bank')}: <b className="tabular-nums">{canSeeAmounts ? inr(sum.hundi.cash) : '—'}</b> · {num(sum.hundi.count)} {tr(sum.hundi.count === 1 ? 'count' : 'counts')}</span>
+                {sum.hundi.pending_count > 0 && <span className="text-amber-700">{num(sum.hundi.pending_count)} {tr('waiting for committee approval')}</span>}
+                <span className="text-[0.75rem] text-gray-500 w-full">{tr('Not part of the counter cash above — hundi money is deposited in the bank.')}</span>
+              </div>)}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -19,7 +19,8 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
   const [picked, setPicked] = useState(preset)
   const [q, setQ] = useState('')
   const [found, setFound] = useState([])
-  const [f, setF] = useState({ issued_to: '', poojari_id: '', purpose: '', return_by: today(), notes: '' })
+  // Return date optional (2026-11-15): most things come back the same day; blank = never overdue
+  const [f, setF] = useState({ issued_to: '', poojari_id: '', purpose: '', return_by: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [slip, setSlip] = useState(null)
 
@@ -46,7 +47,7 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
     setSaving(true)
     try {
       const s = await StoresAPI.issue({ ids: picked.map((p) => p.id), issued_to: f.issued_to.trim(), poojari_id: f.poojari_id || null,
-        purpose: f.purpose.trim(), return_by: f.return_by, notes: f.notes.trim() || null })
+        purpose: f.purpose.trim(), return_by: f.return_by || null, notes: f.notes.trim() || null })
       toast(`${s.code}: ${s.lines.length} ${tr('piece(s) issued to')} ${staffName(s.issued_to)}`)
       changed(); setSlip(s); onDone?.(s)
     } catch (ex) { toast(errText(ex, 'Could not issue these pieces.'), 'error') }
@@ -95,8 +96,8 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
             <div><label className="label"><T>Purpose *</T></label>
               <Combobox required value={f.purpose} onChange={(e) => setF({ ...f, purpose: e.target.value })}
                 options={meta.purposes.map((p) => ({ value: p, label: tr(p) }))} placeholder={tr('Select or type')} className="input" /></div>
-            <div><label className="label"><T>Return by *</T></label>
-              <DateField required value={f.return_by} min={today()} onChange={(e) => setF({ ...f, return_by: e.target.value })} className="input" /></div>
+            <div><label className="label"><T>Return by (optional)</T></label>
+              <DateField value={f.return_by} min={today()} onChange={(e) => setF({ ...f, return_by: e.target.value })} className="input" /></div>
             <div><label className="label"><T>Notes</T></label>
               <input className="input" maxLength={500} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder={tr('e.g. For Karthika deepotsavam')} /></div>
           </div>
@@ -130,7 +131,7 @@ export function PieceIssueSlip({ slip, onClose }) {
             {row(tr('Issued on'), fmtStamp(slip.issued_at))}
             {row(tr('Issued to'), staffName(slip.issued_to))}
             {row(tr('Purpose'), tr(slip.purpose))}
-            <div className="flex justify-between text-base font-bold border-y border-gray-200 py-2"><span><T>Return by</T>:</span><span className="text-maroon-700">{fmtDate(slip.return_by)}</span></div>
+            {slip.return_by && <div className="flex justify-between text-base font-bold border-y border-gray-200 py-2"><span><T>Return by</T>:</span><span className="text-maroon-700">{fmtDate(slip.return_by)}</span></div>}
           </div>
           <table className="w-full text-[0.8125rem] mt-3">
             <thead><tr className="text-left text-[0.6875rem] uppercase text-gray-500 border-b border-gray-200">
@@ -140,7 +141,7 @@ export function PieceIssueSlip({ slip, onClose }) {
                 <td className="py-1.5 font-mono font-semibold">{l.tag_id}</td>
                 <td className="py-1.5">{tr(l.description || l.item_name)}{l.purity ? ` · ${l.purity}` : ''}</td>
                 <td className="py-1.5 text-right">{l.weight_g != null ? `${qty(l.weight_g)} ${gramUnit()}` : '—'}</td>
-                <td className="py-1.5 text-right text-[0.75rem]">{l.returned_at ? `${fmtDate(l.returned_at)}${l.condition === 'Damaged' ? ` · ${tr('Damaged')}` : ''}` : '☐'}</td>
+                <td className="py-1.5 text-right text-[0.75rem]">{l.returned_at ? `${fmtDate(l.returned_at)}${l.condition === 'Damaged' ? ` · ${tr('Damaged')}` : l.condition === 'Kept' ? ` · ${tr('Kept by poojari')}` : ''}` : '☐'}</td>
               </tr>))}</tbody>
           </table>
           <div className="mt-3 space-y-2 text-[0.875rem]">
@@ -161,10 +162,11 @@ export function PieceIssueSlip({ slip, onClose }) {
   )
 }
 
-/** Take pieces back from a slip: tick, condition, note; back to their own shelf or another. */
+/** Close pieces on a slip: back Good / Damaged (to their own shelf or another, marked Used), or Kept
+ *  by the poojari — it leaves stock with the reason (never gold / silver). */
 export function ReturnDialog({ slip, locations, onClose, onDone }) {
   const open = slip.lines.filter((l) => !l.returned_at)
-  const [rows, setRows] = useState(() => Object.fromEntries(open.map((l) => [l.id, { tick: true, condition: 'Good', note: '' }])))
+  const [rows, setRows] = useState(() => Object.fromEntries(open.map((l) => [l.id, { tick: true, condition: 'Good', note: '', weight: '' }])))
   const [locationId, setLocationId] = useState('')
   const [saving, setSaving] = useState(false)
   const set = (id, patch) => setRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }))
@@ -173,11 +175,18 @@ export function ReturnDialog({ slip, locations, onClose, onDone }) {
   async function save(e) {
     e.preventDefault()
     if (!ticked.length) { toast(tr('Tick the pieces that came back.'), 'error'); return }
+    // gold / silver come back on the scale (2026-11-15)
+    const unweighed = ticked.find((l) => l.weight_g != null && !(Number(rows[l.id].weight) > 0))
+    if (unweighed) { toast(`${unweighed.tag_id}: ${tr('weigh it and enter the weight (g).')}`, 'error'); return }
+    const noWhy = ticked.find((l) => rows[l.id].condition === 'Kept' && rows[l.id].note.trim().length < 3)
+    if (noWhy) { toast(`${noWhy.tag_id}: ${tr('write why the poojari kept it.')}`, 'error'); return }
     setSaving(true)
     try {
       const s = await StoresAPI.returnIssue(slip.id, { location_id: locationId ? Number(locationId) : null,
-        lines: ticked.map((l) => ({ line_id: l.id, condition: rows[l.id].condition, note: rows[l.id].note.trim() || null })) })
-      toast(`${s.code}: ${ticked.length} ${tr('piece(s) returned')}${s.out ? ` · ${s.out} ${tr('still out')}` : ''}`)
+        lines: ticked.map((l) => ({ line_id: l.id, condition: rows[l.id].condition, note: rows[l.id].note.trim() || null,
+          weight_g: l.weight_g != null ? Number(rows[l.id].weight) : null })) })
+      const kept = ticked.filter((l) => rows[l.id].condition === 'Kept').length
+      toast(`${s.code}: ${ticked.length - kept} ${tr('piece(s) returned')}${kept ? ` · ${kept} ${tr('kept by the poojari')}` : ''}${s.out ? ` · ${s.out} ${tr('still out')}` : ''}`)
       changed(); onDone?.(s)
     } catch (ex) { toast(errText(ex, 'Could not record the return.'), 'error') }
     finally { setSaving(false) }
@@ -188,7 +197,7 @@ export function ReturnDialog({ slip, locations, onClose, onDone }) {
       <div className="absolute inset-0 bg-black/40" onClick={() => !saving && onClose()} />
       <form onSubmit={save} className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-serif text-lg font-bold text-maroon-800"><T>Return items</T> — {slip.code}</h3>
-          <div className="text-[0.75rem] text-gray-500">{staffName(slip.issued_to)} · {tr(slip.purpose)} · {tr('Return by')} {fmtDate(slip.return_by)}</div></div>
+          <div className="text-[0.75rem] text-gray-500">{staffName(slip.issued_to)} · {tr(slip.purpose)}{slip.return_by ? ` · ${tr('Return by')} ${fmtDate(slip.return_by)}` : ''}</div></div>
         <div className="px-5 py-4 overflow-y-auto space-y-2">
           {open.map((l) => (
             <div key={l.id} className={`grid grid-cols-12 gap-2 items-center rounded-lg border p-2 ${rows[l.id].tick ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}>
@@ -198,11 +207,20 @@ export function ReturnDialog({ slip, locations, onClose, onDone }) {
                 <span className="truncate">{tr(l.description || l.item_name)}{l.weight_g != null ? ` · ${qty(l.weight_g)} ${gramUnit()}` : ''}</span>
               </label>
               <div className="col-span-5 sm:col-span-3">
-                <Select className="input !py-1.5" value={rows[l.id].condition} onChange={(e) => set(l.id, { condition: e.target.value })}>
-                  <option value="Good">{tr('Good')}</option><option value="Damaged">{tr('Damaged')}</option>
+                <Select className="input !py-1.5" value={rows[l.id].condition} onChange={(e) => set(l.id, { condition: e.target.value })} aria-label={tr('Condition')}>
+                  <option value="Good">{tr('Back — good')}</option><option value="Damaged">{tr('Back — damaged')}</option>
+                  {l.weight_g == null && <option value="Kept">{tr('Kept by poojari')}</option>}
                 </Select></div>
-              <input className="input !py-1.5 col-span-7 sm:col-span-4" maxLength={200} value={rows[l.id].note} onChange={(e) => set(l.id, { note: e.target.value })} placeholder={tr('Note')} />
-              <div className="col-span-12 text-[0.6875rem] text-gray-500 pl-6">{tr('Back to')}: {tr(l.from_location || '—')}</div>
+              <input className="input !py-1.5 col-span-7 sm:col-span-4" maxLength={200} required={rows[l.id].condition === 'Kept'} value={rows[l.id].note} onChange={(e) => set(l.id, { note: e.target.value })}
+                placeholder={rows[l.id].condition === 'Kept' ? tr('Why kept * (e.g. pancha after abhishekam)') : tr('Note')} />
+              {l.weight_g != null && (
+                <div className="col-span-12 sm:col-span-6 sm:col-start-6 flex items-center gap-2 text-[0.75rem]">
+                  <span className="text-gray-600 whitespace-nowrap">{tr('Weight now (g) *')}</span>
+                  <input type="number" min="0.001" step="0.001" required className="input !py-1.5" value={rows[l.id].weight} onChange={(e) => set(l.id, { weight: e.target.value })} />
+                  <span className="text-gray-500 whitespace-nowrap">{tr('was')} {qty(l.weight_g)} {gramUnit()}</span>
+                  {rows[l.id].weight !== '' && Math.abs(Number(rows[l.id].weight) - l.weight_g) > 0.01 && <span className="text-amber-700 font-semibold whitespace-nowrap">⚠ {tr('to committee')}</span>}
+                </div>)}
+              <div className="col-span-12 text-[0.6875rem] text-gray-500 pl-6">{rows[l.id].condition === 'Kept' ? tr('Leaves the stock — kept in its history.') : `${tr('Back to')}: ${tr(l.from_location || '—')}`}</div>
             </div>))}
           <div className="pt-2"><label className="label"><T>Put back in</T></label>
             <Select className="input" value={locationId} onChange={(e) => setLocationId(e.target.value)}>

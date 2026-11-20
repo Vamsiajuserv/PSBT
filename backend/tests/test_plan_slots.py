@@ -87,6 +87,28 @@ class PlanSlots(unittest.TestCase):
         apply_to_plan("Vinayaka Chavithi Pooja", three)
         self.assertFalse(three.active)
 
+    def test_all_vehicle_poojas_share_one_window(self):
+        # Car, Bike / Scooter and Auto share one window: 9:30 AM to 8:30 PM (final sheet, 2026-11-20;
+        # temple hours from 2026-11-18, a window each before that)
+        fees = {"Car Pooja": 500, "Bike / Scooter Pooja": 200, "Auto Pooja": 300}
+        for name, fee in fees.items():
+            old = SimpleNamespace(plan_name="One-Time", time_slots="09:00 AM - 11:30 AM", fee=fee, committee_decided=False, active=True)
+            changes = apply_to_plan(name, old)
+            self.assertEqual(old.time_slots, "09:30 AM - 08:30 PM", name)
+            self.assertEqual((old.fee, old.active), (fee, True), name)          # only the timing changes
+            self.assertEqual(len(changes), 1, name)
+            self.assertEqual(apply_to_plan(name, old), [], name)                # running it again changes nothing
+        # the one window is taken automatically and is open until 8:30 PM
+        vehicle = "09:30 AM - 08:30 PM"
+        self.assertEqual(self.check("", plan([vehicle]), now=time(20, 29)), vehicle)
+        # after 8:30 PM today's window is over (it was open until 9 PM under temple hours)
+        with self.assertRaises(HTTPException):
+            self.check("", plan([vehicle]), now=time(20, 31))
+        # an old window (or the old temple hours) is no longer accepted for a vehicle pooja
+        for old in ("09:00 AM - 11:30 AM", "06:00 AM - 09:00 PM"):
+            with self.assertRaises(HTTPException):
+                self.check(old, plan([vehicle]))
+
 
 if __name__ == "__main__":
     unittest.main()

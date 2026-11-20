@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Tag, AlertTriangle, Undo2, Hourglass, Boxes, ArrowRight, RotateCcw, CheckCircle2, MapPin, Send, SearchX, PackageCheck, CalendarClock, ShoppingCart, PackageOpen } from 'lucide-react'
+import { Tag, AlertTriangle, Undo2, Hourglass, Boxes, ArrowRight, RotateCcw, CheckCircle2, MapPin, Send, SearchX, CalendarClock } from 'lucide-react'
 import { PageTitle, StatTile, KpiGrid, Section, Pill, inr, num, fmtStamp, fmtDate } from '../../../components/admin/ui.jsx'
 import { StoresAPI } from '../../../api/client.js'
 import { T, tr } from '../../../i18n/LanguageContext.jsx'
@@ -20,12 +20,12 @@ export default function StoresOverview() {
     const safe = (p) => p.catch(() => null)
     Promise.all([safe(StoresAPI.summary()), safe(StoresAPI.pendingCount()), safe(StoresAPI.unsoldCount()),
       safe(StoresAPI.consumables()), safe(StoresAPI.activity(10)), safe(StoresAPI.issueCount()), safe(StoresAPI.missingCount()),
-      safe(StoresAPI.expiryCount()), safe(StoresAPI.purchaseCount()), safe(StoresAPI.kitsOut())])
-      .then(([summary, pending, unsold, consumables, activity, issue, missing, expiry, purchase, kits]) => {
+      safe(StoresAPI.expiryCount())])
+      .then(([summary, pending, unsold, consumables, activity, issue, missing, expiry]) => {
         if (!summary && !pending && !consumables) { setFailed(true); return }
         setData({ summary, pending: pending?.total ?? null, toReceive: pending?.to_receive ?? null, shortages: pending?.shortages || 0, unsold: unsold?.total ?? null,
           low: (consumables?.items || []).filter((i) => i.low), activity: activity?.items || [],
-          out: issue?.total ?? null, overdue: issue?.overdue || 0, missing: missing?.total ?? null, expiry, purchase, kits })
+          out: issue?.total ?? null, overdue: issue?.overdue || 0, missing: missing?.total ?? null, expiry })
       })
   }, [])
   useEffect(() => {
@@ -53,13 +53,12 @@ export default function StoresOverview() {
       )}
 
       {/* ── Needs attention ── */}
-      <KpiGrid data-n={8}>
-        <StatTile icon={PackageCheck} color="#0f766e" bg="bg-teal-50" title={tr('To receive')} value={v(data?.toReceive)}
-          sub={data?.shortages ? `${num(data.shortages)} ${tr('shortage(s) open')} ⚠` : tr('Counter receipts not yet counted in')} onClick={() => navigate('/admin/stores/pending')} />
-        <StatTile icon={Tag} color="#b45309" bg="bg-amber-50" title={tr('Pending Tagging')} value={v(data?.pending)}
-          sub={tr('Receipts waiting for ID tags')} onClick={() => navigate('/admin/stores/pending')} />
-        <StatTile icon={MapPin} color="#c2410c" bg="bg-orange-50" title={tr('Awaiting Placement')} value={v(data?.summary ? by[AWAITING]?.count || 0 : null)}
-          sub={tr('Tagged, not yet on a shelf')} onClick={() => navigate(`/admin/stores/register?status=${encodeURIComponent(AWAITING)}`)} />
+      <KpiGrid variant="cards" data-n={8}>
+        <StatTile icon={Tag} color="#b45309" bg="bg-amber-50" title={tr('Receive & Tag')} value={v(data?.pending)}
+          sub={data?.shortages ? `${num(data.shortages)} ${tr('shortage(s) open')} ⚠` : tr('Receipts waiting for ID tags')} onClick={() => navigate('/admin/stores/pending')} />
+        {(by[AWAITING]?.count || 0) > 0 && (   // only pieces tagged before 2026-11-15 can still wait for a shelf
+          <StatTile icon={MapPin} color="#c2410c" bg="bg-orange-50" title={tr('Awaiting Placement')} value={num(by[AWAITING].count)}
+            sub={tr('Tagged, not yet on a shelf')} onClick={() => navigate(`/admin/stores/register?status=${encodeURIComponent(AWAITING)}`)} />)}
         <StatTile icon={AlertTriangle} color="#dc2626" bg="bg-red-50" title={tr('Low Stock')} value={v(data?.low.length)}
           sub={tr('Consumables at or below the warning level')} onClick={() => navigate('/admin/stores/consumables')} />
         <StatTile icon={Undo2} color="#7c3aed" bg="bg-violet-50" title={tr('Unsold Items')} value={v(data?.unsold)}
@@ -73,11 +72,6 @@ export default function StoresOverview() {
         <StatTile icon={CalendarClock} color="#dc2626" bg="bg-red-50" title={tr('Expiring soon')} value={v(data?.expiry?.total)}
           sub={data?.expiry?.first ? `${tr(data.expiry.first.name)} ${q3(data.expiry.first.left)} ${tr(data.expiry.first.unit || '')} · ${data.expiry.first.days_left < 0 ? tr('expired') : `${data.expiry.first.days_left} ${tr('days')}`}${data.expiry.expired ? ' ⚠' : ''}`
             : tr('Batches expiring within 7 days')} onClick={() => navigate('/admin/stores/consumables')} />
-        <StatTile icon={ShoppingCart} color="#2563eb" bg="bg-blue-50" title={tr('Purchase requests')} value={v(data?.purchase?.waiting)}
-          sub={data?.purchase?.approved ? `${num(data.purchase.approved)} ${tr('approved, to buy')}` : tr('Waiting for approval')} onClick={() => navigate('/admin/stores/purchase')} />
-        <StatTile icon={PackageOpen} color="#8a1c1c" bg="bg-maroon-50" title={tr('Kits out')} value={v(data?.kits?.total)}
-          sub={data?.kits?.first ? `${tr(data.kits.first.kit_name)} · ${tr('due')} ${fmtDate(data.kits.first.return_by)}${data.kits.overdue ? ' ⚠' : ''}` : tr('Festival kits on issue')}
-          onClick={() => navigate('/admin/stores/kits')} />
       </KpiGrid>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">

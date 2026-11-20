@@ -1,5 +1,6 @@
-"""Hourly slots: the day's due poojas in 1-hour windows (by each pooja's slot) with their
-devotees — the Bookings "Hourly slots" view, its print sheet and the poojari's hourly alert.
+"""Pooja slots: the day's due poojas in half-hour lists (each booking's batch_slot, else the
+half-hour its pooja time starts in) with their devotees — the Bookings "Half-hour slots" view,
+its print sheet and the poojari's pop-up. (Assignment / Print & Send: test_half_hour_slots.py)
 Run from backend/:
     python -m unittest discover -s tests -t .
 """
@@ -52,27 +53,33 @@ class HourlySlots(unittest.TestCase):
                               all_slots=kw.pop("all_slots", False), db=self.db, user=user or self.admin)
 
     def shape(self, out):
-        return [(h["hour"], h["total"], [(s["pooja"], s["slot"], s["count"]) for s in h["slots"]]) for h in out["hours"]]
+        return [(h["start"], h["total"], [(s["pooja"], s["slot"], s["count"]) for s in h["slots"]]) for h in out["hours"]]
 
-    def test_groups_by_the_hour_of_each_slot(self):
+    def test_groups_by_the_half_hour_of_each_slot(self):
         for _ in range(10):
             self.book("Ashtotharam", "05:30 PM", gothram="Kashyapa", nakshatram="Rohini")
         self.book("Abhishekam", "06:00 AM", pooja_id=2)
-        self.book("Ashtotharam", "06:30 AM")
-        self.book("Sahasranamam", "05:59 PM", pooja_id=3)            # still the 5–6 PM window
-        self.book("Sahasranamam", "06:00 PM", pooja_id=3)            # the 6–7 PM window
-        self.book("Homam", "09:00 AM - 11:30 AM", pooja_id=4)        # a range counts by its start
+        self.book("Ashtotharam", "06:30 AM")                         # 6:30–7:00, not with 6:00
+        self.book("Sahasranamam", "05:59 PM", pooja_id=3)            # still the 5:30–6:00 PM list
+        self.book("Sahasranamam", "06:00 PM", pooja_id=3)            # the 6:00–6:30 PM list
+        self.book("Homam", "09:00 AM - 11:30 AM", pooja_id=4)        # saved before batch_slot: by its start
+        self.book("Homam", "09:00 AM - 11:30 AM", pooja_id=4, batch_slot="10:30")   # billed at 10:40
         self.book("Archana", None, pooja_id=5)                       # no time → "Any time", last
         out = self.hourly()
         self.assertEqual(self.shape(out), [
-            (6, 2, [("Abhishekam", "06:00 AM", 1), ("Ashtotharam", "06:30 AM", 1)]),
-            (9, 1, [("Homam", "09:00 AM - 11:30 AM", 1)]),
-            (17, 11, [("Ashtotharam", "05:30 PM", 10), ("Sahasranamam", "05:59 PM", 1)]),
-            (18, 1, [("Sahasranamam", "06:00 PM", 1)]),
+            ("06:00", 1, [("Abhishekam", "06:00 AM", 1)]),
+            ("06:30", 1, [("Ashtotharam", "06:30 AM", 1)]),
+            ("09:00", 1, [("Homam", "09:00 AM - 11:30 AM", 1)]),
+            ("10:30", 1, [("Homam", "09:00 AM - 11:30 AM", 1)]),
+            ("17:30", 11, [("Ashtotharam", "05:30 PM", 10), ("Sahasranamam", "05:59 PM", 1)]),
+            ("18:00", 1, [("Sahasranamam", "06:00 PM", 1)]),
             (None, 1, [("Archana", None, 1)]),
         ])
-        self.assertEqual(out["total"], 16)
-        d = out["hours"][2]["slots"][0]["devotees"][0]                 # the print sheet's columns
+        self.assertEqual(out["total"], 17)
+        self.assertEqual([(h["start"], h["end"]) for h in out["hours"]][:2], [("06:00", "06:30"), ("06:30", "07:00")])
+        self.assertEqual(out["hours"][-1]["end"], None)
+        self.assertTrue(all(h["sent"] is None and h["late"] == 0 for h in out["hours"]))
+        d = out["hours"][4]["slots"][0]["devotees"][0]                 # the print sheet's columns
         self.assertEqual((d["ticket_no"], d["gothram"], d["nakshatram"], d["done"]), ("TKT-1001", "Kashyapa", "Rohini", False))
 
     def test_only_paid_uncancelled_bookings_due_that_day(self):
@@ -81,7 +88,7 @@ class HourlySlots(unittest.TestCase):
         self.book("Ashtotharam", "05:30 PM", paid="Pending")
         self.book("Ashtotharam", "05:30 PM", on=DAY + timedelta(days=1), until=DAY + timedelta(days=1))   # tomorrow
         self.book("Ashtotharam", "05:30 PM", on=DAY - timedelta(days=5), until=None)   # Life Long, still due today
-        self.assertEqual(self.shape(self.hourly()), [(17, 2, [("Ashtotharam", "05:30 PM", 2)])])
+        self.assertEqual(self.shape(self.hourly()), [("17:30", 2, [("Ashtotharam", "05:30 PM", 2)])])
         self.assertEqual(self.hourly(pooja_id=9)["hours"], [])
 
     def test_performed_today_stays_listed_and_is_marked_done(self):
@@ -145,39 +152,39 @@ class HourlySlots(unittest.TestCase):
             self.book("Ashtotharam", "05:30 PM")
         self.book("Archana", "07:00 PM - 08:00 PM", pooja_id=5)                  # a Settings slot, booked
         self.assertEqual(self.shape(self.hourly()), [                             # default: booked slots only
-            (17, 10, [("Ashtotharam", "05:30 PM", 10)]), (19, 1, [("Archana", "07:00 PM - 08:00 PM", 1)])])
+            ("17:30", 10, [("Ashtotharam", "05:30 PM", 10)]), ("19:00", 1, [("Archana", "07:00 PM - 08:00 PM", 1)])])
         self.assertEqual(self.shape(self.hourly(all_slots=True)), [
-            (6, 0, [("Abhishekam", "06:00 AM", 0), ("Ashtotharam", "06:00 AM", 0), ("General slot", "06:00 AM - 07:00 AM", 0)]),
-            (17, 10, [("Ashtotharam", "05:30 PM", 10)]),
-            (19, 1, [("Archana", "07:00 PM - 08:00 PM", 1)]),                      # booked → no extra General row
+            ("06:00", 0, [("Abhishekam", "06:00 AM", 0), ("Ashtotharam", "06:00 AM", 0), ("General slot", "06:00 AM - 07:00 AM", 0)]),
+            ("17:30", 10, [("Ashtotharam", "05:30 PM", 10)]),
+            ("19:00", 1, [("Archana", "07:00 PM - 08:00 PM", 1)]),                 # booked → no extra General row
         ])
         # one pooja: its own slots only (and the General slots only for a pooja without fixed timings)
         self.assertEqual(self.shape(self.hourly(all_slots=True, pooja_id=1)),
-                         [(6, 0, [("Ashtotharam", "06:00 AM", 0)]), (17, 10, [("Ashtotharam", "05:30 PM", 10)])])
-        self.assertEqual(self.shape(self.hourly(all_slots=True, pooja_id=2)), [(6, 0, [("Abhishekam", "06:00 AM", 0)])])
+                         [("06:00", 0, [("Ashtotharam", "06:00 AM", 0)]), ("17:30", 10, [("Ashtotharam", "05:30 PM", 10)])])
+        self.assertEqual(self.shape(self.hourly(all_slots=True, pooja_id=2)), [("06:00", 0, [("Abhishekam", "06:00 AM", 0)])])
         self.assertEqual(self.hourly(all_slots=True)["total"], 11)
 
     def test_tithi_pooja_free_slot_only_on_its_tithi_day(self):
         self.master()
         self.assertNotIn("Satyanarayana Vratam", str(self.shape(self.hourly(all_slots=True))))   # not Pournami
         self.pournami.add(DAY)
-        self.assertIn((18, 0, [("Satyanarayana Vratam", "06:00 PM", 0)]), self.shape(self.hourly(all_slots=True)))
+        self.assertIn(("18:00", 0, [("Satyanarayana Vratam", "06:00 PM", 0)]), self.shape(self.hourly(all_slots=True)))
         self.pournami.clear()
         self.book("Satyanarayana Vratam", "06:00 PM", pooja_id=6)                 # a booking always shows
-        self.assertIn((18, 1, [("Satyanarayana Vratam", "06:00 PM", 1)]), self.shape(self.hourly(all_slots=True)))
+        self.assertIn(("18:00", 1, [("Satyanarayana Vratam", "06:00 PM", 1)]), self.shape(self.hourly(all_slots=True)))
 
-    def test_temple_hours_poojas_are_one_group_first(self):
+    def test_temple_hours_poojas_are_spread_over_their_half_hour_lists(self):
         self.db.add_all([Pooja(id=8, code="P8", name="Namakaranam", category="Occasion"),
                          PoojaPlan(pooja_id=8, plan_name="One-Time", time_slots="06:00 AM - 09:00 PM"),
                          Pooja(id=9, code="P9", name="Abhishekam", category="Daily"),
                          PoojaPlan(pooja_id=9, plan_name="Daily", time_slots="06:30 AM")])
         self.db.commit()
-        self.book("Namakaranam", "06:00 AM - 09:00 PM", pooja_id=8)
-        self.book("Namakaranam", "06:00 AM - 09:00 PM", pooja_id=8)
-        self.book("Abhishekam", "06:30 AM", pooja_id=9)
-        self.assertEqual(self.shape(self.hourly()), [(r.TEMPLE_HOUR, 2, [("Namakaranam", "06:00 AM - 09:00 PM", 2)]),
-                                                     (6, 1, [("Abhishekam", "06:30 AM", 1)])])     # not mixed into 6 AM
-        self.assertEqual(self.hourly()["slot_hours"], [r.TEMPLE_HOUR, 6])
+        self.book("Namakaranam", "06:00 AM - 09:00 PM", pooja_id=8, batch_slot="06:00")   # walk-in at 6:15
+        self.book("Namakaranam", "06:00 AM - 09:00 PM", pooja_id=8, batch_slot="06:30")   # after 6:00 was sent
+        self.book("Abhishekam", "06:30 AM", pooja_id=9, batch_slot="06:30")
+        self.assertEqual(self.shape(self.hourly()), [
+            ("06:00", 1, [("Namakaranam", "06:00 AM - 09:00 PM", 1)]),
+            ("06:30", 2, [("Namakaranam", "06:00 AM - 09:00 PM", 1), ("Abhishekam", "06:30 AM", 1)])])
 
     def test_festival_pooja_free_slot_only_in_its_festival_window(self):
         self.db.add_all([Pooja(id=10, code="P10", name="Karthika Masam Pooja", category="Festival"),
@@ -192,17 +199,25 @@ class HourlySlots(unittest.TestCase):
         self.assertEqual(names(DAY + timedelta(days=5)), {"Karthika Masam Pooja", "Sri Rama Navami"})
         self.assertEqual(names(DAY + timedelta(days=31)), {"Sri Rama Navami"})     # after it
 
-    def test_hour_filter_follows_the_pooja_master(self):
-        self.master()
+    def test_range_runs_from_first_pooja_start_to_last_pooja_end(self):
+        self.master()       # 06:00 AM … Settings 07:00 PM - 08:00 PM is the last end
         self.assertEqual(self.hourly()["hours"], [])                               # nothing booked …
-        self.assertEqual(self.hourly()["slot_hours"], [6, 17, 18, 19])             # … every master hour still offered
-        # the admin adds a new pooja with a new timing: its hour appears at once
-        self.db.add_all([Pooja(id=12, code="P12", name="Hanuman Chalisa", category="Daily"),
-                         PoojaPlan(pooja_id=12, plan_name="Daily", time_slots="02:15 PM")])
+        rng = self.hourly()["range"]                                               # … the day still shows
+        self.assertEqual((rng[0], rng[-1], len(rng)), ("06:00", "19:30", 28))
+        self.assertIn("17:30", rng)
+        # the admin adds poojas at new times: the day extends at once, both ways
+        self.db.add_all([Pooja(id=12, code="P12", name="Suprabhatam", category="Daily"),
+                         PoojaPlan(pooja_id=12, plan_name="Daily", time_slots="05:00 AM"),
+                         Pooja(id=13, code="P13", name="Shej Aarti", category="Daily"),
+                         PoojaPlan(pooja_id=13, plan_name="Daily", time_slots="09:45 PM")])
         self.db.commit()
-        self.assertEqual(self.hourly()["slot_hours"], [6, 14, 17, 18, 19])
-        self.assertIn((14, 0, [("Hanuman Chalisa", "02:15 PM", 0)]), self.shape(self.hourly(all_slots=True)))
-        self.assertEqual(self.hourly(pooja_id=12)["slot_hours"], [14])            # per pooja
+        rng = self.hourly()["range"]
+        self.assertEqual((rng[0], rng[-1]), ("05:00", "21:30"))                   # 9:45 PM → its 9:30–10:00 list
+        self.assertIn(("05:00", 0, [("Suprabhatam", "05:00 AM", 0)]), self.shape(self.hourly(all_slots=True)))
+
+    def test_range_defaults_to_temple_day_without_timings(self):
+        rng = self.hourly()["range"]
+        self.assertEqual((rng[0], rng[-1], len(rng)), ("06:00", "20:30", 30))
 
     def test_slot_hour(self):
         self.assertEqual([r.slot_hour(s) for s in ("05:30 PM", "12:15 AM", "12:00 PM", "09:00 AM - 11:30 AM", "", None, "soon",

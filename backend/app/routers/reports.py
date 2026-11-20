@@ -12,6 +12,7 @@ from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, Wa
                       Festival, Devotee, PoojaPlan, Pooja, Refund, BookingPerformance)
 from ..security import RequireModule, client_ip
 from ..helpers import mask_pan, enforce_rate_limit, fmt_ist_datetime
+from ..helpers import ist_day, ist_paid_day, ist_date_of, ist_today
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 read = RequireModule("Reports")
@@ -90,8 +91,13 @@ def catalog(user=Depends(read)):
 
 
 def _stamp(model):
-    return func.date(func.coalesce(getattr(model, "paid_at", None), model.created_at)) \
-        if hasattr(model, "paid_at") else func.date(model.created_at)
+    """The IST day a record belongs to. Annadanam / Other sales paid_at is IST clock time; an
+    auction's paid_at and every created_at are UTC (2026-11-15)."""
+    if model in (Annadanam, WasteSale):
+        return ist_paid_day(model.paid_at, model.created_at)
+    if hasattr(model, "paid_at"):
+        return ist_day(func.coalesce(model.paid_at, model.created_at))
+    return ist_day(model.created_at)
 
 
 def _daily_summary(db, model, amount_attr, start, end, mode_attr=None, cash_val="Cash", count_persons=None):
@@ -131,14 +137,28 @@ def rep_daily(db, model, amount_attr, start, end, mode_attr, label, subtitle, pe
     return {"title": label, "subtitle": subtitle, "columns": cols, "rows": rows, "total": total}
 
 
+def auction_receipts(db, start, end):
+    from .misc import auction_receipts as _rc
+    return _rc(db, start, end)
+
+
+def hundi_cash(h):
+    from .misc import hundi_cash as _cash
+    return _cash(h)
+
+
 def _live_cond(model):
     """Filter conditions that exclude soft-voided / non-collected records from reports."""
     if model is Donation:
         return (Donation.voided.isnot(True),)
+    if model is Annadanam:
+        return (Annadanam.voided.isnot(True),)
     if model is Auction:
         return (Auction.status != "Void",)
     if model is WasteSale:
         return (WasteSale.status != "Void",)
+    if model is HundiCollection:   # the register lists every status except counts voided by mistake
+        return (HundiCollection.verification_status != "Voided",)
     return ()
 
 
@@ -158,12 +178,12 @@ def _range(model, start, end, db, limit=MAX_REPORT_ROWS):
 # closing figures agree. Unpaid (Pending/Failed) bookings are never income.
 def _paid_bookings(db, start, end, limit=MAX_REPORT_ROWS):
     return (db.query(Booking)
-            .filter(func.date(Booking.created_at).between(start, end), Booking.payment_status == "Paid")
+            .filter(ist_day(Booking.created_at).between(start, end), Booking.payment_status == "Paid")
             .order_by(Booking.id.desc()).limit(limit).all())
 
 
 def _paid_booking_filter(start, end):
-    return (func.date(Booking.created_at).between(start, end), Booking.payment_status == "Paid")
+    return (ist_day(Booking.created_at).between(start, end), Booking.payment_status == "Paid")
 
 
 def _booking_refunds(db, start, end):
@@ -186,7 +206,7 @@ def _is_cash(mode) -> bool:
 
 def _open_sales(db, start, end):
     """Open Sale (Stores) receipts in [start, end] — same day rule as Daily Closing."""
-    return db.query(OpenSale).filter(func.date(OpenSale.sold_at).between(start, end)).order_by(OpenSale.id).all()
+    return db.query(OpenSale).filter(ist_day(OpenSale.sold_at).between(start, end)).order_by(OpenSale.id).all()
 
 
 def mode_label(mode) -> str:
@@ -241,7 +261,7 @@ def generate(report, start, end, db):
         for b in _paid_bookings(db, start, end):
             if not b.created_at:
                 continue
-            r, amt = day(b.created_at.date()), float(b.amount or 0)
+            r, amt = day(ist_date_of(b.created_at)), float(b.amount or 0)
             r["count"] += 1
             r["amount"] += amt
             r["cash" if _is_cash(b.payment_method) else "upi"] += amt
@@ -392,7 +412,7 @@ def generate(report, start, end, db):
 
     if report == "Cancelled Bookings Report":
         rows = (db.query(Booking)
-                .filter(func.date(Booking.created_at).between(start, end), Booking.status == "Cancelled")
+                .filter(ist_day(Booking.created_at).between(start, end), Booking.status == "Cancelled")
                 .order_by(Booking.id.desc()).all())
         ids = [b.id for b in rows]
         refunded = {}
@@ -435,7 +455,7 @@ def generate(report, start, end, db):
         rows = _range(Donation, start, end, db)
         data = [{
             "receipt": d.receipt_no or "-",
-            "date": (d.donated_on or d.created_at.date()).strftime("%d %b %Y"),
+            "date": (d.donated_on or ist_date_of(d.created_at)).strftime("%d %b %Y"),
             "donor": d.donor_name or "-",
             "mobile": d.mobile or "-",
             "category": d.fund or "-",
@@ -479,7 +499,7 @@ def generate(report, start, end, db):
         rows = [d for d in _range(Donation, start, end, db) if d.g80]
         data = [{
             "receipt": d.receipt_no or "-",
-            "date": (d.donated_on or d.created_at.date()).strftime("%d %b %Y"),
+            "date": (d.donated_on or ist_date_of(d.created_at)).strftime("%d %b %Y"),
             "donor": d.donor_name or "-",
             # Phase 1 Security (PRIV-001): Mask PAN in reports
             "pan": mask_pan(d.pan) or "-",
@@ -534,7 +554,7 @@ def generate(report, start, end, db):
                                      "count": 0, "amount": 0.0, "last_date": None})
             a["count"] += 1
             a["amount"] += float(d.amount or 0)
-            dt = d.donated_on or (d.created_at.date() if d.created_at else None)
+            dt = d.donated_on or (ist_date_of(d.created_at) if d.created_at else None)
             if dt and (not a["last_date"] or dt > a["last_date"]):
                 a["last_date"] = dt
         data = sorted(agg.values(), key=lambda x: x["amount"], reverse=True)[:50]  # Top 50
@@ -599,7 +619,7 @@ def generate(report, start, end, db):
         rows = _range(HundiCollection, start, end, db)
         data = [{
             "code": h.code or "-",
-            "date": (h.collected_on or h.created_at.date()).strftime("%d %b %Y"),
+            "date": (h.collected_on or ist_date_of(h.created_at)).strftime("%d %b %Y"),
             "amount": float(h.counted_amount or 0),
             "verified_by": h.verified_by or "-",
             "verification": h.verification_status or "-",
@@ -657,7 +677,7 @@ def generate(report, start, end, db):
         data = [{
             "code": a.code or "-",
             "item": a.item or "-",
-            "date": (a.auction_date or (a.created_at.date() if a.created_at else None)),
+            "date": (a.auction_date or (ist_date_of(a.created_at) if a.created_at else None)),
             "bidders": a.bids or 0,
             "amount": float(a.current_amount or 0),
             "bidder": a.winner or "-",
@@ -737,8 +757,8 @@ def generate(report, start, end, db):
     if report == "Daily Cash Collection":
         # Transaction-level across heads that carry a real payment mode. Cash vs Online
         # buckets only (no invented modes); UTR shown only where the source row has one.
-        # Hundi is included as cash (no per-txn UTR). Auction is excluded — the schema
-        # has no auction payment-mode/UTR, so including it would fabricate data.
+        # Hundi is included as cash (no per-txn UTR). Auction money is counted when paid, by its
+        # payment mode and UTR (2026-11-15).
         tx = []
 
         def add(dobj, ref, head, party, mode, utr, amt, is_cash):
@@ -748,24 +768,27 @@ def generate(report, start, end, db):
                        "amount": amt})
         for b in db.query(Booking).filter(*_paid_booking_filter(start, end)).all():
             m = b.payment_method or "Cash"
-            add(b.created_at.date() if b.created_at else None, b.receipt_no or b.ticket_no or b.booking_code,
+            add(ist_date_of(b.created_at) if b.created_at else None, b.receipt_no or b.ticket_no or b.booking_code,
                 "Pooja Booking", b.devotee_name, m, b.payment_ref, float(b.amount or 0), m == "Cash")
-        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
-            dt = d.donated_on or (d.created_at.date() if d.created_at else None)
+        for d in db.query(Donation).filter(ist_day(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
+            dt = d.donated_on or (ist_date_of(d.created_at) if d.created_at else None)
             add(dt, d.receipt_no, "Donation", d.donor_name, d.mode, d.txn_ref, float(d.amount or 0), d.mode == "Cash")
         for a in db.query(Annadanam).filter(
-                func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)).between(start, end)).all():
+                Annadanam.voided.isnot(True), ist_paid_day(Annadanam.paid_at, Annadanam.created_at).between(start, end)).all():
             dt = (a.paid_at or a.created_at)
             add(dt.date() if dt else None, a.code, "Annadanam", a.donor, a.mode, a.txn_ref, float(a.amount or 0), a.mode == "Cash")
         for s in db.query(WasteSale).filter(
-                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end), WasteSale.status != "Void").all():
+                ist_paid_day(WasteSale.paid_at, WasteSale.created_at).between(start, end), WasteSale.status != "Void").all():
             dt = (s.paid_at or s.created_at)
             add(dt.date() if dt else None, s.code, "Other Sale", s.vendor_name, s.mode, s.txn_ref, float(s.amount or 0), s.mode == "Cash")
         for s in _open_sales(db, start, end):
-            add((s.sold_at.date() if s.sold_at else None), s.receipt_no, "Open Sale (Stores)", s.buyer_name, s.payment_mode, s.payment_ref,
+            add((ist_date_of(s.sold_at) if s.sold_at else None), s.receipt_no, "Open Sale (Stores)", s.buyer_name, s.payment_mode, s.payment_ref,
                 float(s.amount or 0), s.payment_mode == "Cash")
-        for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end)).all():
-            add(h.collected_on, h.code, "Hundi Collection", "Hundi (Anonymous)", "Cash", None, float(h.counted_amount or 0), True)
+        for r in auction_receipts(db, start, end):
+            add(r["day"], r["code"], "Auction", r["buyer"], r["mode"], r["ref"], float(r["amount"]), r["mode"] == "Cash")
+        # Hundi: verified counts, their cash part only (valuables are not cash) — 2026-11-15
+        for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end), HundiCollection.verification_status == "Verified").all():
+            add(h.collected_on, h.code, "Hundi Collection", "Hundi (Anonymous)", "Cash", None, float(hundi_cash(h)), True)
         tx.sort(key=lambda r: r["_d"] or date.min, reverse=True)
         for r in tx:
             r.pop("_d", None)
@@ -825,27 +848,27 @@ def generate(report, start, end, db):
 
     if report == "Receipt Register":
         rows = []
-        for b in db.query(Booking).filter(func.date(Booking.created_at).between(start, end),
+        for b in db.query(Booking).filter(ist_day(Booking.created_at).between(start, end),
                                           Booking.receipt_no.isnot(None)).all():
             rows.append({"_d": b.created_at, "receipt": b.receipt_no,
                          "date": b.created_at.strftime("%d %b %Y") if b.created_at else "-", "type": "Pooja",
                          "party": b.devotee_name, "amount": float(b.amount or 0), "mode": b.payment_method or "Cash"})
-        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
-            dt = d.donated_on or (d.created_at.date() if d.created_at else None)
+        for d in db.query(Donation).filter(ist_day(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
+            dt = d.donated_on or (ist_date_of(d.created_at) if d.created_at else None)
             rows.append({"_d": d.created_at, "receipt": d.receipt_no, "date": dt.strftime("%d %b %Y") if dt else "-",
                          "type": "Donation", "party": d.donor_name, "amount": float(d.amount or 0), "mode": d.mode})
         for a in db.query(Annadanam).filter(
-                func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)).between(start, end)).all():
+                Annadanam.voided.isnot(True), ist_paid_day(Annadanam.paid_at, Annadanam.created_at).between(start, end)).all():
             dt = (a.paid_at or a.created_at)
             rows.append({"_d": dt, "receipt": a.code, "date": dt.strftime("%d %b %Y") if dt else "-",
                          "type": "Annadanam", "party": a.donor, "amount": float(a.amount or 0), "mode": a.mode})
         for s in db.query(WasteSale).filter(
-                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end), WasteSale.status != "Void").all():
+                ist_paid_day(WasteSale.paid_at, WasteSale.created_at).between(start, end), WasteSale.status != "Void").all():
             dt = (s.paid_at or s.created_at)
             rows.append({"_d": dt, "receipt": s.code, "date": dt.strftime("%d %b %Y") if dt else "-",
                          "type": "Other Sale", "party": s.vendor_name, "amount": float(s.amount or 0), "mode": s.mode})
         for s in _open_sales(db, start, end):
-            dt = (s.sold_at.date() if s.sold_at else None)
+            dt = (ist_date_of(s.sold_at) if s.sold_at else None)
             rows.append({"_d": s.sold_at, "receipt": s.receipt_no, "date": dt.strftime("%d %b %Y") if dt else "-",
                          "type": "Open Sale (Stores)", "party": s.buyer_name, "amount": float(s.amount or 0), "mode": s.payment_mode})
         rows.sort(key=lambda r: r["_d"] or datetime.min, reverse=True)
@@ -874,25 +897,23 @@ def generate(report, start, end, db):
             if mk in buckets:
                 buckets[mk][key] += amt
         for b in db.query(Booking).filter(*_paid_booking_filter(start, end)).all():
-            bump(b.created_at.date() if b.created_at else None, "pooja", float(b.amount or 0))
-        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
-            bump(d.donated_on or (d.created_at.date() if d.created_at else None), "donation", float(d.amount or 0))
-        for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end)).all():
+            bump(ist_date_of(b.created_at) if b.created_at else None, "pooja", float(b.amount or 0))
+        for d in db.query(Donation).filter(ist_day(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all():
+            bump(d.donated_on or (ist_date_of(d.created_at) if d.created_at else None), "donation", float(d.amount or 0))
+        for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end), HundiCollection.verification_status == "Verified").all():
             bump(h.collected_on, "hundi", float(h.counted_amount or 0))
-        for a in db.query(Auction).filter(Auction.status != "Void").all():
-            eff = a.auction_date or (a.created_at.date() if a.created_at else None)
-            if eff and start <= eff <= end:
-                bump(eff, "auction", float(a.current_amount or 0))
+        for r in auction_receipts(db, start, end):         # money paid, on the day it was paid
+            bump(r["day"], "auction", float(r["amount"]))
         for a in db.query(Annadanam).filter(
-                func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)).between(start, end)).all():
+                Annadanam.voided.isnot(True), ist_paid_day(Annadanam.paid_at, Annadanam.created_at).between(start, end)).all():
             dt = (a.paid_at or a.created_at)
             bump(dt.date() if dt else None, "annadanam", float(a.amount or 0))
         for s in db.query(WasteSale).filter(
-                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end), WasteSale.status != "Void").all():
+                ist_paid_day(WasteSale.paid_at, WasteSale.created_at).between(start, end), WasteSale.status != "Void").all():
             dt = (s.paid_at or s.created_at)
             bump(dt.date() if dt else None, "waste", float(s.amount or 0))
         for s in _open_sales(db, start, end):
-            bump((s.sold_at.date() if s.sold_at else None), "open_sale", float(s.amount or 0))
+            bump((ist_date_of(s.sold_at) if s.sold_at else None), "open_sale", float(s.amount or 0))
         rows, tot = [], {"pooja": 0.0, "donation": 0.0, "hundi": 0.0, "auction": 0.0,
                          "annadanam": 0.0, "waste": 0.0, "open_sale": 0.0, "total": 0.0}
         for mk, v in buckets.items():
@@ -921,30 +942,29 @@ def generate(report, start, end, db):
         pooja_count = db.query(Booking).filter(*_paid_booking_filter(start, end)).count()
 
         donation_amt = sum(float(d.amount or 0) for d in db.query(Donation).filter(
-            func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all())
+            ist_day(Donation.created_at).between(start, end), Donation.voided.isnot(True)).all())
         donation_count = db.query(Donation).filter(
-            func.date(Donation.created_at).between(start, end), Donation.voided.isnot(True)).count()
+            ist_day(Donation.created_at).between(start, end), Donation.voided.isnot(True)).count()
 
         hundi_amt = sum(float(h.counted_amount or 0) for h in db.query(HundiCollection).filter(
-            HundiCollection.collected_on.between(start, end)).all())
+            HundiCollection.collected_on.between(start, end), HundiCollection.verification_status == "Verified").all())
         hundi_count = db.query(HundiCollection).filter(
-            HundiCollection.collected_on.between(start, end)).count()
+            HundiCollection.collected_on.between(start, end), HundiCollection.verification_status == "Verified").count()
 
-        auction_amt = sum(float(a.current_amount or 0) for a in db.query(Auction).filter(
-            Auction.status == "Completed", Auction.auction_date.between(start, end)).all())
-        auction_count = db.query(Auction).filter(
-            Auction.status == "Completed", Auction.auction_date.between(start, end)).count()
+        _rcpts = auction_receipts(db, start, end)            # money paid in the period (2026-11-15)
+        auction_amt = sum(float(r["amount"]) for r in _rcpts)
+        auction_count = len(_rcpts)
 
         annadanam_amt = sum(float(a.amount or 0) for a in db.query(Annadanam).filter(
-            func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)).between(start, end)).all())
+            Annadanam.voided.isnot(True), ist_paid_day(Annadanam.paid_at, Annadanam.created_at).between(start, end)).all())
         annadanam_count = db.query(Annadanam).filter(
-            func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)).between(start, end)).count()
+            Annadanam.voided.isnot(True), ist_paid_day(Annadanam.paid_at, Annadanam.created_at).between(start, end)).count()
 
         waste_amt = sum(float(s.amount or 0) for s in db.query(WasteSale).filter(
-            func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end),
+            ist_paid_day(WasteSale.paid_at, WasteSale.created_at).between(start, end),
             WasteSale.status != "Void").all())
         waste_count = db.query(WasteSale).filter(
-            func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end),
+            ist_paid_day(WasteSale.paid_at, WasteSale.created_at).between(start, end),
             WasteSale.status != "Void").count()
         osales = _open_sales(db, start, end)
 
@@ -981,7 +1001,7 @@ def generate(report, start, end, db):
             modes[m] = modes.get(m, 0) + float(b.amount or 0)
             mode_counts[m] = mode_counts.get(m, 0) + 1
 
-        for d in db.query(Donation).filter(func.date(Donation.created_at).between(start, end),
+        for d in db.query(Donation).filter(ist_day(Donation.created_at).between(start, end),
                                            Donation.voided.isnot(True)).all():
             m = d.mode or "Cash"
             if m not in modes:
@@ -990,7 +1010,7 @@ def generate(report, start, end, db):
             mode_counts[m] = mode_counts.get(m, 0) + 1
 
         for a in db.query(Annadanam).filter(
-                func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)).between(start, end)).all():
+                Annadanam.voided.isnot(True), ist_paid_day(Annadanam.paid_at, Annadanam.created_at).between(start, end)).all():
             m = a.mode or "Cash"
             if m not in modes:
                 m = "Online" if m != "Cash" else "Cash"
@@ -998,7 +1018,7 @@ def generate(report, start, end, db):
             mode_counts[m] = mode_counts.get(m, 0) + 1
 
         for s in db.query(WasteSale).filter(
-                func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)).between(start, end),
+                ist_paid_day(WasteSale.paid_at, WasteSale.created_at).between(start, end),
                 WasteSale.status != "Void").all():
             m = s.mode or "Cash"
             if m not in modes:
@@ -1011,10 +1031,15 @@ def generate(report, start, end, db):
             modes[m] += float(s.amount or 0)
             mode_counts[m] += 1
 
-        # Add Hundi as cash
-        for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end)).all():
-            modes["Cash"] += float(h.counted_amount or 0)
+        # Hundi as cash: verified counts, their cash part only
+        for h in db.query(HundiCollection).filter(HundiCollection.collected_on.between(start, end), HundiCollection.verification_status == "Verified").all():
+            modes["Cash"] += float(hundi_cash(h))
             mode_counts["Cash"] += 1
+        # Auction money paid in the period, by its payment mode
+        for r in auction_receipts(db, start, end):
+            m = "Cash" if r["mode"] == "Cash" else "Online"
+            modes[m] += float(r["amount"])
+            mode_counts[m] += 1
 
         total_amt = sum(modes.values())
         data = []
@@ -1054,7 +1079,7 @@ def generate_report(report: str, request: Request, start: date | None = None, en
     # Reports can be heavy queries, so rate limiting prevents DoS via repeated report generation
     enforce_rate_limit(db, f"report_generate:{user.username}", limit=60, window_minutes=1,
                        ip=client_ip(request))
-    end = end or date.today()
+    end = end or ist_today()
     start = start or end.replace(day=1)
 
     # Validate date range to prevent excessively large queries

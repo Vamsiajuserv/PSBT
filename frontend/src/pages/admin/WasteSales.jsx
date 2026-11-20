@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, KpiGrid, Pager, inr, num, fmtDate } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pager, inr, num, fmtDate, FilterPanel } from '../../components/admin/ui.jsx'
 import { Receipt, amountInWords } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI, WasteMaterialsAPI } from '../../api/client.js'
@@ -45,6 +45,7 @@ const emptyForm = (mat) => ({ vendor_id: '', vendor_name: '', devotee_id: null, 
 export default function WasteSales() {
   const { lang } = useLang()
   const { user } = useAuth()
+  const isAdmin = ['Admin', 'Administrator'].includes(user?.role)   // only the Administrator enters an earlier payment time
   // Committee only verifies sales; the backend rejects their writes
   const canWrite = !['Accountant', 'Committee'].includes(user?.role)
   // Only Admin, Committee, Accountant can see amounts in reports
@@ -72,7 +73,8 @@ export default function WasteSales() {
   const [loadingExport, setLoadingExport] = useState(false)
 
   // Committee role check for verification
-  const isCommittee = user?.role === 'Committee' || user?.role === 'Admin'
+  // Committee (one member) or the Administrator verifies / rejects a sale
+  const isCommittee = ['Committee', 'Admin', 'Administrator'].includes(user?.role)
 
   // filters - persisted in URL for state preservation across navigation
   const {
@@ -93,6 +95,10 @@ export default function WasteSales() {
     { key: 'mode', label: 'Payment Mode', type: 'text', filterable: true, filterOptions: ['Cash', { value: 'UPI/QR Code', label: 'Online' }] },
     { key: 'verification_status', label: 'Verification', type: 'text', filterable: true, filterOptions: ['Verified', 'Pending', 'Rejected'] },
   ]
+
+  // Columns shown (2026-11-15: the table fits a desktop without sideways scrolling) — date under
+  // the receipt, quantity under the material, payment mode under the amount (mode still filters above)
+  const SHOWN = { code: 'Receipt / Date', buyer_name: 'Buyer Name', material: 'Material / Quantity', amount: 'Amount (₹)', verification_status: 'Verification' }
 
   // Verification status badge
   const statusBadge = (status) => {
@@ -306,6 +312,10 @@ export default function WasteSales() {
       }
     }
     setFieldErrors({})
+    // One UTR rule on every bill (2026-11-15)
+    if (m.mode === 'UPI/QR Code' && !/^[A-Za-z0-9]{6,40}$/.test((m.txn_ref || '').trim())) {
+      toast(tr('The UTR must be 6–40 letters and digits.'), 'error'); return
+    }
 
     setSaving(true)
     try {
@@ -315,7 +325,8 @@ export default function WasteSales() {
         devotee_id: m.devotee_id || null,
         buyer_name: m.buyer_name, mobile: m.mobile, material: m.material, unit: m.unit,
         weight_kg: Number(m.quantity), rate: Number(m.rate), amount,
-        mode: m.mode, txn_ref: m.mode === 'UPI/QR Code' ? (m.txn_ref || null) : null, paid_at: m.paid_at || null,
+        mode: m.mode, txn_ref: m.mode === 'UPI/QR Code' ? (m.txn_ref.trim() || null) : null,
+        paid_at: isAdmin ? (m.paid_at || null) : null,   // Counter Staff: the sale is recorded as paid now
         verified_by: m.verified_by || null,
       })
       setDrawer(null); setDevQ(''); load(); setPrintDoc(created)
@@ -350,6 +361,7 @@ export default function WasteSales() {
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <FilterPanel>
         <div className="px-5 py-5 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Buyer Name / Mobile / Receipt No.</T></label>
@@ -375,6 +387,7 @@ export default function WasteSales() {
           <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button onClick={() => { setFilters({ q: '', material: '', mode: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
+        </FilterPanel>
 
         <SortFilterPanel
           sorts={sorts}
@@ -389,11 +402,11 @@ export default function WasteSales() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-              {sortColumns.map((col) => (
+              {sortColumns.filter((col) => SHOWN[col.key]).map((col) => (
                 <SortableFilterableTh
                   key={col.key}
                   colKey={col.key}
-                  label={tr(col.label)}
+                  label={tr(SHOWN[col.key])}
                   type={col.type}
                   // Number columns: left-aligned like their cells, so the figures sit directly under the
                   // title (a right-aligned title is pushed left by its hidden sort icon).
@@ -414,13 +427,11 @@ export default function WasteSales() {
             <tbody className="divide-y divide-gray-100">
               {displayRows.map((s) => (
                 <tr key={s.id} className={`hover:bg-gray-50/60 ${s.status === 'Void' ? 'opacity-50' : ''}`}>
-                  <td className="px-4 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{s.code}</td>
-                  <td className="px-4 py-3 whitespace-nowrap"><div className="text-gray-700 text-[0.8125rem]">{fmtDate(s.paid_at || s.created_at)}</div><div className="text-[0.6875rem] text-gray-400">{fmtTime(s.paid_at, s.created_at)}</div></td>
+                  <td className="px-4 py-3 whitespace-nowrap"><div className="font-mono text-[0.75rem] text-gray-500">{s.code}</div>
+                    <div className="text-gray-700 text-[0.8125rem]">{fmtDate(s.paid_at || s.created_at)} <span className="text-[0.6875rem] text-gray-400">{fmtTime(s.paid_at, s.created_at)}</span></div></td>
                   <td className="px-4 py-3"><div className="font-semibold text-gray-800">{buyerLabel(s.buyer_name)}</div><div className="text-[0.6875rem] text-gray-400">{s.mobile || ''}</div></td>
-                  <td className="px-4 py-3 text-gray-600">{matLabel(s.material)}</td>
-                  <td className="px-4 py-3 text-gray-700">{money2(s.weight_kg)} {tr(unitShort(s.unit))}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{canSeeAmounts ? `₹${money2(s.amount)}` : '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{modeLabel(s.mode)}</td>
+                  <td className="px-4 py-3 text-gray-700">{matLabel(s.material)}<div className="text-[0.75rem] text-gray-500">{money2(s.weight_kg)} {tr(unitShort(s.unit))}</div></td>
+                  <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{canSeeAmounts ? `₹${money2(s.amount)}` : '—'}<div className="text-[0.75rem] font-normal text-gray-500">{modeLabel(s.mode)}</div></td>
                   <td className="px-4 py-3">{s.status === 'Void' ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold bg-gray-100 text-gray-500"><Ban size={12} /> {tr('Voided')}</span> : statusBadge(s.verification_status)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5 text-gray-800">
@@ -435,7 +446,7 @@ export default function WasteSales() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={9} loading={loading} error={loadErr} onRetry={load} empty={tr("No sales records found.")} />}
+              {rows.length === 0 && <TableStates colSpan={6} loading={loading} error={loadErr} onRetry={load} empty={tr("No sales records found.")} />}
             </tbody>
           </table>
         </div>
@@ -581,12 +592,14 @@ export default function WasteSales() {
                 </div>
                 {drawer.mode === 'UPI/QR Code' && (
                   <div className="mb-4"><label className="label"><T>Online Transaction ID / UTR *</T></label>
-                    <div className="relative"><input required className="input pr-9" placeholder={tr("Enter online transaction ID / UTR")} value={drawer.txn_ref} onChange={(e) => setM({ txn_ref: e.target.value })} />
+                    <div className="relative"><input required maxLength={40} className="input pr-9 font-mono" placeholder={tr("Enter online transaction ID / UTR")} value={drawer.txn_ref} onChange={(e) => setM({ txn_ref: e.target.value.replace(/[^A-Za-z0-9]/g, '') })} />
                       {drawer.txn_ref && <span className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-emerald-500 text-white grid place-items-center"><Check size={12} /></span>}</div>
                   </div>
                 )}
-                <div className="mb-4"><label className="label"><T>Sale / Payment Date & Time *</T></label>
-                  <DateTimeField required value={drawer.paid_at} onChange={(e) => setM({ paid_at: e.target.value })} /></div>
+                {isAdmin
+                  ? <div className="mb-4"><label className="label"><T>Sale / Payment Date & Time *</T></label>
+                      <DateTimeField required value={drawer.paid_at} onChange={(e) => setM({ paid_at: e.target.value })} /></div>
+                  : <div className="mb-4 text-[0.75rem] text-gray-500"><T>Recorded as paid now.</T></div>}
                 <div className="mb-4"><label className="label"><T>Verified By</T></label>
                   <Combobox
                     value={drawer.verified_by || ''}

@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Banknote, Pencil, Undo2, XCircle, Printer, X, Receipt as ReceiptIcon, Info, Search, RotateCcw } from 'lucide-react'
-import { PageTitle, Pill, Pager, inr, fmtDate, fmtStamp } from '../../../components/admin/ui.jsx'
+import { PageTitle, Pill, Pager, inr, fmtDate, fmtStamp, FilterPanel } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
 import { Select, DateField } from '../../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
-import { isCommitteeUser, canSellOrDamage, canDamageStock, isStoresOfficer, staffName, useStoresMeta, sourceRef, DeityBadge } from './shared.jsx'
+import { isCommitteeUser, canSellOrDamage, isStoresOfficer, staffName, useStoresMeta, sourceRef, DeityBadge, StoresTabs } from './shared.jsx'
 import { useTemple } from '../../../lib/SiteContext.jsx'
 
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
@@ -25,7 +25,6 @@ export default function OpenSale() {
   const temple = useTemple()
   const committee = isCommitteeUser(user)
   const canSell = canSellOrDamage(user)
-  const canDamage = canDamageStock(user)
   const { categories, locations } = useStoresMeta()
   const tagged = categories.filter((c) => c.tracking === 'Tagged')
   const [data, setData] = useState(null)
@@ -73,14 +72,6 @@ export default function OpenSale() {
     try { await StoresAPI.openSaleBack(i.id); toast(tr('Back in store.')); changed(); load() }
     catch (ex) { toast(errText(ex, 'Could not take it off sale.'), 'error') }
   }
-  async function damaged(i) {
-    const res = await promptDialog({ title: `${tr('Mark damaged')} — ${i.tag_id}`, tone: 'danger', confirmLabel: tr('Mark damaged'),
-      message: tr('The piece leaves stock for good. Use this only for damaged or lost items.'),
-      fields: [{ k: 'reason', label: tr('Reason'), required: true, placeholder: tr('e.g. Torn, cannot be used') }] })
-    if (!res) return
-    try { await StoresAPI.writeOff(i.id, res.reason.trim()); toast(tr('Marked damaged.')); changed(); load() }
-    catch (ex) { toast(errText(ex, 'Could not mark it damaged.'), 'error') }
-  }
   async function sell(e) {
     e.preventDefault()
     const f = selling
@@ -95,14 +86,13 @@ export default function OpenSale() {
   const items = data?.items || []
   return (
     <div>
-      <PageTitle title={tr('Open Sale')} subtitle={tr('Pieces still unsold after auction, sold at the counter at the price the committee fixed. Unsold pieces stay in stock here.')} />
-      <div className="mb-4 flex items-start gap-2 text-[0.8125rem] text-gray-700 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-3">
-        <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
-        <span><b>{tr('Committee')}:</b> {tr('moves unsold pieces here (Unsold Items) and fixes the price.')} <b>{tr('Counter Staff / Admin')}:</b> {tr('sell at that price, or mark a piece damaged.')}{isStoresOfficer(user) && <> <b>{tr('Stores Officer')}:</b> {tr('marks a piece damaged, or moves it from the Stock Register.')}</>}</span>
-      </div>
+      <StoresTabs group="sales" />
+      <PageTitle title={tr('Open Sale')} subtitle={tr('Pieces still unsold after auction, sold at the counter at the price the committee fixed. Unsold pieces stay in stock here.')}
+        help={<span><b>{tr('Committee')}:</b> {tr('moves unsold pieces here (Unsold Items), fixes the price, or takes a piece back to store.')} <b>{tr('Counter Staff / Admin')}:</b> {tr('sell at that price.')} <b>{tr('Stores Officer')}:</b> {tr('a damaged piece goes back to store first, then "Ask to write off" in the Stock Register.')}</span>} />
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-gray-100 flex justify-between"><h3 className="font-serif text-lg font-bold text-maroon-800"><T>On sale now</T></h3>
           <span className="text-[0.8125rem] text-gray-600">{items.length} {tr('pieces')}</span></div>
+        <FilterPanel>
         <form onSubmit={(e) => { e.preventDefault(); applyOn(fOn) }} className="px-5 py-4 flex flex-wrap items-end gap-3 border-b border-gray-100">
           <div className="flex-1 min-w-[12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search ID, item or donor</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -114,6 +104,7 @@ export default function OpenSale() {
           <button className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button type="button" onClick={() => applyOn(NO_ON)} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </form>
+        </FilterPanel>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
@@ -136,7 +127,6 @@ export default function OpenSale() {
                     {canSell && <button onClick={() => setSelling({ item: i, buyer_name: '', buyer_mobile: '', mode: 'Cash', txn_ref: '' })} title={tr('Sell')} aria-label={tr('Sell')} className="w-8 h-8 grid place-items-center rounded-lg border border-green-200 text-green-700 hover:bg-green-50"><Banknote size={15} /></button>}
                     {committee && <button onClick={() => changePrice(i)} title={tr('Change price')} aria-label={tr('Change price')} className="w-8 h-8 grid place-items-center rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50"><Pencil size={15} /></button>}
                     {committee && <button onClick={() => back(i)} title={tr('Back to store')} aria-label={tr('Back to store')} className="w-8 h-8 grid place-items-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"><Undo2 size={15} /></button>}
-                    {canDamage && <button onClick={() => damaged(i)} title={tr('Mark damaged')} aria-label={tr('Mark damaged')} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><XCircle size={15} /></button>}
                   </div></td>
                 </tr>
               ))}
@@ -149,6 +139,7 @@ export default function OpenSale() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex justify-between"><h3 className="font-serif text-lg font-bold text-maroon-800"><T>Sold in Open Sale</T></h3>
           {sales && <span className="text-[0.8125rem] text-gray-600">{sales.total} {tr('sold')} · <b>{inr(sales.amount)}</b></span>}</div>
+        <FilterPanel>
         <form onSubmit={(e) => { e.preventDefault(); applySold(fSold) }} className="px-5 py-4 flex flex-wrap items-end gap-3 border-b border-gray-100">
           <div className="flex-1 min-w-[12rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search receipt, ID or buyer</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -162,6 +153,7 @@ export default function OpenSale() {
           <button className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button type="button" onClick={() => applySold(NO_SOLD)} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </form>
+        </FilterPanel>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
@@ -210,7 +202,8 @@ export default function OpenSale() {
               <div><label className="label"><T>Payment Mode *</T></label>
                 <Select className="input" value={selling.mode} onChange={(e) => setSelling({ ...selling, mode: e.target.value })}>
                   <option value="Cash">{tr('Cash')}</option><option value="UPI/QR Code">{tr('Online')}</option></Select></div>
-              {selling.mode === 'UPI/QR Code' && <div><label className="label"><T>Transaction Reference *</T></label><input required maxLength={60} className="input" value={selling.txn_ref} onChange={(e) => setSelling({ ...selling, txn_ref: e.target.value })} placeholder={tr('Online transaction ID / UTR')} /></div>}
+              {selling.mode === 'UPI/QR Code' && <div><label className="label"><T>UTR / Transaction Reference *</T></label><input required minLength={6} maxLength={40} pattern="[A-Za-z0-9]{6,40}" className="input font-mono" value={selling.txn_ref} onChange={(e) => setSelling({ ...selling, txn_ref: e.target.value.replace(/[^A-Za-z0-9]/g, '') })} placeholder={tr('Online transaction ID / UTR')} />
+                <div className="text-[0.6875rem] text-gray-400 mt-1"><T>6–40 letters and digits, as on the payment.</T></div></div>}
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button type="button" onClick={() => setSelling(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>

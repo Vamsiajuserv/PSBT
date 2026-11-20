@@ -1,30 +1,24 @@
-import { useEffect, useState } from 'react'
-import { MetalRatesAPI } from '../api/client.js'
-
-// Gold / silver valuation shared by the counter, hundi and store screens. The server works
-// the value out the same way (backend/app/routers/metal_rates.py) and is the source of truth:
-//   estimated value = grams × the day's rate (24K / 999) × purity factor (22K = 0.916 …)
+// Gold / silver helpers shared by the counter, hundi and store screens.
+// The daily Gold & Silver Rate was removed on 2026-11-15 (client decision): gold and silver are kept
+// by grams and description only — no ₹ value. Purity is optional: "Not known" unless a hallmark
+// can be read. The list matches the server (backend/app/routers/metal_rates.py).
 
 export const metalOf = (name) => {
   const n = String(name || '').toLowerCase()
   return n.includes('gold') ? 'Gold' : n.includes('silver') ? 'Silver' : null
 }
 export const isGrams = (unit) => String(unit || '').toLowerCase().includes('gram')
-export const factorOf = (purities, metal, label) => (purities?.[metal] || []).find((p) => p.label === label)?.factor ?? null
+export const PURITY_UNKNOWN = 'Not known'
+// label + factor (the factor is kept only to show values on receipts made before 2026-11-15)
+export const PURITIES = {
+  Gold: [{ label: '24K', factor: 1 }, { label: '22K', factor: 0.916 }, { label: '18K', factor: 0.75 }, { label: '14K', factor: 0.585 }],
+  Silver: [{ label: '999', factor: 1 }, { label: '925', factor: 0.925 }, { label: '800', factor: 0.8 }],
+}
+export const purityOptions = (metal) => [PURITY_UNKNOWN, ...(PURITIES[metal] || []).map((p) => p.label)]
+export const factorOf = (purities, metal, label) => ((purities || PURITIES)?.[metal] || []).find((p) => p.label === label)?.factor ?? null
+// Old receipts only (made with a day's rate): grams × rate × purity, whole rupees
 export const estValue = (grams, rate, factor) => {
   const g = Number(grams), r = Number(rate), f = Number(factor)
-  return g > 0 && r > 0 && f > 0 ? Math.round(g * r * f) : null   // whole rupees, as the server
+  return g > 0 && r > 0 && f > 0 ? Math.round(g * r * f) : null
 }
 export const pct = (factor) => `${(Number(factor) * 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}%`
-
-/** The rates of one day (default today) and the purity table; reload() after a change. */
-export function useMetalDay(day) {
-  const [data, setData] = useState(null)
-  const [tick, setTick] = useState(0)
-  useEffect(() => {
-    let alive = true
-    MetalRatesAPI.day(day).then((d) => alive && setData(d)).catch(() => alive && setData({ rates: {}, purities: {} }))
-    return () => { alive = false }
-  }, [day, tick])
-  return { ...(data || {}), loaded: !!data, reload: () => setTick((t) => t + 1) }
-}

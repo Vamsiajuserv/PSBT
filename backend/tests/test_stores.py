@@ -4,6 +4,8 @@ always balances. Run from backend/:
     python -m unittest discover -s tests -t .
 """
 import unittest
+
+from app.schemas import DonationVoidIn
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
@@ -23,6 +25,15 @@ from app.security import WRITE_MATRIX, MODULES
 def login(username, role):
     return SimpleNamespace(username=username, name=username.title(), role=role)
 
+
+
+def approve_write_off(db, req, item_id, user=None):
+    """2026-11-15: a write-off is a request a Committee member approves (never the requester)."""
+    from types import SimpleNamespace as _NS
+    from app.models import MissingCase
+    from app.routers import stores_issue
+    case = db.query(MissingCase).filter(MissingCase.stock_item_id == item_id, MissingCase.status == "Write-off requested").one()
+    return stores_issue.approve_lost(case.id, req, db, user or _NS(username="committee9", name="Committee9", role="Committee"))
 
 class Stores(unittest.TestCase):
     def setUp(self):
@@ -93,9 +104,9 @@ class Stores(unittest.TestCase):
     def test_void_blocked_once_tagged_and_unit_from_category(self):
         d = self.donation("Cloth / Vastram", 2, "Nos")
         self.tag("Donation", d.id, [{"location_id": 1}])
-        self.assertIn("write them off", self.status(409, lambda: dn.delete_donation(d.id, self.req, self.db, self.admin)))
+        self.assertIn("can no longer be voided", self.status(409, lambda: dn.delete_donation(d.id, DonationVoidIn(reason="test void"), self.req, self.db, self.admin)))
         untagged = self.donation("Cloth / Vastram", 1, "Nos", rid=7)
-        dn.delete_donation(untagged.id, self.req, self.db, self.admin)       # nothing tagged yet: fine
+        dn.delete_donation(untagged.id, DonationVoidIn(reason='test void'), self.req, self.db, self.admin)       # nothing tagged yet: fine
         # staff typed "Nos" on a silver receipt: still tagged by weight (category unit = Grams)
         s = self.donation("Silver", 10, "Nos", rid=8)
         self.assertIn("weight", self.status(422, lambda: self.tag("Donation", s.id, [{"location_id": 2}])))
@@ -162,24 +173,26 @@ class Stores(unittest.TestCase):
         self.assertEqual(r.pending_tagging(self.db, self.counter)["total"], 0)
 
     def test_manual_entry_needs_committee(self):
+        # Manual entries: Stores Officer / Administrator since 2026-11-16 (Counter Staff no longer)
+        self.officer = SimpleNamespace(username="store1", name="Store1", role="Stores Officer", modules="Stores")
         body = r.ManualIn(category_id=1, quantity=2, source="Old stock in store", location_id=1,
                           reason="Found in October audit")
-        m = r.create_manual(body, self.req, self.db, self.counter)
+        m = r.create_manual(body, self.req, self.db, self.officer)
         self.assertEqual(m["status"], "Pending Verification")
         self.assertIn("only after a committee", self.status(409, lambda: self.tag("Manual", m["id"], [{"location_id": 1}])))
-        oil = r.create_manual(r.ManualIn(**{**body.model_dump(), "category_id": 3}), self.req, self.db, self.counter)
+        oil = r.create_manual(r.ManualIn(**{**body.model_dump(), "category_id": 3}), self.req, self.db, self.officer)
         self.assertIsNone(oil["location_id"])                                         # quantity items: a balance, no location
         r.verify_manual(oil["id"], self.req, self.db, self.committee)
         self.assertIn("quantity item", self.status(422, lambda: self.tag("Manual", oil["id"], [{"location_id": 1}])))
         self.assertEqual([p["source_ref"] for p in r.pending_tagging(self.db, self.counter)["items"]], [])  # never in tagging
         self.status(422, lambda: r.create_manual(r.ManualIn(**{**body.model_dump(), "quantity": Decimal("1.5")}),
-                                                 self.req, self.db, self.counter))       # half a pancha
-        with self.assertRaises(ValidationError):
-            r.ManualIn(**{**body.model_dump(), "reason": "abc"})
+                                                 self.req, self.db, self.officer))       # half a pancha
+        self.assertIn("reason", self.status(422, lambda: r.create_manual(r.ManualIn(**{**body.model_dump(), "reason": "abc"}),
+                                                                          self.req, self.db, self.officer)))
         with self.assertRaises(ValidationError):
             r.ManualIn(**{**body.model_dump(), "source": "Found it"})
         # creator cannot verify their own entry
-        self.status(403, lambda: r.verify_manual(m["id"], self.req, self.db, login("counter1", "Committee")))
+        self.status(403, lambda: r.verify_manual(m["id"], self.req, self.db, login("store1", "Committee")))
         m = r.verify_manual(m["id"], self.req, self.db, self.committee)
         self.assertEqual(m["status"], "Verified")
         self.status(409, lambda: r.reject_manual(m["id"], r.ReasonIn(reason="too late now"), self.req, self.db, self.committee))
@@ -202,8 +215,10 @@ class Stores(unittest.TestCase):
         self.assertEqual(moved["location"], "Locker 1")
         with self.assertRaises(ValidationError):
             r.ReasonIn(reason="bad")
-        r.write_off(b["id"], r.ReasonIn(reason="Torn by rats"), self.req, self.db, self.admin)
+        out = r.write_off(b["id"], r.ReasonIn(reason="Torn by rats"), self.req, self.db, self.admin)
+        self.assertEqual(out["status"], r.WRITEOFF_REQ)                          # a request — not written off yet
         self.status(409, lambda: r.move_item(b["id"], r.MoveIn(location_id=2), self.req, self.db, self.counter))
+        approve_write_off(self.db, self.req, b["id"])
         hist = r.item_detail(a["tag_id"].lower(), self.db, self.counter)["history"]
         self.assertEqual([h["action"] for h in hist], ["Tagged", "Moved"])
         self.assertEqual(hist[1]["detail"], "Rack 2 → Locker 1")
@@ -221,6 +236,18 @@ class Stores(unittest.TestCase):
         self.tag("Donation", d.id, [{"location_id": 1}])
         self.assertIn("still kept here", self.status(409, lambda: r.update_location(
             1, r.LocationIn(name="Rack 2", active=False), self.req, self.db, self.admin)))
+        # 2026-11-15: no renaming onto another location's name; a renamed location keeps its hundi custody link
+        self.assertIn("already exists", self.status(409, lambda: r.update_location(
+            1, r.LocationIn(name="MAIN VAULT"), self.req, self.db, self.admin)))
+        from app.models import HundiCollection, StockItem
+        self.db.add(HundiCollection(code="HUN-1", counted_amount=0, store_location="rack 2", valuables_status="In Store"))
+        self.db.commit()
+        r.update_location(1, r.LocationIn(name="Rack 2A"), self.req, self.db, self.admin)
+        self.assertEqual(self.db.query(HundiCollection).one().store_location, "Rack 2A")
+        # a piece out on issue still belongs to the shelf: no deactivating
+        piece = self.db.query(StockItem).one(); piece.status = "Issued"; self.db.commit()
+        self.assertIn("out on issue", self.status(409, lambda: r.update_location(
+            1, r.LocationIn(name="Rack 2A", active=False), self.req, self.db, self.admin)))
 
 
 if __name__ == "__main__":

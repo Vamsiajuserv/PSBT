@@ -22,8 +22,8 @@ from ..database import get_db
 from ..helpers import ist_today, next_code_seq, validate_pagination
 from ..models import IssueLine, IssueSlip, MissingCase, Poojari, StockItem, StockMovement, StoreLocation
 from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
-from .stores import (ISSUED, MISSING, ACT_ISSUED, ACT_RETURNED, ACT_FOUND, DEITY_PURPOSES, _location, _loc_names, _move, _who,
-                     mark_deity_used)
+from .stores import (ISSUED, KEPT, MISSING, WRITEOFF_REQ, ACT_ISSUED, ACT_KEPT, ACT_RETURNED, ACT_FOUND, _location, _loc_names, _move,
+                     _who, mark_deity_used)
 
 router = APIRouter(prefix="/api/stores", tags=["stores-issue-missing"])
 read = RequireModule("Stores")
@@ -31,8 +31,8 @@ custody = RequireRole(STORES_OFFICER)                      # issue / return: Sto
 finder = RequireRole(STORES_OFFICER)                      # mark found, report lost: Stores Officer + Administrator
 committee = RequireRole("Committee")                       # approve / reject a lost write-off (+ Administrator)
 
-PURPOSES = ("Abhishekam", "Alankaram", "Festival", "Procession", "Repair / Polish", "Other")
-OPEN_CASE = ("Missing", "Write-off requested")
+PURPOSES = ("Nithya pooja", "Abhishekam", "Alankaram", "Festival", "Procession", "Repair / Polish", "Other")
+OPEN_CASE = ("Missing", "Write-off requested", "Change requested")
 IST = timedelta(hours=5, minutes=30)
 
 
@@ -59,7 +59,7 @@ class IssueIn(BaseModel):
     issued_to: str = Field(..., min_length=2, max_length=120)
     poojari_id: int | None = None
     purpose: str = Field(..., min_length=2, max_length=80)
-    return_by: date
+    return_by: date | None = None          # optional (2026-11-15): most things come back the same day
     notes: str | None = Field(default=None, max_length=500)
 
     @field_validator("issued_to", "purpose")
@@ -72,9 +72,12 @@ class IssueIn(BaseModel):
 
 
 class ReturnLine(BaseModel):
+    """How one piece ends its issue: back Good / Damaged, or Kept — the poojari / performer keeps it
+    (a pancha after the pooja); then it leaves stock with the reason (never gold / silver)."""
     line_id: int
-    condition: str = Field(default="Good", pattern="^(Good|Damaged)$")
+    condition: str = Field(default="Good", pattern="^(Good|Damaged|Kept)$")
     note: str | None = Field(default=None, max_length=200)
+    weight_g: Decimal | None = Field(default=None, gt=0, le=1000000)   # gold / silver: weighed when it comes back
 
 
 class ReturnIn(BaseModel):
@@ -97,9 +100,9 @@ def _slip_dict(db: Session, s: IssueSlip, names: dict | None = None) -> dict:
                       "return_note": l.return_note, "return_location": names.get(l.return_location_id)})
     out_n = sum(1 for l in s.lines if not l.returned_at)
     return {"id": s.id, "code": s.code, "issued_to": s.issued_to, "poojari_id": s.poojari_id, "purpose": s.purpose,
-            "return_by": str(s.return_by), "notes": s.notes, "status": s.status, "issued_by": s.issued_by,
+            "return_by": str(s.return_by) if s.return_by else None, "notes": s.notes, "status": s.status, "issued_by": s.issued_by,
             "issued_at": _iso(s.issued_at), "lines": lines, "out": out_n, "kit_id": s.kit_id, "kit_name": s.kit_name,
-            "overdue": out_n > 0 and s.return_by < ist_today()}
+            "overdue": out_n > 0 and s.return_by is not None and s.return_by < ist_today()}
 
 
 @router.get("/issue/meta")
@@ -154,10 +157,10 @@ def get_slip(sid: int, db: Session = Depends(get_db), user=Depends(read)):
     return _slip_dict(db, s)
 
 
-def create_slip(db: Session, user, body: IssueIn, kit=None) -> IssueSlip:
-    """Make the slip and mark its pieces Issued (flushed, not committed). A Festival Kit
-    issue passes the kit, which the slip then remembers."""
-    if body.return_by < ist_today():
+def create_slip(db: Session, user, body: IssueIn) -> IssueSlip:
+    """Make the slip and mark its pieces Issued (flushed, not committed). Old slips made from a
+    Festival Kit (removed 2026-11-15) still show its name."""
+    if body.return_by and body.return_by < ist_today():
         raise HTTPException(422, "The return date cannot be in the past.")
     if body.poojari_id and not db.get(Poojari, body.poojari_id):
         raise HTTPException(404, "Poojari not found")
@@ -171,14 +174,14 @@ def create_slip(db: Session, user, body: IssueIn, kit=None) -> IssueSlip:
     seq = next_code_seq(db, "issue_slip", db.query(func.max(IssueSlip.id)).scalar() or 0)
     slip = IssueSlip(code=f"ISS-{seq:04d}", issued_to=body.issued_to, poojari_id=body.poojari_id, purpose=body.purpose,
                      return_by=body.return_by, notes=(body.notes or "").strip() or None, status="Open",
-                     issued_by=_who(user), created_by=user.username,
-                     kit_id=kit.id if kit else None, kit_name=kit.name if kit else None)
+                     issued_by=_who(user), created_by=user.username)
     db.add(slip); db.flush()
     for i in items:
         db.add(IssueLine(slip_id=slip.id, stock_item_id=i.id, tag_id=i.tag_id, from_location_id=i.location_id))
         i.status = ISSUED
         weight = f" · {_qty(i.weight_g)} g" if i.weight_g is not None else ""
-        _move(db, i, user, ACT_ISSUED, f"to {body.issued_to} for {body.purpose}{weight} — {slip.code}, return by {body.return_by}")
+        _move(db, i, user, ACT_ISSUED, f"to {body.issued_to} for {body.purpose}{weight} — {slip.code}"
+                                        + (f", return by {body.return_by}" if body.return_by else ""))
     db.flush()
     return slip
 
@@ -196,11 +199,15 @@ def issue_items(body: IssueIn, request: Request, db: Session = Depends(get_db), 
 
 @router.post("/issue/{sid}/return")
 def return_items(sid: int, body: ReturnIn, request: Request, db: Session = Depends(get_db), user=Depends(custody)):
-    """Take pieces back (all or some). Each goes back to the shelf it left, or the chosen one."""
+    """Close pieces on a slip (all or some): back to the shelf it left (or the chosen one) and
+    marked Used — or Kept by the poojari / performer, which takes it out of stock (reason needed,
+    never gold / silver)."""
+    from .metal_rates import metal_of
     slip = db.query(IssueSlip).filter(IssueSlip.id == sid).with_for_update().first()
     if not slip:
         raise HTTPException(404, "Issue slip not found")
     open_lines = {l.id: l for l in slip.lines if not l.returned_at}
+    weighed = []                      # gold / silver back at another weight: the committee is told
     want = [r.line_id for r in body.lines]
     if len(set(want)) != len(want) or any(lid not in open_lines for lid in want):
         raise HTTPException(409, "Some of these pieces are already back or not on this slip — reload the slip.")
@@ -212,26 +219,50 @@ def return_items(sid: int, body: ReturnIn, request: Request, db: Session = Depen
         item = db.query(StockItem).filter(StockItem.id == line.stock_item_id).with_for_update().first()
         if not item or item.status != ISSUED:
             raise HTTPException(409, f"{line.tag_id} is not out on issue any more — reload the slip.")
+        note = (r.note or "").strip() or None
+        if r.condition == "Kept":
+            if item.weight_g is not None or metal_of(item.item_name):
+                raise HTTPException(422, f"{line.tag_id} is gold / silver — it must come back to the store (or be reported lost).")
+            if not note or len(note) < 3:
+                raise HTTPException(422, f"{line.tag_id}: write why the poojari kept it.")
+            line.returned_at, line.returned_by, line.condition, line.return_note = now, _who(user), "Kept", note
+            item.status = KEPT
+            _move(db, item, user, ACT_KEPT, f"{slip.code} · {slip.issued_to} · {note}")
+            continue
+        # Gold / silver come back on the scale (2026-11-15): another weight than when it went out
+        # (more than 0.01 g) goes to the committee as a weight change — the piece is back in store either way
+        if item.weight_g is not None:
+            if r.weight_g is None:
+                raise HTTPException(422, f"{line.tag_id}: weigh it and enter the weight (g).")
+            if abs(Decimal(str(r.weight_g)) - Decimal(str(item.weight_g))) > Decimal("0.01"):
+                from .stores import request_change
+                weighed.append((request_change(db, item, user, "Weight", {"weight_g": str(r.weight_g)},
+                                               f"Weighed on return of {slip.code}" + (f" · {note}" if note else "")), item))
         dest = to
         if dest is None:
             prev = db.get(StoreLocation, line.from_location_id) if line.from_location_id else None
             if not prev or not prev.active:
                 raise HTTPException(422, f"{line.tag_id}: its old location is not active — choose where to put it back.")
             dest = prev
-        note = (r.note or "").strip() or None
         line.returned_at, line.returned_by, line.condition, line.return_note = now, _who(user), r.condition, note
         line.return_location_id = dest.id
         item.status, item.location_id = "In Store", dest.id
         cond = "Good" if r.condition == "Good" else "Damaged on return"
         _move(db, item, user, ACT_RETURNED, f"{slip.code} · {cond}" + (f" · {note}" if note else "") + f" — back to {dest.name}")
-        if slip.purpose.strip().lower() in DEITY_PURPOSES:      # used by the deity: offered first at auction
-            mark_deity_used(db, item, user, f"{slip.purpose} — {slip.code}" + (f" ({slip.kit_name})" if slip.kit_name else ""))
+        # back from use: marked Used, with what it was used for (any purpose, 2026-11-15)
+        mark_deity_used(db, item, user, f"{slip.purpose} — {slip.code}" + (f" ({slip.kit_name})" if slip.kit_name else ""))
     left = sum(1 for l in slip.lines if not l.returned_at)
     slip.status = "Returned" if left == 0 else "Partly returned"
     db.commit(); db.refresh(slip)
+    if weighed:
+        from .stores import change_alert
+        for case, it in weighed:
+            change_alert(db, case, it, user)
     damaged = [r for r in body.lines if r.condition == "Damaged"]
+    kept = [r for r in body.lines if r.condition == "Kept"]
     log_action(db, username=user.username, action="UPDATE", entity="IssueSlip",
-               detail=f"{slip.code}: {len(body.lines)} piece(s) returned" + (f", {len(damaged)} damaged" if damaged else "")
+               detail=f"{slip.code}: {len(body.lines) - len(kept)} piece(s) returned" + (f", {len(damaged)} damaged" if damaged else "")
+                      + (f", {len(kept)} kept by the poojari" if kept else "")
                       + (f", {left} still out" if left else ""), ip=client_ip(request))
     return _slip_dict(db, slip, names)
 
@@ -256,7 +287,7 @@ class ReasonIn(BaseModel):
 
 def _case_dict(c: MissingCase, item: StockItem | None, names: dict) -> dict:
     since = c.missing_since
-    return {"id": c.id, "stock_item_id": c.stock_item_id, "tag_id": c.tag_id, "check_code": c.check_code,
+    return {"id": c.id, "stock_item_id": c.stock_item_id, "tag_id": c.tag_id, "check_code": c.check_code, "kind": c.kind or "Missing",
             "item_name": item.item_name if item else None, "description": item.description if item else None,
             "weight_g": float(item.weight_g) if item and item.weight_g is not None else None,
             "est_value": float(item.est_value) if item and item.est_value is not None else None,
@@ -267,6 +298,16 @@ def _case_dict(c: MissingCase, item: StockItem | None, names: dict) -> dict:
             "report_reason": c.report_reason, "decided_by": c.decided_by, "decided_at": _iso(c.decided_at),
             "decision_note": c.decision_note, "found_by": c.found_by, "found_at": _iso(c.found_at),
             "found_location": names.get(c.found_location_id), "found_note": c.found_note}
+
+
+def _alert(db: Session, stage: str, c: MissingCase, item: StockItem | None, user, what: str | None = None,
+           reason: str | None = None) -> None:
+    """Stores approvals in the bell (2026-11-15): asked → Committee; decided → cleared for every member;
+    rejected → Stores Officer + Administrator."""
+    from ..staff_alerts import stores_alert
+    stores_alert(db, stage, entity="MissingCase", entity_id=c.id, actor=user,
+                 params={"tag": c.tag_id, "item": (item.description or item.item_name) if item else None,
+                         "kind": c.kind, "what": what, "reason": reason})
 
 
 def _open_case(db: Session, cid: int) -> tuple[MissingCase, StockItem]:
@@ -293,7 +334,7 @@ def list_missing(status: str = "open", db: Session = Depends(get_db), user=Depen
     page, size = validate_pagination(page, size)
     query = db.query(MissingCase)
     query = (query.filter(MissingCase.status.in_(OPEN_CASE)).order_by(MissingCase.missing_since, MissingCase.id) if status == "open"
-             else query.filter(MissingCase.status.in_(("Found", "Lost"))).order_by(MissingCase.id.desc()))
+             else query.filter(MissingCase.status.in_(("Found", "Lost", "Rejected", "Approved"))).order_by(MissingCase.id.desc()))
     if q.strip():
         like = f"%{q.strip()}%"
         matching = db.query(StockItem.id).filter(or_(StockItem.tag_id.ilike(like), StockItem.item_name.ilike(like),
@@ -363,23 +404,41 @@ def report_lost(cid: int, body: ReasonIn, request: Request, db: Session = Depend
     db.commit()
     log_action(db, username=user.username, action="UPDATE", entity="MissingCase",
                detail=f"{c.tag_id}: lost write-off requested — {body.reason[:120]}", ip=client_ip(request))
+    _alert(db, "write_off", c, item, user, what="Missing — reported lost", reason=body.reason)
     return _case_dict(c, item, _loc_names(db))
 
 
 @router.post("/missing/{cid}/approve")
 def approve_lost(cid: int, request: Request, db: Session = Depends(get_db), user=Depends(committee)):
-    """Committee approves: the piece is written off as lost."""
+    """Committee approves: the piece is written off (lost / damaged) — or, for a gold / silver change, the
+    asked weight / purity is applied."""
     c, item = _open_case(db, cid)
-    if c.status != "Write-off requested":
-        raise HTTPException(409, "No write-off is waiting for approval on this case.")
-    if c.reported_by_user == user.username:
-        raise HTTPException(403, "The person who asked for the write-off cannot approve it.")
+    if c.kind not in ("Correction", "Weight"):
+        if c.status != "Write-off requested":
+            raise HTTPException(409, "No write-off is waiting for approval on this case.")
+        if c.reported_by_user == user.username:
+            raise HTTPException(403, "The person who asked for the write-off cannot approve it.")
+    if c.kind in ("Correction", "Weight"):           # a gold / silver change: apply it
+        if c.status != "Change requested":
+            raise HTTPException(409, "No change is waiting for approval on this case.")
+        if c.reported_by_user == user.username:
+            raise HTTPException(403, "The person who asked for the change cannot approve it.")
+        from .stores import apply_change
+        c.status, c.decided_by, c.decided_at = "Approved", _who(user), _utcnow()
+        apply_change(db, item, c, user)
+        db.commit()
+        log_action(db, username=user.username, action="UPDATE", entity="MissingCase",
+                   detail=f"{c.tag_id}: change approved (asked by {c.reported_by})", ip=client_ip(request))
+        _alert(db, "decided", c, item, user)
+        return _case_dict(c, item, _loc_names(db))
+    damaged = (c.kind or "Missing") == "Damaged"
     c.status, c.decided_by, c.decided_at = "Lost", _who(user), _utcnow()
     item.status, item.open_sale_price = "Written Off", None
-    _move(db, item, user, "Written off", f"Lost — {c.report_reason} (approved by {_who(user)})")
+    _move(db, item, user, "Written off", f"{'Damaged' if damaged else 'Lost'} — {c.report_reason} (approved by {_who(user)})")
     db.commit()
     log_action(db, username=user.username, action="UPDATE", entity="MissingCase",
                detail=f"{c.tag_id}: written off as lost (asked by {c.reported_by})", ip=client_ip(request))
+    _alert(db, "decided", c, item, user)
     return _case_dict(c, item, _loc_names(db))
 
 
@@ -387,13 +446,29 @@ def approve_lost(cid: int, request: Request, db: Session = Depends(get_db), user
 def reject_lost(cid: int, body: ReasonIn, request: Request, db: Session = Depends(get_db), user=Depends(committee)):
     """Committee rejects the write-off: the piece stays Missing and the search goes on."""
     c, item = _open_case(db, cid)
+    if c.kind in ("Correction", "Weight") and c.status == "Change requested":
+        if c.reported_by_user == user.username:
+            raise HTTPException(403, "The person who asked for the change cannot decide on it.")
+        c.status, c.decided_by, c.decided_at, c.decision_note = "Rejected", _who(user), _utcnow(), body.reason
+        _move(db, item, user, "Change rejected", f"{body.reason} ({_who(user)})")
+        db.commit()
+        log_action(db, username=user.username, action="UPDATE", entity="MissingCase",
+                   detail=f"{c.tag_id}: change rejected — {body.reason[:120]}", ip=client_ip(request))
+        _alert(db, "rejected", c, item, user, what="Gold / silver change", reason=body.reason)
+        return _case_dict(c, item, _loc_names(db))
     if c.status != "Write-off requested":
         raise HTTPException(409, "No write-off is waiting for approval on this case.")
     if c.reported_by_user == user.username:
         raise HTTPException(403, "The person who asked for the write-off cannot decide on it.")
-    c.status, c.decided_by, c.decided_at, c.decision_note = "Missing", _who(user), _utcnow(), body.reason
+    if (c.kind or "Missing") == "Damaged":      # a damaged piece: the write-off is refused — it stays in store
+        c.status, c.decided_by, c.decided_at, c.decision_note = "Rejected", _who(user), _utcnow(), body.reason
+        if item.status == WRITEOFF_REQ:
+            item.status = "In Store" if item.location_id else "Awaiting Placement"
+    else:
+        c.status, c.decided_by, c.decided_at, c.decision_note = "Missing", _who(user), _utcnow(), body.reason
     _move(db, item, user, "Write-off rejected", f"{body.reason} ({_who(user)})")
     db.commit()
     log_action(db, username=user.username, action="UPDATE", entity="MissingCase",
                detail=f"{c.tag_id}: lost write-off rejected — {body.reason[:120]}", ip=client_ip(request))
+    _alert(db, "rejected", c, item, user, what="Write-off", reason=body.reason)
     return _case_dict(c, item, _loc_names(db))

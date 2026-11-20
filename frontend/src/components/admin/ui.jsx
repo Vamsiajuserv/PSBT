@@ -1,6 +1,6 @@
 import React from 'react'
 import { useLang, tr, clock12 } from '../../i18n/LanguageContext.jsx'
-import { Search } from 'lucide-react'
+import { Search, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import FitText from '../common/FitText.jsx'
 
 // Shared admin design-system primitives — matches the Dashboard / Bookings /
@@ -75,17 +75,33 @@ export function Pill({ tone = 'gray', children }) {
   return <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${PILL_TONES[tone] || PILL_TONES.gray}`}>{children}</span>
 }
 
-export function PageTitle({ title, subtitle, actions }) {
+export function PageTitle({ title, subtitle, actions, help }) {
   const { t } = useLang()
+  const [open, setOpen] = React.useState(false)
   title = typeof title === 'string' ? t(title) : title
   subtitle = typeof subtitle === 'string' ? t(subtitle) : subtitle
+  help = typeof help === 'string' ? t(help) : help
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
-      <div>
-        <h1 className="font-serif text-2xl font-bold text-maroon-700">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 mb-4">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <h1 className="font-serif text-2xl font-bold text-maroon-700">{title}</h1>
+          {/* ⓘ: the page's description and how-to, opened on demand (2026-11-15) — they used to take
+              a banner's worth of space on every visit */}
+          {(subtitle || help) && (
+            <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} title={t('About this page')} aria-label={t('About this page')}
+              className={`${help ? '' : '2xl:hidden'} w-6 h-6 shrink-0 grid place-items-center rounded-full border text-[0.75rem] font-bold font-serif transition ${open ? 'bg-maroon-700 border-maroon-700 text-cream' : 'border-gray-300 text-gray-500 hover:border-maroon-300 hover:text-maroon-700'}`}>i</button>)}
+        </div>
+        {/* The one-line description only on wide screens — on a laptop / phone the space goes to the data */}
+        {subtitle && <p className="hidden 2xl:block text-sm text-gray-500 mt-1">{subtitle}</p>}
+        {open && (subtitle || help) && (
+          <div className="mt-2 max-w-3xl text-[0.8125rem] text-gray-700 bg-blue-50/60 border border-blue-100 rounded-lg px-3.5 py-2.5 space-y-1">
+            {subtitle && <p className="2xl:hidden">{subtitle}</p>}
+            {help && <div>{help}</div>}
+          </div>)}
       </div>
-      {actions && <div className="flex gap-2 shrink-0">{actions}</div>}
+      {/* Buttons: one line you can swipe on a phone; wrap on wider screens */}
+      {actions && <div className="page-actions flex flex-nowrap sm:flex-wrap items-center gap-2 sm:justify-end overflow-x-auto sm:overflow-visible -mx-1 px-1 pb-0.5 sm:p-0 sm:m-0 [&>*]:flex-nowrap sm:[&>*]:flex-wrap [&>*]:shrink-0">{actions}</div>}
     </div>
   )
 }
@@ -117,35 +133,103 @@ export function KpiCard({ icon: Icon, iconBg = 'bg-blue-50', iconColor = '#2563e
 
 // KPI tile matching the reference screens: pastel circular icon on the left,
 // uppercase micro-title, large number, muted subtitle underneath.
-export function StatTile({ icon: Icon, color = '#8a1c1c', bg = 'bg-maroon-50', title, value, sub, onClick }) {
+// ── Figures above a list (2026-11-15) ─────────────────────────────────────────
+// KpiGrid decides how its StatTiles look:
+//   strip  (default) — one slim line of figures; a sideways-swipe row on a phone
+//   chips  — status counts you click to filter the list (pass onClick + active)
+//   note   — one small line of text (setup screens)
+//   cards  — compact cards, for overview pages where the figures are the content
+const KpiLook = React.createContext('cards')
+
+export function StatTile({ icon: Icon, color = '#8a1c1c', bg = 'bg-maroon-50', title, value, sub, onClick, active }) {
   const { t } = useLang()
+  const look = React.useContext(KpiLook)
   title = typeof title === 'string' ? t(title) : title
   sub = typeof sub === 'string' ? t(sub) : sub
   const clickable = typeof onClick === 'function'
+  const keys = clickable ? { role: 'button', tabIndex: 0, onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } } : {}
+  const hint = typeof sub === 'string' ? sub : undefined
+  if (look === 'note') {
+    return <span className="whitespace-nowrap" title={hint}>{title} <b className="text-gray-700 tabular-nums">{value}</b></span>
+  }
+  if (look === 'chips') {
+    return (
+      <button type="button" onClick={onClick} title={hint} aria-pressed={!!active}
+        className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.8125rem] font-semibold whitespace-nowrap transition ${active
+          ? 'bg-maroon-700 border-maroon-700 text-cream' : 'bg-white border-gray-200 text-gray-700 hover:border-maroon-300 hover:text-maroon-700'}`}>
+        {Icon && <Icon size={14} aria-hidden="true" style={active ? undefined : { color }} />}
+        {title}
+        <span className={`min-w-[1.5rem] px-1.5 rounded-full text-[0.75rem] tabular-nums ${active ? 'bg-cream/20' : 'bg-gray-100 text-gray-800'}`}>{value}</span>
+      </button>
+    )
+  }
+  if (look === 'strip') {
+    return (
+      <div onClick={onClick} title={hint} aria-label={clickable ? `${title}: ${value}` : undefined} {...keys}
+        className={`shrink-0 inline-flex items-center gap-2.5 bg-white rounded-lg border border-gray-100 shadow-sm pl-2.5 pr-3.5 py-2 min-w-0 ${clickable ? 'cursor-pointer hover:border-maroon-200 hover:shadow focus:outline-none focus:ring-2 focus:ring-maroon-500' : ''}`}>
+        <span className={`w-7 h-7 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={14} aria-hidden="true" /></span>
+        <span className="leading-tight min-w-0">
+          <span className="block text-[0.625rem] uppercase tracking-wide text-gray-600 font-semibold whitespace-nowrap">{title}</span>
+          <span className="block text-[0.9375rem] font-extrabold text-gray-800 tabular-nums whitespace-nowrap">{value}</span>
+        </span>
+      </div>
+    )
+  }
   return (
-    <div onClick={onClick} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
-      aria-label={clickable ? `${title}: ${value}` : undefined}
-      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
-      className={`bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5 overflow-hidden h-full flex flex-col ${clickable ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-2' : ''}`}>
+    <div onClick={onClick} aria-label={clickable ? `${title}: ${value}` : undefined} {...keys}
+      className={`bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4 overflow-hidden h-full flex flex-col ${clickable ? 'cursor-pointer transition hover:shadow-md hover:border-maroon-200 focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:ring-offset-2' : ''}`}>
       <div className="flex items-center gap-3 flex-1">
-        <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={18} aria-hidden="true" /></div>
+        <div className={`w-9 h-9 rounded-full grid place-items-center shrink-0 ${bg}`} style={{ color }}><Icon size={17} aria-hidden="true" /></div>
         <div className="min-w-0 flex-1">
           <div className="text-[0.625rem] sm:text-[0.6875rem] uppercase tracking-wide text-gray-600 font-semibold leading-tight">{title}</div>
-          <FitText className="text-base sm:text-lg xl:text-xl font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums">{value}</FitText>
+          <FitText className="text-base sm:text-lg font-extrabold text-gray-800 leading-tight mt-0.5 tabular-nums">{value}</FitText>
         </div>
       </div>
-      <div className="text-[0.6875rem] sm:text-[0.75rem] text-gray-600 mt-2 sm:mt-3 leading-tight min-h-[1rem]">{sub || '\u00A0'}</div>
+      {sub ? <div className="text-[0.6875rem] sm:text-[0.75rem] text-gray-600 mt-1.5 leading-tight">{sub}</div> : null}
     </div>
   )
 }
 
-// Row of KPI cards. Columns follow the width actually available (see .kpi-grid
-// in index.css): cards wrap onto an even second row instead of being squeezed.
-export function KpiGrid({ children, className = 'mb-6', ...rest }) {
-  const n = React.Children.toArray(children).length
+// The figures above a list. Columns of `cards` follow the width actually available (.kpi-grid
+// in index.css); a strip / chips row wraps on a laptop and swipes sideways on a phone.
+export function KpiGrid({ children, className, variant = 'strip', label, ...rest }) {
+  const n = React.Children.toArray(children).filter(Boolean).length
+  if (variant === 'cards') {
+    return (
+      <KpiLook.Provider value="cards">
+        <div className={`kpi-wrap ${className ?? 'mb-4'}`}>
+          <div className="kpi-grid" data-n={Math.min(n, 6)} {...rest}>{children}</div>
+        </div>
+      </KpiLook.Provider>
+    )
+  }
+  if (variant === 'note') {
+    return (
+      <KpiLook.Provider value="note">
+        <p className={`text-[0.75rem] text-gray-500 flex flex-wrap gap-x-4 gap-y-1 ${className ?? 'mb-3'}`} {...rest}>{children}</p>
+      </KpiLook.Provider>
+    )
+  }
   return (
-    <div className={`kpi-wrap ${className}`}>
-      <div className="kpi-grid" data-n={Math.min(n, 6)} {...rest}>{children}</div>
+    <KpiLook.Provider value={variant === 'chips' ? 'chips' : 'strip'}>
+      <div role="group" aria-label={label} className={`kpi-strip ${className ?? 'mb-4'}`} {...rest}>{children}</div>
+    </KpiLook.Provider>
+  )
+}
+
+// Filters on a phone fold behind one "Filters (n)" button; on a tablet / laptop they show as before.
+export function FilterPanel({ active = 0, children, className = '' }) {
+  const { t } = useLang()
+  const [open, setOpen] = React.useState(false)
+  return (
+    <div className={className}>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className="md:hidden w-full flex items-center justify-between gap-2 px-4 py-3 text-[0.875rem] font-semibold text-gray-700">
+        <span className="inline-flex items-center gap-2"><SlidersHorizontal size={16} />{t('Filters')}
+          {active > 0 && <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-maroon-700 text-cream text-[0.6875rem] grid place-items-center">{active}</span>}</span>
+        <ChevronDown size={16} className={`transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={open ? '' : 'hidden md:block'}>{children}</div>
     </div>
   )
 }

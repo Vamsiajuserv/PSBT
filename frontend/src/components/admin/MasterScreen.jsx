@@ -152,7 +152,7 @@ export default function MasterScreen({ config }) {
 
       {statCards.length > 0 && (
         /* KpiGrid picks the column count from the tile count and available width. */
-        <KpiGrid>
+        <KpiGrid variant="note">
           {statCards.map((c) => (
             <StatTile key={c.key} icon={c.icon} color={c.color} bg={c.bg} title={tr(c.title)}
               value={stats ? num(stats[c.key]) : '—'} sub={tr(c.sub)} />

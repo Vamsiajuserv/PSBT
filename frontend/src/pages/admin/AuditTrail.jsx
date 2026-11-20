@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { ScrollText, Activity, LogIn, Users, Search, RotateCcw, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
-import { PageTitle, StatTile, KpiGrid, Pill, num, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, num, fmtStamp, FilterPanel } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { AuditAPI } from '../../api/client.js'
 import { Select, DateField } from '../../components/common/Field.jsx'
@@ -100,7 +100,7 @@ export default function AuditTrail() {
     <div>
       <PageTitle title={tr("Audit Trail")} subtitle={tr("Immutable log of every action performed in the system.")} />
 
-      <KpiGrid>
+      <KpiGrid variant="note">
         <StatTile icon={ScrollText} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Events")} value={stats ? num(stats.total) : '—'} sub={tr("All logged actions")} />
         <StatTile icon={Activity} color="#2563eb" bg="bg-blue-50" title={tr("Today")} value={stats ? num(stats.today) : '—'} sub={tr("Events today")} />
         <StatTile icon={LogIn} color="#059669" bg="bg-emerald-50" title={tr("Logins")} value={stats ? num(stats.logins) : '—'} sub={tr("Total sign-ins")} />
@@ -108,6 +108,7 @@ export default function AuditTrail() {
       </KpiGrid>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <FilterPanel>
         <div className="px-5 py-5 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
@@ -123,6 +124,7 @@ export default function AuditTrail() {
           <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button type="button" onClick={() => { setFilters({ q: '', action: '', entity: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
+        </FilterPanel>
         <SortFilterPanel
           sorts={sorts}
           filters={filters}

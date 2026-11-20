@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.helpers import ist_today
 from app.models import (Base, Donation, DonationCategory, HundiCollection, HundiCollectionItem, Setting, StoreLocation,
-                        StoreReceipt)
+                        StoreReceipt, CommitteeMember)
 from app.routers import misc, stores as r, stores_day as sd, stores_receive as sr
 from app.schemas import HundiStoreIn
 
@@ -73,23 +73,28 @@ class Receive(unittest.TestCase):
         rt = next(x for x in sr.router.routes if x.path == path and method in x.methods)
         return next(d for d in rt.dependant.dependencies if d.name == "user").call
 
-    def test_old_receipts_are_taggable_as_before(self):
-        self.assertIsNone(self.pending()["RCPT-1"]["progress"]["receive"])
-        self.tag(1, 3)
-        self.assertNotIn("RCPT-1", self.pending())
-        self.status(409, lambda: self.receive(1, 3))
+    def test_any_receipt_is_tagged_straight_away(self):
+        # Receive at store was merged into tagging (2026-11-15): nothing waits to be "received"
+        self.assertEqual((self.pending()["RCPT-1"]["progress"]["receive"], self.pending()["RCPT-2"]["progress"]["receive"]),
+                         (None, None))
+        self.tag(1, 3); self.tag(2, 5)
+        self.assertNotIn("RCPT-1", self.pending()); self.assertNotIn("RCPT-2", self.pending())
+        self.assertEqual(r.pending_count(self.db, self.officer)["to_receive"], 0)
+        self.status(422, lambda: self.tag(2))                               # never more than the receipt
 
     def test_no_cutoff_setting_means_the_step_is_off(self):
         self.db.query(Setting).delete(); self.db.commit()
         self.tag(2, 5)
         self.assertEqual(r.pending_count(self.db, self.officer)["to_receive"], 0)
 
-    def test_must_receive_before_tagging(self):
-        p = self.pending()["RCPT-2"]["progress"]
-        self.assertEqual((p["receive"]["state"], p["needed"]), ("To receive", 0))
-        self.assertIn("Receive this receipt", self.status(409, lambda: self.tag(2)))
-        c = r.pending_count(self.db, self.officer)
-        self.assertEqual((c["to_receive"], c["shortages"]), (2, 0))
+    def test_fewer_arrived_is_recorded_while_tagging(self):
+        self.tag(2, 2)                                                       # 2 of 5 tagged, then only 4 turn up
+        self.assertIn("already tagged", self.status(422, lambda: self.receive(2, 1, reason="Counted wrong at counter")))
+        out = self.receive(2, 4, reason="Counted wrong at counter")
+        self.assertEqual((out["status"], out["short_code"], out["short"]), ("Short", "SHT-0001", 1))
+        self.tag(2, 2)
+        self.status(422, lambda: self.tag(2))                               # the 5th never arrived
+        self.assertEqual(r.pending_count(self.db, self.officer)["shortages"], 1)
 
     def test_full_receive_then_tag(self):
         out = self.receive(2, 5)
@@ -206,6 +211,7 @@ class HundiReceive(unittest.TestCase):
             DonationCategory(id=1, code="CAT-1", name="Gold", type="Material", unit="Grams", tracking="Tagged", id_prefix="GLD"),
             DonationCategory(id=2, code="CAT-2", name="Silver", type="Material", unit="Grams", tracking="Tagged", id_prefix="SLV"),
             StoreLocation(id=1, code="LOC-0001", name="Main Vault", active=True),
+            CommitteeMember(id=1, code="CM-0001", name="K. Srinivas", active=True),   # the custodian is a member (2026-11-15)
         ])
         for hid, required in ((1, True), (2, None)):
             self.db.add(HundiCollection(id=hid, code=f"HUN-2026-0000{hid}", counted_amount=0, verification_status="Verified",
@@ -243,18 +249,25 @@ class HundiReceive(unittest.TestCase):
         self.status(409, lambda: sr.receive_hundi(2, sr.HundiReceiveIn(lines=[sr.HundiLineIn(line_id=21, quantity=5)]),
                                                   self.req, self.db, self.officer))
 
-    def test_store_custody_now_needs_receiving(self):
+    def test_store_custody_is_tagged_straight_away(self):
         h = self.db.get(HundiCollection, 2)
         h.valuables_status, h.store_receive_required = "Pending Custody", None
         self.db.commit()
         misc.store_hundi_valuables(2, HundiStoreIn(store_location="Main Vault", custodian="K. Srinivas"), self.req, self.db, self.counter)
-        self.assertTrue(self.db.get(HundiCollection, 2).store_receive_required)
-        self.assertEqual(self.state("HUN-2026-00002"), "To receive")
+        self.assertIsNone(self.state("HUN-2026-00002"))                     # no separate receive step (2026-11-15)
+        self.tag(2, 21, 1, 5)
 
-    def test_must_receive_before_tagging(self):
-        self.assertEqual(self.state(), "To receive")
-        self.assertIn("Receive this receipt", self.status(409, lambda: self.tag(1, 11, 1, 10)))
-        self.assertEqual(r.pending_count(self.db, self.officer)["to_receive"], 1)
+    def test_value_only_line_is_tagged_once(self):
+        # Jewellery counted only by value (no count / weight): its pieces are tagged together, once (2026-11-15)
+        two = [r.TagRow(hundi_line_id=13, category_id=1, weight_g=Decimal("3"), location_id=1) for _ in range(2)]
+        r.tag_items(r.TagIn(source_type="Hundi", source_id=1, rows=two), self.req, self.db, self.counter)
+        self.assertIn("tagged together, once", self.status(409, lambda: r.tag_items(
+            r.TagIn(source_type="Hundi", source_id=1, rows=[two[0]]), self.req, self.db, self.counter)))
+
+    def test_hundi_is_tagged_without_a_receive_step(self):
+        self.assertIsNone(self.state())
+        self.tag(1, 11, 1, 10)
+        self.assertEqual(r.pending_count(self.db, self.officer)["to_receive"], 0)
 
     def test_full_receive_then_tag(self):
         out = self.receive()

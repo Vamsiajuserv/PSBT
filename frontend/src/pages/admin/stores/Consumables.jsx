@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { X, MinusCircle, BookOpen, Plus, CalendarDays, Ban, Printer, Receipt as ReceiptIcon, ShoppingCart, Trash2, Pencil, AlertTriangle, RotateCcw } from 'lucide-react'
+import { X, MinusCircle, BookOpen, Plus, CalendarDays, Ban, Printer, Receipt as ReceiptIcon, Trash2, Pencil, AlertTriangle, RotateCcw, ClipboardCheck } from 'lucide-react'
 import { PageTitle, Pill, fmtDate, fmtStamp } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
 import { NumberField, DateField, Combobox, Select } from '../../../components/common/Field.jsx'
-import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
+import { promptDialog, confirmDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, getLang } from '../../../i18n/LanguageContext.jsx'
-import { canWriteStores, canManageStores, staffName, storeDetail, sourceRef, sourceSplit } from './shared.jsx'
+import { canWriteStores, canManageStores, isAdminUser, staffName, storeDetail, sourceRef, sourceSplit } from './shared.jsx'
 import { useTemple } from '../../../lib/SiteContext.jsx'
 
 const PURPOSES = ['Nithya Pooja – Deepam', 'Abhishekam', 'Annadanam', 'Prasadam', 'Festival', 'Homam', 'Other']
@@ -45,8 +45,12 @@ export default function Consumables() {
   const [tab, setTab] = useState('balance')
   const navigate = useNavigate()
 
+  // Physical count: shortages waiting for a committee member (never the one who counted)
+  const [pending, setPending] = useState([])
+  const canDecideCount = user?.role === 'Committee' || isAdminUser(user)
   const load = useCallback(() => {
     setLoading(true); setLoadErr('')
+    StoresAPI.countPending().then((r) => setPending(r.items || [])).catch(() => setPending([]))
     return StoresAPI.consumables().then(setData)
       .catch((ex) => { setLoadErr(errText(ex, "Couldn't load — check your connection and retry.")); setData(null) })
       .finally(() => setLoading(false))
@@ -80,6 +84,34 @@ export default function Consumables() {
     try { await StoresAPI.cancelUse(entry.id, res.reason.trim()); toast(tr('Cancelled.')); load(); changed(); openLedger(ledger.category_id) }
     catch (ex) { toast(errText(ex, 'Could not cancel the entry.'), 'error') }
   }
+  // Count what is on the shelf: matches / short (committee approves) / extra (manual entry, committee verifies)
+  async function countItem(i) {
+    const res = await promptDialog({ title: `${tr('Count stock')} — ${tr(i.name)}`, confirmLabel: tr('Save count'),
+      message: `${tr('In the book')}: ${q3(i.remaining)} ${tr(i.unit || '')}. ${tr('Enter what is actually there.')}`,
+      fields: [{ k: 'counted', label: `${tr('Counted')} (${tr(i.unit || '')})`, type: 'number', required: true },
+               { k: 'note', label: tr('Note'), placeholder: tr('e.g. Monthly count, Store Room B') }] })
+    if (!res) return
+    try {
+      const r = await StoresAPI.countStock(i.category_id, { counted: Number(res.counted), note: (res.note || '').trim() || null })
+      toast(r.result === 'Matches' ? tr('The count matches the book.')
+        : r.result === 'Short' ? `${r.code}: ${q3(-r.difference)} ${tr(i.unit || '')} ${tr('short — sent to the committee.')}`
+          : `${r.code}: ${q3(r.difference)} ${tr(i.unit || '')} ${tr('extra — sent to the committee to verify.')}`)
+      load(); changed()
+    } catch (ex) { toast(errText(ex, 'Could not save the count.'), 'error') }
+  }
+  async function decideShortage(p, ok) {
+    if (ok) {
+      if (!(await confirmDialog({ title: `${tr('Approve shortage')} — ${p.code}`, confirmLabel: tr('Approve'),
+        message: `${tr(p.item)}: ${q3(p.quantity)} ${tr(p.unit || '')} ${tr('comes off the balance.')} ${tr(p.notes || '')}` }))) return
+      try { await StoresAPI.approveShortage(p.id); toast(tr('Approved.')); load() } catch (ex) { toast(errText(ex, 'Could not approve.'), 'error') }
+    } else {
+      const res = await promptDialog({ title: `${tr('Reject shortage')} — ${p.code}`, tone: 'danger', confirmLabel: tr('Reject'),
+        fields: [{ k: 'reason', label: tr('Reason'), required: true, placeholder: tr('e.g. Recount tomorrow') }] })
+      if (!res) return
+      try { await StoresAPI.rejectShortage(p.id, res.reason.trim()); toast(tr('Rejected.')); load() } catch (ex) { toast(errText(ex, 'Could not reject.'), 'error') }
+    }
+  }
+
   async function writeOff(i) {
     const res = await promptDialog({ title: `${tr('Write off expired')} — ${tr(i.name)}`, tone: 'danger', confirmLabel: tr('Write off'),
       message: `${q3(i.expired_left)} ${tr(i.unit || '')} ${tr('is past its expiry date. It is taken out of stock and shown in the ledger as "Expired — written off".')}`,
@@ -111,13 +143,17 @@ export default function Consumables() {
   return (
     <div>
       <PageTitle title={tr('Consumables Stock')} subtitle={tr('Oil, ghee, rice and other items used in the temple — received, used and what is left.')}
+        help={tr('Stock already in the store is entered once as an opening balance (Manual Entries), verified by the committee.')}
         actions={canWrite && <Link to="/admin/stores/manual" className="btn-outline !py-2.5"><Plus size={16} />{' '}<T>Opening balance / manual entry</T></Link>} />
 
-      {data && (
-        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[0.8125rem] bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5 text-gray-700">
-          <CalendarDays size={15} className="text-blue-600" />
-          <span>{tr('Donations are counted from')} <b>{fmtDate(data.start_date)}</b>. {tr('Stock already in the store is entered once as an opening balance (Manual Entries), verified by the committee.')}</span>
-          {isAdmin && startEdit === null && <button onClick={() => setStartEdit(data.start_date)} className="text-maroon-700 font-semibold hover:underline"><T>Change</T></button>}
+      <div className="flex flex-wrap items-center gap-1 mb-3">
+        {[['balance', 'Balance'], ['batches', 'Batches & Expiry']].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 rounded-lg text-[0.8125rem] font-semibold ${tab === k ? 'bg-maroon-700 text-cream' : 'text-gray-600 hover:bg-gray-100'}`}>{tr(l)}</button>))}
+        {data && (
+        <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.75rem] text-gray-500">
+          <CalendarDays size={13} className="text-blue-600" />
+          <span>{tr('Donations are counted from')} <b className="text-gray-700">{fmtDate(data.start_date)}</b></span>
+          {isAdminUser(user) && startEdit === null && <button onClick={() => setStartEdit(data.start_date)} className="text-maroon-700 font-semibold hover:underline"><T>Change</T></button>}
           {isAdmin && startEdit !== null && (
             <form onSubmit={saveStart} className="flex items-center gap-2">
               <div className="w-[10rem]"><DateField required max={todayISO()} value={startEdit} onChange={(e) => setStartEdit(e.target.value)} className="input !py-1.5" /></div>
@@ -126,13 +162,24 @@ export default function Consumables() {
             </form>
           )}
         </div>
-      )}
-
-      <div className="flex gap-1 mb-3">
-        {[['balance', 'Balance'], ['batches', 'Batches & Expiry']].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 rounded-lg text-[0.8125rem] font-semibold ${tab === k ? 'bg-maroon-700 text-cream' : 'text-gray-600 hover:bg-gray-100'}`}>{tr(l)}</button>))}
+        )}
       </div>
 
+      {pending.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/70 px-4 py-3 text-[0.8125rem]">
+          <div className="font-semibold text-amber-900 mb-1.5"><AlertTriangle size={14} className="inline mr-1" />{tr('Stock count shortages waiting for the committee')}</div>
+          {pending.map((p) => (
+            <div key={p.id} className="flex flex-wrap items-center gap-2 py-1 border-t border-amber-100 first:border-0">
+              <span className="font-mono text-[0.75rem]">{p.code}</span><b>{tr(p.item)}</b>
+              <span>{tr('short')} {q3(p.quantity)} {tr(p.unit || '')}</span>
+              <span className="text-gray-600 text-[0.75rem]">{tr(p.notes || '')} — {staffName(p.created_by)}</span>
+              {canDecideCount && p.created_by !== user?.username && (
+                <span className="ml-auto flex gap-1.5">
+                  <button onClick={() => decideShortage(p, true)} className="h-7 px-2.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-[0.75rem] font-semibold">{tr('Approve')}</button>
+                  <button onClick={() => decideShortage(p, false)} className="h-7 px-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-[0.75rem] font-semibold">{tr('Reject')}</button>
+                </span>)}
+            </div>))}
+        </div>)}
       {tab === 'batches' ? <Batches canEdit={isAdmin} /> : (
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
@@ -156,8 +203,8 @@ export default function Consumables() {
                 <td className="px-4 py-3"><div className="flex gap-1.5 flex-nowrap">
                   <button onClick={() => openLedger(i.category_id)} title={tr('Ledger')} aria-label={tr('Ledger')} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700"><BookOpen size={15} /></button>
                   {canWrite && i.remaining > 0 && <button onClick={() => setUseFor({ item: i, quantity: '', purpose: '', issued_to: '', used_on: todayISO(), notes: '' })} title={tr('Record use')} aria-label={tr('Record use')} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><MinusCircle size={15} /></button>}
+                  {isAdmin && <button onClick={() => countItem(i)} title={tr('Count stock')} aria-label={tr('Count stock')} className="w-8 h-8 grid place-items-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"><ClipboardCheck size={15} /></button>}
                   {isAdmin && i.expired_left > 0 && <button onClick={() => writeOff(i)} title={tr('Write off expired')} aria-label={tr('Write off expired')} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}
-                  {isAdmin && i.low && <button onClick={() => navigate(`/admin/stores/purchase?new=${i.category_id}`)} title={tr('Raise purchase request')} className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 text-[0.75rem] font-semibold whitespace-nowrap"><ShoppingCart size={14} />{tr('Raise request')}</button>}
                 </div></td>
               </tr>
             ))}

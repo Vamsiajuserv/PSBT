@@ -5,17 +5,18 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Plus, Eye, Printer, Search, RotateCcw, Minus, Check, User, X,
-  UtensilsCrossed, Users, IndianRupee, HeartHandshake,
+  UtensilsCrossed, Users, IndianRupee, HeartHandshake, Ban,
 } from 'lucide-react'
-import { toast } from '../../../components/common/Dialog.jsx'
+import { toast, promptDialog } from '../../../components/common/Dialog.jsx'
+import { isAdminRole } from '../../../auth/access.js'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../../components/common/SortableTable.jsx'
-import { StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate } from '../../../components/admin/ui.jsx'
+import { StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, FilterPanel } from '../../../components/admin/ui.jsx'
 import { Receipt, amountInWords } from '../../../components/common/Receipt.jsx'
 import { AnnadanamAPI, DevoteesAPI, SettingsAPI, FestivalsAPI } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
 import ExportButtons from '../../../components/common/ExportButtons.jsx'
-import { Select, DateField, DateTimeField, NumberField, Combobox } from '../../../components/common/Field.jsx'
+import { Select, DateField, DateTimeField, Combobox } from '../../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang, getLang, stamp } from '../../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../../hooks/useUrlState.js'
 import { useTemple } from '../../../lib/SiteContext.jsx'
@@ -168,16 +169,22 @@ export function AnnadanamReceiptModal({ doc, onClose }) {
 // it is its own <form> with a sticky footer. A registered devotee is required.
 export function AnnadanamForm({ onSaved, onCancel }) {
   const { lang } = useLang()
+  const { user } = useAuth()
+  const isAdmin = isAdminRole(user)
   const [m, setForm] = useState(() => emptyForm())
+  const [backdays, setBackdays] = useState(7)
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState('')
 
   // configurable rate + festival names for the occasion dropdown
   const [festivals, setFestivals] = useState([])
-  const touchedRate = useRef(false)
+  // The rate per person is the temple's (Settings › Donations & Payments) — the server applies it
   useEffect(() => {
     SettingsAPI.config()
-      .then((c) => { if (!touchedRate.current) setForm((f) => ({ ...f, rate: Number(c?.annadanam_rate) || RATE })) })
+      .then((c) => {
+        setForm((f) => ({ ...f, rate: Number(c?.annadanam_rate) || RATE }))
+        if (Number.isInteger(c?.donation_backdate_days)) setBackdays(c.donation_backdate_days)
+      })
       .catch(() => {})
     FestivalsAPI.list()
       .then((r) => setFestivals(Array.isArray(r) ? r : (r.items || [])))
@@ -199,14 +206,18 @@ export function AnnadanamForm({ onSaved, onCancel }) {
   async function save(e) {
     e.preventDefault()
     if (saving || !m.devotee) return
+    if (m.mode === 'UPI/QR Code' && !/^[A-Za-z0-9]{6,40}$/.test((m.txn_ref || '').trim())) {
+      setSaveErr(tr('The UTR must be 6–40 letters and digits.')); return
+    }
     setSaving(true); setSaveErr('')
     const rate = Number(m.rate) || 0
     try {
       const created = await AnnadanamAPI.create({
         devotee_id: m.devotee.id, donor: m.devotee.name, mobile: m.devotee.mobile,
         plates: Number(m.persons), rate, amount: Number(m.persons) * rate,
-        mode: m.mode, txn_ref: m.mode === 'UPI/QR Code' ? (m.txn_ref || null) : null,
-        paid_at: m.paid_at || null, scheduled_on: m.scheduled_on || null,
+        mode: m.mode, txn_ref: m.mode === 'UPI/QR Code' ? ((m.txn_ref || '').trim() || null) : null,
+        // Counter Staff: now; the Administrator may enter an earlier time (Settings: days back)
+        paid_at: isAdmin ? (m.paid_at || null) : null, scheduled_on: m.scheduled_on || null,
         occasion: m.occasion || 'General',
       })
       onSaved(created)
@@ -266,8 +277,9 @@ export function AnnadanamForm({ onSaved, onCancel }) {
               </div>
             </div>
             <div>
-              <label className="label"><T>Rate per plate (₹) *</T></label>
-              <NumberField required min="0" step="1" prefix="₹" className="h-11" value={m.rate} onChange={(e) => { touchedRate.current = true; setM({ rate: e.target.value }) }} />
+              <label className="label"><T>Rate per plate (₹)</T></label>
+              <div className="input h-11 bg-gray-50 flex items-center font-semibold text-gray-800" aria-readonly="true">₹{num(m.rate)}</div>
+              <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('Set in Settings › Donations & Payments.')}</div>
             </div>
           </div>
           <div className="mt-4">
@@ -310,7 +322,10 @@ export function AnnadanamForm({ onSaved, onCancel }) {
             </div>
           )}
           <div className="mb-4"><label className="label"><T>Payment Date & Time *</T></label>
-            <DateTimeField required value={m.paid_at} onChange={(e) => setM({ paid_at: e.target.value })} /></div>
+            {isAdmin && backdays > 0
+              ? <><DateTimeField required value={m.paid_at} onChange={(e) => setM({ paid_at: e.target.value })} />
+                  <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('Administrator: up to {n} days back (Settings › Donations & Payments).').replace('{n}', backdays)}</div></>
+              : <div className="input bg-gray-50 text-gray-700" aria-readonly="true">{tr('Now')} — {stamp(new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }))}</div>}</div>
           <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl px-4 py-3.5 flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center shrink-0"><IndianRupee size={17} /></div>
             <div className="flex-1">
@@ -413,6 +428,19 @@ export function AnnadanamRegister() {
     }
   }, [reloadTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Administrator voids a wrong receipt (2026-11-15): kept as voided with the reason, out of collections
+  async function voidOne(a) {
+    const res = await promptDialog({
+      title: `${tr('Void receipt')} ${a.code}?`,
+      message: tr('The receipt stays in the register as voided and drops out of collections. This cannot be undone.'),
+      tone: 'danger', confirmLabel: tr('Void receipt'), cancelLabel: tr('Keep receipt'),
+      fields: [{ k: 'reason', label: tr('Reason'), required: true, placeholder: tr('Why is this receipt being voided?') }],
+    })
+    if (!res) return
+    try { await AnnadanamAPI.void(a.id, res.reason.trim()); toast(tr('Receipt voided.')); load() }
+    catch (ex) { toast(ex?.detail || tr('Could not void this receipt.'), 'error') }
+  }
+
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
     try {
@@ -453,6 +481,7 @@ export function AnnadanamRegister() {
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <FilterPanel>
         <div className="px-5 py-5 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee Name / Mobile / Receipt No.</T></label>
@@ -475,6 +504,7 @@ export function AnnadanamRegister() {
           <button onClick={() => { setFilters({ q: '', mode: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
           <ExportButtons title={tr("Annadanam Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />
         </div>
+        </FilterPanel>
 
         <SortFilterPanel
           sorts={sorts}
@@ -525,6 +555,7 @@ export function AnnadanamRegister() {
                     <div className="flex items-center gap-2">
                       <button onClick={() => setPrintDoc(a)} title={tr("View receipt on screen")} aria-label={tr("View receipt on screen")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
                       <button onClick={() => printAnnadanamReceipt(a, temple)} title={tr("Print receipt directly")} aria-label={tr("Print receipt directly")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Printer size={15} /></button>
+                      {isAdminRole(user) && <button onClick={() => voidOne(a)} title={tr("Void receipt")} aria-label={tr("Void receipt")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-700 hover:border-red-300"><Ban size={15} /></button>}
                     </div>
                   </td>
                 </tr>

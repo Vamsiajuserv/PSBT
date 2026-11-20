@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Poojari, Booking, BookingPerformance
 from ..schemas import PoojariCreate, PoojariUpdate
-from ..security import RequireModule, require_admin, log_action, client_ip
+from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
 from ..helpers import gen_code, ist_today, ist_now, normalize_slot, parse_slot_bounds
+from .almanac import off_tithi_ids
 
 router = APIRouter(prefix="/api/poojaris", tags=["poojaris"])
 
@@ -185,6 +186,8 @@ def queue(day: date | None = None, start: date | None = None, end: date | None =
     if mine:
         q = q.filter(Booking.poojari_id == me) if me else q.filter(False)
     bookings = q.order_by(Booking.time_slot, Booking.id).all()
+    off = off_tithi_ids(db, bookings, day)          # Sai Vratam: only on Pournami
+    bookings = [b for b in bookings if b.id not in off]
     perfs = {p.booking_id: p for p in db.query(BookingPerformance).filter(
         BookingPerformance.performed_on == day,
         BookingPerformance.booking_id.in_([b.id for b in bookings] or [0]))}
@@ -272,50 +275,72 @@ def _performed_on(db: Session, pooja, plan, day: date, fest_cache: dict) -> bool
     return True
 
 
-def _add_free_slots(db: Session, hours: dict, master: list, open_timing: bool, day: date) -> None:
+def _add_free_slots(db: Session, halves: dict, master: list, open_timing: bool, day: date) -> None:
     """Every Pooja Master slot performed on `day` (0 devotees if nobody booked it), and the
-    Settings slots once each ("General slot") for plans without fixed timings."""
+    Settings slots once each ("General slot") for plans without fixed timings — each in the
+    half-hour its time starts in."""
     from .settings import time_slots
+    from ..pooja_batches import floor_half
     cache = {}
     for pooja, plan, sl in master:
-        if _performed_on(db, pooja, plan, day, cache):
-            hours.setdefault(slot_hour(sl), {}).setdefault((pooja.id, sl), {
+        bounds = parse_slot_bounds(sl)
+        if bounds and _performed_on(db, pooja, plan, day, cache):
+            halves.setdefault(floor_half(bounds[0]), {}).setdefault((pooja.id, sl), {
                 "pooja_id": pooja.id, "pooja": pooja.name, "slot": sl, "poojaris": set(), "devotees": []})
     if open_timing:
         for sl in time_slots(db):
-            h = slot_hour(sl)
-            if h is None or any(x["slot"] == sl for x in hours.get(h, {}).values()):
+            bounds = parse_slot_bounds(sl)
+            if not bounds:
+                continue
+            h = floor_half(bounds[0])
+            if any(x["slot"] == sl for x in halves.get(h, {}).values()):
                 continue                       # a booking already shows this time
-            hours.setdefault(h, {})[(GENERAL_SLOT, sl)] = {
+            halves.setdefault(h, {})[(GENERAL_SLOT, sl)] = {
                 "pooja_id": None, "pooja": GENERAL_SLOT, "slot": sl, "poojaris": set(), "devotees": []}
+
+
+def _sent_dict(d) -> dict | None:
+    if not d:
+        return None
+    return {"sent_at": d.sent_at.strftime("%H:%M") if d.sent_at else None, "sent_by": d.sent_by,
+            "sent_by_name": d.sent_by_name or d.sent_by, "count": d.devotee_count}
 
 
 @router.get("/hourly")
 def hourly_slots(day: date | None = None, mine: bool = False, pooja_id: int | None = None, all_slots: bool = False,
                  db: Session = Depends(get_db), user=Depends(read)):
-    """The day's due poojas in 1-hour windows (by each pooja's slot), with the devotees of
-    every slot — the Bookings "Hourly slots" view, its print sheet, and the poojari's hourly
-    alert. Each slot names the poojari responsible: the booking's own, else the one the
-    Poojari Schedule gives that pooja / day / slot. mine=true (a poojari) keeps the slots
-    they are responsible for, plus unassigned ones nobody is scheduled for (anyone may do those).
+    """The day's due poojas in half-hour pooja lists (each booking's `batch_slot`, see
+    app/pooja_batches.py), with the devotees of every slot — the Bookings "Half-hour slots"
+    view, its print sheet and Print & Send (a record only: the printed list is handed over by hand).
+    Each half-hour says whether its list was sent to the poojari (`sent`) and how many devotees
+    were added after sending (`late`). `range` = every half-hour from the first pooja start to
+    the last pooja end in the Pooja Master (read live, so a new timing extends it).
+    Each slot names the poojari responsible: the booking's own, else the one the Poojari
+    Schedule gives that pooja / day / slot. mine=true (a poojari) keeps the slots they are
+    responsible for, plus unassigned ones nobody is scheduled for (anyone may do those).
     all_slots=true also lists every Pooja Master slot performed that day with 0 devotees, and
-    each Settings slot once as a "General slot" (poojas without fixed timings) — so free slots
-    show too. A tithi plan's slot shows only on its tithi day, a festival pooja's only inside
-    its festival window. `slot_hours` = every hour any Pooja Master timing falls in (the Hour
-    filter), so a new pooja / timing appears there as soon as it is saved."""
+    each Settings slot once as a "General slot" (poojas without fixed timings). A tithi plan's
+    slot shows only on its tithi day, a festival pooja's only inside its festival window."""
     from .schedules import scheduled_poojari
+    from ..pooja_batches import batch_of, range_halves, sent_map, to_min, fmt, HALF, NO_LIST_CATEGORIES
     day = day or ist_today()
     me = user.poojari_id if user.role == "Poojari" else None
     q = _due_on(db, day)
     if pooja_id:
         q = q.filter(Booking.pooja_id == pooja_id)
     bookings = q.order_by(Booking.id).all()
+    off = off_tithi_ids(db, bookings, day)          # Sai Vratam: only on Pournami
+    bookings = [b for b in bookings if b.id not in off]
     done = {p.booking_id for p in db.query(BookingPerformance).filter(
         BookingPerformance.performed_on == day, BookingPerformance.booking_id.in_([b.id for b in bookings] or [0]))}
     names = {p.id: p.name for p in db.query(Poojari).all()}
+    sent = sent_map(db, day)
+    sent_ids = {h: {int(x) for x in (d.booking_ids or "").split(",") if x.strip().isdigit()} for h, d in sent.items()}
     sched = {}
-    hours = {}
+    halves = {}
     for b in bookings:
+        if (b.category or "") in NO_LIST_CATEGORIES:
+            continue                        # festival / vehicle: no slot, on no list (seen in the queue)
         who = b.poojari_id
         if not who:
             k = (b.pooja_id, b.time_slot)
@@ -325,8 +350,8 @@ def hourly_slots(day: date | None = None, mine: bool = False, pooja_id: int | No
             who = sched[k]
         if mine and (not me or (who is not None and who != me)):
             continue
-        h = slot_hour(b.time_slot)
-        slot = hours.setdefault(h, {}).setdefault((b.pooja_id or b.seva_name, b.time_slot or ""), {
+        h = batch_of(b)
+        slot = halves.setdefault(h, {}).setdefault((b.pooja_id or b.seva_name, b.time_slot or ""), {
             "pooja_id": b.pooja_id, "pooja": b.seva_name, "slot": b.time_slot, "poojaris": set(), "devotees": []})
         if who:
             slot["poojaris"].add(names.get(who, b.poojari_name or ""))
@@ -335,39 +360,89 @@ def hourly_slots(day: date | None = None, mine: bool = False, pooja_id: int | No
             "devotee_name": b.devotee_name, "beneficiary_name": b.beneficiary_name, "mobile": b.mobile,
             "gothram": b.gothram, "nakshatram": b.nakshatram, "rasi": b.rasi, "plan": b.plan_name,
             "special_notes": b.special_notes, "poojari_name": names.get(who) if who else None,
-            "done": b.id in done})
+            "done": b.id in done, "late": h in sent and b.id not in sent_ids[h]})
 
     master, open_timing = _master_slots(db, pooja_id)
     if all_slots:
-        _add_free_slots(db, hours, master, open_timing, day)
+        _add_free_slots(db, halves, master, open_timing, day)
+    for h in sent:                      # a sent list stays visible even if its bookings moved
+        halves.setdefault(h, {})
 
     def start_of(slot):
         bounds = parse_slot_bounds(slot["slot"])
         return (bounds[0] if bounds else time.max, slot["pooja"] or "")
 
     out = []
-    for h in sorted(hours, key=lambda x: (x is None, x or 0)):
-        slots = sorted(hours[h].values(), key=start_of)
+    for h in sorted(halves, key=lambda x: (x is None, x or "")):
+        slots = sorted(halves[h].values(), key=start_of)
         for sl in slots:
             sl["poojaris"] = sorted(n for n in sl["poojaris"] if n)
             sl["devotees"].sort(key=lambda d: (d["ticket_no"] or "", d["booking_id"]))
             sl["count"] = len(sl["devotees"])
-        out.append({"hour": h, "total": sum(sl["count"] for sl in slots), "slots": slots})
+        out.append({"start": h, "end": fmt(to_min(h) + HALF) if h else None,
+                    "total": sum(sl["count"] for sl in slots), "slots": slots, "sent": _sent_dict(sent.get(h)),
+                    "late": sum(1 for sl in slots for d in sl["devotees"] if d["late"])})
     me_rec = db.get(Poojari, me) if me else None
+    rng = sorted(set(range_halves(db)) | {x["start"] for x in out if x["start"]})
     return {"day": str(day), "mine": mine, "poojari_id": me, "poojari_name": me_rec.name if me_rec else None,
-            "linked": bool(me_rec), "hours": out, "total": sum(x["total"] for x in out),
-            "slot_hours": _slot_hours(db, master, open_timing, out)}
+            "linked": bool(me_rec), "hours": out, "total": sum(x["total"] for x in out), "range": rng}
 
 
-def _slot_hours(db: Session, master: list, open_timing: bool, out: list) -> list:
-    """Hour filter options: every hour a Pooja Master timing (or, for plans without fixed
-    timings, a Settings slot) falls in, plus any hour a booking shows — Temple hours first."""
-    from .settings import time_slots
-    found = {slot_hour(sl) for _, _, sl in master}
-    if open_timing:
-        found |= {slot_hour(sl) for sl in time_slots(db)}
-    found |= {x["hour"] for x in out}
-    return sorted(found, key=lambda x: (x is None, x if x is not None else 0))
+class SlotSendIn(BaseModel):
+    slot: str
+    day: date | None = None
+
+
+# Counter Staff hand the half-hour list to the poojari; only the Administrator may take it back.
+send_role = RequireRole("Counter Staff")
+
+
+@router.post("/slots/send")
+def send_slot(body: SlotSendIn, request: Request, db: Session = Depends(get_db), user=Depends(send_role)):
+    """Print & Send: mark today's half-hour list as handed to the poojari. From now on new
+    walk-in bookings go to the next half-hour. Records who sent it and the bookings on it."""
+    from ..models import SlotDispatch
+    from ..pooja_batches import parse_half, batch_of, label
+    h = parse_half(body.slot)
+    if h is None:
+        raise HTTPException(422, "Choose a half-hour slot (e.g. 06:30).")
+    day = body.day or ist_today()
+    if day != ist_today():
+        raise HTTPException(422, "Only today's pooja lists can be sent to the poojari.")
+    if db.query(SlotDispatch).filter(SlotDispatch.day == day, SlotDispatch.slot_start == h).first():
+        raise HTTPException(409, f"The {label(h)} list was already sent to the poojari.")
+    due = [b for b in _due_on(db, day).order_by(Booking.id).all() if batch_of(b) == h]
+    off = off_tithi_ids(db, due, day)               # Sai Vratam: only on Pournami
+    ids = [b.id for b in due if b.id not in off]
+    if not ids:
+        raise HTTPException(409, f"No devotees in the {label(h)} list — nothing to send.")
+    d = SlotDispatch(day=day, slot_start=h, devotee_count=len(ids), booking_ids=",".join(map(str, ids)),
+                     sent_by=user.username, sent_by_name=getattr(user, "name", None) or user.username,
+                     sent_at=ist_now().replace(second=0, microsecond=0))
+    db.add(d)
+    db.commit()
+    log_action(db, username=user.username, action="SEND", entity="PoojaList",
+               detail=f"{day} {label(h)} sent to poojari ({len(ids)} devotees)", ip=client_ip(request))
+    return {"day": str(day), "start": h, "sent": _sent_dict(d)}
+
+
+@router.post("/slots/undo")
+def undo_slot(body: SlotSendIn, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    """Administrator only: take back a sent half-hour list (it opens for new bookings again)."""
+    from ..models import SlotDispatch
+    from ..pooja_batches import parse_half, label
+    h = parse_half(body.slot)
+    if h is None:
+        raise HTTPException(422, "Choose a half-hour slot (e.g. 06:30).")
+    day = body.day or ist_today()
+    d = db.query(SlotDispatch).filter(SlotDispatch.day == day, SlotDispatch.slot_start == h).first()
+    if not d:
+        raise HTTPException(404, f"The {label(h)} list has not been sent.")
+    db.delete(d)
+    db.commit()
+    log_action(db, username=user.username, action="UNDO", entity="PoojaList",
+               detail=f"{day} {label(h)} send undone", ip=client_ip(request))
+    return {"day": str(day), "start": h, "sent": None}
 
 
 @router.post("/queue/complete-due")
@@ -397,7 +472,12 @@ def complete_due(body: dict | None = None, request: Request = None,
     elif body.get("poojari_id"):
         q = q.filter(Booking.poojari_id == int(body["poojari_id"]))
     completed, skipped = 0, []
-    for b in q.all():
+    due = q.all()
+    off = off_tithi_ids(db, due, day)
+    for b in due:
+        if b.id in off:                              # Sai Vratam on a non-Pournami day
+            skipped.append({"id": b.id, "code": b.booking_code, "reason": "not its tithi day"})
+            continue
         allowed = b.performances_allowed
         if allowed is not None and (b.performances_done or 0) >= allowed:
             skipped.append({"id": b.id, "code": b.booking_code, "reason": "quota exhausted"})

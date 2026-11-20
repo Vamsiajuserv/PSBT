@@ -16,7 +16,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..helpers import assert_txn_date_open, next_code_seq, validate_pagination
+from ..helpers import assert_txn_date_open, assert_utr, ist_today, next_code_seq, validate_pagination
 from ..models import DonationCategory, OpenSale, StockItem, StockMovement, StoreLocation
 from ..security import RequireModule, RequireRole, log_action, client_ip, get_current_user
 from .stores import _item_dict, _loc_names, _who, donation_codes, donation_code_match
@@ -63,8 +63,6 @@ class SellIn(BaseModel):
 
     @model_validator(mode="after")
     def _ref(self):
-        if self.mode == "UPI/QR Code" and not (self.txn_ref or "").strip():
-            raise ValueError("Transaction reference is required for online payments.")
         if self.buyer_mobile and not re.fullmatch(r"\d{10}", self.buyer_mobile.strip()):
             raise ValueError("Mobile number must be 10 digits.")
         return self
@@ -191,12 +189,15 @@ def back_to_store(iid: int, request: Request, db: Session = Depends(get_db), use
 def sell(iid: int, body: SellIn, request: Request, db: Session = Depends(get_db), user=Depends(seller)):
     """Counter Staff / Administrator sell at the Committee's price — never another amount."""
     item = _on_sale(db, iid, lock=True)
-    assert_txn_date_open(db, date.today(), label="today")          # money lands today: not on a closed day
+    today = ist_today()                                              # the temple's day, not the server's
+    assert_txn_date_open(db, today, label="today")                 # money lands today: not on a closed day
+    # One UTR rule on every bill (6–40 letters / digits, never on two bills) — 2026-11-15
+    ref = assert_utr(db, body.txn_ref, required=True) if body.mode == "UPI/QR Code" else None
     seq = next_code_seq(db, "open_sale_receipt", db.query(func.max(OpenSale.id)).scalar() or 0)
-    sale = OpenSale(receipt_no=f"OSR-{date.today().year}-{seq:04d}", stock_item_id=item.id, tag_id=item.tag_id,
+    sale = OpenSale(receipt_no=f"OSR-{today.year}-{seq:04d}", stock_item_id=item.id, tag_id=item.tag_id,
                     item_name=item.description or item.item_name, buyer_name=body.buyer_name,
                     buyer_mobile=(body.buyer_mobile or "").strip() or None, amount=item.open_sale_price,
-                    payment_mode=body.mode, payment_ref=(body.txn_ref or "").strip() or None,
+                    payment_mode=body.mode, payment_ref=ref,
                     price_set_by=item.open_sale_by, sold_by=user.username)
     db.add(sale); db.flush()
     item.status, item.sold_amount = "Sold", item.open_sale_price

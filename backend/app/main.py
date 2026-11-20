@@ -80,8 +80,7 @@ from .routers import (auth, devotees, sevas, bookings, donations, misc, users,
                       donation_master, pooja_history, reports, settings as settings_router, roles, masters,
                       daily_closing, backup, notifications, public, refunds, analytics, panchangam,
                       prokerala, almanac, stores, consumables, auction_lots, stock_report, open_sale, stores_day, stores_issue,
-                      stores_receive, metal_rates, stores_purchase, stores_kits, stores_handover,
-                      stores_valuables)
+                      stores_receive, alerts)
 from .migrate import run_migrations, repair_permissions, retry_on_lock
 from .mock_refresh import run as refresh_mock_dates
 from .site_content import ensure_site_content
@@ -137,6 +136,16 @@ def on_startup():
             logger.warning("mock date refresh skipped: %s", exc)
     else:
         logger.info("ENVIRONMENT=%s: mock date refresh disabled (production-safe).", settings.ENVIRONMENT)
+        # Devotee PANs and backup files hold personal data: say so loudly in the App Service
+        # log stream when they would be stored in plain text (names only, never values).
+        for key in missing_encryption_keys():
+            logger.warning("SECURITY: %s is not set — data it protects is stored UNENCRYPTED. "
+                           "Add it in App Service → Configuration (see DEPLOY.md).", key)
+
+
+def missing_encryption_keys() -> list[str]:
+    """Names of the at-rest encryption keys that are not configured."""
+    return [k for k in ("PAN_ENCRYPTION_KEY", "BACKUP_ENCRYPTION_KEY") if not getattr(settings, k, "")]
 
 
 @app.get("/api/health")
@@ -194,8 +203,4 @@ app.include_router(open_sale.router)
 app.include_router(stores_day.router)
 app.include_router(stores_issue.router)
 app.include_router(stores_receive.router)
-app.include_router(metal_rates.router)
-app.include_router(stores_purchase.router)
-app.include_router(stores_kits.router)
-app.include_router(stores_handover.router)
-app.include_router(stores_valuables.router)
+app.include_router(alerts.router)

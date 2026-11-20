@@ -6,11 +6,12 @@ import {
   Flame, UtensilsCrossed, Gavel, ArrowUp, ArrowDown, ChevronsUpDown,
 } from 'lucide-react'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp, FilterPanel } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { DevoteesAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { isAdminRole } from '../../auth/access.js'
+import { statusPill } from '../../lib/bookingStatus.js'
 import { Select, DateField, CountryCodeSelect, Combobox, getCountryDigits } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, teText, teAddress, stamp } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
@@ -21,7 +22,6 @@ import { useFilterParams } from '../../hooks/useUrlState.js'
 const EMPTY = { name: '', mobile: '', email: '', city: '', gothram: '', nakshatram: '', pan_number: '', address: '', preferred_language: 'English', dob: '', status: 'Active', notes: '' }
 const PAGE_SIZE = 20
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'One-Time': 'violet', 'Life Long': 'orange', 'Full Month': 'violet' }
-const STATUS_TONE = { Confirmed: 'green', Completed: 'green', Pending: 'amber', Cancelled: 'red', Ongoing: 'amber', Live: 'green', Closed: 'gray' }
 
 const TABS = ['Overview', 'Pooja History', 'Donation History', 'Other Activities']
 
@@ -97,8 +97,9 @@ function printDevoteeSection(dev, stats, temple, tab, data, canSeeAmounts = true
     .data-table tbody tr:hover { background: #fafafa; }
     .data-table .amount { font-weight: 600; color: #059669; }
     .data-table .status { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-    .status-confirmed, .status-completed { background: #d1fae5; color: #059669; }
-    .status-pending { background: #fef3c7; color: #d97706; }
+    .status-completed { background: #d1fae5; color: #059669; }
+    .status-confirmed { background: #fef3c7; color: #b45309; }
+    .status-pending { background: #f3f4f6; color: #4b5563; }
     .status-cancelled { background: #fee2e2; color: #dc2626; }
     .total-row { background: #f9f9f9; font-weight: bold; }
     .total-row td { border-top: 2px solid #ddd; padding: 12px; }
@@ -465,6 +466,7 @@ export default function Devotees() {
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <FilterPanel>
         <div className="px-4 sm:px-5 py-4 sm:py-5 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[12rem]" ref={searchRef}>
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Devotee Name / Mobile Number</T></label>
@@ -514,6 +516,7 @@ export default function Devotees() {
           <button onClick={load} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button onClick={() => { setFilters({ q: '', city: '', status: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
+        </FilterPanel>
 
         <SortPanel sorts={sorts} columns={sortColumns} onToggle={handleColumnClick} onRemove={removeSort} onClear={clearSorts} />
         <div className="overflow-x-auto">
@@ -794,7 +797,7 @@ function DevoteeDrawer({ d, tab, setTab, onClose, canSeeAmounts }) {
                   <td className="px-3 py-2.5"><Pill tone={PLAN_TONE[b.plan] || 'gray'}>{b.plan ? tr(b.plan) : '—'}</Pill></td>
                   <td className="px-3 py-2.5 text-gray-500 text-[0.75rem]">{fmtDate(b.scheduled_date)}</td>
                   <td className="px-3 py-2.5 font-semibold text-gray-800">{canSeeAmounts ? inr(b.amount) : '—'}</td>
-                  <td className="px-3 py-2.5"><Pill tone={STATUS_TONE[b.status] || 'gray'}>{tr(b.status)}</Pill></td>
+                  <td className="px-3 py-2.5"><Pill tone={statusPill(b.status)}>{tr(b.status)}</Pill></td>
                 </tr>
               ))}
             </DrawerTable>

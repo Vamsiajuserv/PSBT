@@ -79,7 +79,7 @@ export default function IssueReturn() {
                   <td className="px-3 py-3 text-gray-800">{staffName(s.issued_to)}</td>
                   <td className="px-3 py-3 text-gray-700">{tr(s.purpose)}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-[0.8125rem] text-gray-600">{fmtStamp(s.issued_at)}<div className="text-[0.6875rem] text-gray-400">{staffName(s.issued_by)}</div></td>
-                  <td className={`px-3 py-3 whitespace-nowrap font-semibold ${s.overdue ? 'text-red-700' : 'text-gray-800'}`}>{fmtDate(s.return_by)}{s.overdue && ' ⚠'}</td>
+                  <td className={`px-3 py-3 whitespace-nowrap font-semibold ${s.overdue ? 'text-red-700' : 'text-gray-800'}`}>{s.return_by ? fmtDate(s.return_by) : <span className="text-gray-400">—</span>}{s.overdue && ' ⚠'}</td>
                   <td className="px-3 py-3"><SlipStatus s={s} />{s.out > 0 && s.out < s.lines.length && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{s.out} {tr('still out')}</div>}</td>
                   <td className="px-3 py-3"><div className="flex items-center gap-1.5">
                     <button onClick={() => setPrinting(s)} title={tr('Issue slip')} aria-label={tr('Issue slip')} className="w-8 h-8 grid place-items-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"><ReceiptIcon size={15} /></button>

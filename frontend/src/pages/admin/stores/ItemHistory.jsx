@@ -1,10 +1,11 @@
+import { purityOptions, metalOf } from '../../../lib/metal.js'
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Search, ArrowLeft, Pencil, Save, Sparkles } from 'lucide-react'
 import { PageTitle, Pill, inr, num, fmtDate, fmtStamp } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { T, tr, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { NumberField } from '../../../components/common/Field.jsx'
+import { NumberField, Select } from '../../../components/common/Field.jsx'
 import { toast } from '../../../components/common/Dialog.jsx'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { STATUS_TONE, staffName, storeDetail, canManageStores, sourceRef, DeityBadge } from './shared.jsx'
@@ -40,7 +41,7 @@ export default function ItemHistory() {
 
   return (
     <div>
-      <PageTitle title={tr('Item History')} subtitle={tr('Type or scan the ID on a sticker to see the full life of that piece.')}
+      <PageTitle title={tr('Item Tracker')} subtitle={tr('Type or scan the ID on a sticker to see the full life of that piece.')}
         actions={<button type="button" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/admin/stores/register'))} className="btn-outline !py-2.5"><ArrowLeft size={16} />{' '}<T>Back</T></button>} />
       <form onSubmit={go} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-wrap gap-3 items-end mb-5">
         <div className="flex-1 min-w-[14rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Item ID</T></label>
@@ -59,13 +60,14 @@ export default function ItemHistory() {
               <div className="flex flex-col items-end gap-2">
                 <Pill tone={STATUS_TONE[item.status] || 'gray'}>{tr(item.status)}</Pill>
                 <DeityBadge item={item} />
+                {item.pending_change && <div className="max-w-[16rem] text-right text-[0.6875rem] text-amber-800 bg-amber-50 rounded px-2 py-1">{tr('Waiting for the committee')}: {tr(item.pending_change)}</div>}
                 {canManageStores(user) && !['Sold', 'Written Off'].includes(item.status) && (
                   <button onClick={() => setFixing({ description: item.description || '', details: item.details || '', weight_g: item.weight_g ?? '',
                     purity: item.purity || '', est_value: item.est_value ?? '', reason: '' })}
                     className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-[0.75rem] font-semibold"><Pencil size={13} />{tr('Correct details')}</button>)}
                 {canManageStores(user) && !['Sold', 'Written Off'].includes(item.status) && (
                   <button onClick={() => setDeity({ note: '' })}
-                    className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-50 text-[0.75rem] font-semibold whitespace-nowrap"><Sparkles size={13} />{item.deity_used ? tr('Remove Deity-Used mark') : tr('Mark as Deity-Used')}</button>)}
+                    className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-50 text-[0.75rem] font-semibold whitespace-nowrap"><Sparkles size={13} />{item.deity_used ? tr('Remove used mark') : tr('Mark as used')}</button>)}
               </div>
             </div>
             {item.receipt_value != null && item.est_value != null && Math.abs(item.est_value - item.receipt_value) >= 1 && (
@@ -135,11 +137,12 @@ function CorrectDialog({ item, form, setForm, onDone }) {
     setSaving(true)
     try {
       const d = await StoresAPI.correctItem(item.id, {
-        description: form.description, details: form.details, purity: form.purity,
+        description: form.description, details: form.details, purity: form.purity || null,
         weight_g: weight ? Number(form.weight_g) : null, est_value: form.est_value !== '' ? Number(form.est_value) : null,
         reason: form.reason.trim(),
       })
-      toast(`${item.tag_id}: ${tr('details corrected.')}`); onDone(d)
+      toast(d.pending_change && !item.pending_change ? `${item.tag_id}: ${tr('a lower weight / other purity was sent to the committee.')}` : `${item.tag_id}: ${tr('details corrected.')}`)
+      onDone(d)
     } catch (ex) { toast(tr(getErrorMessage(ex, 'Could not save the correction.')).replace(/^Value error, /, ''), 'error') } finally { setSaving(false) }
   }
   return (
@@ -153,8 +156,13 @@ function CorrectDialog({ item, form, setForm, onDone }) {
           {!weight && <div><label className="label"><T>Size / colour</T></label><input className="input" maxLength={120} value={form.details} onChange={(e) => set({ details: e.target.value })} /></div>}
           {weight && <div className="grid grid-cols-2 gap-3">
             <div><label className="label"><T>Weight g *</T></label><NumberField required min="0.001" step="0.001" value={form.weight_g} onChange={(e) => set({ weight_g: e.target.value })} /></div>
-            <div><label className="label"><T>Purity</T></label><input className="input" maxLength={20} value={form.purity} onChange={(e) => set({ purity: e.target.value })} /></div>
+            <div><label className="label"><T>Purity</T></label>
+              <Select className="input" value={form.purity || ''} onChange={(e) => set({ purity: e.target.value })}>
+                <option value="">{tr('Not known')}</option>
+                {[...new Set([...purityOptions(metalOf(item.item_name) || 'Gold').filter((p) => p !== 'Not known'), ...(form.purity ? [form.purity] : [])])].map((p) => <option key={p} value={p}>{p}</option>)}
+              </Select></div>
           </div>}
+          {weight && <div className="text-[0.75rem] text-amber-800 bg-amber-50 rounded-lg px-3 py-2"><T>Gold / silver: a lower weight or another purity goes to a committee member for approval; it changes only after that.</T></div>}
           <div><label className="label"><T>Value ₹</T></label><NumberField min="0" step="1" prefix="₹" value={form.est_value} onChange={(e) => set({ est_value: e.target.value })} />
             {suggested != null && <div className="text-[0.75rem] text-gray-500 mt-1">{tr('Receipt value')}: <b>{inr(suggested)}</b>{' '}
               {Number(form.est_value) !== suggested && <button type="button" onClick={() => set({ est_value: String(suggested) })} className="text-maroon-700 font-semibold hover:underline">{tr('Use receipt value')}</button>}</div>}</div>

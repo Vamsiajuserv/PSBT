@@ -657,7 +657,9 @@
   #print-history-area,
   #print-history-area *,
   #print-pooja-queue,
-  #print-pooja-queue * {
+  #print-pooja-queue *,
+  #print-tickets,
+  #print-tickets * {
     visibility: visible !important;
   }
 
@@ -795,6 +797,26 @@
     background: #f9fafb !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  /* Advance Booking: one ticket per page (a booking can hold several poojas) */
+  #print-tickets {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    display: block !important;
+    margin: 0 !important;
+    background: #fff !important;
+  }
+  #print-tickets .ticket-page {
+    break-after: page;
+    page-break-after: always;
+    padding: 12mm 14mm !important;
+  }
+  #print-tickets .ticket-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
   }
 
   /* Position #print-area at top-left of page for A4 printing */
@@ -1108,6 +1130,21 @@ html[lang="te"] .font-script {
    so a collapsed sidebar or display scaling is accounted for), not the screen
    width. Each card gets at least ~12rem before another column is added, and
    rows split evenly (5 cards → 3+2, never 4+1; 4 cards → 2+2, never 3+1). */
+/* Slim figures / status chips above a list (KpiGrid variant strip | chips, 2026-11-15): one line that
+   wraps on a laptop and swipes sideways on a phone. */
+.kpi-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+@media (max-width: 639px) {
+  .kpi-strip { flex-wrap: nowrap; overflow-x: auto; margin-inline: -1rem; padding: 0 1rem 0.25rem; scrollbar-width: none; }
+  .kpi-strip::-webkit-scrollbar, .page-actions::-webkit-scrollbar { display: none; }
+  .page-actions { scrollbar-width: none; }
+}
+/* Empty date box: "Select date" when it fits, "Date" in a narrow one (DateField, 2026-11-16) */
+.date-ph { container-type: inline-size; }
+.date-ph .ph-short { display: none; }
+@container (max-width: 10.5rem) {
+  .date-ph .ph-long { display: none; }
+  .date-ph .ph-short { display: inline; }
+}
 .kpi-wrap { container-type: inline-size; }
 .kpi-grid {
   --kpi-cols: 1;
@@ -1159,3 +1196,13 @@ html[lang="te"] .font-script {
 @media print {
   .fit-box .fit-text { animation: none !important; transform: none !important; white-space: normal; overflow-wrap: anywhere; }
 }
+
+/* Admin tables fit laptops (2026-11-15 audit). Below 1536px the wide cell padding (px-4 / px-5)
+   tightens to 0.75rem, and Telugu column headings may wrap (Telugu words are longer) — so tables
+   fit at large text (A+) instead of needing a sideways scroll. */
+@media (max-width: 1535.98px) {
+  main table :is(th, td):is(.px-4, .px-5) { padding-left: 0.75rem; padding-right: 0.75rem; }
+}
+html[lang="te"] main table thead th.whitespace-nowrap { white-space: normal; }
+/* letter-spacing (tracking-wide) widens Telugu headings and splits conjunct letters apart */
+html[lang="te"] main table thead :is(tr, th) { letter-spacing: 0; }

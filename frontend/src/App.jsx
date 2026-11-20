@@ -47,7 +47,6 @@ const PoojaHistoryDetails = lazy(() => import('./pages/admin/PoojaHistoryDetails
 const BookingDetails = lazy(() => import('./pages/admin/BookingDetails.jsx'))
 const WasteSales = lazy(() => import('./pages/admin/WasteSales.jsx'))
 const DonationMaster = lazy(() => import('./pages/admin/DonationMaster.jsx'))
-const MetalRates = lazy(() => import('./pages/admin/MetalRates.jsx'))
 const Settings = lazy(() => import('./pages/admin/Settings.jsx'))
 const AdminCalendar = lazy(() => import('./pages/admin/Calendar.jsx'))
 const AdminDevotees = lazy(() => import('./pages/admin/Devotees.jsx'))
@@ -75,6 +74,7 @@ const AuditTrail = lazy(() => import('./pages/admin/AuditTrail.jsx'))
 const DailyClosing = lazy(() => import('./pages/admin/DailyClosing.jsx'))
 const BackupRestore = lazy(() => import('./pages/admin/BackupRestore.jsx'))
 const Notifications = lazy(() => import('./pages/admin/Notifications.jsx'))
+const Alerts = lazy(() => import('./pages/admin/Alerts.jsx'))
 const StockRegister = lazy(() => import('./pages/admin/stores/StockRegister.jsx'))
 const PendingTagging = lazy(() => import('./pages/admin/stores/PendingTagging.jsx'))
 const ManualEntries = lazy(() => import('./pages/admin/stores/ManualEntries.jsx'))
@@ -83,17 +83,12 @@ const ConsumablesStock = lazy(() => import('./pages/admin/stores/Consumables.jsx
 const StockReport = lazy(() => import('./pages/admin/stores/StockReport.jsx'))
 const StockCheck = lazy(() => import('./pages/admin/stores/StockCheck.jsx'))
 const UnsoldItems = lazy(() => import('./pages/admin/stores/UnsoldItems.jsx'))
-const DeityUsedItems = lazy(() => import('./pages/admin/stores/DeityUsedItems.jsx'))
 const OpenSale = lazy(() => import('./pages/admin/stores/OpenSale.jsx'))
 const StoreLocations = lazy(() => import('./pages/admin/stores/StoreLocations.jsx'))
 const StoresOverview = lazy(() => import('./pages/admin/stores/StoresOverview.jsx'))
 const StoresDayClosing = lazy(() => import('./pages/admin/stores/StoresDayClosing.jsx'))
 const IssueReturn = lazy(() => import('./pages/admin/stores/IssueReturn.jsx'))
 const MissingItems = lazy(() => import('./pages/admin/stores/MissingItems.jsx'))
-const PurchaseRequests = lazy(() => import('./pages/admin/stores/PurchaseRequests.jsx'))
-const FestivalKits = lazy(() => import('./pages/admin/stores/FestivalKits.jsx'))
-const Handover = lazy(() => import('./pages/admin/stores/Handover.jsx'))
-const ValuablesStatement = lazy(() => import('./pages/admin/stores/ValuablesStatement.jsx'))
 
 // Per-route module guard. RequireAuth (on the parent) has already ensured a user
 // exists; this sends a signed-in staff member who lacks the screen's module back
@@ -159,7 +154,7 @@ export default function App() {
         <Route path="my-poojas" element={<Guard k="my-poojas"><PoojariQueue /></Guard>} />
         <Route path="verify-ticket" element={<Guard k="verify-ticket"><VerifyTicket /></Guard>} />
         <Route path="bookings" element={<Guard k="bookings"><AdminBookings /></Guard>} />
-        <Route path="bookings/new" element={<Guard k="bookings"><NewBooking /></Guard>} />
+        <Route path="bookings/new" element={<Guard k="bookings/new"><NewBooking /></Guard>} />
         <Route path="bookings/:id" element={<Guard k="bookings"><BookingDetails /></Guard>} />
         <Route path="pooja-master" element={<Guard k="pooja-master"><PoojaMaster /></Guard>} />
         <Route path="poojari-schedule" element={<Guard k="poojari-schedule"><PoojariSchedule /></Guard>} />
@@ -180,7 +175,6 @@ export default function App() {
         <Route path="devotees/:id" element={<Guard k="devotees"><DevoteeDetails /></Guard>} />
         <Route path="donations" element={<Guard k="donations"><AdminDonations /></Guard>} />
         <Route path="donation-master" element={<Guard k="donation-master"><DonationMaster /></Guard>} />
-        <Route path="metal-rates" element={<Guard k="metal-rates"><MetalRates /></Guard>} />
         <Route path="hundi" element={<Guard k="hundi"><AdminHundi /></Guard>} />
         <Route path="auction" element={<Guard k="auction"><AdminAuction /></Guard>} />
         <Route path="annadanam" element={<Guard k="annadanam"><AdminAnnadanam /></Guard>} />
@@ -193,22 +187,22 @@ export default function App() {
         <Route path="daily-closing" element={<Guard k="daily-closing"><DailyClosing /></Guard>} />
         <Route path="backup" element={<Guard k="backup"><BackupRestore /></Guard>} />
         <Route path="notifications" element={<Guard k="notifications"><Notifications /></Guard>} />
+        <Route path="alerts" element={<Guard k="alerts"><Alerts /></Guard>} />
         <Route path="stores/issue" element={<Guard k="stores/issue"><IssueReturn /></Guard>} />
         <Route path="stores/missing" element={<Guard k="stores/missing"><MissingItems /></Guard>} />
-        <Route path="stores/purchase" element={<Guard k="stores/purchase"><PurchaseRequests /></Guard>} />
-        <Route path="stores/kits" element={<Guard k="stores/kits"><FestivalKits /></Guard>} />
-        <Route path="stores/handover" element={<Guard k="stores/handover"><Handover /></Guard>} />
-        <Route path="stores/valuables" element={<Guard k="stores/valuables"><ValuablesStatement /></Guard>} />
         <Route path="stores/day-closing" element={<Guard k="stores/day-closing"><StoresDayClosing /></Guard>} />
         <Route path="stores/overview" element={<Guard k="stores/overview"><StoresOverview /></Guard>} />
         <Route path="stores/register" element={<Guard k="stores/register"><StockRegister /></Guard>} />
         <Route path="stores/pending" element={<Guard k="stores/pending"><PendingTagging /></Guard>} />
         <Route path="stores/manual" element={<Guard k="stores/manual"><ManualEntries /></Guard>} />
+        {/* Bought Items merged into Manual Entries (2026-11-16) */}
+        <Route path="stores/bought" element={<Navigate to="/admin/stores/manual?source=Temple%20purchase" replace />} />
         <Route path="stores/consumables" element={<Guard k="stores/consumables"><ConsumablesStock /></Guard>} />
         <Route path="stores/report" element={<Guard k="stores/report"><StockReport /></Guard>} />
         <Route path="stores/check" element={<Guard k="stores/check"><StockCheck /></Guard>} />
         <Route path="stores/unsold" element={<Guard k="stores/unsold"><UnsoldItems /></Guard>} />
-        <Route path="stores/deity-used" element={<Guard k="stores/deity-used"><DeityUsedItems /></Guard>} />
+        {/* Deity-Used Items merged into the Stock Register as the "Used" filter (2026-11-15) */}
+        <Route path="stores/deity-used" element={<Navigate to="/admin/stores/register?deity_used=true" replace />} />
         <Route path="stores/open-sale" element={<Guard k="stores/open-sale"><OpenSale /></Guard>} />
         <Route path="stores/item" element={<Guard k="stores/item"><ItemHistory /></Guard>} />
         <Route path="stores/item/:tag" element={<Guard k="stores/item"><ItemHistory /></Guard>} />

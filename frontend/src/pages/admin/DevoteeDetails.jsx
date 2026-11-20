@@ -11,6 +11,9 @@ import { Select, Combobox, DateField } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, stamp, teText, teAddress, clock12 } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
+import { statusChip } from '../../lib/bookingStatus.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { canAccessKey } from '../../auth/access.js'
 
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN')
 const num = (n) => Number(n || 0).toLocaleString('en-IN')
@@ -114,6 +117,7 @@ const calcAge = (dob) => {
 }
 
 export default function DevoteeDetails() {
+  const { user } = useAuth()
   const { lang } = useLang()
   const { id } = useParams()
   const nav = useNavigate()
@@ -344,26 +348,24 @@ export default function DevoteeDetails() {
               })}
             </Select>
           </div>
-          {tab === 'bookings' && <Link to="/admin/bookings" className="text-sm font-semibold text-maroon-600 border border-maroon-200 rounded-lg px-4 py-2 hover:bg-maroon-50 transition-colors"><T>View All Bookings</T></Link>}
+          {tab === 'bookings' && canAccessKey(user, 'bookings') && <Link to={`/admin/bookings?q=${encodeURIComponent(dev.mobile || dev.name || '')}`} className="text-sm font-semibold text-maroon-600 border border-maroon-200 rounded-lg px-4 py-2 hover:bg-maroon-50 transition-colors"><T>View All Bookings</T></Link>}
         </div>
 
         <div className="p-6">
 
           {tab === 'bookings' && (
-            <Table cols={['Booking ID', 'Pooja Name', 'Plan', 'Date & Time', 'Amount (₹)', 'Status', 'Receipt / Ticket', 'Booked On']}>
+            <Table cols={['Ticket', 'Pooja Name', 'Date & Time', 'Amount (₹)', 'Status', 'Booked On']}>
               {d.bookings.map((b) => (
                 <tr key={b.booking_code} className="hover:bg-gray-50/60">
-                  <td className="px-5 py-4 font-mono text-sm text-gray-500">{b.booking_code}</td>
-                  <td className="px-5 py-4 font-semibold text-gray-800">{tr(b.pooja)}</td>
-                  <td className="px-5 py-4"><Badge tone={PLAN_TONE[b.plan]}>{b.plan || '—'}</Badge></td>
-                  <td className="px-5 py-4 text-gray-600 text-sm whitespace-nowrap">{fmtDate(b.scheduled_date)}{b.time_slot ? `, ${clock12(b.time_slot)}` : ''}</td>
+                  <td className="px-5 py-4 font-mono text-sm whitespace-nowrap"><div className="text-maroon-700 font-semibold">{b.ticket_no || '—'}</div><div className="text-[0.75rem] text-gray-400">{b.booking_code}</div></td>
+                  <td className="px-5 py-4"><span className="font-semibold text-gray-800">{tr(b.pooja)}</span>{b.plan && <> <Badge tone={PLAN_TONE[b.plan]}>{b.plan}</Badge></>}</td>
+                  <td className="px-5 py-4 text-gray-600 text-sm whitespace-nowrap">{fmtDate(b.scheduled_date)}{b.time_slot && <div className="text-[0.75rem] text-gray-500">{clock12(b.time_slot)}</div>}</td>
                   <td className="px-5 py-4 font-semibold text-gray-800">{num(b.amount)}</td>
-                  <td className="px-5 py-4"><Badge tone={STATUS_TONE[b.status]}>{b.status}</Badge></td>
-                  <td className="px-5 py-4 font-mono text-sm text-gray-500 whitespace-nowrap">{b.ticket_no || '—'}</td>
+                  <td className="px-5 py-4"><Badge tone={statusChip(b.status)}>{b.status}</Badge></td>
                   <td className="px-5 py-4 text-gray-500 text-sm whitespace-nowrap">{fmtStamp(b.booked_on)}</td>
                 </tr>
               ))}
-              {d.bookings.length === 0 && <tr><td colSpan={8} className="px-5 py-12 text-center text-gray-500"><T>No pooja bookings yet.</T></td></tr>}
+              {d.bookings.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-500"><T>No pooja bookings yet.</T></td></tr>}
             </Table>
           )}
 

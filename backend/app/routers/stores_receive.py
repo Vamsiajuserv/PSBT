@@ -113,8 +113,6 @@ def _receipt(db: Session, did: int) -> tuple[Donation, object]:
     cat = _category_by_name(db, d.fund)
     if not cat or cat.tracking != "Tagged":
         raise HTTPException(422, f"'{d.fund}' is not tracked as tagged pieces — nothing to receive at the store.")
-    if not needs_receiving(d, receive_cutoff(db)):
-        raise HTTPException(409, f"{d.receipt_no} was made before Receive at store started — tag it directly.")
     return d, cat
 
 
@@ -200,6 +198,11 @@ def receive(did: int, body: ReceiveIn, request: Request, db: Session = Depends(g
             raise HTTPException(422, "Write what happened (reason: Other).")
     if body.quantity <= 0 and not short:
         raise HTTPException(422, "Enter how much was received.")
+    # "Fewer arrived" is recorded while tagging: never less than what is already tagged
+    tagged = db.query(StockItem).filter(StockItem.donation_id == d.id).all()
+    done = sum((Decimal(str(i.weight_g or 0)) for i in tagged), Decimal("0")) if weight else Decimal(len(tagged))
+    if body.quantity < done - tol:
+        raise HTTPException(422, f"{_qty(done)} {unit} are already tagged from {d.receipt_no} — enter at least that.")
     now = _utcnow()
     rec = StoreReceipt(donation_id=d.id, receipt_no=d.receipt_no, item_name=d.fund, unit=cat.unit or d.unit,
                        mode="weight" if weight else "count", billed=billed, received=body.quantity,

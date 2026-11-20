@@ -1,0 +1,477 @@
+[
+ {
+  "mode": "audit",
+  "en": "Added family member Lakshmi to Ravi Kumar",
+  "te": "రవి కుమార్ కు కుటుంబ సభ్యుడు లక్ష్మి జోడించబడ్డారు"
+ },
+ {
+  "mode": "audit",
+  "en": "Approved PR-0004",
+  "te": "PR-0004 ఆమోదించబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Approved HND-0003 (2/3)",
+  "te": "HND-0003 ఆమోదించబడింది (2/3)"
+ },
+ {
+  "mode": "audit",
+  "en": "Assigned Ramesh Sharma → BK-00012",
+  "te": "BK-00012 కు రమేష్ శర్మ కేటాయించబడ్డారు"
+ },
+ {
+  "mode": "audit",
+  "en": "Assigned none → BK-00012",
+  "te": "BK-00012 కు పూజారి కేటాయింపు తొలగించబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Auto-generated 2027 Pournami days at Hyderabad: 12 published, 1 awaiting review",
+  "te": "2027 పౌర్ణమి రోజులు (హైదరాబాద్) స్వయంచాలకంగా రూపొందించబడ్డాయి: 12 ప్రచురించబడ్డాయి, 1 సమీక్ష కోసం వేచి ఉన్నాయి"
+ },
+ {
+  "mode": "audit",
+  "en": "Bulk assigned Ramesh Sharma → 5 bookings",
+  "te": "రమేష్ శర్మ కు 5 బుకింగ్‌లు బల్క్‌గా కేటాయించబడ్డాయి"
+ },
+ {
+  "mode": "audit",
+  "en": "Bulk performed 7 pooja(s) for 2026-10-27",
+  "te": "2026-10-27 కి 7 పూజ(లు) బల్క్‌గా నిర్వహించబడ్డాయి"
+ },
+ {
+  "mode": "audit",
+  "en": "Bulk: 4 bookings",
+  "te": "బల్క్: 4 బుకింగ్‌లు"
+ },
+ {
+  "mode": "audit",
+  "en": "Cancelled BK-00012",
+  "te": "BK-00012 రద్దు చేయబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Cancelled PR-0004: not needed",
+  "te": "PR-0004 రద్దు చేయబడింది: నాట్ నీడెడ్"
+ },
+ {
+  "mode": "audit",
+  "en": "Cash deposited HND-0003 ₹12500.00 → State Bank of India",
+  "te": "నగదు జమ HND-0003 ₹12500.00 → స్టేట్ బ్యాంక్ ఆఫ్ ఇండియా"
+ },
+ {
+  "mode": "audit",
+  "en": "Closed 2026-10-27 · ₹45230.00",
+  "te": "2026-10-27 ముగించబడింది · ₹45230.00"
+ },
+ {
+  "mode": "audit",
+  "en": "Closed 2026-10-27: received 4, placed 3, unplaced 1",
+  "te": "2026-10-27 మూసివేయబడింది: స్వీకరించినవి 4, ఉంచినవి 3, ఉంచనివి 1"
+ },
+ {
+  "mode": "audit",
+  "en": "Confirmed Ugadi on 2027-03-19",
+  "te": "ఉగాది 2027-03-19 న నిర్ధారించబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Consumables start date None → 2026-04-01",
+  "te": "వినియోగ వస్తువుల ప్రారంభ తేదీ — → 2026-04-01"
+ },
+ {
+  "mode": "audit",
+  "en": "Corrected & resubmitted HND-0003: ₹12000 → ₹12500 — recount",
+  "te": "HND-0003 సరిచేసి మళ్లీ సమర్పించబడింది: ₹12000 → ₹12500 — రీకౌంట్"
+ },
+ {
+  "mode": "audit",
+  "en": "Corrected PR-0004: Description Rice → Basmati Rice",
+  "te": "PR-0004 సరిచేయబడింది: వివరణ Rice → Basmati Rice"
+ },
+ {
+  "mode": "audit",
+  "en": "Edited AUC-0001: Winner: A → B — Reason: typo",
+  "te": "AUC-0001 సవరించబడింది: విజేత: ఎ → బి — కారణం: ట్య్పో"
+ },
+ {
+  "mode": "audit",
+  "en": "Force-deleted 3 booking(s) for pooja Abhishekam",
+  "te": "పూజ అభిషేకం కోసం 3 బుకింగ్(లు) బలవంతంగా తొలగించబడ్డాయి"
+ },
+ {
+  "mode": "store",
+  "en": "Found at Store Room (CHK-0001)",
+  "te": "కనబడిన స్థలం: నిల్వ గది (CHK-0001)"
+ },
+ {
+  "mode": "audit",
+  "en": "Issued KIT-0001 Pooja Kit to Ravi Kumar: PCS 3 piece(s)",
+  "te": "KIT-0001 పూజ కిట్ రవి కుమార్ కు జారీ చేయబడింది: PCS 3 ముక్క(లు)"
+ },
+ {
+  "mode": "audit",
+  "en": "Linked FEST-0002 'Ugadi' to almanac festival Ugadi (2027-03-19)",
+  "te": "FEST-0002 'ఉగాది' ను పంచాంగ పండుగ ఉగాది (2027-03-19) తో అనుసంధానించబడింది"
+ },
+ {
+  "mode": "t",
+  "en": "Locked: >= 5 failed OTP attempts in 15m",
+  "te": "లాక్ చేయబడింది: 15 నిమిషాల్లో 5 లేదా అంతకంటే ఎక్కువ విఫల ఓటీపీ ప్రయత్నాలు"
+ },
+ {
+  "mode": "t",
+  "en": "Locked: >= 5 failed logins in 15m",
+  "te": "లాక్ చేయబడింది: 15 నిమిషాల్లో 5 లేదా అంతకంటే ఎక్కువ విఫల లాగిన్‌లు"
+ },
+ {
+  "mode": "store",
+  "en": "MISSING at Store Room (CHK-0001) — to be followed up",
+  "te": "కనబడని స్థలం: నిల్వ గది (CHK-0001) — తదుపరి చర్య తీసుకోవాలి"
+ },
+ {
+  "mode": "audit",
+  "en": "Moved Ugadi 2027-03-19 → 2027-03-20: panchangam correction",
+  "te": "ఉగాది 2027-03-19 నుండి 2027-03-20 కు మార్చబడింది: పంచంగమ్ కోర్రేక్టిఓన్"
+ },
+ {
+  "mode": "audit",
+  "en": "Moved SLV-00003: Store Room → Locker 1",
+  "te": "SLV-00003 తరలించబడింది: నిల్వ గది → లాకర్ 1"
+ },
+ {
+  "mode": "audit",
+  "en": "Off Open Sale SLV-00003",
+  "te": "SLV-00003 ఓపెన్ సేల్ నుండి తీసివేయబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Open Sale at ₹500: SLV-00003, SLV-00004",
+  "te": "ఓపెన్ సేల్ ధర ₹500: SLV-00003, SLV-00004"
+ },
+ {
+  "mode": "audit",
+  "en": "Open Sale price SLV-00003: ₹500 → ₹450",
+  "te": "SLV-00003 ఓపెన్ సేల్ ధర: ₹500 → ₹450"
+ },
+ {
+  "mode": "audit",
+  "en": "Payment OSR-2026-0001 AUC-0001 Ravi Kumar ₹5000 Cash",
+  "te": "చెల్లింపు OSR-2026-0001 AUC-0001 రవి కుమార్ ₹5000 నగదు"
+ },
+ {
+  "mode": "audit",
+  "en": "Payment AUC-0001 ₹5000 Cash",
+  "te": "చెల్లింపు AUC-0001 ₹5000 నగదు"
+ },
+ {
+  "mode": "audit",
+  "en": "Performed by Ramesh Sharma → BK-00012 (2026-10-27)",
+  "te": "BK-00012 (2026-10-27) — నిర్వహించినవారు: రమేష్ శర్మ"
+ },
+ {
+  "mode": "audit",
+  "en": "Performed BK-00012 (2/5)",
+  "te": "BK-00012 నిర్వహించబడింది (2/5)"
+ },
+ {
+  "mode": "audit",
+  "en": "Performed BK-00012 (2/5) by Ramesh Sharma",
+  "te": "BK-00012 నిర్వహించబడింది (2/5) — రమేష్ శర్మ"
+ },
+ {
+  "mode": "audit",
+  "en": "Placed 3 piece(s) in Store Room: SLV-00003, SLV-00004, SLV-00005",
+  "te": "3 వస్తువు(లు) నిల్వ గదిలో ఉంచబడ్డాయి: SLV-00003, SLV-00004, SLV-00005"
+ },
+ {
+  "mode": "t",
+  "en": "Rate limit exceeded. Please try again in 30 seconds.",
+  "te": "అభ్యర్థనల పరిమితి మించిపోయింది. దయచేసి 30 సెకన్ల తర్వాత మళ్ళీ ప్రయత్నించండి."
+ },
+ {
+  "mode": "audit",
+  "en": "Rejected PR-0004: wrong item",
+  "te": "PR-0004 తిరస్కరించబడింది: వ్రోంగ్ ఐటమ్"
+ },
+ {
+  "mode": "audit",
+  "en": "Removed family member Lakshmi",
+  "te": "కుటుంబ సభ్యుడు లక్ష్మి తొలగించబడ్డారు"
+ },
+ {
+  "mode": "audit",
+  "en": "Reopened 2026-10-27",
+  "te": "2026-10-27 తిరిగి తెరవబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Reopened 2026-10-27: missed entry",
+  "te": "2026-10-27 తిరిగి తెరవబడింది: మిషేద్ ఏంత్రి"
+ },
+ {
+  "mode": "audit",
+  "en": "Rescheduled BK-00012 2026-10-27 → 2026-10-29",
+  "te": "BK-00012 రీషెడ్యూల్ చేయబడింది: 2026-10-27 → 2026-10-29"
+ },
+ {
+  "mode": "audit",
+  "en": "Reset to 12 standard categories",
+  "te": "12 ప్రామాణిక వర్గాలకు రీసెట్ చేయబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Restore: 5400 rows, 32 tables",
+  "te": "పునరుద్ధరణ: 5400 వరుసలు, 32 పట్టికలు"
+ },
+ {
+  "mode": "t",
+  "en": "Sun enters at 14 Jan 08:42 AM IST",
+  "te": "సూర్యుడు ప్రవేశించే సమయం: 14 జన ఉదయం 08:42 (భారత కాలమానం)"
+ },
+ {
+  "mode": "audit",
+  "en": "Tagged 3 piece(s) from RCPT-0012: SLV-00003…SLV-00005",
+  "te": "RCPT-0012 నుండి 3 ముక్క(లు) ట్యాగ్ వేయబడ్డాయి: SLV-00003…SLV-00005"
+ },
+ {
+  "mode": "t",
+  "en": "Tithi at sunrise",
+  "te": "సూర్యోదయం సమయంలో తిథి"
+ },
+ {
+  "mode": "audit",
+  "en": "Undid today's performance of BK-00012 (1 done)",
+  "te": "BK-00012 నేటి నిర్వహణ రద్దు చేయబడింది (1 పూర్తయ్యాయి)"
+ },
+ {
+  "mode": "audit",
+  "en": "Valuables stored HND-0003 ₹2000 → Locker 1",
+  "te": "విలువైన వస్తువులు భద్రపరచబడ్డాయి HND-0003 ₹2000 → లాకర్ 1"
+ },
+ {
+  "mode": "audit",
+  "en": "Verified MSE-0003",
+  "te": "MSE-0003 ధృవీకరించబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Verified WSL-0003 ₹1200",
+  "te": "WSL-0003: ₹1200 — ధృవీకరించబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Verified HND-0003 ₹12500 — admin override (2 member approval(s) recorded)",
+  "te": "HND-0003 ₹12500 — నిర్వాహకుడి ప్రత్యేక అనుమతితో ధృవీకరించబడింది (2 సభ్యుల ఆమోదం(లు) నమోదయ్యాయి)"
+ },
+ {
+  "mode": "audit",
+  "en": "Verified HND-0003 ₹12500 — approved by Ravi Kumar",
+  "te": "HND-0003: ₹12500 — ఆమోదించినవారు: రవి కుమార్ — ధృవీకరించబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Verified HND-0003: counted correctly",
+  "te": "HND-0003: లెక్కించినవి కోర్రేక్ట్లి — ధృవీకరించబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Voided RCPT-0012",
+  "te": "RCPT-0012 చెల్లుబాటు రద్దు చేయబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "Wrote off SLV-00003: damaged",
+  "te": "SLV-00003 రద్దు చేయబడింది: డ్యామేజ్డ్"
+ },
+ {
+  "mode": "audit",
+  "en": "backup-2026-10-27.json (5400 records)",
+  "te": "backup-2026-10-27.json (5400 రికార్డులు)"
+ },
+ {
+  "mode": "audit",
+  "en": "backup-2026-10-27.json (5400 records) [encrypted]",
+  "te": "backup-2026-10-27.json (5400 రికార్డులు) [ఎన్‌క్రిప్ట్ చేయబడింది]"
+ },
+ {
+  "mode": "audit",
+  "en": "STH-0001 cancelled: officer on leave",
+  "te": "STH-0001 రద్దు చేయబడింది: ఆఫీసర్ ఆన్ లేఅవ్"
+ },
+ {
+  "mode": "audit",
+  "en": "STH-0001 counted: 5/7",
+  "te": "STH-0001 లెక్కించబడింది: 5/7"
+ },
+ {
+  "mode": "audit",
+  "en": "Showing festival Ugadi",
+  "te": "పండుగ ఉగాది చూపబడుతోంది"
+ },
+ {
+  "mode": "audit",
+  "en": "Hiding festival Ugadi",
+  "te": "పండుగ ఉగాది దాచబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "SLV-00003 found in Store Room",
+  "te": "SLV-00003 నిల్వ గదిలో దొరికింది"
+ },
+ {
+  "mode": "audit",
+  "en": "AUC-0001 lot Silver Ring",
+  "te": "AUC-0001 లాట్: వెండి ఉంగరం"
+ },
+ {
+  "mode": "audit",
+  "en": "AUC-0002 re-auction of AUC-0001",
+  "te": "AUC-0002 — AUC-0001 పునః వేలం"
+ },
+ {
+  "mode": "audit",
+  "en": "RCPT-0012 received 3 of 5 piece(s)",
+  "te": "RCPT-0012: 5లో 3 వస్తువు(లు) స్టోర్‌లో స్వీకరించబడ్డాయి"
+ },
+ {
+  "mode": "audit",
+  "en": "PR-0001 received: Rice 10 kg (bill B1, ₹500) → STM-0001",
+  "te": "PR-0001 స్వీకరించబడింది: రైస్ 10 కేజీ (బిల్లు B1, ₹500) → STM-0001"
+ },
+ {
+  "mode": "audit",
+  "en": "STH-0001 signed by witness — completed",
+  "te": "STH-0001పై సాక్షి సంతకం చేశారు — పూర్తయింది"
+ },
+ {
+  "mode": "audit",
+  "en": "RCPT-0012 valuables received",
+  "te": "RCPT-0012 విలువైనవి స్టోర్‌లో స్వీకరించబడ్డాయి"
+ },
+ {
+  "mode": "audit",
+  "en": "RCPT-0012 SHT-0001 closed at 3 of 5 — donor informed",
+  "te": "RCPT-0012 SHT-0001 మూసివేయబడింది: 5లో 3 స్వీకరించినట్లుగా — డోనర్ ఇన్ఫోర్మేద్"
+ },
+ {
+  "mode": "audit",
+  "en": "Ravi Kumar 50 persons",
+  "te": "రవి కుమార్ 50 మంది"
+ },
+ {
+  "mode": "audit",
+  "en": "Gold 24K rate for 2026-01-01: ₹100/g",
+  "te": "2026-01-01 బంగారం 24K ధర: ₹100/గ్రా"
+ },
+ {
+  "mode": "audit",
+  "en": "USE-0004 Camphor 5 kg written off as expired — damp",
+  "te": "USE-0004 కంఫోర్ 5 కేజీ గడువు ముగిసినందున రద్దు చేయబడింది — దంప్"
+ },
+ {
+  "mode": "audit",
+  "en": "Camphor CB-0003: best before 2026-01-01 → 2026-03-01",
+  "te": "కంఫోర్ CB-0003: ఉపయోగించాల్సిన గడువు 2026-01-01 → 2026-03-01"
+ },
+ {
+  "mode": "audit",
+  "en": "RCPT-0012 SHT-0001: received more valuables",
+  "te": "RCPT-0012 SHT-0001: మరిన్ని విలువైనవి స్వీకరించబడ్డాయి"
+ },
+ {
+  "mode": "audit",
+  "en": "RCPT-0012 SHT-0001: received 2 more",
+  "te": "RCPT-0012 SHT-0001: మరో 2 స్వీకరించబడ్డాయి"
+ },
+ {
+  "mode": "audit",
+  "en": "KIT-0001 Ganesh Kit: 4 piece(s), 2 consumable(s)",
+  "te": "KIT-0001 గణేష్ కిట్: 4 ముక్క(లు), 2 వినియోగ వస్తువు(లు)"
+ },
+ {
+  "mode": "audit",
+  "en": "STH-0001 Store Room: 5/7 found",
+  "te": "STH-0001 నిల్వ గది: 7లో 5 దొరికాయి"
+ },
+ {
+  "mode": "audit",
+  "en": "Abhishekam ₹500 (Paid)",
+  "te": "అభిషేకం ₹500 (చెల్లించబడింది)"
+ },
+ {
+  "mode": "audit",
+  "en": "HND-0003 ₹12500 (3 items, cash: ₹10500, valuables: ₹2000)",
+  "te": "HND-0003 ₹12500 (3 వస్తువులు, నగదు: ₹10500, విలువైనవి: ₹2000)"
+ },
+ {
+  "mode": "audit",
+  "en": "SLV-00003: lost write-off rejected — found later",
+  "te": "SLV-00003: పోయినట్లుగా రద్దు అభ్యర్థన తిరస్కరించబడింది — ఫౌంద్ లటేర్"
+ },
+ {
+  "mode": "audit",
+  "en": "SLV-00003: lost write-off requested — not found in check",
+  "te": "SLV-00003: పోయినట్లుగా రద్దు చేయమని అభ్యర్థించబడింది — నాట్ ఫౌంద్ ఇన్ చెక్"
+ },
+ {
+  "mode": "audit",
+  "en": "SLV-00003: written off as lost (asked by Ravi Kumar)",
+  "te": "SLV-00003: పోయినట్లుగా రద్దు చేయబడింది (అభ్యర్థించినవారు: రవి కుమార్)"
+ },
+ {
+  "mode": "audit",
+  "en": "ISS-0001: 3 piece(s) returned",
+  "te": "ISS-0001: 3 వస్తువు(లు) తిరిగి వచ్చాయి"
+ },
+ {
+  "mode": "audit",
+  "en": "ISS-0001: 3 piece(s) to Ravi Kumar for Ugadi, return by 2026-11-01",
+  "te": "ISS-0001: 3 వస్తువు(లు) రవి కుమార్ కు ఉగాది కోసం ఇవ్వబడ్డాయి, తిరిగి ఇచ్చే తేదీ 2026-11-01"
+ },
+ {
+  "mode": "audit",
+  "en": "STH-0001: Ravi Kumar → Suresh Rao, witness Mohan Das",
+  "te": "STH-0001: రవి కుమార్ → సురేష రావు, సాక్షి మోహన్ దస్"
+ },
+ {
+  "mode": "audit",
+  "en": "Recalculated 2027 at Hyderabad: Pournami 12 (1 to review, 0 kept); Amavasya 12 (0 to review, 0 kept); Festival 30 (2 to review, 1 kept)",
+  "te": "హైదరాబాద్లో 2027 మళ్ళీ లెక్కించబడింది: పౌర్ణమి 12 (1 సమీక్షకు, 0 ఉంచబడ్డాయి); అమావాస్య 12 (0 సమీక్షకు, 0 ఉంచబడ్డాయి); పండుగ 30 (2 సమీక్షకు, 1 ఉంచబడ్డాయి)"
+ },
+ {
+  "mode": "audit",
+  "en": "Abhishekam → 4 pooja(s) recurring",
+  "te": "అభిషేకం → 4 పూజ(లు) పునరావృత"
+ },
+ {
+  "mode": "audit",
+  "en": "Abhishekam → 1 pooja(s) on 2026-11-02 06:00",
+  "te": "అభిషేకం → 2026-11-02 06:00 న 1 పూజ(లు)"
+ },
+ {
+  "mode": "audit",
+  "en": "Abhishekam → 1 pooja(s) on 2026-11-02",
+  "te": "అభిషేకం → 2026-11-02 న 1 పూజ(లు)"
+ },
+ {
+  "mode": "audit",
+  "en": "Bulk assigned none → 5 bookings",
+  "te": "5 బుకింగ్‌లకు పూజారి కేటాయింపు తొలగించబడింది"
+ },
+ {
+  "mode": "audit",
+  "en": "PR-0006 bill photo kept (bill-0006.jpg, 214 KB)",
+  "te": "PR-0006 బిల్లు ఫోటో ఉంచబడింది (bill-0006.jpg, 214 KB)"
+ },
+ {
+  "mode": "audit",
+  "en": "Reviewed over-budget bill of PR-0006 (₹1,450 vs approx. ₹1,200)",
+  "te": "PR-0006 బడ్జెట్ మించిన బిల్లు సమీక్షించబడింది (₹1,450, సుమారు ₹1,200)"
+ },
+ {
+  "mode": "audit",
+  "en": "Voided RCPT-0012 — Reason: duplicate entry",
+  "te": "RCPT-0012 చెల్లుబాటు రద్దు చేయబడింది — కారణం: దుప్లికట్ ఏంత్రి"
+ }
+]

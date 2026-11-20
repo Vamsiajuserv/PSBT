@@ -41,6 +41,7 @@ def _row(b: Booking) -> dict:
         "plan_name": b.plan_name,
         "poojari_name": b.poojari_name,
         "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
+        "perform_dates": b.perform_dates,   # Yearly plans: the pooja dates fixed at booking
         "time_slot": b.time_slot,
         "valid_until": str(b.valid_until) if b.valid_until else None,
         "amount": float(b.amount or 0),

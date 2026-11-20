@@ -18,7 +18,7 @@ IMPORTANT: This module is READ-ONLY. It provides display information only.
 It NEVER modifies bookings, temple data, or any business records.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime, timedelta, date
 from typing import Optional, Dict, Any
 import logging
@@ -26,6 +26,7 @@ import requests
 import threading
 
 from ..config import settings
+from ..security import require_admin
 
 logger = logging.getLogger(__name__)
 
@@ -459,9 +460,11 @@ def get_today():
     }
 
 
-@router.get("/clear-cache")
-def clear_cache():
-    """Clear the API response cache (admin use)."""
+@router.post("/clear-cache")
+def clear_cache(user=Depends(require_admin)):
+    """Clear the API response cache. Administrator only, and a POST: wiping the cache
+    forces fresh (credit-consuming) Prokerala calls, so it must never be reachable
+    without login or by a simple link / crawler GET."""
     global _response_cache
     with _response_lock:
         _response_cache = {}

@@ -3,6 +3,9 @@ used, remaining; a use can never exceed what is left. Run from backend/:
     python -m unittest discover -s tests -t .
 """
 import unittest
+from decimal import Decimal
+
+from app.schemas import DonationVoidIn
 from datetime import date, timedelta
 from types import SimpleNamespace
 
@@ -74,6 +77,43 @@ class Consumables(unittest.TestCase):
         s.verify_manual(m["id"], self.req, self.db, self.committee)
         self.assertEqual(self.oil()["remaining"], 35)
 
+    # ── physical count (Stores audit, 2026-11-15) ──
+    def count(self, n, user=None):
+        return c.count_stock(1, c.CountIn(counted=Decimal(str(n)), note="Monthly count"), self.req, self.db,
+                             user or login("store1", "Stores Officer"))
+
+    def test_count_matches_short_and_extra(self):
+        self.assertEqual(self.count(20)["result"], "Matches")
+        short = self.count(17)                                                          # 3 L less than the book
+        self.assertEqual((short["result"], short["difference"]), ("Short", -3.0))
+        self.assertEqual(self.oil()["remaining"], 20)                                   # not until the committee approves
+        self.assertIn("already waiting", self.status(409, lambda: self.count(16)))
+        self.assertEqual(c.count_pending(self.db, self.committee)["total"], 1)
+        self.assertIn("who counted", self.status(403, lambda: c.approve_shortage(short["id"], self.req, self.db,
+                                                                                   login("store1", "Committee"))))
+        c.approve_shortage(short["id"], self.req, self.db, self.committee)
+        self.assertEqual(self.oil()["remaining"], 17)
+        led = c.ledger(1, self.db, self.counter)
+        self.assertEqual(led["entries"][-1]["balance"], 17)
+        extra = self.count(19)                                                          # 2 L more than the book
+        self.assertEqual(extra["result"], "Extra")
+        self.assertEqual(self.oil()["remaining"], 17)                                   # verified like any manual entry
+        s.verify_manual(extra["id"], self.req, self.db, self.committee)
+        self.assertEqual(self.oil()["remaining"], 19)
+
+    def test_count_shortage_rejected_changes_nothing(self):
+        short = self.count(15)
+        c.reject_shortage(short["id"], s.ReasonIn(reason="Recount tomorrow"), self.req, self.db, self.committee)
+        self.assertEqual(self.oil()["remaining"], 20)
+        self.status(409, lambda: c.approve_shortage(short["id"], self.req, self.db, self.committee))
+
+    def test_who_counts_and_who_decides(self):
+        from app.routers.consumables import router
+        dep = lambda path: next(d for rt in router.routes if rt.path == path for d in rt.dependant.dependencies if d.name == "user").call
+        for u in (self.counter, self.committee):
+            self.status(403, lambda: dep("/api/stores/consumables/{cid}/count")(u))
+        self.status(403, lambda: dep("/api/stores/consumables/use/{uid}/approve")(login("store1", "Stores Officer")))
+
     def test_use_limits_and_low_stock(self):
         self.status(422, lambda: self.use(21))                                           # only 20 left
         r = self.use(12)
@@ -112,21 +152,24 @@ class Consumables(unittest.TestCase):
         self.status(404, lambda: c.use_slip(999, self.db, self.counter))
 
     def test_start_date_rules(self):
-        self.use(2, when=TODAY - timedelta(days=5))
-        self.status(409, lambda: c.set_start(c.StartIn(start_date=TODAY - timedelta(days=1)), self.req, self.db, self.admin))
+        # Administrator only; fixed once any use is recorded (Stores audit, 2026-11-15) — moving it would
+        # quietly change every balance
         self.status(422, lambda: c.set_start(c.StartIn(start_date=TODAY + timedelta(days=1)), self.req, self.db, self.admin))
-        c.set_start(c.StartIn(start_date=TODAY - timedelta(days=60)), self.req, self.db, self.admin)
+        c.set_start(c.StartIn(start_date=TODAY - timedelta(days=60)), self.req, self.db, self.admin)   # before any use
         self.assertEqual(self.oil()["received"], 520)                                    # old donation now counted
+        self.use(2, when=TODAY - timedelta(days=5))
+        for day in (TODAY - timedelta(days=1), TODAY - timedelta(days=90)):
+            self.assertIn("fixed now", self.status(409, lambda: c.set_start(c.StartIn(start_date=day), self.req, self.db, self.admin)))
 
     def test_void_cannot_make_balance_negative(self):
         self.use(15)                                             # 20 received, 5 left
         d = self.db.query(Donation).filter(Donation.receipt_no == "R-1").one()
-        self.assertIn("negative", self.status(409, lambda: dn.delete_donation(d.id, self.req, self.db, self.admin)))
+        self.assertIn("negative", self.status(409, lambda: dn.delete_donation(d.id, DonationVoidIn(reason='test void'), self.req, self.db, self.admin)))
         self.db.add(Donation(receipt_no="R-2", donor_name="Y", donation_type="Material", fund="Oil", amount=0, quantity=3,
                              unit="Liters", mode="-", donated_on=TODAY))
         self.db.commit()
         d2 = self.db.query(Donation).filter(Donation.receipt_no == "R-2").one()
-        dn.delete_donation(d2.id, self.req, self.db, self.admin)  # 8 left, voiding 3 is fine
+        dn.delete_donation(d2.id, DonationVoidIn(reason='test void'), self.req, self.db, self.admin)  # 8 left, voiding 3 is fine
         self.assertEqual(self.oil()["remaining"], 5)
 
     def test_category_with_stock_is_protected(self):

@@ -116,7 +116,7 @@ export default function DonationMaster() {
           </div>
         )} />
 
-      <KpiGrid>
+      <KpiGrid variant="note">
         <StatTile icon={HandHeart} color="#059669" bg="bg-emerald-50" title={tr("Total Categories")} value={stats ? num(stats.total) : '—'} sub={tr("Active Donation Categories")} />
         <StatTile icon={Coins} color="#d97706" bg="bg-amber-50" title={tr("Cash Categories")} value={stats ? num(stats.cash) : '—'} sub={tr("Cash Donation Categories")} />
         <StatTile icon={Package} color="#2563eb" bg="bg-blue-50" title={tr("Material Categories")} value={stats ? num(stats.material) : '—'} sub={tr("Material Donation Categories")} />

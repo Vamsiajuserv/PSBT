@@ -37,8 +37,17 @@ def _stock_use(db: Session, c: DonationCategory) -> dict:
 
 
 def _assert_category_change(db: Session, c: DonationCategory, body: dict) -> None:
-    """Material donations are linked to stock by the category name, and stock is counted by
-    the category's tracking and unit — so these cannot change once stock exists."""
+    """Donations are recorded under the category's name (reports group by it; 80G goes by
+    "Medical") — so a category with donations is not renamed: switch it off and create a new
+    one (2026-11-15). Material stock is also counted by tracking and unit — those cannot
+    change once stock exists."""
+    from ..models import Donation
+    new_name = (body.get("name") or c.name).strip()
+    if new_name != c.name and c.type != "Material":
+        used = db.query(func.count(Donation.id)).filter(Donation.fund == c.name).scalar() or 0
+        if used:
+            raise HTTPException(409, f"{used} donation(s) are recorded under '{c.name}'. Renaming would split the reports — "
+                                     "switch it off and create a new category instead.")
     if c.type != "Material":
         return
     use = _stock_use(db, c)
@@ -180,6 +189,9 @@ def delete_category(cid: int, request: Request, db: Session = Depends(get_db), u
     use = _stock_use(db, c)
     if use["pieces"] or use["uses"] or use["manual"]:
         raise HTTPException(409, f"'{c.name}' has stock in Stores & Inventory — mark it Inactive instead of deleting.")
+    from ..models import Donation
+    if db.query(Donation.id).filter(Donation.fund == c.name).first():
+        raise HTTPException(409, f"Donations are recorded under '{c.name}' — mark it Inactive instead of deleting.")
     log_action(db, username=user.username, action="DELETE", entity="DonationCategory", detail=c.name, ip=client_ip(request))
     db.delete(c); db.commit()
 
@@ -221,6 +233,9 @@ def reset_categories(request: Request, db: Session = Depends(get_db), user=Depen
     from ..models import ConsumableUse, ManualStockEntry, StockItem
     if (db.query(StockItem.id).first() or db.query(ConsumableUse.id).first() or db.query(ManualStockEntry.id).first()):
         raise HTTPException(409, "Stores & Inventory already holds stock linked to these categories — reset is not allowed.")
+    from ..models import Donation
+    if db.query(Donation.id).first():   # 2026-11-15: donations are recorded under today's names
+        raise HTTPException(409, "Donations are already recorded under these categories — reset is only for a new installation.")
     # Delete all existing categories
     db.query(DonationCategory).delete()
     db.commit()

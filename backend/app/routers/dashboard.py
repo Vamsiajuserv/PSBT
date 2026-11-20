@@ -8,8 +8,9 @@ from ..database import get_db
 from ..models import (User, Booking, Donation, HundiCollection, Auction, Annadanam,
                       WasteSale, OpenSale, AuditLog, Festival)
 from ..schemas import AuditOut
-from ..security import get_current_user, RequireModule, ADMIN_ROLES
+from ..security import RequireModule, RequireRole, ADMIN_ROLES
 from ..helpers import fmt_ist_time, sort_expr, apply_column_filters
+from ..helpers import ist_day, ist_today
 from .almanac import pending_review_count, pending_review_count_for_year
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
@@ -24,9 +25,15 @@ def _recent_friday(today: date) -> date:
     return today - timedelta(days=(today.weekday() - 4) % 7)
 
 
+# The money dashboard is shown only to Administrator, Accountant and Committee
+# (frontend access.js: '' → roles Accountant, Committee). Counter Staff land on Counter,
+# Poojari on My Poojas and the Stores Officer on Stores Overview, so they never need it.
+dashboard_reader = RequireRole("Accountant", "Committee")
+
+
 @router.get("/dashboard")
 def dashboard(start: str = "", end: str = "", day: str = "",
-              db: Session = Depends(get_db), user=Depends(get_current_user)):
+              db: Session = Depends(get_db), user=Depends(dashboard_reader)):
     """KPI dashboard over an inclusive [start, end] date range.
 
     Back-compat: `day=YYYY-MM-DD` selects a single date; no params → today.
@@ -39,7 +46,7 @@ def dashboard(start: str = "", end: str = "", day: str = "",
         except ValueError:
             return None
 
-    real_today = date.today()
+    real_today = ist_today()
     s, e = _parse(start), _parse(end)
     if day and not (s or e):
         s = e = _parse(day)
@@ -58,8 +65,12 @@ def dashboard(start: str = "", end: str = "", day: str = "",
         # Exclude soft-voided / non-collected records so KPIs reconcile with Daily Closing.
         if model is Donation:
             return (Donation.voided.isnot(True),)
-        if model is Auction:
-            return (Auction.status == "Completed",)
+        if model is Annadanam:
+            return (Annadanam.voided.isnot(True),)
+        if model is HundiCollection:   # counted once the committee verified it
+            return (HundiCollection.verification_status == "Verified",)
+        if model is Auction:   # money counted once paid (2026-11-15)
+            return (Auction.status != "Void", Auction.payment_status == "Paid")
         if model is WasteSale:
             return (WasteSale.status == "Paid",)
         if model is Booking:
@@ -67,7 +78,7 @@ def dashboard(start: str = "", end: str = "", day: str = "",
         return ()
 
     def _rng(model):
-        return (func.date(model.created_at) >= s, func.date(model.created_at) <= e, *_live(model))
+        return (ist_day(model.created_at) >= s, ist_day(model.created_at) <= e, *_live(model))
 
     def csum(col, model):
         return float(db.query(func.coalesce(func.sum(col), 0)).filter(*_rng(model)).scalar() or 0)
@@ -86,7 +97,7 @@ def dashboard(start: str = "", end: str = "", day: str = "",
     auction_amt = csum(Auction.current_amount, Auction)
     waste_amt = csum(WasteSale.amount, WasteSale)
     waste_weight = csum(WasteSale.weight_kg, WasteSale)
-    _os_rng = (func.date(OpenSale.sold_at) >= s, func.date(OpenSale.sold_at) <= e)
+    _os_rng = (ist_day(OpenSale.sold_at) >= s, ist_day(OpenSale.sold_at) <= e)
     _os_amt = float(db.query(func.coalesce(func.sum(OpenSale.amount), 0)).filter(*_os_rng).scalar() or 0)
     _os_count = int(db.query(func.count(OpenSale.id)).filter(*_os_rng).scalar() or 0)
     annadanam_count = ccount(Annadanam)
@@ -120,11 +131,11 @@ def dashboard(start: str = "", end: str = "", day: str = "",
     lbl_fmt = "%a %d %b" if span <= 10 else "%d %b"
     days = []
     for dd in bucket_days:
-        c = db.query(func.count(Booking.id)).filter(func.date(Booking.created_at) == dd).scalar() or 0
+        c = db.query(func.count(Booking.id)).filter(ist_day(Booking.created_at) == dd).scalar() or 0
         days.append({"label": dd.strftime(lbl_fmt), "count": int(c)})
     this_period = ccount(Booking)
     prev_period = int(db.query(func.count(Booking.id)).filter(
-        func.date(Booking.created_at) >= prev_start, func.date(Booking.created_at) <= prev_end).scalar() or 0)
+        ist_day(Booking.created_at) >= prev_start, ist_day(Booking.created_at) <= prev_end).scalar() or 0)
     change = round(((this_period - prev_period) / prev_period * 100), 2) if prev_period else 0.0
 
     # ── Recent pooja bookings ──
@@ -132,7 +143,7 @@ def dashboard(start: str = "", end: str = "", day: str = "",
     recent_bookings = [{
         "pooja": b.seva_name, "plan": b.plan_name, "devotee": b.devotee_name,
         "time": fmt_ist_time(b.created_at),
-        "status": "Booked" if b.status in ("Confirmed", "Pending") else b.status,
+        "status": b.status,    # same words and colours as All bookings (Confirmed / Completed / …)
     } for b in recent]
 
     # ── Upcoming special (Occasion) poojas — relative to the real today ──
@@ -223,14 +234,18 @@ def dashboard(start: str = "", end: str = "", day: str = "",
 def reports_summary(start: date | None = None, end: date | None = None,
                     db: Session = Depends(get_db),
                     user=Depends(RequireModule("Reports"))):
-    end = end or date.today()
+    end = end or ist_today()
     start = start or end.replace(day=1)
 
     def _live2(model):
         if model is Donation:
             return (Donation.voided.isnot(True),)
-        if model is Auction:
-            return (Auction.status == "Completed",)
+        if model is Annadanam:
+            return (Annadanam.voided.isnot(True),)
+        if model is HundiCollection:   # counted once the committee verified it
+            return (HundiCollection.verification_status == "Verified",)
+        if model is Auction:   # money counted once paid (2026-11-15)
+            return (Auction.status != "Void", Auction.payment_status == "Paid")
         if model is WasteSale:
             return (WasteSale.status == "Paid",)
         if model is Booking:
@@ -239,7 +254,7 @@ def reports_summary(start: date | None = None, end: date | None = None,
 
     def sum_between(model, col):
         return float(db.query(func.coalesce(func.sum(col), 0)).filter(
-            func.date(model.created_at).between(start, end), *_live2(model)).scalar() or 0)
+            ist_day(model.created_at).between(start, end), *_live2(model)).scalar() or 0)
 
     return {
         "range": {"start": str(start), "end": str(end)},
@@ -248,9 +263,9 @@ def reports_summary(start: date | None = None, end: date | None = None,
         "hundi_collection": sum_between(HundiCollection, HundiCollection.counted_amount),
         "annadanam_amount": sum_between(Annadanam, Annadanam.amount),
         "donation_80g_count": db.query(func.count(Donation.id)).filter(
-            Donation.g80.is_(True), Donation.voided.isnot(True), func.date(Donation.created_at).between(start, end)).scalar() or 0,
+            Donation.g80.is_(True), Donation.voided.isnot(True), ist_day(Donation.created_at).between(start, end)).scalar() or 0,
         "bookings_count": db.query(func.count(Booking.id)).filter(
-            func.date(Booking.created_at).between(start, end)).scalar() or 0,
+            ist_day(Booking.created_at).between(start, end)).scalar() or 0,
     }
 
 
@@ -267,9 +282,9 @@ def audit(limit: int = 100, db: Session = Depends(get_db),
 
 @router.get("/audit/stats")
 def audit_stats(db: Session = Depends(get_db), user=Depends(RequireModule("Audit"))):
-    today = date.today()
+    today = ist_today()
     total = db.query(func.count(AuditLog.id)).filter(_NOT_RATE_LIMIT).scalar() or 0
-    today_c = db.query(func.count(AuditLog.id)).filter(_NOT_RATE_LIMIT, func.date(AuditLog.ts) == today).scalar() or 0
+    today_c = db.query(func.count(AuditLog.id)).filter(_NOT_RATE_LIMIT, ist_day(AuditLog.ts) == today).scalar() or 0
     logins = db.query(func.count(AuditLog.id)).filter(AuditLog.action == "LOGIN").scalar() or 0
     users = db.query(func.count(func.distinct(AuditLog.username))).filter(_NOT_RATE_LIMIT).scalar() or 0
     return {"total": total, "today": today_c, "logins": logins, "users": users}
@@ -302,9 +317,9 @@ def audit_search(q: str = "", action: str = "", entity: str = "", username: str 
     if username:
         query = query.filter(AuditLog.username == username)
     if start:
-        query = query.filter(func.date(AuditLog.ts) >= start)
+        query = query.filter(ist_day(AuditLog.ts) >= start)
     if end:
-        query = query.filter(func.date(AuditLog.ts) <= end)
+        query = query.filter(ist_day(AuditLog.ts) <= end)
     query = apply_column_filters(query, col_filters, AUDIT_SORT_COLUMNS)
     total = query.count()
     if sort_by in AUDIT_SORT_COLUMNS:

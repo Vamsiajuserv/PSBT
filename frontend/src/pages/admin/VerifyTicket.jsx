@@ -7,6 +7,7 @@ import { PageHeader } from '../../components/common/UI.jsx'
 import { BookingsAPI, ApiError, getErrorMessage } from '../../api/client.js'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, teText, stamp } from '../../i18n/LanguageContext.jsx'
+import { halfLabel } from '../../lib/halfSlots.js'
 
 const fmtDate = (iso) =>
   iso ? stamp(new Date(iso).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })) : ''
@@ -174,6 +175,7 @@ export default function VerifyTicket() {
               {result.mobile && <Field icon={Phone} label={tr('Mobile')} value={result.mobile} />}
               <Field icon={CalendarDays} label={single ? tr('Pooja date') : tr('Valid from')} value={fmtDate(result.scheduled_date)} />
               <Field icon={Clock} label={tr('Slot')} value={result.time_slot ? clock12(result.time_slot) : tr('Any time')} />
+              {result.batch_slot && <Field icon={Clock} label={tr('Pooja slot')} value={halfLabel(result.batch_slot)} />}
               <Field label={tr('Status')} value={tr(result.status)} />
               <Field label={tr('Payment')} value={tr(result.payment_status)} />
               {result.gothram && <Field label={tr('Gothram')} value={tr(result.gothram)} />}

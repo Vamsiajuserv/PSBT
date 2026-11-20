@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useNavigate, useOutletContext } from 'react-router-dom'
 import {
   Printer, Plus, Receipt as ReceiptIcon, Search, User, X, IndianRupee, Loader2, Eye, AlertTriangle, Clock,
-  Check, Flame, CalendarDays, Moon, Car, ShieldCheck, FileText, RotateCcw, CheckCircle2, ChevronDown, ChevronUp, UserPlus,
+  Check, Flame, CalendarDays, Moon, Car, ShieldCheck, FileText, RotateCcw, CheckCircle2, ChevronDown, ChevronUp, UserPlus, CalendarPlus,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
 import { DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { PoojasAPI, DevoteesAPI, BookingsAPI, FestivalsAPI, AlmanacAPI, SettingsAPI } from '../../api/client.js'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { canAccessKey } from '../../auth/access.js'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast, confirmDialog } from '../../components/common/Dialog.jsx'
 import { T, tr, useLang, personName, stamp, teTerm, clock12 } from '../../i18n/LanguageContext.jsx'
@@ -16,6 +18,7 @@ import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
 import { planValidUntil, planSpan, addDaysISO } from '../../lib/planTerms.js'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
 import { slotIsOver, slotPeriod, isRange, isTempleHours, NOTE_VEHICLE } from '../../lib/slots.js'
+import { halfLabel, halfRange, halfPeriod, PERIODS, fixedTimeSent } from '../../lib/halfSlots.js'
 
 // ── Constants ──
 const CATS = ['All', 'Daily', 'Monthly', 'Long-Term', 'Occasion', 'Festival', 'Vehicle']
@@ -84,7 +87,11 @@ const calcExpiry = (bookedDate, planName) => {
 
 // Fixed pooja timings (Pooja Master): the slot this line keeps on `date` — its current
 // one while still open, else the first open slot ('' when today's are all over).
-const openSlotsOf = (item, date) => (item.time_slots || []).filter((s) => !slotIsOver(s, date))
+// Monthly / Life Long (client 2026-11-18): the devotee picks one slot and comes at it every day. A slot
+// that is over or sent today is still chosen — the plan then starts tomorrow in the same slot (the server
+// moves the start date). A Pournami / Amavasya plan is tied to its day and is never moved.
+const isDailyMulti = (item) => !item?.tithi_type && item?.category !== 'Festival' && /life|month/i.test(`${item?.plan_name || ''} ${item?.validity_type || ''}`)
+const openSlotsOf = (item, date) => (isDailyMulti(item) ? (item.time_slots || []) : (item.time_slots || []).filter((s) => !slotIsOver(s, date)))
 const pickSlot = (item, date) => {
   const open = openSlotsOf(item, date)
   return open.includes(item.time_slot) ? item.time_slot : (open[0] || '')
@@ -107,6 +114,9 @@ export default function Counter() {
   const { role } = useOutletContext()
   // Committee holds Counter for viewing only; the backend rejects their billing
   const canBill = !['Accountant', 'Committee'].includes(role)
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const canAdvance = canAccessKey(user, 'bookings/new')
 
   // ── UPI Config ──
   const [upiConfig, setUpiConfig] = useState({ upi_id: '', upi_payee_name: '' })
@@ -346,6 +356,22 @@ export default function Counter() {
   // ── Selected Items (Multi-Select) ──
   const lineSeq = useRef(0)
   const [selected, setSelected] = useState([])
+  // Today's half-hour lists already sent to the poojari: their fixed pooja times are closed —
+  // greyed out, never picked automatically; the devotee chooses another time.
+  const [sentToday, setSentToday] = useState([])
+  useEffect(() => {
+    let live = true
+    const load = () => BookingsAPI.batchOptions({ day: todayISO() }).then((d) => live && setSentToday(d.sent || [])).catch(() => {})
+    load()
+    const t = setInterval(() => document.visibilityState === 'visible' && load(), 60000)
+    return () => { live = false; clearInterval(t) }
+  }, [])
+  const safePick = (entry, date) => { const s = pickSlot(entry, date); return !isDailyMulti(entry) && fixedTimeSent(s, date, sentToday) ? '' : s }
+  // A list sent while the cart is open closes the time that line had picked
+  useEffect(() => {
+    const closed = (l) => !isDailyMulti(l) && l.time_slot && fixedTimeSent(l.time_slot, l.scheduled_date || todayISO(), sentToday)
+    setSelected((prev) => (prev.some(closed) ? prev.map((l) => (closed(l) ? { ...l, time_slot: '', batch_slot: '' } : l)) : prev))
+  }, [sentToday])
 
   // ── Payment State ──
   const [mode, setMode] = useState('Cash')
@@ -430,6 +456,11 @@ export default function Counter() {
     if (isSelected) {
       setSelected(prev => prev.filter(s => s.key !== entry.key))
     } else {
+      // Yearly Thrice: the devotee picks the 3 pooja dates — that is Advance Booking (decision D5)
+      if (/thrice/i.test(entry.plan_name || '')) {
+        setError(tr('Yearly Thrice: book it from Advance Booking — the devotee picks the 3 pooja dates.'))
+        return
+      }
       // Check committee pricing
       let amount = Number(entry.fee) || 0
       if (entry.category === 'Festival') {
@@ -474,7 +505,7 @@ export default function Counter() {
         amount,
         lineId: ++lineSeq.current,
         scheduled_date,
-        time_slot: pickSlot(entry, scheduled_date),
+        time_slot: safePick(entry, scheduled_date),
         vehicle_no: '',
       }])
       setError('')
@@ -490,7 +521,8 @@ export default function Counter() {
     setSelected(prev => prev.map(s => {
       if (s.lineId !== lineId) return s
       const next = { ...s, [field]: value }
-      if (field === 'scheduled_date') next.time_slot = pickSlot(next, value)   // keep the slot valid for the new date
+      if (field === 'scheduled_date') next.time_slot = safePick(next, value)   // keep the slot valid for the new date
+      if (field === 'scheduled_date' || field === 'time_slot') next.batch_slot = ''   // half-hour list follows the new date / time
       return next
     }))
   }
@@ -530,6 +562,11 @@ export default function Counter() {
     }
   }
 
+  const openAdvance = async () => {
+    if (hasMeaningfulData && !(await confirmDialog({ title: tr('Leave this bill?'), message: tr('The bill being prepared here is not saved and will be lost.'), confirmLabel: tr('Leave') }))) return
+    navigate('/admin/bookings/new')
+  }
+
   // ── Checkout ──
   const checkout = async () => {
     setError('')
@@ -563,6 +600,19 @@ export default function Counter() {
         setError(tr('Select date for') + ` ${teTerm(item.pooja_name)}`)
         return
       }
+      const lineDate = item.scheduled_date || todayISO()
+      if (item.time_slots?.length && !item.time_slot && openSlotsOf(item, lineDate).some((sl) => !fixedTimeSent(sl, lineDate, sentToday))) {
+        setError(`${tr('Choose a time slot for')} ${teTerm(item.pooja_name)} — ${tr('ask the devotee which time they want.')}`)
+        return
+      }
+      if (!isDailyMulti(item) && item.time_slots?.length && item.time_slot && fixedTimeSent(item.time_slot, lineDate, sentToday)) {
+        setError(`${teTerm(item.pooja_name)}: ${tr('this time\'s list was already sent to the poojari — choose another time.')}`)
+        return
+      }
+      if (!isDailyMulti(item) && item.time_slots?.length && !item.time_slot && openSlotsOf(item, lineDate).length > 0) {
+        setError(`${teTerm(item.pooja_name)}: ${tr("today's list is already sent to the poojari — book it for another date.")}`)
+        return
+      }
       if (item.time_slots?.length && (!item.time_slot || slotIsOver(item.time_slot, item.scheduled_date || todayISO()))) {
         setError(`${tr('Select a time slot for')} ${teTerm(item.pooja_name)} — ${tr("today's slot is over, choose another date")}.`)
         return
@@ -594,6 +644,8 @@ export default function Counter() {
         amount: Number(item.amount),
         scheduled_date: item.scheduled_date || todayISO(),
         time_slot: item.time_slot || undefined,
+        // Half-hour pooja list the counter picked (today or a later date); none = the earliest open one
+        batch_slot: item.batch_slot || undefined,
         vehicle_no: item.vehicle_no?.trim() || undefined,
         gothram: gothram.trim() || undefined,
         nakshatram: nakshatram.trim() || undefined,
@@ -615,7 +667,7 @@ export default function Counter() {
           pooja_name: cartItem.pooja_name || s.seva_name || 'Seva',
           plan_name: cartItem.plan_name || s.plan_name || 'Daily',
           amount: cartItem.amount || s.amount || 0,
-          booking: { id: s.id, booking_code: s.booking_code, ticket_no: s.ticket_no, receipt_no: s.receipt_no, seva_name: s.seva_name, plan_name: s.plan_name, amount: s.amount, valid_until: s.valid_until, scheduled_date: s.scheduled_date, time_slot: s.time_slot },
+          booking: { id: s.id, booking_code: s.booking_code, ticket_no: s.ticket_no, receipt_no: s.receipt_no, seva_name: s.seva_name, plan_name: s.plan_name, amount: s.amount, valid_until: s.valid_until, scheduled_date: s.scheduled_date, time_slot: s.time_slot, batch_slot: s.batch_slot },
         }
       })
 
@@ -666,7 +718,11 @@ export default function Counter() {
         <PageHeader
           title={tr("Counter Billing")}
           action={
-            <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">{tr('Counter')} 1 · {tr(role)}</span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">{tr('Counter')} 1 · {tr(role)}</span>
+              {/* Another date? Advance Booking (decision D9) — asks first if a bill is half-filled */}
+              {canAdvance && <button type="button" onClick={openAdvance} className="btn-maroon !py-2"><CalendarPlus size={15} />{' '}<T>Advance Booking</T></button>}
+            </div>
           }
         />
       </div>
@@ -955,7 +1011,8 @@ export default function Counter() {
                           <CalendarDays size={11} className="shrink-0" />{cartLineWhen(item)}
                           {item.category === 'Vehicle' && item.vehicle_no && <span className="text-amber-600">· {item.vehicle_no}</span>}
                         </div>
-                        {item.time_slots?.length > 0 && <CartLineSlot item={item} onChange={(v) => updateItemMeta(item.lineId, 'time_slot', v)} />}
+                        {item.time_slots?.length > 0 && <CartLineSlot item={item} sent={sentToday} onChange={(v) => updateItemMeta(item.lineId, 'time_slot', v)} />}
+                        <CartLineBatch item={item} sent={sentToday} onChange={(v) => updateItemMeta(item.lineId, 'batch_slot', v)} />
                         {!blocked && sameDay.some((w) => w.lineId === item.lineId) && <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{tr('Already booked that day — will ask to confirm')}</div>}
                         {blocked && <div className="text-[11px] font-semibold text-red-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{blockedLines.get(item.lineId).in_cart ? tr('Blocked — already covered in this cart') : tr('Blocked — active plan exists')}</div>}
                       </div>
@@ -1142,12 +1199,18 @@ export default function Counter() {
 // A cart line's fixed timing: one slot is shown read-only; several are tappable chips
 // grouped Morning / Evening — today's passed slots stay visible but greyed out, and the
 // chosen one is highlighted so the operator confirms it with the devotee.
-function CartLineSlot({ item, onChange }) {
+function CartLineSlot({ item, onChange, sent }) {
   const date = item.scheduled_date || todayISO()
   const open = openSlotsOf(item, date)
   const vehicle = item.category === 'Vehicle'
+  const multi = isDailyMulti(item)
+  const isSent = (s) => !multi && fixedTimeSent(s, date, sent)
+  const nextFree = open.find((s) => !isSent(s))
   if (open.length === 0) {
     return <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{tr("Today's time slot for this pooja is over")}</div>
+  }
+  if (!nextFree) {
+    return <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{tr("Today's list for this pooja is already sent to the poojari — book it for another date.")}</div>
   }
   if (item.time_slots.length === 1) {
     return (
@@ -1161,19 +1224,99 @@ function CartLineSlot({ item, onChange }) {
   const groups = ['Morning', 'Evening'].map((g) => [g, item.time_slots.filter((s) => slotPeriod(s) === g)]).filter(([, l]) => l.length)
   return (
     <div className="mt-1.5" role="radiogroup" aria-label={tr('Time Slot')}>
-      <div className="text-[11px] text-gray-600 flex items-center gap-1 mb-1"><Clock size={11} className="shrink-0 text-amber-600" /><span className="font-medium">{tr('Time Slot')}</span></div>
+      <div className="text-[11px] text-gray-600 flex items-center gap-1 mb-1"><Clock size={11} className="shrink-0 text-amber-600" /><span className="font-medium">{tr('Time Slot')}</span>
+        {!item.time_slot && <span className="font-semibold text-red-700">· {tr('Choose a time — ask the devotee')}</span>}</div>
       <div className="space-y-1">
         {groups.map(([g, list]) => (
           <div key={g} className="flex items-start gap-1.5">
             <span className="text-[10px] font-semibold text-gray-500 w-12 pt-1 shrink-0">{tr(g)}</span>
             <div className="flex flex-wrap gap-1">
               {list.map((s) => {
-                const over = slotIsOver(s, date), on = item.time_slot === s
+                const over = !multi && slotIsOver(s, date), closed = !over && isSent(s), on = item.time_slot === s
+                const tomorrow = multi && (slotIsOver(s, date) || fixedTimeSent(s, date, sent))
+                const hint = !item.time_slot && s === nextFree
                 return (
-                  <button key={s} type="button" role="radio" aria-checked={on} disabled={over} onClick={() => onChange(s)}
-                    title={over ? tr("Today's time slot for this pooja is over") : undefined}
-                    className={`px-2 py-1 rounded-md text-[11px] font-semibold border transition-colors ${on ? 'bg-maroon-700 text-cream border-maroon-700' : over ? 'bg-gray-50 text-gray-300 border-gray-100 line-through cursor-not-allowed' : 'bg-white text-maroon-700 border-maroon-200 hover:bg-maroon-50'}`}>
-                    {clock12(s)}
+                  <button key={s} type="button" role="radio" aria-checked={on} disabled={over || closed} onClick={() => onChange(s)}
+                    title={tomorrow ? tr('Starts tomorrow in this slot') : over ? tr("Today's time slot for this pooja is over") : closed ? tr('List already sent to the poojari') : hint ? tr('Next available') : undefined}
+                    className={`px-2 py-1 rounded-md text-[11px] font-semibold border transition-colors ${on ? 'bg-maroon-700 text-cream border-maroon-700' : over ? 'bg-gray-50 text-gray-300 border-gray-100 line-through cursor-not-allowed' : closed ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : hint ? 'bg-amber-50 text-maroon-800 border-amber-400 ring-1 ring-amber-300 hover:bg-amber-100' : 'bg-white text-maroon-700 border-maroon-200 hover:bg-maroon-50'}`}>
+                    {closed && '🔒 '}{clock12(s)}{tomorrow && <span className="ml-1 text-[9px] font-bold uppercase text-amber-700">{tr('Tomorrow')}</span>}{hint && <span className="ml-1 text-[9px] font-bold uppercase text-amber-700">{tr('Next')}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// The half-hour pooja list this line goes on (client rule 2026-11-14). A list stays open until
+// it is sent to the poojari — starting does not close it. A fixed-time pooja is on its own
+// half-hour; any other pooja shows every half-hour still open for it on that day as chips: the
+// earliest is the default, and the counter may pick a later one with the devotee. Sent ones are
+// greyed out with 🔒, finished ones are hidden. The chips follow the selected pooja / time and
+// reload every minute and whenever a list is sent; a picked half-hour that is sent meanwhile
+// falls back to the earliest open one with a note.
+function CartLineBatch({ item, onChange, sent }) {
+  const date = item.scheduled_date || todayISO()
+  const slot = item.time_slots?.length ? item.time_slot : ''
+  const sentKey = (sent || []).join(',')
+  const [opt, setOpt] = useState(null)
+  const [moved, setMoved] = useState(false)
+  const noList = ['Festival', 'Vehicle'].includes(item.category)     // no slot, on no half-hour list
+  useEffect(() => {
+    if (noList) return undefined
+    let live = true
+    const load = () => BookingsAPI.batchOptions({ day: date, time_slot: slot || undefined, plan_id: item.plan_id }).then((d) => live && setOpt(d)).catch(() => live && setOpt(null))
+    load()
+    const t = date === todayISO() ? setInterval(() => document.visibilityState === 'visible' && load(), 60000) : null
+    return () => { live = false; if (t) clearInterval(t) }
+  }, [date, slot, sentKey])
+  const shown = opt && !opt.fixed ? opt.options.filter((o) => !o.over) : []
+  const isOpen = (start) => shown.some((o) => o.start === start && !o.sent)
+  const lost = !!item.batch_slot && !!opt && !opt.fixed && !isOpen(item.batch_slot)
+  useEffect(() => {
+    if (lost) { setMoved(true); onChange('') }
+  }, [lost]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (noList || !opt || (item.time_slots?.length && !item.time_slot)) return null
+  if (opt.error) return <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{tr(opt.error)}</div>
+  const chosen = (!lost && item.batch_slot) || opt.auto
+  const pick = (start) => { setMoved(false); onChange(start) }
+  if (opt.fixed || shown.filter((o) => !o.sent).length <= 1) {
+    return (
+      <div className="text-[11px] text-gray-600 flex flex-wrap items-center gap-1 mt-0.5">
+        <Clock size={11} className="shrink-0 text-maroon-700" />
+        <span className="font-medium">{tr('Pooja slot')}:</span>
+        <span className="font-semibold text-maroon-700">{halfLabel(chosen)}</span>
+        {opt.starts_tomorrow && <span className="font-semibold text-amber-700">· {tr('Starts tomorrow')} ({fmtDate(opt.start_date)})</span>}
+      </div>
+    )
+  }
+  const groups = PERIODS.map((g) => [g, shown.filter((o) => halfPeriod(o.start) === g)]).filter(([, l]) => l.length)
+  return (
+    <div className="mt-1.5" role="radiogroup" aria-label={tr('Pooja slot (half-hour)')}>
+      <div className="text-[11px] text-gray-600 flex flex-wrap items-center gap-1 mb-1">
+        <Clock size={11} className="shrink-0 text-maroon-700" />
+        <span className="font-medium">{tr('Pooja slot (half-hour)')}:</span>
+        <span className="font-semibold text-maroon-700">{halfLabel(chosen)}</span>
+        {!item.batch_slot && <span className="text-gray-400">· {tr('Earliest open half-hour — ask the devotee')}</span>}
+      </div>
+      {moved && !item.batch_slot && (
+        <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mb-1"><AlertTriangle size={11} className="shrink-0" />
+          {tr('The half-hour you picked was sent to the poojari — the earliest open one is chosen. Confirm with the devotee.')}</div>)}
+      <div className="space-y-1">
+        {groups.map(([g, list]) => (
+          <div key={g} className="flex items-start gap-1.5">
+            <span className="text-[10px] font-semibold text-gray-500 w-12 pt-1 shrink-0">{tr(g)}</span>
+            <div className="flex flex-wrap gap-1">
+              {list.map((o) => {
+                const on = o.start === chosen
+                return (
+                  <button key={o.start} type="button" role="radio" aria-checked={on} disabled={o.sent} onClick={() => pick(o.start)}
+                    title={o.sent ? tr('List already sent to the poojari') : halfLabel(o.start)}
+                    className={`px-2 py-1 rounded-md text-[11px] font-semibold border tabular-nums transition-colors ${on ? 'bg-maroon-700 text-cream border-maroon-700' : o.sent ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-maroon-700 border-maroon-200 hover:bg-maroon-50'}`}>
+                    {o.sent && '🔒 '}{halfRange(o.start)}
                   </button>
                 )
               })}
@@ -1307,6 +1450,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
                 <TF label={tr("Plan")} value={tr(line.plan_name || booking?.plan_name || 'Daily')} />
                 <TF label={tr("Pooja Date")} value={stamp(fmtDate(booking?.scheduled_date || line.scheduled_date || todayISO()))} />
                 {(booking?.time_slot || line.time_slot) && <TF label={tr("Time Slot")} value={slotLabel(booking?.time_slot || line.time_slot)} />}
+                {booking?.batch_slot && <TF label={tr("Pooja slot")} value={halfLabel(booking.batch_slot)} />}
                 {line.vehicle_no && <TF label={tr("Vehicle No")} value={line.vehicle_no} />}
               </>
             )}
@@ -1323,6 +1467,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
                         {l.vehicle_no && <span className="text-gray-600 text-[0.6875rem] ml-1">· {l.vehicle_no}</span>}
                         <span className="text-gray-600 text-[0.6875rem] ml-1">· {stamp(fmtDate(l.booking?.scheduled_date || l.scheduled_date || todayISO()))}</span>
                         {(l.booking?.time_slot || l.time_slot) && <span className="text-gray-600 text-[0.6875rem] ml-1">· {slotLabel(l.booking?.time_slot || l.time_slot)}</span>}
+                        {l.booking?.batch_slot && <span className="block text-maroon-700 text-[0.6875rem] font-semibold">{tr('Pooja slot')}: {halfLabel(l.booking.batch_slot)}</span>}
                         {lineValidity(l) && <span className="block text-blue-700 text-[0.6875rem]"><T>Validity</T>: {lineValidity(l)}</span>}
                       </span>
                       <span className="font-semibold text-gray-700">₹{Number(l.amount || l.booking?.amount || 0).toLocaleString('en-IN')}</span>

@@ -77,7 +77,7 @@ class Devotee(Base):
     gothram = Column(String(80), nullable=True)
     nakshatram = Column(String(80), nullable=True)
     rasi = Column(String(80), nullable=True)  # Zodiac sign for Sankalpam
-    pan_number = Column(String(10), nullable=True)  # PAN for 80G receipts (optional)
+    pan_number = Column(String(255), nullable=True)  # PAN for 80G receipts (optional); encrypted at rest when PAN_ENCRYPTION_KEY is set
     dob = Column(Date, nullable=True)
     preferred_language = Column(String(20), default="English", nullable=False)  # English | Telugu
     status = Column(String(20), default="Active", nullable=False)
@@ -180,6 +180,9 @@ class Booking(Base):
     amount = Column(Numeric(12, 2), nullable=False)
     scheduled_date = Column(Date, nullable=True)     # first day the pooja is due
     valid_until = Column(Date, nullable=True)        # last valid day; NULL = never expires (Life Long)
+    # Yearly plans: the dates the poojas are performed, fixed at booking ("2026-11-16,2027-03-10,…");
+    # the booking is due only on these days (Advance Booking decision D5). NULL = older bookings.
+    perform_dates = Column(String(120), nullable=True)
     # Multi-performance entitlement (Yearly Thrice = 3, Monthly = ~30/day, N-Day = N,
     # Life Long = unlimited/NULL, One-Time/Daily = 1). A performance is consumed at
     # most once per calendar day; the booking Completes only when the quota is used.
@@ -199,6 +202,10 @@ class Booking(Base):
     special_notes = Column(Text, nullable=True)      # special instructions for poojari
     vehicle_no = Column(String(20), nullable=True)   # vehicle poojas
     time_slot = Column(String(40), nullable=True)
+    # The half-hour pooja list this booking is on ("06:30" = 6:30–7:00 AM, 24-hour start).
+    # Set at billing: the current half-hour, or the next one once its list was sent to the
+    # poojari (see app/pooja_batches.py). A fixed-time pooja keeps its own half-hour.
+    batch_slot = Column(String(5), nullable=True)
     status = Column(String(20), default="Confirmed", nullable=False)   # Confirmed | Pending | Cancelled | Completed
     payment_status = Column(String(20), default="Paid", nullable=False)  # Paid | Pending | Failed
     payment_method = Column(String(20), nullable=True)                 # Cash | UPI | Card | Online
@@ -208,6 +215,55 @@ class Booking(Base):
     ticket_no = Column(String(30), nullable=True, index=True)          # TKT-YYYY-NNNNNN
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
+
+
+class SlotDispatch(Base):
+    """A half-hour pooja list handed to the poojari ("Print & Send"). Once sent, new walk-in
+    bookings go to the next half-hour. booking_ids = the bookings on the list when it was sent
+    (a booking added later is shown as added after sending). Undo (delete) is Administrator only."""
+    __tablename__ = "pooja_slot_dispatches"
+    __table_args__ = (UniqueConstraint("day", "slot_start", name="uq_slot_dispatch_day_slot"),)
+
+    id = Column(Integer, primary_key=True)
+    day = Column(Date, nullable=False, index=True)
+    slot_start = Column(String(5), nullable=False)          # "06:30"
+    devotee_count = Column(Integer, default=0, nullable=False)
+    booking_ids = Column(Text, nullable=True)                # comma-separated
+    sent_by = Column(String(60), nullable=True)
+    sent_by_name = Column(String(120), nullable=True)
+    sent_at = Column(DateTime, nullable=True)                # IST wall clock
+
+
+class StaffAlert(Base):
+    """An in-app alert for staff (the header bell), pushed live over SSE (app/staff_alerts.py).
+    `roles` = who sees it, as ",Administrator,Stores Officer," (leading / trailing comma so one
+    LIKE '%,Role,%' matches a role). `params` = JSON values the screen builds the text from (so
+    it shows in English or Telugu); `title` / `body` keep an English copy."""
+    __tablename__ = "staff_alerts"
+
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, nullable=False, index=True)   # IST wall clock
+    event = Column(String(40), nullable=False)                  # donation_big | sponsorship | annadanam | material | valuable | medical | hundi
+    roles = Column(String(200), nullable=False)
+    users = Column(String(200), nullable=True)                  # ",3,7," user ids also addressed (e.g. Hundi approvers)
+    title = Column(String(160), nullable=False)
+    body = Column(Text, nullable=True)
+    params = Column(Text, nullable=True)
+    link = Column(String(200), nullable=True)                   # screen to open, e.g. /admin/stores/pending
+    entity = Column(String(40), nullable=True)
+    entity_id = Column(Integer, nullable=True)
+    created_by = Column(String(60), nullable=True)
+
+
+class StaffAlertRead(Base):
+    """One user has read one alert."""
+    __tablename__ = "staff_alert_reads"
+    __table_args__ = (UniqueConstraint("alert_id", "user_id", name="uq_staff_alert_read"),)
+
+    id = Column(Integer, primary_key=True)
+    alert_id = Column(Integer, ForeignKey("staff_alerts.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    read_at = Column(DateTime, nullable=False)
 
 
 class BookingPerformance(Base):
@@ -245,7 +301,7 @@ class Donation(Base):
     quantity = Column(Numeric(12, 2), nullable=True)                    # for material donations
     mode = Column(String(20), default="Cash", nullable=False)           # Cash | UPI/QR Code
     txn_ref = Column(String(60), nullable=True)                         # UTR / transaction id (UPI)
-    pan = Column(String(20), nullable=True)
+    pan = Column(String(255), nullable=True)   # encrypted at rest when PAN_ENCRYPTION_KEY is set
     g80 = Column(Boolean, default=False, nullable=False)
     notes = Column(Text, nullable=True)
     donated_on = Column(Date, server_default=func.current_date())
@@ -310,6 +366,7 @@ class HundiCollection(Base):
     deposit_status = Column(String(30), default="Pending Deposit", nullable=False)  # Deposited | Pending Deposit
     bank_name = Column(String(160), nullable=True)
     bank_ref = Column(String(60), nullable=True)            # deposit reference / challan no.
+    deposit_account = Column(String(120), nullable=True)    # temple account it went into, masked: "A/c ****4321 · IFSC SBIN0000456"
     deposited_on = Column(Date, nullable=True)              # deposit date
     attachment = Column(String(200), nullable=True)         # deposit slip / receipt filename
     # Valuables Custody (store)
@@ -376,6 +433,14 @@ class Auction(Base):
     verified_by = Column(String(120), nullable=True)           # committee member who verified
     verified_at = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
+    # Committee approval BEFORE the auction is held (client 2026-11-13). One Committee member (or an
+    # Administrator) approves it, and may change the base price; the result needs no second approval.
+    # Auctions created before this rule default to Approved.
+    approval_status = Column(String(20), default="Pending", server_default="Approved", nullable=False)  # Pending | Approved | Rejected
+    approved_by = Column(String(120), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approval_note = Column(Text, nullable=True)                # committee note, or the rejection reason
+    requested_base = Column(Numeric(12, 2), nullable=True)     # base asked for, when the committee changed it
     # Payment collection fields
     payment_status = Column(String(20), default="Pending", nullable=False)  # Pending | Paid
     payment_mode = Column(String(30), nullable=True)           # Cash | UPI/QR Code
@@ -415,6 +480,8 @@ class Annadanam(Base):
     paid_at = Column(DateTime, nullable=True)                # payment date & time
     scheduled_on = Column(Date, nullable=True)
     occasion = Column(String(120), nullable=True)
+    voided = Column(Boolean, default=False, nullable=False)   # soft-void by the Administrator (2026-11-15)
+    void_reason = Column(Text, nullable=True)
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -512,7 +579,8 @@ class WasteSale(Base):
     verified_at = Column(DateTime, nullable=True)
     rejection_reason = Column(String(300), nullable=True)
     payment_ref = Column(String(60), nullable=True)
-    status = Column(String(20), default="Recorded", nullable=False)  # Recorded | Paid
+    status = Column(String(20), default="Recorded", nullable=False)  # Recorded | Paid | Void
+    void_reason = Column(String(300), nullable=True)          # the Administrator's reason (2026-11-15)
     sold_on = Column(Date, server_default=func.current_date())
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
@@ -844,6 +912,12 @@ class ManualStockEntry(Base):
     verified_at = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
     expiry_date = Column(Date, nullable=True)                 # consumables: best before (optional)
+    # Bought for the temple (source "Temple purchase", 2026-11-15): the shop's bill is the proof —
+    # it counts at once, no Committee verification. The amount is optional and never counter cash.
+    shop_name = Column(String(120), nullable=True)
+    bill_no = Column(String(60), nullable=True)
+    bill_date = Column(Date, nullable=True)
+    bill_amount = Column(Numeric(12, 2), nullable=True)
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -1024,7 +1098,7 @@ class IssueSlip(Base):
     issued_to = Column(String(120), nullable=False)
     poojari_id = Column(Integer, ForeignKey("poojaris.id"), nullable=True)
     purpose = Column(String(80), nullable=False)
-    return_by = Column(Date, nullable=False)
+    return_by = Column(Date, nullable=True)        # optional since 2026-11-15 (no date = never overdue)
     notes = Column(Text, nullable=True)
     status = Column(String(20), default="Open", nullable=False)          # Open | Partly returned | Returned
     issued_by = Column(String(120), nullable=True)                       # display name
@@ -1064,7 +1138,13 @@ class MissingCase(Base):
     tag_id = Column(String(20), nullable=False)
     check_code = Column(String(20), nullable=True)                       # CHK-0003 that found it missing
     location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)   # where it should have been
-    status = Column(String(30), default="Missing", nullable=False, index=True)  # Missing | Write-off requested | Found | Lost
+    status = Column(String(30), default="Missing", nullable=False, index=True)  # Missing | Write-off requested | Found | Lost | Rejected
+    # Missing: not found at a stock check. Damaged (2026-11-15): a write-off asked for a damaged piece —
+    # the Committee approves (Written Off) or rejects (back In Store, case Rejected).
+    kind = Column(String(12), default="Missing", nullable=True)
+    # Correction / Weight (2026-11-15): a change to a gold / silver piece (lower weight, other purity, or the
+    # weight found on return) waits here as "Change requested"; `changes` = JSON {field: new value}
+    changes = Column(Text, nullable=True)
     missing_since = Column(DateTime, server_default=func.now())
     reported_by = Column(String(120), nullable=True)                     # who asked for the lost write-off
     reported_by_user = Column(String(60), nullable=True)
@@ -1205,8 +1285,9 @@ class FestivalKit(Base):
 
 
 class StoreHandover(Base):
-    """Charge handed from one Stores Officer to the next: a snapshot of what the store holds,
-    counted line by line by the incoming officer, signed by both and a Committee witness."""
+    """Handover was REMOVED on 2026-11-11 (client decision: not used by a small temple).
+    No screen or API uses this table any more; the model is kept only so the existing
+    records stay intact and backups / restores still carry them."""
     __tablename__ = "store_handovers"
 
     id = Column(Integer, primary_key=True)

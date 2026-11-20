@@ -3,6 +3,7 @@ import { X, Moon, Star, Sunrise, Sunset, Clock, AlertTriangle, Sparkles, IndianR
 import { fmtDate } from '../../../components/admin/ui.jsx'
 import { T, tr, personName, clock12, shortUnit, staffName } from '../../../i18n/LanguageContext.jsx'
 import { Select } from '../../../components/common/Field.jsx'
+import { BOOKING_STATUSES, statusChip, statusDot } from '../../../lib/bookingStatus.js'
 
 // ── Shared pieces of the admin Calendar ─────────────────────────────────────
 // The month view and its day popup receive one `cal` object (built in
@@ -17,13 +18,9 @@ export const isoOf = (cal, day) => `${cal.year}-${pad(cal.month + 1)}-${pad(day)
 export const isToday = (cal, day) =>
   cal.today.getFullYear() === cal.year && cal.today.getMonth() === cal.month && cal.today.getDate() === day
 
-export const STATUS_DOT = { Confirmed: '#059669', Pending: '#d4a017', Completed: '#2563eb', Cancelled: '#dc2626' }
-export const STATUS_CHIP = {
-  Confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  Completed: 'bg-blue-50 text-blue-700 border-blue-200',
-  Cancelled: 'bg-red-50 text-red-700 border-red-200',
-}
+// Same colours as every other booking screen (lib/bookingStatus.js)
+export const STATUS_DOT = Object.fromEntries(BOOKING_STATUSES.map((s) => [s, statusDot(s)]))
+export const STATUS_CHIP = Object.fromEntries(BOOKING_STATUSES.map((s) => [s, statusChip(s)]))
 
 // Almanac festival names arrive already in the reader's language; provisional days get *
 export const festLabel = (f) => (f.translated ? f.name : tr(f.name)) + (f.provisional ? ' *' : '')

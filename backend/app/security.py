@@ -222,6 +222,19 @@ class RequireModule:
         return user
 
 
+class RequireModuleOrRole(RequireModule):
+    """Read access by module, OR by role even without the module — e.g. the Committee opens
+    Other Sales only to verify / reject (their writes stay blocked by the write guards)."""
+    def __init__(self, *modules: str, roles: tuple[str, ...] = ()):
+        super().__init__(*modules)
+        self.roles = set(roles)
+
+    def __call__(self, user: User = Depends(get_current_user)) -> User:
+        if user.role in self.roles:
+            return user
+        return super().__call__(user)
+
+
 # Admin-only guard (create users, delete, cancel, etc.)
 require_admin = RequireRole("Administrator")
 

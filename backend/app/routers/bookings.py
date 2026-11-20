@@ -4,6 +4,7 @@ Counter Staff can create bookings (billing) but cannot cancel/delete —
 those are Admin-only, matching the frozen role matrix.
 """
 import json
+import re
 import threading
 from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -15,13 +16,15 @@ from ..database import get_db, SessionLocal
 from ..models import Booking, BookingPerformance, Devotee, PoojaPlan, Seva, Pooja, Festival, Poojari
 from ..schemas import BookingCreate, BookingOut, QuickCreateBookingIn, BulkQuickCreateBookingIn
 from ..security import RequireModule, require_admin, log_action, client_ip, ADMIN_ROLES
-from ..helpers import booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination, enforce_rate_limit, ist_today, ist_now, parse_slot_bounds, normalize_slot, slot_is_over, sort_expr, apply_column_filters
+from ..helpers import assert_utr, booking_code, ticket_no, next_code_seq, assert_positive, assert_txn_date_open, plan_terms, validate_pagination, enforce_rate_limit, ist_today, ist_now, parse_slot_bounds, normalize_slot, slot_is_over, sort_expr, apply_column_filters
+from ..helpers import ist_day, ist_date_of
 from .settings import time_slots, max_advance_days
 from .poojas import plan_slots
 from .refunds import record_refund
 from .schedules import scheduled_poojari
-from .almanac import assert_pournami
+from .almanac import assert_pournami, off_tithi_reason
 from .. import notifications as notif
+from ..pooja_batches import assign_batch, options as batch_options, parse_half, sent_map, floor_half, is_fixed, NO_LIST_CATEGORIES
 
 
 def _booking_notify_sync(booking_id, event, username):
@@ -74,7 +77,7 @@ def _check_lifetime_duplicate(db: Session, devotee_id: int | None, mobile: str |
     filters = [
         Booking.pooja_id == pooja_id,
         Booking.status.notin_(["Cancelled", "Completed"]),
-        or_(Booking.valid_until.is_(None), Booking.valid_until >= date.today()),
+        or_(Booking.valid_until.is_(None), Booking.valid_until >= ist_today()),
     ]
     # Also check by plan_name pattern (in case plan_id differs between Lifetime plans)
     filters.append(or_(
@@ -198,15 +201,64 @@ def _check_date_and_slot(db: Session, start: date, slot: str | None, plan=None, 
     return slot
 
 
+def _daily_multi_day(plan, start: date) -> bool:
+    """Monthly / Life Long and the like: the devotee pays once and comes at the same slot every day.
+    (Yearly plans are performed on fixed dates, not daily, so they are not included.)"""
+    if plan is None:
+        return False
+    allowed, until = plan_terms(plan, start)
+    return allowed is None or (allowed > 1 and until is not None and (until - start).days < 300)
+
+
+def _starts_tomorrow(db: Session, plan, start: date, slot: str | None) -> bool:
+    """A multi-day plan billed today whose chosen fixed time can no longer be used today — the time has
+    passed, or its half-hour list was already handed to the poojari — starts tomorrow in the same slot
+    instead of being refused (client, 2026-11-18). One-day poojas are still refused: the devotee picks
+    another time."""
+    if start != ist_today() or not _daily_multi_day(plan, start) or getattr(plan, "tithi_type", None):
+        return False          # a Pournami / Amavasya plan is tied to its day — it is never moved
+    fixed = plan_slots(plan)
+    slot = normalize_slot((slot or "").strip()) or (slot or "").strip()
+    if not slot and len(fixed) == 1:
+        slot = fixed[0]
+    if not fixed or slot not in fixed or not is_fixed(slot):
+        return False          # a missing / foreign slot is refused by the normal checks
+    if slot_is_over(slot, ist_now().time()):
+        return True
+    return floor_half(parse_slot_bounds(slot)[0]) in sent_map(db, start)
+
+
 def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_long_term=False) -> None:
     """Server-side booking rules shared by Advance Booking and Counter Billing.
     Mutates `data`: normalised date/slot, authoritative amount, festival link,
     validity and performance quota, and the scheduled poojari when none was
     chosen. Raises HTTPException on any violation."""
     today = ist_today()
+    # The pooja and plan billed must be real, offered, and belong together — the price comes
+    # from the plan, so a plan of another pooja would bill the wrong amount (audit 2026-11-15).
+    pj = db.get(Pooja, data["pooja_id"]) if data.get("pooja_id") else None
+    if data.get("pooja_id") and pj is None:
+        raise HTTPException(404, "Pooja not found")
+    if plan is not None:
+        if pj is None:
+            pj = db.get(Pooja, plan.pooja_id)
+            data["pooja_id"] = plan.pooja_id
+        elif plan.pooja_id != pj.id:
+            raise HTTPException(422, f"The {plan.plan_name} plan does not belong to {pj.name}.")
+        if not plan.active:
+            raise HTTPException(422, f"The {plan.plan_name} plan of {pj.name} is not offered at present.")
+    if pj is not None and not pj.active:
+        raise HTTPException(422, f"{pj.name} is not offered at present.")
+    # The ticket names what was billed: pooja and plan names come from the master, not the request
+    if pj is not None:
+        data["seva_name"] = pj.name
+    if plan is not None:
+        data["plan_name"] = plan.plan_name
     start = data.get("scheduled_date") or today
     if isinstance(start, str):
         start = date.fromisoformat(start)
+    if _starts_tomorrow(db, plan, start, data.get("time_slot")):
+        start = start + timedelta(days=1)
     data["scheduled_date"] = start
     data["time_slot"] = _check_date_and_slot(db, start, data.get("time_slot"), plan)
     assert_pournami(db, plan, start)
@@ -214,7 +266,7 @@ def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_l
     # Festival poojas must fall inside their festival window; the committee's
     # per-festival price, when configured, is authoritative.
     fest_fee = None
-    pj = db.get(Pooja, data["pooja_id"]) if data.get("pooja_id") else None
+    fest_match = None
     if pj and not data.get("category"):
         data["category"] = pj.category   # the ticket's devotee notes go by category
     if pj and pj.category == "Festival":
@@ -228,6 +280,7 @@ def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_l
                 windows = "; ".join(f"{f.name}: {f.start_date} to {f.end_date}" for f in linked)
                 raise HTTPException(422, f"This festival pooja must be scheduled within its festival window ({windows}).")
             data["festival_id"] = match.id
+            fest_match = match
             if plan and plan.committee_decided and match.plan_fees:
                 try:
                     fees = json.loads(match.plan_fees)
@@ -240,8 +293,9 @@ def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_l
     # Amount integrity — never trust the client's amount for a priced plan
     if plan:
         if plan.committee_decided:
-            if fest_fee is not None:
-                data["amount"] = fest_fee
+            if fest_fee is None:   # the counter cannot set its own price
+                raise HTTPException(422, f"The committee has not decided the price of {pj.name if pj else 'this pooja'} ({plan.plan_name}) yet.")
+            data["amount"] = fest_fee
         elif plan.fee is not None:
             data["amount"] = plan.fee
     assert_positive(data.get("amount"), "Amount")
@@ -255,6 +309,27 @@ def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_l
     data["performances_done"] = 0
     if plan or data.get("valid_until") is None:
         data["valid_until"] = valid_until
+    # A festival plan must fit inside its festival (decision D4): a 9-Day / Full Month plan ends by
+    # the festival's last day — otherwise the devotee takes the 1-Day plan.
+    if fest_match is not None and valid_until and valid_until > fest_match.end_date:
+        last_start = fest_match.end_date - (valid_until - start)
+        if last_start >= max(fest_match.start_date, today):
+            raise HTTPException(422, f"The {plan.plan_name} plan would run to {valid_until:%d %b %Y}, after {fest_match.name} ends on {fest_match.end_date:%d %b %Y} — start it by {last_start:%d %b %Y}.")
+        raise HTTPException(422, f"The {plan.plan_name} plan would run to {valid_until:%d %b %Y}, after {fest_match.name} ends on {fest_match.end_date:%d %b %Y} — book the 1-Day plan instead.")
+
+    # Yearly plans: the pooja dates are fixed at booking (decision D5) — Yearly Once on the booked
+    # date; Yearly Thrice on three dates picked within its year, the first being the booked date.
+    dates = data.pop("perform_dates", None)
+    yearly = bool(plan) and allowed is not None and valid_until is not None and (valid_until - start).days >= 300
+    if yearly and allowed == 1:
+        data["perform_dates"] = start.isoformat()
+    elif yearly:
+        picked = sorted({date.fromisoformat(d) if isinstance(d, str) else d for d in (dates or [])} | {start})
+        if len(picked) != allowed:
+            raise HTTPException(422, f"Pick the {allowed} dates of the {plan.plan_name} poojas — book it from Advance Booking.")
+        if picked[0] != start or picked[-1] > valid_until:
+            raise HTTPException(422, f"The {plan.plan_name} pooja dates must fall between {start:%d %b %Y} and {valid_until:%d %b %Y}.")
+        data["perform_dates"] = ",".join(d.isoformat() for d in picked)
 
     if data.get("pooja_id") and plan:
         _check_lifetime_duplicate(db, data.get("devotee_id"), data.get("mobile"), data["pooja_id"], plan)
@@ -272,11 +347,49 @@ def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_l
     if cover:
         raise HTTPException(409, f"This devotee's active {cover.plan_name} booking ({cover.booking_code}, valid until {cover.valid_until}) already covers this pooja on {start}.")
 
+    # Half-hour pooja list: the current half-hour (the next one once its list was sent to the
+    # poojari); a fixed-time pooja keeps its own; a half-hour the counter picked (today or later) is used.
+    # Festival and vehicle poojas have no slot and are on no list (the ticket scan records the visit).
+    data["batch_slot"] = (None if (pj is not None and pj.category in NO_LIST_CATEGORIES)
+                          else assign_batch(db, start, data.get("time_slot"), data.get("batch_slot")))
+
     # No poojari chosen → take the one the Poojari Schedule assigns to this pooja/date.
     if not data.get("poojari_id"):
         pr = scheduled_poojari(db, data.get("pooja_id"), start, data.get("time_slot"))
         if pr:
             data["poojari_id"], data["poojari_name"] = pr.id, pr.name
+
+
+PAY_MODES = {"cash": "Cash", "upi/qr code": "UPI/QR Code", "upi": "UPI/QR Code", "online": "UPI/QR Code"}
+
+
+def _payment_mode(method: str | None) -> str:
+    """Only Cash and Online are taken at the counter (decision D8) — anything else ("Free", "Card")
+    would be counted as online money in Daily Closing without a payment behind it."""
+    mode = PAY_MODES.get((method or "Cash").strip().lower())
+    if mode is None:
+        raise HTTPException(422, "Payment mode must be Cash or Online.")
+    return mode
+
+
+def _check_utr(db: Session, utr: str | None, mode: str, source: str | None) -> str | None:
+    """UPI transaction reference (shared rule, helpers.assert_utr): required for an Advance
+    Booking paid online, optional at the counter, never on two bills (decision D7)."""
+    if mode != "UPI/QR Code":
+        return None
+    return assert_utr(db, utr, required=source == "Advance")
+
+
+def _link_counter_devotee(db: Session, data: dict) -> None:
+    """One devotee per phone: a counter bill for a mobile with no devotee linked uses the
+    devotee already registered on that number, or registers the devotee — so the bookings
+    show on the devotee's page from the first visit (audit 2026-11-15)."""
+    if data.get("devotee_id"):
+        return
+    from .devotees import link_devotee_by_mobile
+    did = link_devotee_by_mobile(db, data.get("devotee_name"), data.get("mobile"))
+    if did:
+        data["devotee_id"] = did
 
 
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
@@ -301,28 +414,28 @@ SORT_COLUMNS = {
 
 @router.get("/stats")
 def stats(db: Session = Depends(get_db), user=Depends(read)):
-    today = date.today()
+    today = ist_today()
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
 
     def cnt(since=None, on=None):
         q = db.query(func.count(Booking.id))
         if on is not None:
-            q = q.filter(func.date(Booking.created_at) == on)
+            q = q.filter(ist_day(Booking.created_at) == on)
         if since is not None:
-            q = q.filter(func.date(Booking.created_at) >= since)
+            q = q.filter(ist_day(Booking.created_at) >= since)
         return q.scalar() or 0
 
     def amt(since=None, on=None):
         q = db.query(func.coalesce(func.sum(Booking.amount), 0))
         if on is not None:
-            q = q.filter(func.date(Booking.created_at) == on)
+            q = q.filter(ist_day(Booking.created_at) == on)
         if since is not None:
-            q = q.filter(func.date(Booking.created_at) >= since)
+            q = q.filter(ist_day(Booking.created_at) >= since)
         return float(q.scalar() or 0)
 
     tickets_month = db.query(func.count(Booking.id)).filter(
-        Booking.ticket_no.isnot(None), func.date(Booking.created_at) >= month_start).scalar() or 0
+        Booking.ticket_no.isnot(None), ist_day(Booking.created_at) >= month_start).scalar() or 0
     upcoming = db.query(func.count(Booking.id)).filter(
         Booking.scheduled_date >= today, Booking.scheduled_date <= today + timedelta(days=7),
         Booking.status != "Cancelled").scalar() or 0
@@ -336,9 +449,9 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
         # kept for the older Bookings KPI cards
         "total": cnt(on=today), "amount": amt(on=today),
         "confirmed": db.query(func.count(Booking.id)).filter(
-            func.date(Booking.created_at) == today, Booking.status == "Confirmed").scalar() or 0,
+            ist_day(Booking.created_at) == today, Booking.status == "Confirmed").scalar() or 0,
         "pending": db.query(func.count(Booking.id)).filter(
-            func.date(Booking.created_at) == today, Booking.status == "Pending").scalar() or 0,
+            ist_day(Booking.created_at) == today, Booking.status == "Pending").scalar() or 0,
     }
 
 
@@ -346,10 +459,15 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
 def list_bookings(q: str = "", status: str = "", payment: str = "",
                   pooja: str = "", plan: str = "", start: date | None = None, end: date | None = None,
                   sort_by: str = "", sort_dir: str = "desc", col_filters: str = "",
-                  page: int = 1, size: int = 50, hour: str = "", slot: str = "",
-                  db: Session = Depends(get_db), user=Depends(read)):
-    """hour: a 1-hour window ("17" = 5–6 PM, "-1" = Temple hours) by each booking's slot;
-    slot: one exact slot ("05:30 PM"). Sorting by Date & Time orders a day's bookings by time."""
+                  page: int = 1, size: int = 50, hour: str = "", slot: str = "", half: str = "",
+                  by: str = "", db: Session = Depends(get_db), user=Depends(read)):
+    """start / end: the pooja date (scheduled_date); by="booked" filters on the day it was booked
+    instead (the Dashboard's "Pooja Bookings" count). `summary` covers every matching booking, not
+    just the page: the count per status (ignoring the status filter, for the status tabs) and the
+    amount collected (paid, not cancelled).
+    hour: a 1-hour window ("17" = 5–6 PM, "-1" = Temple hours) by each booking's slot;
+    slot: one exact slot ("05:30 PM"); half: one half-hour pooja list ("06:30" = 6:30–7:00 AM).
+    Sorting by Date & Time orders a day's bookings by time."""
     # Validate pagination parameters (DoS prevention)
     page, size = validate_pagination(page, size)
     query = db.query(Booking)
@@ -363,25 +481,36 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
                                  Booking.seva_name.ilike(like),
                                  Booking.mobile.ilike(like)))
         use_relevance_sort = True
-    if status:
-        query = query.filter(Booking.status == status)
     if payment:
         query = query.filter(Booking.payment_status == payment)
     if pooja:
         query = query.filter(Booking.seva_name == pooja)
     if plan:
         query = query.filter(Booking.plan_name == plan)
+    # booked: the IST day the bill was made (created_at is UTC); else the pooja's own date
+    day_expr = ist_day(Booking.created_at) if by == "booked" else func.date(Booking.scheduled_date)
     if start:
-        query = query.filter(func.date(Booking.scheduled_date) >= start)
+        query = query.filter(day_expr >= start)
     if end:
-        query = query.filter(func.date(Booking.scheduled_date) <= end)
+        query = query.filter(day_expr <= end)
     if slot.strip():
         query = query.filter(Booking.time_slot == (normalize_slot(slot) or slot.strip()))
     if hour.strip():
         query = query.filter(Booking.time_slot.in_(_slots_in_hour(db, hour)))
+    if half.strip():
+        h = parse_half(half)
+        if h is None:
+            raise HTTPException(422, "Choose a half-hour slot from the list.")
+        query = query.filter(Booking.batch_slot == h)
     # Column-filter dropdowns apply to the whole result set, not just the visible page
     query = apply_column_filters(query, col_filters, SORT_COLUMNS)
+    by_status = {st: n for st, n in query.with_entities(Booking.status, func.count(Booking.id))
+                 .group_by(Booking.status).all()}
+    if status:
+        query = query.filter(Booking.status == status)
     total = query.count()
+    collected = query.filter(Booking.payment_status == "Paid", Booking.status != "Cancelled") \
+        .with_entities(func.coalesce(func.sum(Booking.amount), 0)).scalar()
 
     # Apply server-side sorting
     if use_relevance_sort and q:
@@ -417,7 +546,8 @@ def list_bookings(q: str = "", status: str = "", payment: str = "",
         d = BookingOut.model_validate(r).model_dump()
         d["devotee_name_te"] = te.get(r.devotee_id)
         items.append(d)
-    return {"total": total, "page": page, "size": size, "items": items}
+    return {"total": total, "page": page, "size": size, "items": items,
+            "summary": {"by_status": by_status, "all": sum(by_status.values()), "collected": float(collected or 0)}}
 
 
 def _slot_minutes():
@@ -462,7 +592,32 @@ def slot_options(pooja: str = "", db: Session = Depends(get_db), user=Depends(re
         if h is not None:
             hours.setdefault(h, set()).add(sl)
     by_start = lambda sl: (parse_slot_bounds(sl) or (None,))[0] or datetime.max.time()
-    return {"hours": [{"hour": h, "slots": sorted(hours[h], key=lambda sl: (by_start(sl), sl))} for h in sorted(hours)]}
+    from ..pooja_batches import range_halves
+    halves = set(range_halves(db)) | {h for (h,) in db.query(Booking.batch_slot).filter(Booking.batch_slot.isnot(None)).distinct()}
+    return {"hours": [{"hour": h, "slots": sorted(hours[h], key=lambda sl: (by_start(sl), sl))} for h in sorted(hours)],
+            "halves": sorted(halves)}
+
+
+@router.get("/batch-options")
+def batch_options_for(day: date | None = None, time_slot: str = "", pooja_id: int | None = None,
+                      plan_id: int | None = None,
+                      db: Session = Depends(get_db), user=Depends(RequireModule("Bookings", "Counter"))):
+    """The half-hour pooja lists a booking of this pooja time can go on: the Counter shows the
+    one it will get (`auto`), Advance Booking lets the operator pick one (`options`; sent / over
+    ones are shown but not selectable). With `pooja_id`, also the poojari the Poojari Schedule
+    will assign when none is chosen — shown before paying (Advance Booking P10)."""
+    day = day or ist_today()
+    slot = (time_slot or "").strip() or None
+    plan = db.get(PoojaPlan, plan_id) if plan_id else None
+    tomorrow = _starts_tomorrow(db, plan, day, slot)
+    # A multi-day plan whose chosen time is already gone today starts tomorrow: show tomorrow's lists
+    out = batch_options(db, day + timedelta(days=1) if tomorrow else day, slot)
+    out["starts_tomorrow"] = tomorrow
+    out["start_date"] = str(day + timedelta(days=1) if tomorrow else day)
+    if pooja_id:
+        pr = scheduled_poojari(db, pooja_id, date.fromisoformat(out["start_date"]), slot)
+        out["scheduled_poojari"] = {"id": pr.id, "name": pr.name, "name_te": getattr(pr, "name_te", None)} if pr else None
+    return out
 
 
 @router.post("", response_model=BookingOut, status_code=201)
@@ -505,7 +660,7 @@ def create_booking(body: BookingCreate, request: Request,
     if b.devotee_id:
         d = db.get(Devotee, b.devotee_id)
         if d:
-            d.last_visit = date.today()
+            d.last_visit = ist_today()
             # Sankalpam details ride on the ticket — copy from the devotee record
             # unless the operator supplied them explicitly.
             if not b.gothram:
@@ -576,7 +731,7 @@ def check_duplicate(pooja_id: int, plan_id: int,
         "existing_booking": dup.booking_code,
         "ticket_no": dup.ticket_no,
         "plan_name": plan.plan_name,
-        "booked_on": str(dup.scheduled_date) if dup.scheduled_date else (str(dup.created_at.date()) if dup.created_at else None),
+        "booked_on": str(dup.scheduled_date) if dup.scheduled_date else (str(ist_date_of(dup.created_at)) if dup.created_at else None),
         "valid_until": str(dup.valid_until) if dup.valid_until else None,
         "message": f"This devotee already has an active {plan.plan_name} booking for this pooja ({dup.booking_code}).",
     }
@@ -647,7 +802,7 @@ def lookup_ticket(ticket: str, db: Session = Depends(get_db), user=Depends(read)
         "devotee_name": b.devotee_name, "mobile": b.mobile,
         "pooja": b.seva_name, "plan": b.plan_name, "category": b.category,
         "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
-        "time_slot": b.time_slot, "status": b.status, "payment_status": b.payment_status,
+        "time_slot": b.time_slot, "batch_slot": b.batch_slot, "status": b.status, "payment_status": b.payment_status,
         "amount": float(b.amount or 0), "poojari_name": b.poojari_name,
         "gothram": b.gothram, "nakshatram": b.nakshatram, "beneficiary_name": b.beneficiary_name,
         "vehicle_no": b.vehicle_no,
@@ -696,6 +851,9 @@ def complete_booking(bid: int, request: Request, db: Session = Depends(get_db),
         raise HTTPException(409, f"This ticket expired on {b.valid_until}")
     if b.last_performed_on == today:
         raise HTTPException(409, "This pooja has already been performed today — the next performance can be recorded tomorrow.")
+    reason = off_tithi_reason(db, b, today)          # Sai Vratam: only on Pournami
+    if reason:
+        raise HTTPException(409, reason)
     allowed = b.performances_allowed
     done = (b.performances_done or 0)
     # DEF-005: Handle legacy bookings where performances_allowed was never set.
@@ -826,6 +984,7 @@ def reschedule_booking(bid: int, body: dict, request: Request,
     b.scheduled_date = nd
     b.performances_allowed, b.valid_until = plan_terms(plan, nd)
     b.time_slot = slot
+    b.batch_slot = None if (b.category or "") in NO_LIST_CATEGORIES else assign_batch(db, nd, slot, body.get("batch_slot"))
     if body.get("poojari_id") not in (None, ""):
         try:
             poojari_id = int(body["poojari_id"])
@@ -916,7 +1075,7 @@ def eligible_today(q: str = "", pooja: str = "", status: str = "",
     """
     # Validate pagination parameters (DoS prevention)
     page, size = validate_pagination(page, size)
-    today = date.today()
+    today = ist_today()
     today_day = today.day
     today_month = today.month
 
@@ -1081,9 +1240,11 @@ def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Dep
         if not pr or pr.deleted or not pr.active:
             raise HTTPException(422, "The selected poojari is not available.")
         data["poojari_id"], data["poojari_name"] = pr.id, pr.name
-    txn_ref = (data.pop("txn_ref", None) or "").strip()
     data["source"] = data.get("source") if data.get("source") in ("Counter", "Advance") else "Counter"
+    payment_method = _payment_mode(payment_method)
+    txn_ref = _check_utr(db, data.pop("txn_ref", None), payment_method, data["source"])
 
+    _link_counter_devotee(db, data)
     _apply_booking_rules(db, data, plan)
 
     # Create booking with Pending payment (will be updated below)
@@ -1099,7 +1260,7 @@ def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Dep
     if b.devotee_id:
         d = db.get(Devotee, b.devotee_id)
         if d:
-            d.last_visit = date.today()
+            d.last_visit = ist_today()
             # Auto-fill Sankalpam details from devotee profile if not provided
             if not b.gothram:
                 b.gothram = d.gothram
@@ -1146,6 +1307,7 @@ def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Dep
         "payment_method": b.payment_method,
         "payment_ref": b.payment_ref,
         "time_slot": b.time_slot,
+        "batch_slot": b.batch_slot,
         "poojari_name": b.poojari_name,
         "source": b.source,
         # Sankalpam details
@@ -1173,16 +1335,27 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
 
     # Schema validation ensures items list is 1-20 items (Phase 1 Security: API-002)
     items = [item.model_dump(exclude_unset=True) for item in body.items]
-    payment_method = body.payment_method
+    payment_method = _payment_mode(body.payment_method)
+    # Advance Booking sends its cart as one payment: all lines are booked, or none (decision D1).
+    atomic = bool(body.atomic)
+    source = "Advance" if body.source == "Advance" else "Counter"
+    txn_ref = _check_utr(db, body.txn_ref, payment_method, source)
 
     success = []
     failed = []
+    made = []   # bookings saved in this request (atomic mode: notified only once all are committed)
 
     for idx, item in enumerate(items):
         try:
             data = dict(item)
             data.pop("txn_ref", None)
-            data.pop("poojari_id", None)
+            poojari_id = data.pop("poojari_id", None)
+            # A poojari picked per line (Advance Booking); Counter lines take the scheduled one
+            if poojari_id and source == "Advance":
+                pr = db.get(Poojari, poojari_id)
+                if not pr or pr.deleted or not pr.active:
+                    raise HTTPException(422, "The selected poojari is not available.")
+                data["poojari_id"], data["poojari_name"] = pr.id, pr.name
 
             plan = None
             if data.get("plan_id"):
@@ -1197,6 +1370,7 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
                 if pj:
                     data["seva_name"] = pj.name
 
+            _link_counter_devotee(db, data)
             _apply_booking_rules(db, data, plan)
 
             # Create booking
@@ -1205,7 +1379,7 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
             data["payment_status"] = "Pending"
             data["status"] = "Confirmed"
             data["payment_method"] = payment_method
-            data["source"] = "Counter"
+            data["source"] = source
 
             b = Booking(booking_code=code, created_by=user.username, **data)
             db.add(b)
@@ -1213,7 +1387,7 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
             if b.devotee_id:
                 d = db.get(Devotee, b.devotee_id)
                 if d:
-                    d.last_visit = date.today()
+                    d.last_visit = ist_today()
                     if not b.gothram:
                         b.gothram = d.gothram
                     if not b.nakshatram:
@@ -1227,34 +1401,17 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
                 method=payment_method, created_by=user.username,
             )
             po = pay.verify_and_confirm(db, po=po, method=payment_method)
+            if txn_ref:
+                b.payment_ref = txn_ref
 
-            # Commit each item immediately so failures don't affect previous successes
-            db.commit()
-            db.refresh(b)
-
-            # Send booking confirmation notification
-            _booking_notify(db, b, "booking_confirmed", user)
-
-            success.append({
-                "index": idx,
-                "id": b.id,
-                "booking_code": b.booking_code,
-                "ticket_no": b.ticket_no,
-                "receipt_no": b.receipt_no,
-                "seva_name": b.seva_name,
-                "plan_name": b.plan_name,
-                "amount": float(b.amount) if b.amount else 0,
-                "valid_until": str(b.valid_until) if b.valid_until else None,
-                "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
-                "time_slot": b.time_slot,
-                # Sankalpam details
-                "gothram": b.gothram,
-                "nakshatram": b.nakshatram,
-                "rasi": b.rasi,
-                "beneficiary_name": b.beneficiary_name,
-                "participants": b.participants,
-                "special_notes": b.special_notes,
-            })
+            if atomic:
+                db.flush()          # committed together below
+            else:
+                # Counter: commit each item so a failed line does not undo the others
+                db.commit()
+                db.refresh(b)
+                _booking_notify(db, b, "booking_confirmed", user)
+            made.append((idx, b))
 
         except Exception as e:
             db.rollback()  # Reset session state before processing next item
@@ -1263,6 +1420,42 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
                 "seva_name": item.get("seva_name", "Unknown"),
                 "error": str(e.detail if isinstance(e, HTTPException) else e)[:200],
             })
+            if atomic:      # one payment: nothing is booked when a line fails
+                made = []
+                break
+
+    if atomic and made:
+        db.commit()
+        for _, b in made:
+            db.refresh(b)
+            _booking_notify(db, b, "booking_confirmed", user)
+
+    for idx, b in made:
+        success.append({
+            "index": idx,
+            "id": b.id,
+            "booking_code": b.booking_code,
+            "ticket_no": b.ticket_no,
+            "receipt_no": b.receipt_no,
+            "seva_name": b.seva_name,
+            "plan_name": b.plan_name,
+            "amount": float(b.amount) if b.amount else 0,
+            "valid_until": str(b.valid_until) if b.valid_until else None,
+            "scheduled_date": str(b.scheduled_date) if b.scheduled_date else None,
+            "perform_dates": b.perform_dates,
+            "time_slot": b.time_slot,
+            "batch_slot": b.batch_slot,
+            "poojari_name": b.poojari_name,
+            "payment_ref": b.payment_ref if txn_ref else None,
+            # Sankalpam details
+            "gothram": b.gothram,
+            "nakshatram": b.nakshatram,
+            "rasi": b.rasi,
+            "beneficiary_name": b.beneficiary_name,
+            "participants": b.participants,
+            "special_notes": b.special_notes,
+            "vehicle_no": b.vehicle_no,
+        })
 
     # Log the bulk action
     if success:

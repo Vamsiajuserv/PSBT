@@ -282,6 +282,72 @@ def assert_pournami(db: Session, plan, day: date) -> None:
                              f"{day:%d %b %Y} is not a Pournami day.{hint}")
 
 
+# ── Tithi plans (Sai Vratam → Pournami) are due only on their tithi day ─────
+# A Monthly Pournami plan is ONE pooja on Pournami within its 30-day validity — not one a day.
+# Bookings of such a plan are left out of the day's pooja lists / queue on other days, and
+# "Mark performed" is refused then, so the devotee's single pooja cannot be used up early.
+TITHI_TYPES = (POURNAMI, AMAVASYA)
+
+
+def booking_tithi(db: Session, b, plans: dict | None = None) -> str | None:
+    """The tithi a booking's plan is tied to ("Pournami" / "Amavasya"), else None. Bookings
+    without plan_id (older rows) are matched on pooja + plan name."""
+    from ..models import PoojaPlan
+    key = (b.plan_id, b.pooja_id, b.plan_name)
+    if plans is not None and key in plans:
+        return plans[key]
+    plan = db.get(PoojaPlan, b.plan_id) if b.plan_id else None
+    if plan is None and b.pooja_id and b.plan_name:
+        plan = (db.query(PoojaPlan)
+                .filter(PoojaPlan.pooja_id == b.pooja_id, PoojaPlan.plan_name == b.plan_name).first())
+    tithi = (plan.tithi_type or "").strip() if plan else ""
+    tithi = tithi if tithi in TITHI_TYPES else None
+    if plans is not None:
+        plans[key] = tithi
+    return tithi
+
+
+def booked_dates(b) -> list[date]:
+    """The pooja dates fixed at booking (Yearly plans), else []."""
+    raw = (getattr(b, "perform_dates", None) or "").strip()
+    return [date.fromisoformat(x) for x in raw.split(",") if x.strip()] if raw else []
+
+
+def off_tithi_ids(db: Session, bookings, day: date) -> set[int]:
+    """Ids of the bookings not due on `day`: tied to a tithi that `day` is not (Sai Vratam), or with
+    pooja dates fixed at booking that do not include `day` (Yearly Once / Thrice)."""
+    plans, is_day, out = {}, {}, set()
+    for b in bookings:
+        fixed = booked_dates(b)
+        if fixed and day not in fixed:
+            out.add(b.id)
+            continue
+        tithi = booking_tithi(db, b, plans)
+        if not tithi:
+            continue
+        if tithi not in is_day:
+            is_day[tithi] = bool(almanac_days(db, day, day, (tithi,)))
+        if not is_day[tithi]:
+            out.add(b.id)
+    return out
+
+
+def off_tithi_reason(db: Session, b, day: date) -> str | None:
+    """Why this booking cannot be performed on `day` (its plan's tithi, or its booked pooja dates,
+    are other days), or None."""
+    fixed = booked_dates(b)
+    if fixed and day not in fixed:
+        nxt = next((d for d in fixed if d > day), None)
+        hint = f" The next one is on {nxt:%d %b %Y}." if nxt else ""
+        return f"This {b.plan_name} pooja is performed only on its booked dates — {day:%d %b %Y} is not one of them.{hint}"
+    tithi = booking_tithi(db, b)
+    if not tithi or almanac_days(db, day, day, (tithi,)):
+        return None
+    nxt = almanac_days(db, day + timedelta(days=1), day + timedelta(days=45), (tithi,))
+    hint = f" The next {tithi} is {nxt[0].event_date:%d %b %Y}." if nxt else ""
+    return f"{b.plan_name} poojas are performed on {tithi} — {day:%d %b %Y} is not a {tithi} day.{hint}"
+
+
 # ── Read API (every screen) ─────────────────────────────────────────────────
 @router.get("")
 def list_days(start: date = Query(alias="from"), end: date = Query(alias="to"),

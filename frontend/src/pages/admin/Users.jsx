@@ -193,21 +193,20 @@ export default function Users() {
     <div>
       <PageTitle title={tr("User Management")} subtitle={tr("Manage system users, roles and access.")} />
 
-      <KpiGrid>
-        <StatTile icon={UsersIcon} color="#2563eb" bg="bg-blue-50" title={tr("Total Users")} value={stats ? num(stats.total) : '—'} sub={tr("All registered users")} />
-        <StatTile icon={UserCheck} color="#059669" bg="bg-emerald-50" title={tr("Active Users")} value={stats ? num(stats.active) : '—'} sub={tr("Currently active users")} />
-        <StatTile icon={UserX} color="#dc2626" bg="bg-red-50" title={tr("Inactive Users")} value={stats ? num(stats.inactive) : '—'} sub={tr("Currently inactive users")} />
-        <StatTile icon={ShieldCheck} color="#7c3aed" bg="bg-violet-50" title={tr("Roles")} value={stats ? num(stats.roles) : '—'} sub={tr("System roles defined")} />
+      {/* user counts are the status filter (2026-11-15) */}
+      <KpiGrid variant="chips" label={tr('Users by status')}>
+        <StatTile icon={UsersIcon} color="#2563eb" title={tr("All")} value={stats ? num(stats.total) : '—'} sub={tr("All registered users")} active={!status} onClick={() => setStatus('')} />
+        <StatTile icon={UserCheck} color="#059669" title={tr("Active")} value={stats ? num(stats.active) : '—'} sub={tr("Currently active users")} active={status === 'Active'} onClick={() => setStatus('Active')} />
+        <StatTile icon={UserX} color="#dc2626" title={tr("Inactive")} value={stats ? num(stats.inactive) : '—'} sub={tr("Currently inactive users")} active={status === 'Inactive'} onClick={() => setStatus('Inactive')} />
       </KpiGrid>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 flex flex-wrap items-end gap-4">
+        <div className="px-5 py-4 flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[14rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Search by name, email or mobile…")} className="input !pl-9" /></div>
           </div>
           <div className="min-w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Select Role</T></label><Select value={role} onChange={(e) => setRole(e.target.value)} className="input"><option value="">{tr("All Roles")}</option>{roles.map((r) => <option key={r}>{r}</option>)}</Select></div>
-          <div className="min-w-[9rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label><Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All Status")}</option><option value="Active">{tr("Active")}</option><option value="Inactive">{tr("Inactive")}</option></Select></div>
           {isAdmin && <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New User</T></button>}
         </div>
 
@@ -225,7 +224,8 @@ export default function Users() {
           <table className="w-full text-sm">
             <thead><tr className="bg-amber-50/40 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
               <th className="px-4 py-3 font-semibold whitespace-nowrap">{tr('#')}</th>
-              {sortColumns.map((col) => (
+              {/* the login ID sits under the name (fits a laptop at large text) */}
+              {sortColumns.filter((col) => col.key !== 'username').map((col) => (
                 <SortableFilterableTh
                   key={col.key}
                   colKey={col.key}
@@ -251,15 +251,17 @@ export default function Users() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className={`w-8 h-8 rounded-full ${tone(u.name)} text-white grid place-items-center text-[0.6875rem] font-bold`}>{initials(u.name)}</div>
-                      <span className="font-semibold text-gray-800">{personName(u, lang)}</span>
-                      {u.role === 'Administrator' && <span className="text-[0.625rem] font-semibold text-maroon-700 bg-maroon-50 rounded px-1.5 py-0.5"><T>Admin</T></span>}
+                      <div className="min-w-0">
+                        <span className="font-semibold text-gray-800">{personName(u, lang)}</span>
+                        {u.role === 'Administrator' && <span className="ml-1.5 text-[0.625rem] font-semibold text-maroon-700 bg-maroon-50 rounded px-1.5 py-0.5"><T>Admin</T></span>}
+                        <div className="font-mono text-[0.75rem] text-gray-500">{loginId(u.username)}</div>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-[0.8125rem] text-gray-700 whitespace-nowrap">{loginId(u.username)}</td>
-                  <td className="px-4 py-3"><div className="text-gray-700 text-[0.8125rem]">{u.email}</div><div className="text-[0.6875rem] text-gray-400">{u.mobile || '—'}</div></td>
+                  <td className="px-4 py-3"><div className="text-gray-700 text-[0.8125rem] break-all">{u.email}</div><div className="text-[0.6875rem] text-gray-400">{u.mobile || '—'}</div></td>
                   <td className="px-4 py-3 text-gray-600">{tr(u.role)}</td>
                   <td className="px-4 py-3"><Pill tone={u.is_active ? 'green' : 'red'}>{u.is_active ? tr('Active') : tr('Inactive')}</Pill></td>
-                  <td className="px-4 py-3 text-gray-500 text-[0.8125rem] whitespace-nowrap">{fmtStamp(u.last_login)}</td>
+                  <td className="px-4 py-3 text-gray-500 text-[0.8125rem]">{fmtStamp(u.last_login)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 relative">
                       {isAdmin && <button onClick={() => openEdit(u)} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-maroon-600 hover:bg-maroon-50"><Pencil size={15} /></button>}
@@ -279,7 +281,7 @@ export default function Users() {
                   </td>
                 </tr>
               ))}
-              {filteredSortedRows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty={tr("No users found.")} />}
+              {filteredSortedRows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No users found.")} />}
             </tbody>
           </table>
         </div>

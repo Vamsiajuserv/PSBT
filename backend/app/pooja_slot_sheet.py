@@ -1,4 +1,5 @@
-"""Pooja timings and fees from the client's "Pooja Categories slots" sheet.
+"""Pooja timings and fees from the client's "Pooja Categories slots final" sheet
+(docs/Pooja Categories slots final.pdf — updated 2026-11-20).
 
 The seed applies these to a fresh database. For an existing database, run
 
@@ -13,6 +14,8 @@ import sys
 from decimal import Decimal
 
 TEMPLE_HOURS = "06:00 AM - 09:00 PM"
+# Vehicle poojas: 9:30 AM to 8:30 PM, subject to the poojari's availability (final sheet, 2026-11-20)
+VEHICLE_HOURS = "09:30 AM - 08:30 PM"
 
 ASHTOTHARAM_DAILY = ["09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
                      "05:30 PM", "07:00 PM", "07:30 PM", "08:00 PM", "08:30 PM", "09:00 PM"]
@@ -22,17 +25,18 @@ ASHTOTHARAM_DAILY = ["09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
 SHEET = {
     # A. Daily Poojas
     ("Ashtotharam / Archana", "Daily"): {"slots": ASHTOTHARAM_DAILY, "fee": 20},
-    ("Abhishekam", "Daily"): {"slots": ["08:15 AM"], "fee": 50},
+    ("Abhishekam", "Daily"): {"slots": ["08:00 AM"], "fee": 50},
     ("Sahasranama Archana", "Daily"): {"slots": ["04:30 PM"], "fee": 30},
     # B. Monthly Poojas
+    # one fixed time for the monthly plan (final sheet, 2026-11-20; was a choice of 9:30–11:30 AM)
     ("Ashtotharam / Archana", "Monthly"): {"slots": ["09:30 AM"], "fee": 500},
-    ("Abhishekam", "Monthly"): {"slots": ["08:15 AM"], "fee": 1200},
+    ("Abhishekam", "Monthly"): {"slots": ["08:00 AM"], "fee": 1200},
     ("Sahasranama Archana", "Monthly"): {"slots": ["04:30 PM"], "fee": 750},
     ("Sai Vratam (Pournami)", "Monthly"): {"slots": ["09:00 AM"], "fee": 200},
     # C. Long-Term Poojas
-    ("Nithya Pooja", "Life Long"): {"slots": ["08:15 AM"], "fee": 5001},
+    ("Nithya Pooja", "Life Long"): {"slots": ["08:00 AM"], "fee": 5001},
     ("Sai Pooja with Gothranamam", "Yearly Once"): {"slots": ["09:30 AM"], "fee": 1001},
-    ("Vishesha Pooja", "Yearly Thrice"): {"slots": ["09:30 AM"], "fee": 1116},
+    ("Vishesha Pooja", "Yearly Thrice"): {"slots": ["09:30 AM"], "fee": 3000},
     # D. Occasion / Special Poojas — valid in temple hours, except Rudrabhishekam
     ("Rudrabhishekam", "One-Time"): {"slots": ["08:30 AM"], "fee": 300},
     ("Devi Navaratri Pooja", "1-Day"): {"slots": [TEMPLE_HOURS], "fee": 300},
@@ -48,10 +52,11 @@ SHEET = {
     ("Namakaranam", "One-Time"): {"slots": [TEMPLE_HOURS], "fee": 300},
     ("Aksharabhyasam", "One-Time"): {"slots": [TEMPLE_HOURS], "fee": 300},
     ("Annaprasana", "One-Time"): {"slots": [TEMPLE_HOURS], "fee": 300},
-    # E. Vehicle Poojas
-    ("Car Pooja", "One-Time"): {"slots": ["09:00 AM - 11:30 AM"], "fee": 500},
-    ("Bike / Scooter Pooja", "One-Time"): {"slots": ["01:00 PM - 05:30 PM"], "fee": 200},
-    ("Auto Pooja", "One-Time"): {"slots": ["07:00 PM - 09:00 PM"], "fee": 300},
+    # E. Vehicle Poojas — one window for all three: 9:30 AM to 8:30 PM (final sheet, 2026-11-20;
+    # was temple hours)
+    ("Car Pooja", "One-Time"): {"slots": [VEHICLE_HOURS], "fee": 500},
+    ("Bike / Scooter Pooja", "One-Time"): {"slots": [VEHICLE_HOURS], "fee": 200},
+    ("Auto Pooja", "One-Time"): {"slots": [VEHICLE_HOURS], "fee": 300},
 }
 
 

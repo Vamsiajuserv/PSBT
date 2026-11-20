@@ -5,7 +5,7 @@ Administrator may override. Run from backend/:
     python -m unittest discover -s tests -t .
 """
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 
 from fastapi import HTTPException
@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from app.models import Base, CommitteeMember, HundiCollection, StoreLocation
+from app.models import Base, CommitteeMember, HundiCollection, StoreLocation, HundiItem
 from app.routers import misc as r
 from app.schemas import HundiCreate, HundiDepositIn, HundiOut, HundiRejectIn, HundiResubmitIn, HundiStoreIn
 
@@ -33,6 +33,9 @@ class TwoMemberApproval(unittest.TestCase):
         self.db.add_all([CommitteeMember(id=i, code=f"CM-{i:04d}", name=f"Member {i}", active=True)
                          for i in (1, 2, 3)])
         self.db.add(CommitteeMember(id=4, code="CM-0004", name="Retired", active=False))
+        # counted lines are Hundi Item Master items (2026-11-15)
+        self.db.add_all([HundiItem(id=1, code="HITM-0001", name="Notes", item_type="Cash", unit="Amount", active=True),
+                         HundiItem(id=2, code="HITM-0002", name="Gold chain", item_type="Gold", unit="Count", active=True)])
         self.db.commit()
         self.req = SimpleNamespace(headers={}, client=SimpleNamespace(host="127.0.0.1"))
         self.counter = login("counter1", role="Counter Staff")
@@ -43,8 +46,8 @@ class TwoMemberApproval(unittest.TestCase):
 
     def create(self, ids, items=None):
         body = HundiCreate(collected_on=date.today(), committee_member_ids=ids,
-                           items=items or [{"item_name": "Notes", "item_type": "Cash", "value": 1000},
-                                           {"item_name": "Gold chain", "item_type": "Gold", "value": 5000}])
+                           items=items or [{"hundi_item_id": 1, "item_name": "Notes", "item_type": "Cash", "value": 1000},
+                                           {"hundi_item_id": 2, "item_name": "Gold chain", "item_type": "Gold", "value": 5000}])
         return r.create_hundi(body, self.req, self.db, self.counter)
 
     def verify(self, h, user):
@@ -77,14 +80,49 @@ class TwoMemberApproval(unittest.TestCase):
         h = self.verify(h, login("m1", member_id=1))
         self.assertEqual(h.verification_status, "Verified")
         self.assertEqual(h.verified_by, "Member 3 & Member 1")
-        r.deposit_hundi(h.id, HundiDepositIn(), self.req, self.db, self.counter)
+        r.deposit_hundi(h.id, HundiDepositIn(bank_name="SBI Shirdi", bank_ref="CH-1001"), self.req, self.db, self.counter)
         # custody location must come from Store Locations (active ones only)
         self.db.add_all([StoreLocation(id=1, code="LOC-0001", name="Main Vault", active=True),
                          StoreLocation(id=2, code="LOC-0002", name="Old Locker", active=False)]); self.db.commit()
         for bad in ("Vault", "Old Locker", ""):
             self.status(422, lambda: r.store_hundi_valuables(h.id, HundiStoreIn(store_location=bad), self.req, self.db, self.counter))
-        h = r.store_hundi_valuables(h.id, HundiStoreIn(store_location="main vault"), self.req, self.db, self.counter)
+        h = r.store_hundi_valuables(h.id, HundiStoreIn(store_location="main vault", custodian="Member 1"), self.req, self.db, self.counter)
         self.assertEqual((h.status, h.store_location), ("Completed", "Main Vault"))
+
+    def test_deposit_needs_bank_reference_and_a_valid_date(self):
+        h = self.create([1, 2])
+        self.verify(h, login("m1", member_id=1)); self.verify(h, login("m2", member_id=2))
+        dep = lambda **kw: r.deposit_hundi(h.id, HundiDepositIn(**kw), self.req, self.db, self.counter)
+        self.assertIn("bank name", self.status(422, lambda: dep()))                         # the reported bug
+        self.assertIn("bank name", self.status(422, lambda: dep(bank_name="  ", bank_ref="CH-1001")))
+        self.assertIn("reference", self.status(422, lambda: dep(bank_name="SBI Shirdi")))
+        self.assertIn("reference", self.status(422, lambda: dep(bank_name="SBI Shirdi", bank_ref=" 1 ")))
+        self.assertIn("future", self.status(422, lambda: dep(bank_name="SBI Shirdi", bank_ref="CH-1001",
+                                                              deposited_on=date.today() + timedelta(days=1))))
+        self.assertIn("before the collection", self.status(422, lambda: dep(bank_name="SBI Shirdi", bank_ref="CH-1001",
+                                                                             deposited_on=date.today() - timedelta(days=1))))
+        self.db.refresh(h)
+        self.assertEqual(h.deposit_status, "Pending Deposit")                              # nothing was saved
+        h = dep(bank_name=" SBI Shirdi ", bank_ref=" CH-1001 ")
+        self.assertEqual((h.deposit_status, h.bank_name, h.bank_ref, h.deposited_on), ("Deposited", "SBI Shirdi", "CH-1001", date.today()))
+        self.assertIn("already deposited", self.status(409, lambda: dep(bank_name="SBI", bank_ref="CH-2")))
+
+    def test_deposit_goes_to_the_temple_account_from_settings(self):
+        from app.models import Setting
+        self.assertEqual(r.deposit_account(self.db, self.counter)["configured"], False)   # sample 00000000000
+        self.db.add_all([Setting(skey="bank_name", svalue="SBI Shirdi Branch"), Setting(skey="account_number", svalue="3214 5678 4321"),
+                         Setting(skey="ifsc", svalue="sbin0004321"), Setting(skey="account_name", svalue="Sai Premsamaj")])
+        self.db.commit()
+        acct = r.deposit_account(self.db, self.counter)
+        self.assertEqual((acct["configured"], acct["bank_name"], acct["account"], acct["account_name"]),
+                         (True, "SBI Shirdi Branch", "A/c ****4321 · IFSC SBIN0004321", "Sai Premsamaj"))
+        self.assertNotIn("3214", str(acct))                                               # never the full number
+        h = self.create([1, 2])
+        self.verify(h, login("m1", member_id=1)); self.verify(h, login("m2", member_id=2))
+        self.status(422, lambda: r.deposit_hundi(h.id, HundiDepositIn(), self.req, self.db, self.counter))   # ref still needed
+        h = r.deposit_hundi(h.id, HundiDepositIn(bank_name="Typed Bank", bank_ref="CH-77"), self.req, self.db, self.counter)
+        self.assertEqual((h.bank_name, h.deposit_account, h.bank_ref), ("SBI Shirdi Branch", "A/c ****4321 · IFSC SBIN0004321", "CH-77"))
+        self.assertEqual(HundiOut.model_validate(h).deposit_account, "A/c ****4321 · IFSC SBIN0004321")
 
     def test_only_assigned_members_once_each(self):
         h = self.create([1, 2])
@@ -121,7 +159,7 @@ class TwoMemberApproval(unittest.TestCase):
         h = self.create([1, 2])
         self.verify(h, login("m1", member_id=1))
         r.reject_hundi(h.id, HundiRejectIn(reason="Short by 500"), self.req, self.db, login("m2", member_id=2))
-        fix = HundiResubmitIn(items=[{"item_name": "Notes", "item_type": "Cash", "value": 500}],
+        fix = HundiResubmitIn(items=[{"hundi_item_id": 1, "item_name": "Notes", "item_type": "Cash", "value": 500}],
                               note="Recounted")
         # Only a rejected count (the h_resubmit guard limits it to Counter Staff / Admin)
         h = r.resubmit_hundi(h.id, fix, self.req, self.db, self.admin)
@@ -140,7 +178,7 @@ class TwoMemberApproval(unittest.TestCase):
     def test_counter_staff_resubmits_rejected_count(self):
         h = self.create([1, 2])
         r.reject_hundi(h.id, HundiRejectIn(reason="Short by 500"), self.req, self.db, login("m1", member_id=1))
-        fix = HundiResubmitIn(items=[{"item_name": "Notes", "item_type": "Cash", "value": 500}], note="Recounted")
+        fix = HundiResubmitIn(items=[{"hundi_item_id": 1, "item_name": "Notes", "item_type": "Cash", "value": 500}], note="Recounted")
         h = r.resubmit_hundi(h.id, fix, self.req, self.db, self.counter)
         self.assertEqual(h.verification_status, "Pending Verification")
         self.assertIn("Corrected by Counter1", h.notes)
@@ -159,13 +197,13 @@ class TwoMemberApproval(unittest.TestCase):
     def test_resubmit_rejects_bad_lines(self):
         h = self.create([1, 2])
         r.reject_hundi(h.id, HundiRejectIn(reason="x"), self.req, self.db, self.admin)
-        bad = HundiResubmitIn(items=[{"item_name": "Notes", "item_type": "Cash", "value": 0}], note="Recounted")
+        bad = HundiResubmitIn(items=[{"hundi_item_id": 1, "item_name": "Notes", "item_type": "Cash", "value": 0}], note="Recounted")
         self.status(422, lambda: r.resubmit_hundi(h.id, bad, self.req, self.db, self.admin))
         with self.assertRaises(ValidationError):
             HundiResubmitIn(items=[], note="Recounted")
 
     def test_resubmit_needs_a_reason(self):
-        line = [{"item_name": "Notes", "item_type": "Cash", "value": 500}]
+        line = [{"hundi_item_id": 1, "item_name": "Notes", "item_type": "Cash", "value": 500}]
         for missing in ({}, {"note": ""}, {"note": "    "}, {"note": "ok"}):
             with self.assertRaises(ValidationError, msg=repr(missing)) as cm:
                 HundiResubmitIn(items=line, **missing)

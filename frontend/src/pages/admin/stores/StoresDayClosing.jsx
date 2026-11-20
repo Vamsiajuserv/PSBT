@@ -86,8 +86,8 @@ export default function StoresDayClosing() {
   // One export table: a Section column groups the rows
   const exportRows = rep ? [
     ...Object.entries({ received: 'Received', placed: 'Placed', moved: 'Moved', issued: 'Issued', returned: 'Returned from issue',
-      sold: 'Sold', written_off: 'Written off', unplaced: 'Still unplaced', out_on_issue: 'Out on issue', missing: 'Missing' })
-      .map(([key, label]) => ({ section: tr('Summary'), name: tr(label), a: k[key] })),
+      sold: 'Sold', written_off: 'Written off', kept: 'Kept by poojari', unplaced: 'Still unplaced', out_on_issue: 'Out on issue', missing: 'Missing' })
+      .map(([key, label]) => ({ section: tr('Summary'), name: tr(label), a: k[key] ?? 0 })),
     ...(rep.store_receipts || []).map((g) => ({ section: tr('Received at store'), name: `${g.receipt_no} · ${tr(g.item_name)}${g.short_code ? ` · ${g.short_code}` : ''}`,
       a: `${q3(g.billed)}`, b: `${q3(g.received)}${g.short ? ` (${tr('short')} ${q3(g.short)})` : ''}`, c: staffName(g.by || '') })),
     ...rep.received.map((g) => ({ section: tr('Received today'), name: `${tr(g.source_type)} ${sourceRef(g)} · ${personName({ name: g.donor_name }, lang)} · ${tr(g.item_name)}`, a: g.tagged, b: g.placed })),
@@ -157,7 +157,7 @@ export default function StoresDayClosing() {
             {closed && !showLive && <div className="text-[0.8125rem]">{tr('Closed')} {tr('by')} {staffName(closed.closed_by)} · {fmtStamp(closed.closed_at)}</div>}
           </div>
 
-          <KpiGrid data-n={8}>
+          <KpiGrid>
             <StatTile icon={PackagePlus} color="#8a1c1c" bg="bg-maroon-50" title={tr('Received')} value={num(k.received)} sub={tr('Pieces tagged')} />
             <StatTile icon={MapPin} color="#059669" bg="bg-emerald-50" title={tr('Placed')} value={num(k.placed)} sub={tr('Put on a shelf')} />
             <StatTile icon={ArrowLeftRight} color="#2563eb" bg="bg-blue-50" title={tr('Moved')} value={num(k.moved)} sub={tr('Between locations')} />
@@ -165,6 +165,7 @@ export default function StoresDayClosing() {
             <StatTile icon={Undo2} color="#059669" bg="bg-emerald-50" title={tr('Returned')} value={num(k.returned || 0)} sub={tr('Back from issue')} />
             <StatTile icon={BadgeIndianRupee} color="#7c3aed" bg="bg-violet-50" title={tr('Sold')} value={num(k.sold)} sub={tr('Auction or Open Sale')} />
             <StatTile icon={Archive} color="#6b7280" bg="bg-gray-100" title={tr('Written Off')} value={num(k.written_off)} sub={tr('Damaged or lost')} />
+            {k.kept > 0 && <StatTile icon={Archive} color="#6b7280" bg="bg-gray-100" title={tr('Kept by poojari')} value={num(k.kept)} sub={tr('Given after use')} />}
             <StatTile icon={AlertTriangle} color="#c2410c" bg="bg-orange-50" title={tr('Still unplaced')} value={num(k.unplaced)} sub={tr('At the end of the day')} />
           </KpiGrid>
 

@@ -1,4 +1,4 @@
-"""Deity-Used Items: pieces worn / used by the deity (alankaram, festival) are marked and offered
+"""Used items (was "Deity-Used Items" until 2026-11-15): pieces worn / used by the deity (alankaram, festival) are marked and offered
 first at auction. A piece back from an Alankaram / Festival issue slip is marked on return; the
 Stores Officer (or Administrator) can mark / unmark one by hand. Gold and silver stay tracked
 only — marked, but never auctioned. Run from backend/:
@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.helpers import ist_today
-from app.models import Base, DonationCategory, FestivalKit, StockItem, StockMovement, StoreLocation
+from app.models import Base, DonationCategory, StockItem, StockMovement, StoreLocation
 from app.routers import auction_lots, open_sale as osr, stores as r, stores_issue as si
 
 
@@ -56,14 +56,10 @@ class DeityUsedItems(unittest.TestCase):
         self.assertEqual(cm.exception.status_code, code, cm.exception.detail)
         return cm.exception.detail
 
-    def issue_and_return(self, ids, purpose, condition="Good", kit=None):
+    def issue_and_return(self, ids, purpose, condition="Good"):
         body = si.IssueIn(ids=ids, issued_to="Venkatesh", purpose=purpose, return_by=ist_today())
-        if kit:
-            slip = si.create_slip(self.db, self.officer, body, kit=kit); self.db.commit()
-            slip = si._slip_dict(self.db, slip)
-        else:
-            slip = si.issue_items(body, self.req, self.db, self.officer)
-        lines = [{"line_id": l["id"], "condition": condition} for l in slip["lines"]]
+        slip = si.issue_items(body, self.req, self.db, self.officer)
+        lines = [{"line_id": l["id"], "condition": condition, "weight_g": l["weight_g"]} for l in slip["lines"]]   # weighed back
         si.return_items(slip["id"], si.ReturnIn(lines=lines), self.req, self.db, self.officer)
         return slip["code"]
 
@@ -90,37 +86,35 @@ class DeityUsedItems(unittest.TestCase):
         self.assertTrue(p.deity_used)
         self.assertEqual(p.deity_used_note, f"Alankaram — {code}")
         mv = self.last_move(1)
-        self.assertEqual((mv.action, mv.detail), ("Marked Deity-Used", f"Used for Alankaram — {code}"))
-        # Festival counts too (any case), even if it came back damaged; the kit name is kept
-        kit = FestivalKit(code="KIT-0001", name="Dasara alankaram", pieces="[2]")
-        self.db.add(kit); self.db.commit()
-        code2 = self.issue_and_return([2], "festival", condition="Damaged", kit=kit)
-        self.assertEqual(self.db.get(StockItem, 2).deity_used_note, f"festival — {code2} (Dasara alankaram)")
+        self.assertEqual((mv.action, mv.detail), ("Marked as used", f"Used for Alankaram — {code}"))
+        # Festival counts too (any case), even if it came back damaged
+        code2 = self.issue_and_return([2], "festival", condition="Damaged")
+        self.assertEqual(self.db.get(StockItem, 2).deity_used_note, f"festival — {code2}")
 
-    def test_other_purposes_do_not_mark(self):
-        self.issue_and_return([3], "Abhishekam")
-        self.issue_and_return([3], "Repair / Polish")
-        self.assertFalse(self.db.get(StockItem, 3).deity_used)
-        self.assertEqual(self.last_move(3).action, "Returned")
+    def test_every_purpose_marks_it_used(self):
+        # 2026-11-15: anything that went out and came back is a Used item, whatever it was used for
+        code = self.issue_and_return([3], "Abhishekam")
+        p = self.db.get(StockItem, 3)
+        self.assertEqual((p.deity_used, p.deity_used_note, p.status), (True, f"Abhishekam — {code}", "In Store"))
 
-    def test_used_again_keeps_the_first_mark_and_one_history_line(self):
-        first = self.issue_and_return([1], "Alankaram")
-        self.issue_and_return([1], "Festival")
-        self.assertEqual(self.db.get(StockItem, 1).deity_used_note, f"Alankaram — {first}")
-        marks = self.db.query(StockMovement).filter(StockMovement.item_id == 1, StockMovement.action == "Marked Deity-Used").count()
-        self.assertEqual(marks, 1)
+    def test_used_again_notes_the_latest_use_with_one_mark_line(self):
+        self.issue_and_return([1], "Alankaram")
+        second = self.issue_and_return([1], "Festival")
+        self.assertEqual(self.db.get(StockItem, 1).deity_used_note, f"Festival — {second}")   # the latest use
+        marks = self.db.query(StockMovement).filter(StockMovement.item_id == 1, StockMovement.action == "Marked as used").count()
+        self.assertEqual(marks, 1)                                     # each issue + return is in the history anyway
 
     # ── marked / unmarked by hand ────────────────────────────────────────────
     def test_officer_and_admin_mark_and_unmark_with_history(self):
         out = self.mark(4, True)
         self.assertEqual((out["deity_used"], out["deity_used_note"]), (True, "Dasara 2025 alankaram"))
-        self.assertEqual((self.last_move(4).action, self.last_move(4).detail), ("Marked Deity-Used", "Used for Dasara 2025 alankaram"))
+        self.assertEqual((self.last_move(4).action, self.last_move(4).detail), ("Marked as used", "Used for Dasara 2025 alankaram"))
         out = self.mark(4, False, note="Marked by mistake", user=self.admin)
         self.assertEqual((out["deity_used"], out["deity_used_note"]), (False, None))
-        self.assertEqual((self.last_move(4).action, self.last_move(4).detail), ("Deity-Used mark removed", "Marked by mistake"))
+        self.assertEqual((self.last_move(4).action, self.last_move(4).detail), ("Used mark removed", "Marked by mistake"))
         hist = r.item_detail("PAN-00004", self.db, self.officer)
         self.assertFalse(hist["deity_used"])
-        self.assertEqual([h["action"] for h in hist["history"]], ["Marked Deity-Used", "Deity-Used mark removed"])
+        self.assertEqual([h["action"] for h in hist["history"]], ["Marked as used", "Used mark removed"])
 
     def test_manual_mark_refusals(self):
         self.mark(4, True)
@@ -148,7 +142,7 @@ class DeityUsedItems(unittest.TestCase):
         self.assertEqual(self.items(deity_used=True), ["PAN-00004", "PAN-00002"])        # the separate section
         self.assertEqual(sorted(self.items(deity_used=False)), ["PAN-00001", "PAN-00003", "PAN-00005", "SLV-00001"])
         pick = self.items(category_id=1, status="In Store", order="deity_first")           # the auction pick list
-        self.assertEqual(pick, ["PAN-00002", "PAN-00004", "PAN-00001", "PAN-00003", "PAN-00005"])
+        self.assertEqual(pick, ["PAN-00001", "PAN-00002", "PAN-00003", "PAN-00004", "PAN-00005"])  # by ID — Used not forced first
         self.assertEqual(self.items()[0], "SLV-00001")                                       # default order unchanged
         self.assertEqual(r.summary(None, self.db, self.officer)["deity_used_in_store"], 2)
         self.assertEqual(r.summary(2, self.db, self.officer)["deity_used_in_store"], 0)     # per item type
@@ -176,8 +170,8 @@ class DeityUsedItems(unittest.TestCase):
         self.db.commit()
         self.mark(3, True)
         unsold = r.unsold_items(None, self.db, self.officer)["items"]
-        self.assertEqual([(i["tag_id"], i["deity_used"]) for i in unsold],
-                         [("PAN-00003", True), ("PAN-00001", False), ("PAN-00002", False)])
+        self.assertEqual([(i["tag_id"], i["deity_used"]) for i in unsold],                 # most-tried first, mark shown
+                         [("PAN-00001", False), ("PAN-00002", False), ("PAN-00003", True)])
 
     def test_deity_used_piece_can_be_auctioned(self):
         self.mark(1, True)

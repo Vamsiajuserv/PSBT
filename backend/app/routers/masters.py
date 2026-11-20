@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AuctionItem, HundiItem, CommitteeMember, Festival, Pooja, WasteMaterial, WasteSale, WasteVendor
-from ..security import RequireModule, require_admin, log_action, client_ip
+from ..security import RequireModule, RequireModuleOrRole, require_admin, log_action, client_ip
 from ..helpers import ist_today
 from ..almanac import DEFAULT_FESTIVALS
 from .almanac import festival_almanac_day
@@ -235,7 +235,7 @@ def cm_delete(iid: int, request: Request, db: Session = Depends(get_db), user=De
 
 # ── Waste Material Master ────────────────────────────────────────────────────
 waste_materials_router = APIRouter(prefix="/api/waste-materials", tags=["waste-materials"])
-wm_read = RequireModule("Counter")   # same gate as Waste Sales; edits are Administrator-only (require_admin)
+wm_read = RequireModuleOrRole("Counter", roles=("Committee",))   # same gate as Other Sales; edits are Administrator-only
 
 
 def _wm(x: WasteMaterial):

@@ -8,7 +8,7 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { STATUS_TONE, STATUSES, AWAITING, ISSUED, MISSING, canManageStores, useStoresMeta, sourceRef } from './shared.jsx'
+import { STATUS_TONE, STATUSES, AWAITING, ISSUED, MISSING, canManageStores, useStoresMeta, sourceRef, StoresTabs } from './shared.jsx'
 import { StockAuctionDrawer } from '../auction/LotAuction.jsx'
 
 // Deity-Used Items: pieces worn / used by the deity (alankaram, festival). They are offered first
@@ -86,6 +86,7 @@ export default function DeityUsedItems() {
 
   return (
     <div>
+      <StoresTabs group="sales" />
       <PageTitle title={tr('Deity-Used Items')} subtitle={tr('Pieces worn or used by the deity for alankaram and festivals — offered first at auction.')}
         actions={<span className="inline-flex flex-wrap gap-2">
           {canAuction(user) && <button disabled={!sendable} onClick={() => setPreset({ category_id: chosen[0].category_id, piece_ids: chosen.map((r) => r.id), base_price: '',

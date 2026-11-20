@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import {
   ArrowLeft, Printer, Download, User, Landmark, IndianRupee, CreditCard, ClipboardList,
   Ticket, Calendar, UserCheck, Building2, CheckCircle2, ShieldCheck, CalendarDays, Tag, Info, Clock,
@@ -11,6 +11,8 @@ import { PoojaHistoryAPI, BookingsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, trLocal, personName, useLang, teText, clock12 } from '../../i18n/LanguageContext.jsx'
+import { halfLabel } from '../../lib/halfSlots.js'
+import { statusChip } from '../../lib/bookingStatus.js'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const shortPooja = (name) => (name || '').replace(/^Shri Shirdi Sai Baba\s+/i, '').split(' ').slice(-1)[0]
@@ -32,6 +34,8 @@ export default function BookingDetails() {
   const { lang } = useLang()
   const { id } = useParams()
   const nav = useNavigate()
+  // Back to the list with the filters it was opened from (All bookings keeps them in the URL)
+  const listUrl = '/admin/bookings' + (useLocation().state?.back || '')
   const { user } = useAuth()
   const [d, setD] = useState(null)
   const [loadErr, setLoadErr] = useState('')
@@ -42,7 +46,7 @@ export default function BookingDetails() {
   useEffect(() => { load() }, [load])
   const canOperate = ['Admin', 'Administrator', 'Counter Staff', 'Poojari'].includes(user?.role)
   async function complete() {
-    if (!(await confirmDialog({ title: tr(`Mark ${d.booking_code} as completed?`), message: tr('It will move to Pooja History.') }))) return
+    if (!(await confirmDialog({ title: `${tr('Mark performed')} — ${d.ticket_no || d.booking_code}?`, message: tr('It will move to Pooja History.') }))) return
     try { await BookingsAPI.complete(id); toast(tr('Performance recorded.')); PoojaHistoryAPI.detail(id).then(setD) }
     catch (ex) { toast(ex.detail || tr('Could not complete this booking.'), 'error') }
   }
@@ -59,10 +63,10 @@ export default function BookingDetails() {
 
   return (
     <div className="print-modal">
-      <div className="text-[0.75rem] text-gray-400 mb-1 no-print"><Link to="/admin/bookings" className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to="/admin/bookings" className="hover:text-maroon-600"><T>Bookings</T></Link> › <span className="text-gray-500"><T>Booking Details</T></span></div>
+      <div className="text-[0.75rem] text-gray-400 mb-1 no-print"><Link to={listUrl} className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to={listUrl} className="hover:text-maroon-600"><T>Bookings</T></Link> › <span className="text-gray-500"><T>Booking Details</T></span></div>
       <div className="no-print"><PageTitle title={tr("Booking Details")} actions={<>
-        {canOperate && d.status === 'Confirmed' && <button onClick={complete} className="btn-maroon !py-2.5"><CheckCircle2 size={15} />{' '}<T>Mark as Completed</T></button>}
-        <button onClick={() => nav('/admin/bookings')} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Bookings List</T></button>
+        {canOperate && d.status === 'Confirmed' && d.payment_status !== 'Pending' && <button onClick={complete} className="btn-maroon !py-2.5"><CheckCircle2 size={15} />{' '}<T>Mark performed</T></button>}
+        <button onClick={() => nav(listUrl)} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Bookings List</T></button>
       </>} /></div>
 
       {/* Summary strip */}
@@ -72,7 +76,7 @@ export default function BookingDetails() {
         <Meta icon={Calendar} label={tr("Booking Date")} value={fmtStamp(d.created_at)} />
         <Meta icon={UserCheck} label={tr("Booked By")} value={trLocal(bb.name) || personName(bb, lang)} sub={`(${tr(bb.sub)})`} />
         <Meta icon={Building2} label={tr("Booking Source")} value={d.source === 'Counter' ? tr('Counter Booking') : tr('Online Booking')} />
-        <div className="ml-auto"><span className="inline-flex items-center gap-1.5 text-[0.8125rem] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5"><CheckCircle2 size={15} /> {tr((d.status || 'Confirmed').toUpperCase())}</span></div>
+        <div className="ml-auto"><span className={`inline-flex items-center gap-1.5 text-[0.8125rem] font-bold border rounded-lg px-3 py-1.5 ${statusChip(d.status || 'Confirmed')}`}>{d.status === 'Completed' && <CheckCircle2 size={15} />} {tr((d.status || 'Confirmed').toUpperCase())}</span></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -90,6 +94,7 @@ export default function BookingDetails() {
             <Row label={tr("Plan Type")} value={tr(plan.plan_name)} />
             <Row label={tr("Rate Type")} value={tr(plan.rate_type)} />
             <Row label={tr("Validity")} value={validRange} />
+            {(d.perform_dates || '').includes(',') && <Row label={tr("Pooja dates")} value={d.perform_dates.split(',').map((x) => fmtDate(x)).join(' · ')} />}
             <Row label={tr("Plan Description")} value={`${tr(plan.plan_name || '')} ${tr(d.pooja_name || '')} ${tr('for')} ${tr(validityShort(plan))}`.trim()} />
           </Section>
 
@@ -117,6 +122,7 @@ export default function BookingDetails() {
             <TF icon={CalendarDays} label={tr("Plan")} value={`${tr(plan.plan_name || '')} ${tr(shortPooja(d.pooja_name))}`} />
             <TF icon={Tag} label={tr("Plan Type")} value={tr(plan.plan_name)} />
             {d.time_slot && <TF icon={Clock} label={tr("Time Slot")} value={clock12(d.time_slot)} />}
+            {d.batch_slot && <TF icon={Clock} label={tr("Pooja slot")} value={halfLabel(d.batch_slot)} />}
             <TF icon={Calendar} label={tr("Booking Date")} value={fmtDate(d.created_at)} sub={fmtStamp(d.created_at).split(', ')[1]} />
             <TF icon={ShieldCheck} label={tr("Validity")} value={tr(validityShort(plan))} sub={validRange.includes('(') ? validRange.slice(validRange.indexOf('(')) : ''} />
             <TF icon={IndianRupee} label={tr("Rate Type")} value={tr(plan.rate_type)} />
@@ -132,7 +138,7 @@ export default function BookingDetails() {
       <div className="flex flex-wrap gap-3 justify-center mt-6 no-print">
         <button onClick={() => window.print()} className="btn-outline"><Printer size={15} />{' '}<T>Print Ticket / Receipt</T></button>
         <button onClick={() => window.print()} className="btn-outline"><Download size={15} />{' '}<T>Download PDF</T></button>
-        <button onClick={() => nav('/admin/bookings')} className="btn-maroon"><ArrowLeft size={15} />{' '}<T>Back to Bookings List</T></button>
+        <button onClick={() => nav(listUrl)} className="btn-maroon"><ArrowLeft size={15} />{' '}<T>Back to Bookings List</T></button>
       </div>
       <div className="mt-4 flex items-center gap-2 text-[0.8125rem] text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-2.5 no-print"><ShieldCheck size={15} className="text-blue-500" />{' '}<T>All bookings are subject to temple rules and availability.</T></div>
     </div>

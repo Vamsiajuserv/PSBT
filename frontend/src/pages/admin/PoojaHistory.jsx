@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp, FilterPanel } from '../../components/admin/ui.jsx'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { PoojaHistoryAPI, PoojasAPI } from '../../api/client.js'
@@ -260,7 +260,8 @@ export default function PoojaHistory() {
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         {/* Filters Row */}
-        <div className="px-5 py-4 border-b border-gray-100 flex items-end gap-3">
+        <FilterPanel>
+        <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -289,6 +290,7 @@ export default function PoojaHistory() {
           <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button onClick={() => { setFilters({ q: '', pooja: '', plan: '', status: '', start: '', end: '', page: 1 }); clearSorts(); clearAllFilters(); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
+        </FilterPanel>
 
         <SortFilterPanel
           sorts={sorts}

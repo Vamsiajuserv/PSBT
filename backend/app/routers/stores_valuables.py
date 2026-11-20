@@ -1,5 +1,5 @@
-"""Valuables Statement — gold and silver in the store, month by month, for the Committee
-and the auditor.
+"""Valuables Statement — gold and silver in the store, month by month (or for custom dates:
+a festival week, the financial year), for the Committee and the auditor.
 
 Per metal, in grams: Opening (in stock on the 1st), Received (tagged during the month),
 Sold / Written off, On loan (out on issue at month end) and Closing (still the temple's at
@@ -48,9 +48,24 @@ def _rate(db: Session, metal: str, day: date) -> MetalRate | None:
             .order_by(MetalRate.rate_date.desc()).first())
 
 
+def _range(start: date | None, end: date | None) -> tuple[date, date]:
+    """Custom dates (From – To), e.g. a festival week or the financial year; To stops at today."""
+    if not start or not end:
+        raise HTTPException(422, "Choose both a From and a To date.")
+    if start > end:
+        raise HTTPException(422, "The From date must be on or before the To date.")
+    today = ist_today()
+    if start > today:
+        raise HTTPException(422, "Choose today or an earlier From date.")
+    return start, min(end, today)
+
+
 @router.get("")
-def statement(month: str | None = None, db: Session = Depends(get_db), user=Depends(read)):
-    start, end = _month(month)
+def statement(month: str | None = None, db: Session = Depends(get_db), user=Depends(read),
+              start: date | None = None, end: date | None = None):
+    """One month (month=2026-10, default this month), or custom dates (start + end)."""
+    custom = bool(start or end)
+    start, end = _range(start, end) if custom else _month(month)
     cats = {c.id: (c, metal_of(c.name)) for c in db.query(DonationCategory).filter(DonationCategory.tracking == "Tagged").all()
             if metal_of(c.name) and _is_weight(c.unit)}
     rates = {m: _rate(db, m, end) for m in ("Gold", "Silver")}
@@ -100,5 +115,6 @@ def statement(month: str | None = None, db: Session = Depends(get_db), user=Depe
                     "pieces": r["pieces"], "unvalued": r["unvalued"],
                     "rate": {"rate_per_g": float(rate.rate_per_g), "date": str(rate.rate_date)} if rate else None,
                     "balanced": abs(r["opening"] + r["received"] - r["out"] - r["closing"]) < Decimal("0.001")})
-    return {"month": start.strftime("%Y-%m"), "start": str(start), "end": str(end), "rows": out, "pieces": pieces,
+    return {"month": None if custom else start.strftime("%Y-%m"), "custom": custom,
+            "start": str(start), "end": str(end), "rows": out, "pieces": pieces,
             "total_value": sum(r["value"] for r in out)}

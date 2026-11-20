@@ -12,6 +12,7 @@ from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam, Wa
 from ..security import RequireModule, log_action, client_ip
 from ..schemas import DailyClosingCloseIn, DailyClosingReopenIn, CASH_DENOMINATIONS
 from ..helpers import ist_today
+from ..helpers import ist_day, ist_paid_day
 
 router = APIRouter(prefix="/api/daily-closing", tags=["daily-closing"])
 read = RequireModule("Reports")
@@ -55,6 +56,20 @@ def _head(db, name, model, amount_col, stamp, on, mode_attr=None, force=None, ex
             "count": cash_cnt + upi_cnt, "cash_cnt": cash_cnt, "upi_cnt": upi_cnt}
 
 
+def _auction_head(db, on) -> dict:
+    """Auction money actually collected on `on` — single auctions and each lot buyer, by payment mode."""
+    from .misc import auction_receipts
+    cash = upi = Decimal("0")
+    cash_cnt = upi_cnt = 0
+    for r in auction_receipts(db, on, on):
+        if r["mode"] == "Cash":
+            cash += r["amount"]; cash_cnt += 1
+        else:
+            upi += r["amount"]; upi_cnt += 1
+    return {"name": "Auction Receipts", "cash": float(cash), "upi": float(upi), "total": float(cash + upi),
+            "count": cash_cnt + upi_cnt, "cash_cnt": cash_cnt, "upi_cnt": upi_cnt}
+
+
 def _modules(db, on):
     heads = [
         # Only money actually collected counts: paid, non-cancelled bookings;
@@ -64,23 +79,37 @@ def _modules(db, on):
         # a cancellation is reversed by its Refund row, not by retroactively dropping
         # the collection (which would corrupt an already-closed prior day and, on a
         # same-day cancel, double-count the reversal).
-        _head(db, "Pooja Bookings", Booking, "amount", func.date(Booking.created_at), on, "payment_method",
+        _head(db, "Pooja Bookings", Booking, "amount", ist_day(Booking.created_at), on, "payment_method",
               extra_filter=(Booking.payment_status == "Paid")),
         # Material donations are goods, not money — they never reach the drawer or the bank.
-        _head(db, "Donations", Donation, "amount", func.date(Donation.created_at), on, "mode",
+        _head(db, "Donations", Donation, "amount", ist_day(Donation.created_at), on, "mode",
               extra_filter=and_(Donation.voided.isnot(True), Donation.donation_type != "Material")),
-        _head(db, "Hundi Collections", HundiCollection, "counted_amount", func.date(HundiCollection.collected_on), on, force="cash"),
-        _head(db, "Auction Receipts", Auction, "current_amount", func.date(Auction.auction_date), on, force="upi",
-              extra_filter=(Auction.status == "Completed")),
-        _head(db, "Annadanam Donations", Annadanam, "amount", func.date(func.coalesce(Annadanam.paid_at, Annadanam.created_at)), on, "mode"),
-        _head(db, "Other Material Sales", WasteSale, "amount", func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at)), on, "mode",
+        # Hundi is not counter money (it goes straight to the bank) — shown on its own, see _hundi_day.
+        _auction_head(db, on),   # money paid that day, by payment mode (2026-11-15)
+        _head(db, "Annadanam Donations", Annadanam, "amount", ist_paid_day(Annadanam.paid_at, Annadanam.created_at), on, "mode",
+              extra_filter=Annadanam.voided.isnot(True)),
+        _head(db, "Other Material Sales", WasteSale, "amount", ist_paid_day(WasteSale.paid_at, WasteSale.created_at), on, "mode",
               extra_filter=(WasteSale.status == "Paid")),
         # Stores & Inventory: pieces sold in Open Sale (counter money, cash or online)
-        _head(db, "Open Sale (Stores)", OpenSale, "amount", func.date(OpenSale.sold_at), on, "payment_mode"),
+        _head(db, "Open Sale (Stores)", OpenSale, "amount", ist_day(OpenSale.sold_at), on, "payment_mode"),
         {"name": "Accommodation Receipts", "cash": 0.0, "upi": 0.0, "total": 0.0, "count": 0, "cash_cnt": 0, "upi_cnt": 0},
         {"name": "Other Receipts", "cash": 0.0, "upi": 0.0, "total": 0.0, "count": 0, "cash_cnt": 0, "upi_cnt": 0},
     ]
     return heads
+
+
+def _hundi_day(db, on) -> dict:
+    """Hundi counted on this day (2026-11-15): VERIFIED counts only and only their cash part — the
+    valuables go to the vault, and none of it passes through the counter drawer, so it is kept out
+    of the counter's totals and the expected cash."""
+    from .misc import hundi_cash
+    rows = (db.query(HundiCollection)
+            .filter(HundiCollection.collected_on == on, HundiCollection.verification_status == "Verified").all())
+    pending = (db.query(func.count(HundiCollection.id))
+               .filter(HundiCollection.collected_on == on, HundiCollection.verification_status == "Pending Verification").scalar() or 0)
+    cash = sum((hundi_cash(h) for h in rows), Decimal("0"))
+    return {"name": "Hundi Collections", "cash": float(cash), "count": len(rows), "pending_count": int(pending),
+            "deposited": float(sum((hundi_cash(h) for h in rows if h.deposit_status == "Deposited"), Decimal("0")))}
 
 
 def _summary(db, on):
@@ -111,6 +140,7 @@ def _summary(db, on):
         "opening_cash": float(opening), "refunds": float(refunds), "cash_refunds": float(cash_refunds),
         "expected_cash": float(expected_cash),
         "net_collections": float(total_amt - refunds),
+        "hundi": _hundi_day(db, on),   # not in the totals above — goes to the bank
     }
 
 
@@ -133,7 +163,7 @@ def summary(day: date | None = None, db: Session = Depends(get_db), user=Depends
     s["denominations"] = json.loads(existing.denominations) if existing and existing.denominations else None
     s["closing_notes"] = existing.notes if existing else None
     # Stores & Inventory reminder: the day's material donations whose pieces have no IDs yet.
-    # A warning only — the day can still be closed; they stay in Pending Tagging.
+    # A warning only — the day can still be closed; they stay in Receive & Tag.
     from .stores import untagged_donations
     s["untagged_material"] = untagged_donations(db, on)
     return s

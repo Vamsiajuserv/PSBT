@@ -130,6 +130,24 @@ Notes:
 - `SCM_DO_BUILD_DURING_DEPLOYMENT=false`: the GitHub workflow installs the Python packages into `backend/packages/` and `startup.sh` puts them on `PYTHONPATH`, so Azure does no build (its Oryx build failed to download Python, Oct 2026).
 - `WEBSITES_PORT=8000` matches the port in `startup.sh`.
 
+### Encryption keys (devotee PANs and backups)
+
+Add two more application settings, `PAN_ENCRYPTION_KEY` and `BACKUP_ENCRYPTION_KEY`. Without
+them, PANs and backup files are stored in plain text, and the API log stream shows a
+`SECURITY: … is not set` warning at every start.
+
+1. Generate each key on your own machine (one line each; never paste them in chat, mail or Git):
+   `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+2. App Service → **Configuration** → add both settings → **Save** (the app restarts).
+3. Put the **same two values** in `backend/.env` on every dev machine: it uses the same database.
+4. Encrypt the PANs saved before the key existed, once, from `backend/` with the key in `.env`:
+   `python -m app.encrypt_pans` (dry run: shows the count) → `python -m app.encrypt_pans --apply`.
+5. Store both keys in a password manager. **A lost or changed `PAN_ENCRYPTION_KEY` makes every
+   encrypted PAN unreadable**, and an encrypted backup cannot be restored without its key.
+
+The PAN columns are widened automatically at startup (`migrate.COLUMN_WIDENINGS`), since an
+encrypted PAN (~104 characters) does not fit the original 10 / 20.
+
 ---
 
 ## 6. Phase 4 — GitHub secrets

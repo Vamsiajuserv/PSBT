@@ -1,6 +1,6 @@
-"""Stores & Inventory — placement step. A piece tagged without a location is Awaiting
-Placement; Place puts it In Store at a location and records who, where and when. Tagging
-with a location (today's flow) and hundi custody go straight to In Store. Run from backend/:
+"""Stores & Inventory — placement. Since 2026-11-15 every piece is put on a shelf when it is tagged
+(Awaiting Placement removed for new pieces); pieces already waiting from before can still be
+placed — Place puts them In Store and records who, where and when. Run from backend/:
     python -m unittest discover -s tests -t .
 """
 import unittest
@@ -21,6 +21,15 @@ from app.routers import auction_lots, open_sale, stock_report as sr, stores as r
 def login(username, role):
     return SimpleNamespace(username=username, name=username.title(), role=role, modules="Stores")
 
+
+
+def approve_write_off(db, req, item_id, user=None):
+    """2026-11-15: a write-off is a request a Committee member approves (never the requester)."""
+    from types import SimpleNamespace as _NS
+    from app.models import MissingCase
+    from app.routers import stores_issue
+    case = db.query(MissingCase).filter(MissingCase.stock_item_id == item_id, MissingCase.status == "Write-off requested").one()
+    return stores_issue.approve_lost(case.id, req, db, user or _NS(username="committee9", name="Committee9", role="Committee"))
 
 class Placement(unittest.TestCase):
     def setUp(self):
@@ -66,20 +75,30 @@ class Placement(unittest.TestCase):
         return r.place_items(r.PlaceIn(ids=ids, location_id=location_id, note=note), self.req, self.db,
                              user or self.officer)
 
+    def awaiting(self, d, n):
+        """Pieces tagged without a shelf before 2026-11-15 (old data), as they sit in the database."""
+        ids = []
+        for k in range(n):
+            it = StockItem(tag_id=f"PAN-0090{k}", category_id=1, item_name="Cloth / Vastram", status=r.AWAITING,
+                           source_type="Donation", source_ref=d.receipt_no, donation_id=d.id, donor_name=d.donor_name,
+                           unsold_count=0, deity_used=False)
+            self.db.add(it); self.db.flush()
+            r._move(self.db, it, self.counter, r.TAGGED_UNPLACED, f"From {d.receipt_no} ({d.donor_name})")
+            ids.append(it.id)
+        self.db.commit()
+        return ids
+
     def actions(self, item_id):
         return [(m.action, m.detail) for m in self.db.query(StockMovement).filter(StockMovement.item_id == item_id)
                 .order_by(StockMovement.id).all()]
 
     # ── Tagging ──
-    def test_tag_without_location_awaits_placement(self):
+    def test_tag_without_location_is_refused(self):
         d = self.donation()
-        out = self.tag("Donation", d.id, [{"description": "Pancha"}] * 2)
-        self.assertEqual([i["status"] for i in out["items"]], [r.AWAITING] * 2)
-        self.assertEqual([i["location_id"] for i in out["items"]], [None, None])
-        self.assertEqual(self.actions(out["items"][0]["id"]), [(r.TAGGED_UNPLACED, "From RCPT-1 (Ravi K)")])
-        self.assertEqual(r.awaiting_count(self.db, self.officer)["total"], 2)
-        # tagging counts toward the receipt either way
-        self.assertIn("Only 1 piece", self.status(422, lambda: self.tag("Donation", d.id, [{}] * 2)))
+        self.assertIn("store location for every piece", self.status(422, lambda: self.tag(
+            "Donation", d.id, [{"description": "Pancha", "location_id": 1}, {"description": "Pancha"}])))
+        self.assertEqual(self.db.query(StockItem).count(), 0)                    # nothing half-saved
+        self.assertEqual(r.awaiting_count(self.db, self.officer)["total"], 0)
 
     def test_tag_with_location_is_unchanged(self):
         d = self.donation()
@@ -95,18 +114,20 @@ class Placement(unittest.TestCase):
         self.db.add(h); self.db.commit()
         out = self.tag("Hundi", h.id, [{"category_id": 2, "hundi_line_id": h.items[0].id, "weight_g": 20}])
         self.assertEqual((out["items"][0]["status"], out["items"][0]["location"]), ("In Store", "Main Vault"))
-        # a custody location that is not a Store Location: the piece waits for placement
+        # a custody location that is not a Store Location: the shelf must be chosen at tagging
         h2 = HundiCollection(code="HUN-2026-00002", counted_amount=100, verification_status="Verified",
                              valuables_status="In Store", store_location="locker 9 (old)", status="Verified")
         h2.items.append(HundiCollectionItem(item_name="Silver coin", item_type="Silver", quantity=5, unit="Grams", value=100))
         self.db.add(h2); self.db.commit()
-        out = self.tag("Hundi", h2.id, [{"category_id": 2, "hundi_line_id": h2.items[0].id, "weight_g": 5}])
-        self.assertEqual(out["items"][0]["status"], r.AWAITING)
+        row = {"category_id": 2, "hundi_line_id": h2.items[0].id, "weight_g": 5}
+        self.status(422, lambda: self.tag("Hundi", h2.id, [row]))
+        out = self.tag("Hundi", h2.id, [{**row, "location_id": 2}])
+        self.assertEqual((out["items"][0]["status"], out["items"][0]["location"]), ("In Store", "Main Vault"))
 
     # ── Place ──
     def test_place_bulk_records_who_where(self):
         d = self.donation()
-        ids = [i["id"] for i in self.tag("Donation", d.id, [{}] * 3)["items"]]
+        ids = self.awaiting(d, 3)
         out = self.place(ids[:2], location_id=1, note="top shelf")
         self.assertEqual({(i["status"], i["location"]) for i in out["items"]}, {("In Store", "Rack 2")})
         self.assertEqual(self.actions(ids[0])[-1], (r.PLACED, "in Rack 2 · top shelf"))
@@ -129,7 +150,7 @@ class Placement(unittest.TestCase):
     # ── What an unplaced piece can and cannot do ──
     def test_unplaced_piece_rules(self):
         d = self.donation()
-        a, b = [i["id"] for i in self.tag("Donation", d.id, [{}] * 2)["items"]]
+        a, b = self.awaiting(d, 2)
         self.status(409, lambda: r.move_item(a, r.MoveIn(location_id=1), self.req, self.db, self.officer))
         self.assertIn("not In Store", self.status(409, lambda: auction_lots.create_lot(
             self.db, self.counter, 1, [a], Decimal("100"), date.today() + timedelta(days=1), "10:00 AM", None, None)))
@@ -140,14 +161,16 @@ class Placement(unittest.TestCase):
         self.assertEqual(sr._expected(self.db, 1), [])
         # damaged on arrival: may be written off
         out = r.write_off(b, r.ReasonIn(reason="Torn on arrival"), self.req, self.db, self.officer)
-        self.assertEqual(out["status"], "Written Off")
+        self.assertEqual(out["status"], r.WRITEOFF_REQ)
+        approve_write_off(self.db, self.req, b)
+        self.assertEqual(self.db.get(StockItem, b).status, "Written Off")
 
     # ── Stock Report ──
     def test_report_replays_placement(self):
         today = ist_today()
         d = self.donation(qty=3)
-        ids = [i["id"] for i in self.tag("Donation", d.id, [{}] * 2)["items"]]
-        self.tag("Donation", d.id, [{"location_id": 1}])                  # one placed at tagging (old flow)
+        ids = self.awaiting(d, 2)                                          # two left unplaced before 2026-11-15
+        self.tag("Donation", d.id, [{"location_id": 1}])                  # one placed at tagging
         row = sr._tagged_rows(self.db, today, today)[0]
         self.assertEqual((row["received"], row["awaiting_placement"], row["in_store"], row["closing"]), (3, 2, 1, 3))
         self.place(ids[:1])

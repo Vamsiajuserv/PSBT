@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { X, Plus, Trash2, Search, Banknote, Receipt as ReceiptIcon, Gavel, PackageX } from 'lucide-react'
-import { AuctionAPI, StoresAPI, getErrorMessage } from '../../../api/client.js'
+import { AuctionAPI, StoresAPI, SettingsAPI, getErrorMessage } from '../../../api/client.js'
 import { Pill, inr } from '../../../components/admin/ui.jsx'
 import { Select, NumberField, DateField, TimeField, Checkbox } from '../../../components/common/Field.jsx'
-import { toast, confirmDialog } from '../../../components/common/Dialog.jsx'
+import { toast, confirmDialog, promptDialog } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit, teTerm } from '../../../i18n/LanguageContext.jsx'
 import { DeityBadge } from '../stores/shared.jsx'
 
 // Lot auctions: a set of tagged pieces from the Stock Register, sold to one or more buyers.
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
 const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+const addDaysISO = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
 const to12h = (t) => {
   if (!t) return ''
   const [h, m] = t.split(':').map(Number)
@@ -33,6 +34,9 @@ export const lotPaidCount = (au) => (au.sales || []).filter((s) => s.payment_sta
 // preset: { category_id, piece_ids, base_price, title?, notes? } — opened from Unsold Items to re-auction them,
 // or from Deity-Used Items to auction those pieces first
 export function StockAuctionDrawer({ onClose, onCreated, preset }) {
+  // Auctions are planned up to the Advance Booking window ahead (Settings, 90 days by default)
+  const [maxDate, setMaxDate] = useState(() => addDaysISO(todayISO(), 90))
+  useEffect(() => { SettingsAPI.config().then((c) => { if (Number.isInteger(c?.advance_booking_max_days)) setMaxDate(addDaysISO(todayISO(), c.advance_booking_max_days)) }).catch(() => {}) }, [])
   const [cats, setCats] = useState([])
   const [catId, setCatId] = useState(preset ? String(preset.category_id) : '')
   const [pieces, setPieces] = useState([])
@@ -79,6 +83,7 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
   async function save(e) {
     e.preventDefault()
     if (!chosen.length) { toast(tr('Pick at least one piece.'), 'error'); return }
+    if (maxDate && f.auction_date > maxDate) { toast(tr('The auction date is too far ahead.'), 'error'); return }
     setSaving(true)
     try {
       const au = await AuctionAPI.createStock({
@@ -96,7 +101,7 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
       <form onSubmit={save} className="relative w-full max-w-2xl bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
         <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
           <div><h3 className="font-serif text-xl font-bold text-maroon-800">{preset ? (preset.title || <T>Re-auction Unsold Items</T>) : <T>Auction from Stock</T>}</h3>
-            <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Pick tagged pieces from the store. They show as In Auction until the result is approved.</T></p></div>
+            <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Pick tagged pieces from the store. They show as In Auction until the result is recorded. The committee approves the auction first.</T></p></div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={20} /></button>
         </div>
         <div className="px-6 py-5 space-y-4 flex-1">
@@ -142,7 +147,7 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
               <NumberField required min="1" step="1" prefix="₹" value={f.base_price} onChange={(e) => setF({ ...f, base_price: e.target.value })} />
               {chosen.length > 0 && f.base_price && <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('Lot base')}: {inr(Number(f.base_price) * chosen.length)}</div>}</div>
             <div><label className="label"><T>Auction Date *</T></label>
-              <DateField required min={todayISO()} value={f.auction_date} onChange={(e) => setF({ ...f, auction_date: e.target.value })} /></div>
+              <DateField required min={todayISO()} max={maxDate} value={f.auction_date} onChange={(e) => setF({ ...f, auction_date: e.target.value })} /></div>
             <div><label className="label"><T>Start Time *</T></label>
               <TimeField required value={f.start_time} onChange={(e) => setF({ ...f, start_time: e.target.value })} /></div>
             <div><label className="label"><T>Notes (Optional)</T></label>
@@ -188,7 +193,7 @@ export function LotResultModal({ auction, onClose, onSaved }) {
         bids: Number(bids) || 0,
         lines: sold.map((l) => ({ buyer_name: l.buyer_name.trim(), buyer_mobile: l.buyer_mobile.trim() || null, piece_ids: l.piece_ids, amount: Number(l.amount) })),
       })
-      toast(sold.length ? tr('Result recorded — sent to the committee for approval.') : tr('Recorded as unsold — sent to the committee for approval.'))
+      toast(sold.length ? tr('Result recorded.') : tr('Recorded as unsold — the pieces are back in their store.'))
       onSaved?.()
     } catch (ex) { toast(errText(ex, 'Could not record the result.'), 'error') }
     finally { setSaving(false) }
@@ -200,15 +205,17 @@ export function LotResultModal({ auction, onClose, onSaved }) {
     if (!used.length) { toast(tr('Enter the buyer for the pieces sold, or click Unsold if nothing was sold.'), 'error'); return }
     const bad = used.findIndex((l) => !l.buyer_name.trim() || !l.piece_ids.length || !(Number(l.amount) > 0))
     if (bad >= 0) { toast(`${tr('Buyer')} ${bad + 1}: ${tr('enter the name, pick pieces and the amount.')}`, 'error'); return }
+    const noMob = used.findIndex((l) => !/^\d{10}$/.test(l.buyer_mobile))
+    if (noMob >= 0) { toast(`${tr('Buyer')} ${noMob + 1}: ${tr("enter the buyer's 10-digit mobile number.")}`, 'error'); return }
     await submit(used)
   }
 
-  // Nothing sold: the whole lot goes back to the store after the committee approves
+  // Nothing sold: the whole lot goes back to the store at once
   async function markUnsold() {
     const n = auction.pieces.length
     const ok = await confirmDialog({
       title: tr('Mark whole lot unsold?'), confirmLabel: tr('Mark Unsold'),
-      message: `${n} ${tr('piece(s)')} (${tagRange(auction.pieces.map((p) => p.tag_id))}) ${tr('will go back to their store location after the committee approves, and appear in Unsold Items.')}`
+      message: `${n} ${tr('piece(s)')} (${tagRange(auction.pieces.map((p) => p.tag_id))}) ${tr('will go back to their store location and appear in Unsold Items.')}`
         + (used.length ? `\n\n${tr('The buyer details entered here will be cleared.')}` : ''),
     })
     if (ok) await submit([])
@@ -235,7 +242,7 @@ export function LotResultModal({ auction, onClose, onSaved }) {
                   {lines.length > 1 && <button type="button" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} className="text-red-500" aria-label={tr('Remove buyer')} title={tr('Remove buyer')}><Trash2 size={15} /></button>}</div>
                 <div className="grid grid-cols-3 gap-2">
                   <div><label className="label"><T>Buyer name *</T></label><input className="input" maxLength={120} value={l.buyer_name} onChange={(e) => setLine(i, { buyer_name: e.target.value })} /></div>
-                  <div><label className="label"><T>Mobile</T></label><input className="input" inputMode="numeric" maxLength={10} value={l.buyer_mobile} onChange={(e) => setLine(i, { buyer_mobile: e.target.value.replace(/\D/g, '') })} /></div>
+                  <div><label className="label"><T>Mobile *</T></label><input className="input" inputMode="numeric" maxLength={10} placeholder={tr('10-digit mobile')} value={l.buyer_mobile} onChange={(e) => setLine(i, { buyer_mobile: e.target.value.replace(/\D/g, '') })} /></div>
                   <div><label className="label"><T>Amount (₹) *</T></label><NumberField min="0" step="1" prefix="₹" value={l.amount} onChange={(e) => setLine(i, { amount: e.target.value })} /></div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -255,7 +262,7 @@ export function LotResultModal({ auction, onClose, onSaved }) {
           </div>
           <div className="bg-amber-50/70 border border-amber-100 rounded-lg px-3 py-2.5 text-[0.8125rem] text-gray-700">
             <b>{tr('Unsold')}: {unsold.length}</b>{unsold.length ? ` — ${tagRange(unsold.map((p) => p.tag_id))}` : ''}
-            <div className="text-[0.75rem] text-gray-500 mt-0.5"><T>Unsold pieces go back to their store location when the committee approves this result.</T></div>
+            <div className="text-[0.75rem] text-gray-500 mt-0.5"><T>Unsold pieces go back to their store location when you save. You can correct the result until a buyer pays.</T></div>
           </div>
         </div>
         <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
@@ -269,8 +276,23 @@ export function LotResultModal({ auction, onClose, onSaved }) {
 }
 
 // ── Buyers & payments of a lot ───────────────────────────────────────────────
-export function LotBuyersModal({ auction, canCollect, onCollect, onReceipt, onClose }) {
+export function LotBuyersModal({ auction, canCollect, isAdmin, onCollect, onReceipt, onChanged, onClose }) {
   const { lang } = useLang()
+  // Administrator: this buyer never paid — their purchase is cancelled (kept on record), their
+  // pieces go back to the store; the other buyers are untouched
+  async function didNotPay(s) {
+    const res = await promptDialog({
+      title: `${tr('Buyer did not pay')} — ${personName({ name: s.buyer_name }, lang)}`, confirmLabel: tr('Mark not paid'), tone: 'danger',
+      message: `${inr(s.amount)} · ${auction.pieces.filter((p) => p.sale_id === s.id).map((p) => p.tag_id).sort().join(', ')}. ${tr('Their pieces go back to the store; the other buyers are not affected.')}`,
+      fields: [{ k: 'reason', label: tr('Reason'), required: true, note: tr('At least 5 characters. Kept in the auction history.') }],
+    })
+    if (!res) return
+    try {
+      const au = await AuctionAPI.saleNotPaid(auction.id, s.id, res.reason)
+      toast(tr('Marked as not paid — the pieces are back in store.'))
+      onChanged?.(au)
+    } catch (ex) { toast(errText(ex, 'Could not mark the buyer as not paid.'), 'error') }
+  }
   const approved = auction.status === 'Completed' && auction.verification_status === 'Verified'
   const unsold = auction.pieces.filter((p) => p.result !== 'Sold')
   return (
@@ -294,10 +316,11 @@ export function LotBuyersModal({ auction, canCollect, onCollect, onReceipt, onCl
                   <td className="px-4 py-2.5"><div className="font-semibold text-gray-800">{personName({ name: s.buyer_name }, lang)}</div>{s.buyer_mobile && <div className="text-[0.6875rem] text-gray-400">{s.buyer_mobile}</div>}</td>
                   <td className="px-4 py-2.5 font-mono text-[0.72rem] text-gray-600">{auction.pieces.filter((p) => p.sale_id === s.id).map((p) => p.tag_id).sort().join(', ')}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{inr(s.amount)}</td>
-                  <td className="px-4 py-2.5"><Pill tone={s.payment_status === 'Paid' ? 'green' : 'amber'}>{tr(s.payment_status)}</Pill>
+                  <td className="px-4 py-2.5"><Pill tone={s.payment_status === 'Paid' ? 'green' : s.payment_status === 'Not Paid' ? 'red' : 'amber'}>{tr(s.payment_status)}</Pill>
                     {s.payment_status === 'Paid' && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{tr(s.payment_mode === 'UPI/QR Code' ? 'Online' : s.payment_mode)} · {s.receipt_no}</div>}</td>
                   <td className="px-4 py-2.5"><div className="flex gap-1.5 justify-end">
-                    {canCollect && approved && s.payment_status !== 'Paid' && <button onClick={() => onCollect(saleAsPayable(auction, s))} title={tr('Collect payment')} aria-label={tr('Collect payment')} className="w-8 h-8 grid place-items-center rounded-lg border border-green-200 text-green-700 hover:bg-green-50"><Banknote size={15} /></button>}
+                    {isAdmin && s.payment_status === 'Pending' && <button onClick={() => didNotPay(s)} title={tr('Buyer did not pay')} aria-label={tr('Buyer did not pay')} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><PackageX size={15} /></button>}
+                    {canCollect && approved && s.payment_status === 'Pending' && <button onClick={() => onCollect(saleAsPayable(auction, s))} title={tr('Collect payment')} aria-label={tr('Collect payment')} className="w-8 h-8 grid place-items-center rounded-lg border border-green-200 text-green-700 hover:bg-green-50"><Banknote size={15} /></button>}
                     {s.payment_status === 'Paid' && <button onClick={() => onReceipt(saleAsPayable(auction, s))} title={tr('Print receipt')} aria-label={tr('Print receipt')} className="w-8 h-8 grid place-items-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"><ReceiptIcon size={15} /></button>}
                   </div></td>
                 </tr>
@@ -309,7 +332,7 @@ export function LotBuyersModal({ auction, canCollect, onCollect, onReceipt, onCl
             <div className="px-4 py-3 text-[0.8125rem] text-gray-600 border-t border-gray-100"><b>{tr('Unsold')}</b> ({unsold.length}): <span className="font-mono text-[0.72rem]">{unsold.map((p) => p.tag_id).sort().join(', ')}</span>
               {approved && <span className="text-gray-500"> — {tr('back in store; put them in a new auction from stock.')}</span>}</div>
           )}
-          {!approved && <div className="px-4 py-3 text-[0.75rem] text-amber-700 border-t border-gray-100"><T>Payment can be collected after the committee approves the result.</T></div>}
+          {!approved && <div className="px-4 py-3 text-[0.75rem] text-amber-700 border-t border-gray-100"><T>Payment can be collected once the result is recorded.</T></div>}
         </div>
       </div>
     </div>

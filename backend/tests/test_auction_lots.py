@@ -1,6 +1,7 @@
-"""Lot auctions from stock: pieces go In Auction; result per buyer; on committee approval
-sold pieces become Sold and unsold pieces go back to store; each buyer pays separately;
-void returns pieces; re-auction of an unsold lot. Run from backend/:
+"""Lot auctions from stock: pieces go In Auction and the lot waits for one Committee approval
+(which may change the per-piece base); result per buyer is final at once — sold pieces become
+Sold, unsold pieces go back to store — and can be corrected until a buyer pays; each buyer pays
+separately; void returns pieces; re-auction of an unsold lot (approved again). Run from backend/:
     python -m unittest discover -s tests -t .
 """
 import unittest
@@ -17,7 +18,7 @@ from app.routers import auction_lots as lots
 from app.routers import misc as r
 from app.routers import stores as st
 from app.routers import stock_report as rep
-from app.schemas import (AuctionEditIn, AuctionPaymentIn, AuctionReauctionIn, AuctionRejectIn, AuctionResultIn,
+from app.schemas import (AuctionApproveIn, AuctionEditIn, AuctionPaymentIn, AuctionReauctionIn, AuctionRejectIn, AuctionResultIn,
                          AuctionStockCreate, LotResultIn)
 
 TODAY = date.today()
@@ -58,10 +59,14 @@ class Lots(unittest.TestCase):
         self.assertEqual(cm.exception.status_code, code, cm.exception.detail)
         return cm.exception.detail
 
-    def create(self, ids=range(1, 11), base=450, when=TODAY):
-        return lots.create_stock_auction(AuctionStockCreate(category_id=1, piece_ids=list(ids), base_price=base,
-                                                            auction_date=when, start_time="10:00 AM"),
-                                         self.req, self.db, self.counter)
+    def create(self, ids=range(1, 11), base=450, when=TODAY, approve=True):
+        au = lots.create_stock_auction(AuctionStockCreate(category_id=1, piece_ids=list(ids), base_price=base,
+                                                          auction_date=when, start_time="10:00 AM"),
+                                       self.req, self.db, self.counter)
+        return self.approve(au) if approve else au
+
+    def approve(self, au, base=None):
+        return r.approve_auction(au.id, AuctionApproveIn(base_amount=base), self.req, self.db, self.committee)
 
     def item(self, n):
         self.db.expire_all()
@@ -71,6 +76,8 @@ class Lots(unittest.TestCase):
         return [p.id for p in au.pieces if p.tag_id in tags]
 
     def result(self, au, lines, user=None):
+        # every buyer gives a 10-digit mobile (2026-11-15) — a default when the test does not care
+        lines = [{**l, "buyer_mobile": l.get("buyer_mobile") or "9000000101"} for l in lines]
         return lots.record_lot_result(au.id, LotResultIn(lines=lines, bids=5), self.req, self.db, user or self.counter)
 
     def test_create_puts_pieces_in_auction(self):
@@ -93,17 +100,15 @@ class Lots(unittest.TestCase):
                                                   {"buyer_name": "Suresh", "piece_ids": ravi[:1], "amount": 500}]))  # piece twice
         au = self.result(au, [{"buyer_name": "Ravi", "piece_ids": ravi, "amount": 2001},
                               {"buyer_name": "Suresh", "buyer_mobile": "9030044556", "piece_ids": suresh, "amount": 1000}])
-        self.assertEqual((au.status, float(au.current_amount), au.winner), ("Completed", 3001, "Ravi, Suresh"))
-        self.assertEqual(self.item(1).status, "In Auction")                               # nothing moves before approval
+        self.assertEqual((au.status, float(au.current_amount), au.winner, au.verification_status),
+                         ("Completed", 3001, "Ravi, Suresh", "Verified"))                 # final: no second approval
         shares = [p.sold_amount for p in au.pieces if p.id in ravi]
         self.assertEqual(sum(shares), Decimal("2001"))                                    # split keeps every paisa
-        self.status(409, lambda: lots.collect_sale_payment(au.id, au.sales[0].id, AuctionPaymentIn(), self.req, self.db, self.counter))
-        self.status(403, lambda: r.verify_auction(au.id, self.req, self.db, self.counter))   # recorder can't approve
-        au = r.verify_auction(au.id, self.req, self.db, self.committee)
         self.assertEqual((self.item(1).status, float(self.item(1).sold_amount)), ("Sold", 500.25))
         self.assertEqual((self.item(7).status, self.item(7).unsold_count), ("In Store", 1))   # back to store
         acts = [m.action for m in self.db.query(StockMovement).filter(StockMovement.item_id == 7).order_by(StockMovement.id)]
         self.assertEqual(acts, ["Put in auction", "Unsold"])
+        self.status(409, lambda: r.verify_auction(au.id, self.req, self.db, self.committee))   # nothing left to approve
         # each buyer pays separately
         au = lots.collect_sale_payment(au.id, au.sales[0].id, AuctionPaymentIn(mode="Cash"), self.req, self.db, self.counter)
         self.assertEqual((au.sales[0].payment_status, au.payment_status), ("Paid", "Partially Paid"))
@@ -120,19 +125,30 @@ class Lots(unittest.TestCase):
         self.assertEqual(s["by_status"]["Sold"]["sold_amount"], 3001.0)
         self.assertTrue(s["balanced"])
 
-    def test_reject_then_correct(self):
+    def test_lot_waits_for_approval_and_committee_can_raise_the_per_piece_base(self):
+        au = self.create(ids=[1, 2], approve=False)
+        self.assertEqual(au.approval_status, "Pending")
+        self.status(409, lambda: self.result(au, []))
+        au = self.approve(au, base=600)
+        self.assertEqual(([float(p.base_price) for p in au.pieces], float(au.base_amount), float(au.requested_base)),
+                         ([600, 600], 1200, 900))
+        self.assertIn("below the base", self.status(422, lambda: self.result(
+            au, [{"buyer_name": "Ravi", "piece_ids": [p.id for p in au.pieces], "amount": 900}])))
+
+    def test_correct_a_result_before_payment(self):
         au = self.create(ids=[1, 2])
-        au = self.result(au, [{"buyer_name": "Ravi", "piece_ids": [p.id for p in au.pieces], "amount": 900}])
-        au = r.reject_auction(au.id, AuctionRejectIn(reason="Buyer was Ramesh"), self.req, self.db, self.committee)
-        self.assertEqual(self.item(1).status, "In Auction")
+        au = self.result(au, [{"buyer_name": "Ravi", "piece_ids": [au.pieces[0].id], "amount": 900}])
+        self.assertEqual((self.item(1).status, self.item(2).status, self.item(2).unsold_count), ("Sold", "In Store", 1))
         au = self.result(au, [{"buyer_name": "Ramesh", "piece_ids": [p.id for p in au.pieces], "amount": 900}])
-        self.assertEqual((au.verification_status, len(au.sales), au.sales[0].buyer_name), ("Pending", 1, "Ramesh"))
+        self.assertEqual((au.verification_status, len(au.sales), au.sales[0].buyer_name), ("Verified", 1, "Ramesh"))
+        self.assertEqual((self.item(1).status, self.item(2).status, self.item(2).unsold_count), ("Sold", "Sold", 0))
+        au = lots.collect_sale_payment(au.id, au.sales[0].id, AuctionPaymentIn(mode="Cash"), self.req, self.db, self.counter)
+        self.status(409, lambda: self.result(au, []))                                   # paid: locked
 
     def test_unsold_lot_then_reauction(self):
         au = self.create(ids=[1, 2, 3])
         au = self.result(au, [])
         self.assertEqual(au.status, "Unsold")
-        r.verify_auction(au.id, self.req, self.db, self.committee)
         self.assertEqual([self.item(n).status for n in (1, 2, 3)], ["In Store"] * 3)
         un = st.unsold_items(None, self.db, self.counter)["items"]
         self.assertEqual([(x["tag_id"], x["unsold_count"], x["last_base_price"], x["last_auction_code"]) for x in un],
@@ -143,6 +159,7 @@ class Lots(unittest.TestCase):
                           self.req, self.db, self.counter)
         self.assertEqual((new.from_stock, new.reauction_of, len(new.pieces), float(new.pieces[0].base_price)),
                          (True, au.code, 3, 300))
+        self.assertEqual(new.approval_status, "Pending")                              # approved again
         self.assertEqual((self.item(1).status, self.item(1).last_auction_code, self.item(1).unsold_count),
                          ("In Auction", new.code, 1))
         self.assertEqual(st.unsold_count(self.db, self.counter)["total"], 0)          # in auction again: off the list
@@ -154,7 +171,6 @@ class Lots(unittest.TestCase):
         r.edit_auction(au.id, AuctionEditIn(description="Silk border panchas", reason="Add description"),
                        self.req, self.db, self.admin)
         au = self.result(au, [{"buyer_name": "Ravi", "piece_ids": [au.pieces[0].id], "amount": 450}])
-        r.verify_auction(au.id, self.req, self.db, self.committee)
         self.assertEqual((self.item(1).status, self.item(2).status), ("Sold", "In Store"))
         r.delete_auction(au.id, self.req, self.db, self.admin)        # approved but unpaid: still voidable
         self.assertEqual((self.item(1).status, self.item(1).sold_amount), ("In Store", None))
@@ -162,7 +178,6 @@ class Lots(unittest.TestCase):
     def test_reauction_skips_pieces_no_longer_in_store_and_search_by_piece(self):
         au = self.create(ids=[1, 2, 3])
         self.result(au, [])
-        r.verify_auction(au.id, self.req, self.db, self.committee)
         st.write_off(2, st.ReasonIn(reason="Torn by rats"), self.req, self.db, self.admin)
         new = r.reauction(au.id, AuctionReauctionIn(auction_date=TODAY, start_time="04:00 PM"), self.req, self.db, self.counter)
         self.assertEqual(sorted(p.tag_id for p in new.pieces), ["PAN-00001", "PAN-00003"])
@@ -177,7 +192,6 @@ class Lots(unittest.TestCase):
         row = rep.stock_report(TODAY, TODAY, self.db, None)["tagged"][0]
         self.assertEqual((row["in_auction"], row["in_store"], row["closing"]), (3, 7, 10))
         au = self.result(au, [{"buyer_name": "Ravi", "piece_ids": self.pid(au, "PAN-00001"), "amount": 1000}])
-        r.verify_auction(au.id, self.req, self.db, self.committee)
         lots.collect_sale_payment(au.id, au.sales[0].id, AuctionPaymentIn(mode="Cash"), self.req, self.db, self.counter)
         row = rep.stock_report(TODAY, TODAY, self.db, None)["tagged"][0]
         self.assertEqual((row["sold"], row["unsold_returned"], row["in_auction"], row["closing"], row["realised"]),

@@ -337,7 +337,7 @@ export default function Donations() {
               <div className="p-5">
                 <div className="grid grid-cols-3 gap-3">
                   {PAYMENTS.map((p) => (
-                    <div key={p.title} className={`text-center p-3 rounded-xl ${p.disabled ? 'opacity-50' : 'bg-gray-50'}`}>
+                    <div key={`${p.title}-${p.desc}`} className={`text-center p-3 rounded-xl ${p.disabled ? 'opacity-50' : 'bg-gray-50'}`}>
                       <div className="w-12 h-12 mx-auto rounded-full bg-blue-100 text-blue-600 grid place-items-center mb-2">
                         <p.icon size={22} />
                       </div>

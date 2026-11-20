@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, case, extract
 from sqlalchemy.orm import Session
 
+from ..helpers import ist_day, ist_today
 from ..database import get_db
 from ..models import (Booking, Donation, HundiCollection, Auction, Annadanam,
                       WasteSale, Devotee)
@@ -25,8 +26,12 @@ def _live_filters(model):
     """Exclude voided/cancelled records for accurate stats."""
     if model is Donation:
         return (Donation.voided.isnot(True),)
-    if model is Auction:
-        return (Auction.status == "Completed",)
+    if model is Annadanam:
+        return (Annadanam.voided.isnot(True),)
+    if model is HundiCollection:   # money counted only once the committee verified it
+        return (HundiCollection.verification_status == "Verified",)
+    if model is Auction:   # money counted once paid (2026-11-15)
+        return (Auction.status != "Void", Auction.payment_status == "Paid")
     if model is WasteSale:
         return (WasteSale.status == "Paid",)
     if model is Booking:
@@ -45,18 +50,18 @@ def get_trends(
 
     Returns data points with counts and amounts for charting.
     """
-    s = _parse_date(start) or (date.today() - timedelta(days=30))
-    e = _parse_date(end) or date.today()
+    s = _parse_date(start) or (ist_today() - timedelta(days=30))
+    e = _parse_date(end) or ist_today()
     if s > e:
         s, e = e, s
 
     def get_data_points(model, amount_col, date_col=None):
         """Generate aggregated data points for a model."""
         date_col = date_col or model.created_at
-        filters = (func.date(date_col) >= s, func.date(date_col) <= e, *_live_filters(model))
+        filters = (ist_day(date_col) >= s, ist_day(date_col) <= e, *_live_filters(model))
 
         if granularity == "daily":
-            group_expr = func.date(date_col)
+            group_expr = ist_day(date_col)
             label_format = "%Y-%m-%d"
         elif granularity == "weekly":
             # Group by year and week number
@@ -69,12 +74,12 @@ def get_trends(
         # For PostgreSQL, use to_char for better date formatting
         if granularity == "daily":
             rows = (db.query(
-                func.date(date_col).label('period'),
+                ist_day(date_col).label('period'),
                 func.count(model.id).label('count'),
                 func.coalesce(func.sum(amount_col), 0).label('amount')
             ).filter(*filters)
-             .group_by(func.date(date_col))
-             .order_by(func.date(date_col))
+             .group_by(ist_day(date_col))
+             .order_by(ist_day(date_col))
              .all())
             return [{"date": str(r.period), "count": int(r.count), "amount": float(r.amount)} for r in rows]
         elif granularity == "weekly":
@@ -132,15 +137,15 @@ def get_breakdown(
     db: Session = Depends(get_db), user=Depends(read)
 ):
     """Get breakdown of a metric by a specific dimension."""
-    s = _parse_date(start) or (date.today() - timedelta(days=30))
-    e = _parse_date(end) or date.today()
+    s = _parse_date(start) or (ist_today() - timedelta(days=30))
+    e = _parse_date(end) or ist_today()
     if s > e:
         s, e = e, s
 
     result = {"range": {"start": str(s), "end": str(e)}, "metric": metric, "dimension": dimension, "items": []}
 
     if metric == "donation":
-        filters = (func.date(Donation.created_at) >= s, func.date(Donation.created_at) <= e, *_live_filters(Donation))
+        filters = (ist_day(Donation.created_at) >= s, ist_day(Donation.created_at) <= e, *_live_filters(Donation))
         if dimension in ("category", "fund"):
             rows = (db.query(Donation.fund, func.count(Donation.id), func.coalesce(func.sum(Donation.amount), 0))
                     .filter(*filters).group_by(Donation.fund)
@@ -161,7 +166,7 @@ def get_breakdown(
             result["items"] = [{"label": m or "Cash", "count": int(c), "amount": float(a), "pct": round(float(a) / total * 100, 1)} for m, c, a in rows]
 
     elif metric == "pooja":
-        filters = (func.date(Booking.created_at) >= s, func.date(Booking.created_at) <= e, *_live_filters(Booking))
+        filters = (ist_day(Booking.created_at) >= s, ist_day(Booking.created_at) <= e, *_live_filters(Booking))
         if dimension == "category":
             rows = (db.query(Booking.category, func.count(Booking.id), func.coalesce(func.sum(Booking.amount), 0))
                     .filter(*filters).group_by(Booking.category)
@@ -182,7 +187,8 @@ def get_breakdown(
             result["items"] = [{"label": n, "count": int(c), "amount": float(a), "pct": round(float(a) / total * 100, 1)} for n, c, a in rows]
 
     elif metric == "hundi":
-        filters = (func.date(HundiCollection.created_at) >= s, func.date(HundiCollection.created_at) <= e)
+        filters = (ist_day(HundiCollection.created_at) >= s, ist_day(HundiCollection.created_at) <= e,
+                   HundiCollection.verification_status != "Voided")
         if dimension == "status":
             rows = (db.query(HundiCollection.verification_status, func.count(HundiCollection.id), func.coalesce(func.sum(HundiCollection.counted_amount), 0))
                     .filter(*filters).group_by(HundiCollection.verification_status)
@@ -191,7 +197,7 @@ def get_breakdown(
             result["items"] = [{"label": st or "Pending", "count": int(c), "amount": float(a), "pct": round(float(a) / total * 100, 1)} for st, c, a in rows]
 
     elif metric == "waste":
-        filters = (func.date(WasteSale.created_at) >= s, func.date(WasteSale.created_at) <= e, *_live_filters(WasteSale))
+        filters = (ist_day(WasteSale.created_at) >= s, ist_day(WasteSale.created_at) <= e, *_live_filters(WasteSale))
         if dimension == "material":
             rows = (db.query(WasteSale.material, func.count(WasteSale.id), func.coalesce(func.sum(WasteSale.amount), 0), func.coalesce(func.sum(WasteSale.weight_kg), 0))
                     .filter(*filters).group_by(WasteSale.material)
@@ -213,7 +219,7 @@ def get_comparison(
     db: Session = Depends(get_db), user=Depends(read)
 ):
     """Compare current period with previous period."""
-    today = date.today()
+    today = ist_today()
 
     if period == "day":
         current_start = current_end = today
@@ -235,7 +241,7 @@ def get_comparison(
         prev_end = current_start - timedelta(days=1)
 
     def get_period_stats(model, amount_col, start_dt, end_dt):
-        filters = (func.date(model.created_at) >= start_dt, func.date(model.created_at) <= end_dt, *_live_filters(model))
+        filters = (ist_day(model.created_at) >= start_dt, ist_day(model.created_at) <= end_dt, *_live_filters(model))
         row = db.query(
             func.count(model.id).label('count'),
             func.coalesce(func.sum(amount_col), 0).label('amount')
@@ -304,22 +310,22 @@ def get_top_performers(
     db: Session = Depends(get_db), user=Depends(read)
 ):
     """Get top performers by revenue."""
-    s = _parse_date(start) or (date.today() - timedelta(days=30))
-    e = _parse_date(end) or date.today()
+    s = _parse_date(start) or (ist_today() - timedelta(days=30))
+    e = _parse_date(end) or ist_today()
     if s > e:
         s, e = e, s
 
     result = {"range": {"start": str(s), "end": str(e)}, "type": type, "items": []}
 
     if type == "poojas":
-        filters = (func.date(Booking.created_at) >= s, func.date(Booking.created_at) <= e, *_live_filters(Booking))
+        filters = (ist_day(Booking.created_at) >= s, ist_day(Booking.created_at) <= e, *_live_filters(Booking))
         rows = (db.query(Booking.seva_name, func.count(Booking.id), func.coalesce(func.sum(Booking.amount), 0))
                 .filter(*filters).group_by(Booking.seva_name)
                 .order_by(func.sum(Booking.amount).desc()).limit(limit).all())
         result["items"] = [{"rank": i+1, "name": n, "count": int(c), "amount": float(a)} for i, (n, c, a) in enumerate(rows)]
 
     elif type == "donations":
-        filters = (func.date(Donation.created_at) >= s, func.date(Donation.created_at) <= e, *_live_filters(Donation))
+        filters = (ist_day(Donation.created_at) >= s, ist_day(Donation.created_at) <= e, *_live_filters(Donation))
         rows = (db.query(Donation.fund, func.count(Donation.id), func.coalesce(func.sum(Donation.amount), 0))
                 .filter(*filters).group_by(Donation.fund)
                 .order_by(func.sum(Donation.amount).desc()).limit(limit).all())
@@ -328,22 +334,22 @@ def get_top_performers(
     elif type == "devotees":
         # Top devotees by total spending (bookings + donations)
         booking_sums = (db.query(Booking.devotee_id, func.coalesce(func.sum(Booking.amount), 0).label('amt'))
-                        .filter(func.date(Booking.created_at) >= s, func.date(Booking.created_at) <= e, *_live_filters(Booking))
+                        .filter(ist_day(Booking.created_at) >= s, ist_day(Booking.created_at) <= e, *_live_filters(Booking))
                         .group_by(Booking.devotee_id).subquery())
         donation_sums = (db.query(Donation.devotee_id, func.coalesce(func.sum(Donation.amount), 0).label('amt'))
-                         .filter(func.date(Donation.created_at) >= s, func.date(Donation.created_at) <= e, *_live_filters(Donation))
+                         .filter(ist_day(Donation.created_at) >= s, ist_day(Donation.created_at) <= e, *_live_filters(Donation))
                          .group_by(Donation.devotee_id).subquery())
 
         # Get top devotees from bookings (simplified approach)
         rows = (db.query(Devotee.name, Devotee.code, func.coalesce(func.sum(Booking.amount), 0))
                 .join(Booking, Booking.devotee_id == Devotee.id)
-                .filter(func.date(Booking.created_at) >= s, func.date(Booking.created_at) <= e, *_live_filters(Booking))
+                .filter(ist_day(Booking.created_at) >= s, ist_day(Booking.created_at) <= e, *_live_filters(Booking))
                 .group_by(Devotee.id, Devotee.name, Devotee.code)
                 .order_by(func.sum(Booking.amount).desc()).limit(limit).all())
         result["items"] = [{"rank": i+1, "name": n, "code": c, "amount": float(a)} for i, (n, c, a) in enumerate(rows)]
 
     elif type == "materials":
-        filters = (func.date(WasteSale.created_at) >= s, func.date(WasteSale.created_at) <= e, *_live_filters(WasteSale))
+        filters = (ist_day(WasteSale.created_at) >= s, ist_day(WasteSale.created_at) <= e, *_live_filters(WasteSale))
         rows = (db.query(WasteSale.material, func.count(WasteSale.id), func.coalesce(func.sum(WasteSale.amount), 0), func.coalesce(func.sum(WasteSale.weight_kg), 0))
                 .filter(*filters).group_by(WasteSale.material)
                 .order_by(func.sum(WasteSale.amount).desc()).limit(limit).all())
@@ -359,8 +365,8 @@ def get_payment_modes(
     db: Session = Depends(get_db), user=Depends(read)
 ):
     """Analyze payment mode distribution (Cash vs UPI) over time."""
-    s = _parse_date(start) or (date.today() - timedelta(days=30))
-    e = _parse_date(end) or date.today()
+    s = _parse_date(start) or (ist_today() - timedelta(days=30))
+    e = _parse_date(end) or ist_today()
     if s > e:
         s, e = e, s
 
@@ -370,17 +376,17 @@ def get_payment_modes(
 
     # Get overall split
     booking_cash = float(db.query(func.coalesce(func.sum(Booking.amount), 0))
-                         .filter(func.date(Booking.created_at) >= s, func.date(Booking.created_at) <= e,
+                         .filter(ist_day(Booking.created_at) >= s, ist_day(Booking.created_at) <= e,
                                  Booking.payment_method == "Cash", *_live_filters(Booking)).scalar() or 0)
     booking_upi = float(db.query(func.coalesce(func.sum(Booking.amount), 0))
-                        .filter(func.date(Booking.created_at) >= s, func.date(Booking.created_at) <= e,
+                        .filter(ist_day(Booking.created_at) >= s, ist_day(Booking.created_at) <= e,
                                 Booking.payment_method.in_(["UPI", "UPI/QR Code", "Online"]), *_live_filters(Booking)).scalar() or 0)
 
     donation_cash = float(db.query(func.coalesce(func.sum(Donation.amount), 0))
-                          .filter(func.date(Donation.created_at) >= s, func.date(Donation.created_at) <= e,
+                          .filter(ist_day(Donation.created_at) >= s, ist_day(Donation.created_at) <= e,
                                   Donation.mode == "Cash", *_live_filters(Donation)).scalar() or 0)
     donation_upi = float(db.query(func.coalesce(func.sum(Donation.amount), 0))
-                         .filter(func.date(Donation.created_at) >= s, func.date(Donation.created_at) <= e,
+                         .filter(ist_day(Donation.created_at) >= s, ist_day(Donation.created_at) <= e,
                                  Donation.mode.in_(["UPI", "UPI/QR Code"]), *_live_filters(Donation)).scalar() or 0)
 
     total_cash = booking_cash + donation_cash
@@ -396,12 +402,12 @@ def get_payment_modes(
     # Time series for payment modes (bookings only for simplicity)
     if granularity == "daily":
         rows = (db.query(
-            func.date(Booking.created_at).label('period'),
+            ist_day(Booking.created_at).label('period'),
             func.coalesce(func.sum(case((Booking.payment_method == "Cash", Booking.amount), else_=0)), 0).label('cash'),
             func.coalesce(func.sum(case((Booking.payment_method.in_(["UPI", "UPI/QR Code", "Online"]), Booking.amount), else_=0)), 0).label('upi')
-        ).filter(func.date(Booking.created_at) >= s, func.date(Booking.created_at) <= e, *_live_filters(Booking))
-         .group_by(func.date(Booking.created_at))
-         .order_by(func.date(Booking.created_at))
+        ).filter(ist_day(Booking.created_at) >= s, ist_day(Booking.created_at) <= e, *_live_filters(Booking))
+         .group_by(ist_day(Booking.created_at))
+         .order_by(ist_day(Booking.created_at))
          .all())
         result["trend"] = [{"date": str(r.period), "cash": float(r.cash), "upi": float(r.upi)} for r in rows]
     else:
@@ -417,12 +423,13 @@ def get_hundi_funnel(
     db: Session = Depends(get_db), user=Depends(read)
 ):
     """Get hundi collection pipeline: Collected → Verified → Deposited."""
-    s = _parse_date(start) or (date.today() - timedelta(days=30))
-    e = _parse_date(end) or date.today()
+    s = _parse_date(start) or (ist_today() - timedelta(days=30))
+    e = _parse_date(end) or ist_today()
     if s > e:
         s, e = e, s
 
-    filters = (func.date(HundiCollection.created_at) >= s, func.date(HundiCollection.created_at) <= e)
+    filters = (ist_day(HundiCollection.created_at) >= s, ist_day(HundiCollection.created_at) <= e,
+               HundiCollection.verification_status != "Voided")
 
     # Total collected
     total = db.query(func.count(HundiCollection.id), func.coalesce(func.sum(HundiCollection.counted_amount), 0)).filter(*filters).first()
@@ -470,13 +477,13 @@ def get_analytics_summary(
     db: Session = Depends(get_db), user=Depends(read)
 ):
     """Get a comprehensive summary of all metrics for the period."""
-    s = _parse_date(start) or (date.today() - timedelta(days=30))
-    e = _parse_date(end) or date.today()
+    s = _parse_date(start) or (ist_today() - timedelta(days=30))
+    e = _parse_date(end) or ist_today()
     if s > e:
         s, e = e, s
 
     def get_stats(model, amount_col):
-        filters = (func.date(model.created_at) >= s, func.date(model.created_at) <= e, *_live_filters(model))
+        filters = (ist_day(model.created_at) >= s, ist_day(model.created_at) <= e, *_live_filters(model))
         row = db.query(func.count(model.id), func.coalesce(func.sum(amount_col), 0)).filter(*filters).first()
         return {"count": int(row[0] or 0), "amount": float(row[1] or 0)}
 
@@ -491,7 +498,7 @@ def get_analytics_summary(
     total_transactions = pooja["count"] + donation["count"] + hundi["count"] + auction["count"] + annadanam["count"] + waste["count"]
 
     # Devotee stats
-    new_devotees = db.query(func.count(Devotee.id)).filter(func.date(Devotee.created_at) >= s, func.date(Devotee.created_at) <= e).scalar() or 0
+    new_devotees = db.query(func.count(Devotee.id)).filter(ist_day(Devotee.created_at) >= s, ist_day(Devotee.created_at) <= e).scalar() or 0
 
     return {
         "range": {"start": str(s), "end": str(e)},

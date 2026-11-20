@@ -382,7 +382,7 @@ export default function PoojariQueue() {
       {/* The day by hour: next slot, devotees per slot, a print sheet per hour */}
       {isQueueMode && (
         <details open={isPoojari} className="mb-5 group/hourly">
-          <summary className="cursor-pointer select-none mb-2 font-semibold text-maroon-800 text-[0.9375rem]">{tr('By hour')}
+          <summary className="cursor-pointer select-none mb-2 font-semibold text-maroon-800 text-[0.9375rem]">{tr('By half-hour')}
             <span className="ml-2 text-[0.75rem] font-normal text-gray-500">{onlyMine ? tr('your slots') : tr('all poojaris')}</span></summary>
           <HourlySlotsView day={startDate} mine={onlyMine} poojariName={onlyMine ? meName : null} />
         </details>

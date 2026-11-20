@@ -22,6 +22,8 @@ COLUMN_MIGRATIONS = {
     # Hundi gold / silver lines valued at the collection day's rate × purity
     "hundi_collection_items": [("purity", "VARCHAR(10)"), ("rate_per_g", "NUMERIC(12,2)")],
     # Receive at store for hundi valuables (store_receipts itself is created by create_all)
+    # Staff alerts addressed to particular logins (Hundi: the 2 assigned members), not only roles
+    "staff_alerts": [("users", "VARCHAR(200)")],
     "store_receipts": [("hundi_id", "INTEGER REFERENCES hundi_collections(id)"), ("lines", "TEXT")],
     # Stores Day Closing: Administrator reopen (with reason), earlier closings kept in history
     "stores_day_closings": [("status", "VARCHAR(12) DEFAULT 'Closed' NOT NULL"), ("reopened_by", "VARCHAR(120)"),
@@ -32,8 +34,13 @@ COLUMN_MIGRATIONS = {
         ("track_expiry", "BOOLEAN"),          # consumables: ask a best-before date
     ],
     # Consumable batches: best-before date; a use notes the batch it was taken from
-    "manual_stock_entries": [("expiry_date", "DATE")],
+    "manual_stock_entries": [("expiry_date", "DATE"),
+                             # Bought items (2026-11-15): the shop bill on the entry itself
+                             ("shop_name", "VARCHAR(120)"), ("bill_no", "VARCHAR(60)"), ("bill_date", "DATE"),
+                             ("bill_amount", "NUMERIC(12,2)")],
     "consumable_uses": [("batch_note", "TEXT")],
+    # Damaged pieces: a write-off request the Committee approves (2026-11-15)
+    "missing_cases": [("kind", "VARCHAR(12) DEFAULT 'Missing'"), ("changes", "TEXT")],
     # Festival Kits: an issue slip made from a kit
     "issue_slips": [("kit_id", "INTEGER REFERENCES festival_kits(id)"), ("kit_name", "VARCHAR(120)")],
     "stock_items": [("last_auction_code", "VARCHAR(30)"), ("unsold_count", "INTEGER DEFAULT 0 NOT NULL"),
@@ -47,7 +54,7 @@ COLUMN_MIGRATIONS = {
                           ("reviewed_by_user", "VARCHAR(60)"), ("reviewed_at", "TIMESTAMP"), ("review_note", "TEXT")],
     "bookings": [
         ("pooja_id", "INTEGER"), ("plan_id", "INTEGER"), ("category", "VARCHAR(40)"),
-        ("plan_name", "VARCHAR(60)"), ("valid_until", "DATE"),
+        ("plan_name", "VARCHAR(60)"), ("valid_until", "DATE"), ("perform_dates", "VARCHAR(120)"),
         ("payment_method", "VARCHAR(20)"), ("payment_ref", "VARCHAR(60)"),
         ("poojari_id", "INTEGER"), ("poojari_name", "VARCHAR(120)"),
         ("ticket_no", "VARCHAR(30)"),
@@ -58,6 +65,7 @@ COLUMN_MIGRATIONS = {
         ("gothram", "VARCHAR(80)"), ("nakshatram", "VARCHAR(40)"),
         ("rasi", "VARCHAR(40)"), ("beneficiary_name", "VARCHAR(120)"),
         ("participants", "TEXT"), ("special_notes", "TEXT"),
+        ("batch_slot", "VARCHAR(5)"),        # half-hour pooja list (app/pooja_batches.py)
         ("vehicle_no", "VARCHAR(20)"),
     ],
     "festivals": [
@@ -82,6 +90,7 @@ COLUMN_MIGRATIONS = {
         ("expiry_date", "DATE"),              # consumables: best before
     ],
     "hundi_collections": [
+        ("deposit_account", "VARCHAR(120)"),   # Settings → Bank Details account, masked (2026-11-13)
         # Receive at store: custody recorded from now on is counted in by the Stores Officer
         ("store_receive_required", "BOOLEAN"),
         ("committee_member", "VARCHAR(160)"), ("notes", "TEXT"),
@@ -105,6 +114,9 @@ COLUMN_MIGRATIONS = {
         ("verification_status", "VARCHAR(30) DEFAULT 'Pending'"),
         ("verified_by", "VARCHAR(120)"), ("verified_at", "TIMESTAMP"),
         ("rejection_reason", "TEXT"),
+        # Committee approval BEFORE the auction (2026-11-13); earlier auctions count as approved
+        ("approval_status", "VARCHAR(20) DEFAULT 'Approved' NOT NULL"), ("approved_by", "VARCHAR(120)"),
+        ("approved_at", "TIMESTAMP"), ("approval_note", "TEXT"), ("requested_base", "NUMERIC(12,2)"),
         # Payment collection fields
         ("payment_status", "VARCHAR(20) DEFAULT 'Pending'"),
         ("payment_mode", "VARCHAR(30)"), ("payment_ref", "VARCHAR(60)"),
@@ -124,6 +136,7 @@ COLUMN_MIGRATIONS = {
     "annadanam": [
         ("devotee_id", "INTEGER"), ("mobile", "VARCHAR(20)"), ("rate", "NUMERIC(12,2) DEFAULT 50"),
         ("mode", "VARCHAR(20) DEFAULT 'Cash'"), ("txn_ref", "VARCHAR(60)"), ("paid_at", "TIMESTAMP"),
+        ("voided", "BOOLEAN NOT NULL DEFAULT FALSE"), ("void_reason", "TEXT"),
     ],
     "pooja_plans": [
         ("validity_type", "VARCHAR(40)"), ("validity_value", "INTEGER"), ("validity_unit", "VARCHAR(20)"),
@@ -134,6 +147,7 @@ COLUMN_MIGRATIONS = {
         ("mode", "VARCHAR(20) DEFAULT 'Cash'"), ("txn_ref", "VARCHAR(60)"), ("paid_at", "TIMESTAMP"),
         ("verification_status", "VARCHAR(20) DEFAULT 'Pending'"), ("verified_at", "TIMESTAMP"),
         ("rejection_reason", "VARCHAR(300)"),
+        ("void_reason", "VARCHAR(300)"),          # the Administrator's reason for a void (2026-11-15)
     ],
     "users": [
         ("name_te", "VARCHAR(160)"), ("mobile", "VARCHAR(20)"), ("poojari_id", "INTEGER"),
@@ -210,9 +224,9 @@ DEFAULT_WASTE_MATERIALS = (
 def retry_on_lock(fn, attempts: int = 5, delay: float = 2.0, sleep=time.sleep):
     """Run fn(), retrying when PostgreSQL reports a deadlock or lock timeout.
 
-    The database is shared (local dev, Azure), and ALTER TABLE ... ADD COLUMN IF
-    NOT EXISTS takes an exclusive lock even when the column exists, so a startup
-    can collide with another connection. fn must be one transaction that is safe
+    The database is shared (local dev, Azure). run_migrations now ALTERs only what is
+    missing, but a real change (a new column) still needs an exclusive lock and can
+    collide with another connection. fn must be one transaction that is safe
     to repeat (run_migrations is: it rolls back on error and is idempotent).
     Waits delay, 2*delay, 4*delay… between attempts; any other error is raised.
     """
@@ -229,13 +243,89 @@ def retry_on_lock(fn, attempts: int = 5, delay: float = 2.0, sleep=time.sleep):
             sleep(wait)
 
 
+# Columns that must be wider than first released. Encrypted PANs ("ENC:" + Fernet token,
+# ~110 characters) do not fit the original VARCHAR(10) / VARCHAR(20), so once
+# PAN_ENCRYPTION_KEY is set every save with a PAN would fail. Widening is metadata-only.
+COLUMN_WIDENINGS = [("devotees", "pan_number", 255), ("donations", "pan", 255)]
+
+
+def widen_columns(conn) -> list[str]:
+    """Widen the VARCHAR columns in COLUMN_WIDENINGS that are still narrower (idempotent).
+    Returns the "table.column" names it changed."""
+    changed = []
+    for table, col, size in COLUMN_WIDENINGS:
+        cur = conn.execute(text(
+            "SELECT character_maximum_length FROM information_schema.columns "
+            "WHERE table_name = :t AND column_name = :c"), {"t": table, "c": col}).scalar()
+        if cur is not None and cur < size:
+            conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {col} TYPE VARCHAR({size})"))
+            changed.append(f"{table}.{col}")
+    return changed
+
+
+BACKFILL_BATCH_SLOT_SQL = (
+    "UPDATE bookings SET batch_slot = "
+    "lpad(((CAST(substr(time_slot, 1, 2) AS INTEGER) % 12) "
+    "+ CASE WHEN substr(time_slot, 7, 2) = 'PM' THEN 12 ELSE 0 END)::text, 2, '0') "
+    "|| ':' || CASE WHEN CAST(substr(time_slot, 4, 2) AS INTEGER) < 30 THEN '00' ELSE '30' END "
+    "WHERE batch_slot IS NULL AND time_slot ~ '^[0-9]{2}:[0-9]{2} [AP]M'"
+)
+
+
+# ── Skip what is already done ──
+# ALTER TABLE takes an ACCESS EXCLUSIVE lock on the table even when it changes nothing
+# (ADD COLUMN IF NOT EXISTS on an existing column, DROP NOT NULL on a nullable one…). The
+# database is shared with the live site and other developers, so a startup that ALTERs every
+# table queues behind any open transaction and fails with a lock timeout. So we read the
+# catalog first (plain reads, no table locks) and ALTER only what is really missing.
+def existing_columns(conn) -> dict[tuple[str, str], bool]:
+    """{(table, column): nullable} for every column in the current schema."""
+    rows = conn.execute(text(
+        "SELECT table_name, column_name, is_nullable FROM information_schema.columns "
+        "WHERE table_schema = current_schema()")).all()
+    return {(t, c): n == "YES" for t, c, n in rows}
+
+
+def missing_columns(existing) -> list[tuple[str, str, str]]:
+    """The (table, column, ddl) entries of COLUMN_MIGRATIONS not in the database yet."""
+    return [(t, c, ddl) for t, cols in COLUMN_MIGRATIONS.items() for c, ddl in cols if (t, c) not in existing]
+
+
+def _drop_not_null(conn, cols: dict, table: str, col: str) -> None:
+    """ALTER … DROP NOT NULL only while the column is still NOT NULL."""
+    if cols.get((table, col)) is False:
+        conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {col} DROP NOT NULL"))
+
+
+def _index_exists(conn, name: str) -> bool:
+    return conn.execute(text("SELECT 1 FROM pg_indexes WHERE indexname = :n"), {"n": name}).first() is not None
+
+
+def _constraint_exists(conn, name: str) -> bool:
+    return conn.execute(text("SELECT 1 FROM pg_constraint WHERE conname = :n"), {"n": name}).first() is not None
+
+
 def run_migrations(engine) -> None:
     with engine.begin() as conn:
         # Fail fast instead of queueing behind a long transaction; retry_on_lock retries.
         conn.execute(text(f"SET LOCAL lock_timeout = '{MIGRATION_LOCK_TIMEOUT}'"))
-        for table, cols in COLUMN_MIGRATIONS.items():
-            for col, ddl in cols:
-                conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}'))
+        cols = existing_columns(conn)
+        for table, col, ddl in missing_columns(cols):
+            conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}'))
+            logger.info("[migrate] added %s.%s", table, col)
+        for name in widen_columns(conn):
+            logger.info("[migrate] widened %s", name)
+        # Half-hour pooja lists: bookings made before them take the half-hour their pooja
+        # time starts in ("05:45 PM" → "17:30"). Only rows still NULL, so it runs once.
+        conn.execute(text(BACKFILL_BATCH_SLOT_SQL))
+        # Issue slips: the return date is optional (2026-11-15) — a no-op once done
+        _drop_not_null(conn, cols, "issue_slips", "return_by")
+        # Purchase Requests were removed (2026-11-15): the bill of each one marked received moves
+        # onto the stock entry it made, so past purchased values stay. Only rows still empty.
+        conn.execute(text(
+            "UPDATE manual_stock_entries m SET bill_no = p.bill_no, bill_amount = p.bill_amount, "
+            "bill_date = COALESCE(p.received_at::date, m.created_at::date) "
+            "FROM purchase_requests p WHERE p.manual_entry_id = m.id AND m.bill_no IS NULL AND p.bill_no IS NOT NULL"))
         # Check if unique index on devotees.mobile already exists
         idx_exists = conn.execute(text(
             "SELECT 1 FROM pg_indexes WHERE indexname = 'uq_devotees_mobile'"
@@ -255,9 +345,11 @@ def run_migrations(engine) -> None:
                     'WHERE mobile IS NOT NULL AND mobile != \'\''
                 ))
         # Almanac: one row per (type, day, name) so festivals can share a day.
-        conn.execute(text('ALTER TABLE almanac_events DROP CONSTRAINT IF EXISTS uq_almanac_type_date'))
-        conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_almanac_type_date_name '
-                          'ON almanac_events (event_type, event_date, name)'))
+        if _constraint_exists(conn, "uq_almanac_type_date"):
+            conn.execute(text('ALTER TABLE almanac_events DROP CONSTRAINT IF EXISTS uq_almanac_type_date'))
+        if not _index_exists(conn, "uq_almanac_type_date_name"):
+            conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_almanac_type_date_name '
+                              'ON almanac_events (event_type, event_date, name)'))
         # Atomic code-number allocator (see helpers.next_code_seq). Replaces the
         # old COUNT(*)+1 scheme that reused receipt numbers after a row was deleted.
         conn.execute(text(
@@ -366,9 +458,10 @@ def run_migrations(engine) -> None:
                           "SELECT 'consumables_start_date', CAST(CURRENT_DATE AS TEXT), 'system' "
                           "WHERE NOT EXISTS (SELECT 1 FROM settings WHERE skey = 'consumables_start_date')"))
         # A hundi store receipt has no donation; one store receipt per hundi.
-        conn.execute(text("ALTER TABLE store_receipts ALTER COLUMN donation_id DROP NOT NULL"))
-        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_store_receipts_hundi ON store_receipts (hundi_id) "
-                          "WHERE hundi_id IS NOT NULL"))
+        _drop_not_null(conn, cols, "store_receipts", "donation_id")
+        if not _index_exists(conn, "uq_store_receipts_hundi"):
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_store_receipts_hundi ON store_receipts (hundi_id) "
+                              "WHERE hundi_id IS NOT NULL"))
         # Receive at store: counter receipts made from now on are counted in by the Stores
         # Officer before tagging; every receipt already made counts as received. Set once.
         conn.execute(text("INSERT INTO settings (skey, svalue, updated_by) "
@@ -399,7 +492,7 @@ def run_migrations(engine) -> None:
             "'Stores', TRUE, 'system', 'system', NOW(), NOW() "
             "WHERE NOT EXISTS (SELECT 1 FROM roles WHERE code = 'STORES_OFFICER')"))
         # Staff email is optional (login uses username), so allow NULL. No-op once done.
-        conn.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
+        _drop_not_null(conn, cols, "users", "email")
         # Vendor material types now hold a multi-select from the Waste Material Master,
         # which can outgrow VARCHAR(200). Widening to TEXT is lossless and a no-op once done.
         conn.execute(text(

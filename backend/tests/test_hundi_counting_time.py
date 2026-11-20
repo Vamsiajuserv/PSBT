@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.models import Base, CommitteeMember
+from app.models import Base, CommitteeMember, HundiItem
 from app.routers import misc as r
 from app.schemas import HundiCreate
 
@@ -26,14 +26,18 @@ class CountingCompletedOn(unittest.TestCase):
         Base.metadata.create_all(engine)                # incl. the code counters and hundi line tables
         self.db = sessionmaker(bind=engine)()
         self.db.add_all([CommitteeMember(id=1, code="CM-0001", name="A", active=True),
-                         CommitteeMember(id=2, code="CM-0002", name="B", active=True)])
+                         CommitteeMember(id=2, code="CM-0002", name="B", active=True),
+                         HundiItem(id=1, code="HITM-0001", name="Cash Notes", item_type="Cash", unit="Amount", active=True)])
         self.db.commit()                               # a count needs 2 committee members
         self.seq = iter(range(1, 100))                 # code numbering lives in a raw-SQL table (migrate.py)
         self.user = SimpleNamespace(username="admin", name="EO", role="Administrator")
         self.req = SimpleNamespace(headers={}, client=SimpleNamespace(host="127.0.0.1"))
         self.patches = [mock.patch.object(r, "ist_now", return_value=NOW),
                         mock.patch.object(r, "next_code_seq", side_effect=lambda *a, **k: next(self.seq)),
-                        mock.patch("app.helpers._date", wraps=date, **{"today.return_value": TODAY})]
+                        mock.patch("app.helpers._date", wraps=date, **{"today.return_value": TODAY}),
+                        # money dates are checked against the temple's (IST) day since 2026-11-15
+                        mock.patch("app.helpers.ist_today", return_value=TODAY),
+                        mock.patch.object(r, "ist_today", return_value=TODAY)]
         for p in self.patches:
             p.start()
 
@@ -43,8 +47,9 @@ class CountingCompletedOn(unittest.TestCase):
         self.db.close()
 
     def create(self, counted, collected=TODAY - timedelta(days=1)):
-        body = HundiCreate(collected_on=collected, counting_completed_on=counted, counted_amount=5000,
-                           denomination="Mixed", committee_member_ids=[1, 2])
+        # lines come from the Hundi Item Master (2026-11-15)
+        body = HundiCreate(collected_on=collected, counting_completed_on=counted, denomination="Mixed", committee_member_ids=[1, 2],
+                           items=[{"hundi_item_id": 1, "item_name": "Cash Notes", "value": 5000}])
         return r.create_hundi(body, self.req, self.db, self.user)
 
     def rejected(self, counted, collected=TODAY - timedelta(days=1)):

@@ -1,4 +1,5 @@
 """Temple / system settings — key-value configuration (doc §Settings)."""
+import re
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -56,6 +57,12 @@ DEFAULTS = {
     "timings_evening": "4:00 PM - 8:30 PM",
     # Operational rates & banks (used by counter/annadanam/hundi forms)
     "annadanam_rate": "50",
+    # Cash donations of this amount or more alert the Administrator (bell); 0 = no alert.
+    "alert_big_donation_amount": "10000",
+    # Donations (2026-11-15): how many days back the Administrator may date a donation (Counter Staff:
+    # today only), and the amount above which a donation asks "Are you sure?" (0 = never asks).
+    "donation_backdate_days": "7",
+    "donation_confirm_amount": "100000",
     "bank_list": "State Bank of India,HDFC Bank,ICICI Bank,Axis Bank,Union Bank of India,Kotak Mahindra Bank,Bank of Baroda",
     # General Settings
     "currency": "₹ INR",
@@ -101,10 +108,36 @@ def time_slots(db: Session) -> list[str]:
     return [s.strip() for s in _setting_value(db, "pooja_time_slots").splitlines() if s.strip()]
 
 
-def max_advance_days(db: Session) -> int | None:
-    """How many days ahead a pooja may be booked; None means no limit."""
+def _int_setting(db: Session, key: str) -> int:
+    raw = str(_setting_value(db, key) or "").replace(",", "").strip()
+    return int(raw) if raw.isdigit() else int(DEFAULTS[key])
+
+
+def donation_backdate_days(db: Session) -> int:
+    """How many days back the Administrator may date a donation (Settings › Donations & Payments)."""
+    return _int_setting(db, "donation_backdate_days")
+
+
+def donation_confirm_amount(db: Session) -> int:
+    """A donation of more than this asks "Are you sure?" first (0 = never)."""
+    return _int_setting(db, "donation_confirm_amount")
+
+
+def annadanam_rate(db: Session) -> float:
+    """Annadanam rate per person (Settings › Donations & Payments) — applied by the server."""
+    try:
+        return float(str(_setting_value(db, "annadanam_rate") or "").replace(",", "").strip())
+    except ValueError:
+        return float(DEFAULTS["annadanam_rate"])
+
+
+DEFAULT_ADVANCE_DAYS = 90   # Advance Booking decision D2 (2026-11-15): 90 days unless Settings says otherwise
+
+
+def max_advance_days(db: Session) -> int:
+    """How many days ahead a pooja may be booked (Settings; blank = the 90-day default)."""
     raw = str(_setting_value(db, "advance_booking_max_days") or "").strip()
-    return int(raw) if raw.isdigit() else None
+    return int(raw) if raw.isdigit() else DEFAULT_ADVANCE_DAYS
 
 
 def panchang_location(db: Session) -> Location:
@@ -154,8 +187,36 @@ def _validate_booking_settings(body_dict: dict) -> None:
     if "advance_booking_max_days" in body_dict:
         raw = str(body_dict["advance_booking_max_days"] or "").strip()
         if raw and not raw.isdigit():
-            raise HTTPException(422, "Maximum days ahead must be a whole number, or blank for no limit.")
+            raise HTTPException(422, "Maximum days ahead must be a whole number, or blank for the 90-day default.")
         body_dict["advance_booking_max_days"] = raw
+    for key, label in (("donation_backdate_days", "Days back for donations"),
+                       ("donation_confirm_amount", "Confirm donations above")):
+        if key in body_dict:
+            raw = str(body_dict[key] or "").replace(",", "").strip() or "0"
+            if not raw.isdigit():
+                raise HTTPException(422, f"{label} must be a whole number.")
+            body_dict[key] = raw
+    if "annadanam_rate" in body_dict:
+        raw = str(body_dict["annadanam_rate"] or "").replace(",", "").strip()
+        try:
+            ok = float(raw) > 0
+        except ValueError:
+            ok = False
+        if not ok:
+            raise HTTPException(422, "The annadanam rate per person must be more than zero.")
+        body_dict["annadanam_rate"] = raw
+    if "upi_id" in body_dict:
+        raw = str(body_dict["upi_id"] or "").strip()
+        if raw and not re.fullmatch(r"[A-Za-z0-9.\-_]{2,256}@[A-Za-z]{2,64}", raw):
+            raise HTTPException(422, "The UPI ID looks wrong — it is like templename@sbi.")
+        body_dict["upi_id"] = raw
+    if "bank_list" in body_dict:
+        body_dict["bank_list"] = ",".join(b.strip() for b in str(body_dict["bank_list"] or "").replace("\n", ",").split(",") if b.strip())
+    if "alert_big_donation_amount" in body_dict:
+        raw = str(body_dict["alert_big_donation_amount"] or "").replace(",", "").strip() or "0"
+        if not raw.isdigit():
+            raise HTTPException(422, "Big donation alert amount must be a whole number of rupees (0 = no alert).")
+        body_dict["alert_big_donation_amount"] = raw
 
 
 @router.get("/config")
@@ -176,6 +237,8 @@ def operational_config(db: Session = Depends(get_db), user=Depends(get_current_u
         "upi_payee_name": cfg.get("upi_payee_name", cfg.get("trust_name", "Temple")),
         "time_slots": time_slots(db),
         "advance_booking_max_days": max_advance_days(db),
+        "donation_backdate_days": donation_backdate_days(db),
+        "donation_confirm_amount": donation_confirm_amount(db),
     }
 
 

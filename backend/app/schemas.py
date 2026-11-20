@@ -214,6 +214,16 @@ class FamilyMemberOut(ORM):
     mobile: Optional[str] = None
 
 
+# A PAN as the API returns it, masked (see helpers.mask_pan): "XXXXXX234F", or "XXXXXX****"
+# when it cannot be decrypted. Sent back unchanged from an edit form it means "keep the PAN".
+PAN_UNCHANGED = "__pan_unchanged__"
+_MASKED_PAN = re.compile(r"^X{6}([0-9]{3}[A-Z]|\*{4})$")
+
+
+def is_masked_pan(v: str | None) -> bool:
+    return bool(v) and bool(_MASKED_PAN.match(v))
+
+
 class DevoteeBase(BaseModel):
     name: str = Field(..., min_length=1)
     name_te: Optional[str] = None
@@ -291,10 +301,16 @@ class DevoteeUpdate(BaseModel):
     @field_validator('pan_number')
     @classmethod
     def validate_pan(cls, v: Optional[str]) -> Optional[str]:
-        """Validate Indian PAN number format if provided: ABCDE1234F."""
+        """Validate Indian PAN number format if provided: ABCDE1234F.
+
+        The edit form is loaded with the masked PAN the API returns (XXXXXX234F); sending
+        that back means "unchanged", so it is passed through as PAN_UNCHANGED and the
+        stored PAN is kept (update_devotee skips it)."""
         if v is None or not v.strip():
             return None
         v = v.strip().upper()
+        if is_masked_pan(v):
+            return PAN_UNCHANGED
         if not re.match(r'^[A-Z]{5}[0-9]{4}[A-Z]$', v):
             raise ValueError('Invalid PAN format. Must be 5 letters + 4 digits + 1 letter (e.g., ABCDE1234F)')
         return v
@@ -369,6 +385,7 @@ class BookingCreate(BaseModel):
     scheduled_date: Optional[date] = None
     valid_until: Optional[date] = None
     time_slot: Optional[str] = None
+    batch_slot: Optional[str] = Field(default=None, max_length=5)   # half-hour list ("06:30"); the counter may pick it
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
     rasi: Optional[str] = None
@@ -392,6 +409,7 @@ class BookingOut(ORM):
     amount: Decimal
     scheduled_date: Optional[date] = None
     valid_until: Optional[date] = None
+    perform_dates: Optional[str] = None
     performances_allowed: Optional[int] = None
     performances_done: Optional[int] = None
     last_performed_on: Optional[date] = None
@@ -404,6 +422,7 @@ class BookingOut(ORM):
     special_notes: Optional[str] = None
     vehicle_no: Optional[str] = None
     time_slot: Optional[str] = None
+    batch_slot: Optional[str] = None      # half-hour pooja list, "06:30" = 6:30–7:00 AM
     poojari_id: Optional[int] = None      # assigned poojari (Calendar's poojari filter)
     poojari_name: Optional[str] = None
     status: str
@@ -419,6 +438,8 @@ class BookingOut(ORM):
 class DonationCreate(BaseModel):
     devotee_id: Optional[int] = None
     donor_name: str
+    mobile: Optional[str] = Field(default=None, max_length=15)   # walk-in donor's mobile (links / registers the devotee)
+    confirmed: bool = False   # the counter confirmed an amount above Settings › "confirm donations above"
     donation_type: DonationType = DonationType.CASH
     fund: str
     amount: Decimal = Decimal(0)
@@ -448,12 +469,7 @@ class DonationCreate(BaseModel):
             data = {**data, "mode": None, "txn_ref": None}
         return data
 
-    @model_validator(mode='after')
-    def validate_utr_for_upi(self):
-        """UTR/Transaction reference is required for UPI payments."""
-        if self.mode == PaymentMode.UPI_QR and not (self.txn_ref and self.txn_ref.strip()):
-            raise ValueError("UTR/Transaction ID is required for UPI payments")
-        return self
+    # UTR: required for online and checked on the server (helpers.assert_utr — one rule on every bill)
 
 
 class DonationOut(ORM):
@@ -574,6 +590,7 @@ class HundiOut(ORM):
     deposit_status: str = "Pending Deposit"
     bank_name: Optional[str] = None
     bank_ref: Optional[str] = None
+    deposit_account: Optional[str] = None                  # temple account, masked
     deposited_on: Optional[date] = None
     attachment: Optional[str] = None
     # Valuables custody (store)
@@ -667,6 +684,7 @@ class AuctionOut(ORM):
     current_amount: Decimal
     bids: int
     winner: Optional[str] = None
+    winner_mobile: Optional[str] = None
     status: str
     auction_date: Optional[date] = None
     start_time: Optional[str] = None
@@ -677,6 +695,12 @@ class AuctionOut(ORM):
     verified_by: Optional[str] = None
     verified_at: Optional[datetime] = None
     rejection_reason: Optional[str] = None
+    # Committee approval before the auction
+    approval_status: str = "Approved"
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    approval_note: Optional[str] = None
+    requested_base: Optional[Decimal] = None
     # Payment fields
     payment_status: str = "Pending"
     payment_mode: Optional[str] = None
@@ -790,7 +814,9 @@ class QuickCreateBookingIn(BaseModel):
     amount: Decimal = Field(..., ge=0, le=10000000)  # Max 1 crore
     scheduled_date: Optional[date] = None
     valid_until: Optional[date] = None
+    perform_dates: Optional[list[date]] = Field(default=None, max_length=12)   # Yearly Thrice: the dates picked
     time_slot: Optional[str] = Field(default=None, max_length=40)
+    batch_slot: Optional[str] = Field(default=None, max_length=5)   # half-hour list ("06:30"); the counter may pick it
     festival_id: Optional[int] = None
 
     # Devotee details for pooja
@@ -810,9 +836,12 @@ class QuickCreateBookingIn(BaseModel):
 
 
 class BulkQuickCreateBookingIn(BaseModel):
-    """Multiple bookings with immediate payment for Counter billing."""
+    """Several bookings paid together — Counter Billing's cart and Advance Booking's cart."""
     items: list[QuickCreateBookingIn] = Field(..., min_length=1, max_length=20)
     payment_method: str = Field(default="Cash", max_length=30)
+    source: Optional[str] = Field(default=None, max_length=20)   # Counter (default) | Advance
+    txn_ref: Optional[str] = Field(default=None, max_length=60)   # UTR of the one online payment
+    atomic: bool = False   # Advance Booking: book every line or none (one payment)
 
 
 # ── Daily Closing (Phase 1 Security: API-002) ────────────────────────────────
@@ -925,7 +954,8 @@ class HundiResubmitIn(BaseModel):
 
 
 class HundiDepositIn(BaseModel):
-    """Record bank deposit of cash from a hundi collection."""
+    """Record bank deposit of cash from a hundi collection. Bank name and reference are required
+    (checked in deposit_hundi with clear messages); the date defaults to today."""
     deposited_on: Optional[date] = None
     bank_name: Optional[str] = Field(default=None, max_length=100)
     bank_ref: Optional[str] = Field(default=None, max_length=100)
@@ -947,6 +977,7 @@ class AuctionResultIn(BaseModel):
     current_amount: Optional[Decimal] = Field(default=None, ge=0, le=100000000)
     bids: Optional[int] = Field(default=None, ge=0, le=10000)
     winner: Optional[str] = Field(default=None, max_length=200)
+    winner_mobile: Optional[str] = Field(default=None, max_length=15)   # required for a sale (2026-11-15)
     devotee_id: Optional[int] = None
     notes: Optional[str] = Field(default=None, max_length=500)
 
@@ -956,6 +987,16 @@ def _reason_text(v):
     if len(v) < 5:
         raise ValueError("Enter the reason for the change (at least 5 characters).")
     return v
+
+
+class DonationVoidIn(BaseModel):
+    """Administrator voids a donation receipt — the reason is mandatory and kept on the record."""
+    reason: str = Field(..., max_length=300)
+
+    @field_validator("reason")
+    @classmethod
+    def _reason(cls, v):
+        return _reason_text(v)
 
 
 class AuctionEditIn(BaseModel):
@@ -983,6 +1024,28 @@ class AuctionReauctionIn(BaseModel):
     start_time: str = Field(..., min_length=1, max_length=20)
     base_amount: Optional[Decimal] = Field(default=None, gt=0, le=100000000)
     notes: Optional[str] = Field(default=None, max_length=500)
+
+
+class AuctionApproveIn(BaseModel):
+    """Committee approves an auction before it is held, optionally with a new base price
+    (for a lot auction: the base price per piece)."""
+    base_amount: Optional[Decimal] = Field(default=None, gt=0, le=100000000)
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+class AuctionResubmitIn(BaseModel):
+    """Counter Staff / Administrator corrects a rejected auction and sends it back to the Committee."""
+    base_amount: Optional[Decimal] = Field(default=None, gt=0, le=100000000)   # lot: per piece
+    auction_date: Optional[date] = None
+    start_time: Optional[str] = Field(default=None, min_length=1, max_length=20)
+    note: str = Field(..., min_length=1, max_length=500)
+
+    @field_validator("note")
+    @classmethod
+    def _note(cls, v):
+        if not v.strip():
+            raise ValueError("Say what was changed.")
+        return v.strip()
 
 
 class AuctionRejectIn(BaseModel):

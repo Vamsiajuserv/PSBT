@@ -2,10 +2,10 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Plus, X, Eye, Search, RotateCcw, Calendar, Info, ChevronDown, Trash2, Upload,
   HandCoins, IndianRupee, Landmark, CalendarClock, FileText, Calculator, Users, ShieldCheck, Building2,
-  Package, CheckCircle2, Gem, Lock, XCircle,
+  Package, CheckCircle2, Gem, Lock, XCircle, Ban, AlertTriangle,
 } from 'lucide-react'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
-import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp, fmtLocalStamp } from '../../components/admin/ui.jsx'
+import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp, fmtLocalStamp, FilterPanel } from '../../components/admin/ui.jsx'
 import { HundiAPI, HundiItemsAPI, DevoteesAPI, CommitteeAPI, SettingsAPI, StoresAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { isAdminRole } from '../../auth/access.js'
@@ -17,7 +17,7 @@ import { promptDialog, confirmDialog, toast } from '../../components/common/Dial
 import { T, tr, personName, useLang, auditDetail } from '../../i18n/LanguageContext.jsx'
 import { sanitizeItemName } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
-import { metalOf, isGrams, factorOf, estValue, pct, useMetalDay } from '../../lib/metal.js'
+import { metalOf, isGrams, purityOptions, PURITY_UNKNOWN } from '../../lib/metal.js'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
 // Stored values stay as above; 'Notes' is shown as 'Currency Notes' because plain
@@ -51,6 +51,34 @@ const memberCount = (s) => (s ? s.split(',').filter((x) => x.trim()).length : 0)
 const REQUIRED_APPROVALS = 2
 const approvalsNeeded = (h) => Math.min(REQUIRED_APPROVALS, (h.committee_member_ids || []).length || REQUIRED_APPROVALS)
 
+const NOTE_DENOMS = [500, 200, 100, 50, 20, 10]
+const COIN_DENOMS = [20, 10, 5, 2, 1]
+const tallyTotal = (t) => Object.entries(t || {}).reduce((s, [d, n]) => s + Number(d.replace('c', '')) * (Number(n) || 0), 0)
+const tallyText = (t) => Object.entries(t || {}).filter(([, n]) => Number(n) > 0).map(([d, n]) => `₹${d.replace('c', '')}×${n}`).join(', ')
+const daysBack = (n) => { const d = new Date(`${today()}T00:00:00`); d.setDate(d.getDate() - n); return d.toLocaleDateString('en-CA') }
+
+// Optional denomination tally (notes and coins): pieces per denomination → the line's value
+function DenomTally({ tally, onChange, onClose }) {
+  const row = (label, denoms, prefix = '') => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[0.6875rem] font-semibold text-gray-500 w-12 leading-tight">{tr(label)}</span>
+      {denoms.map((d) => (
+        <label key={prefix + d} className="flex items-center gap-1 text-[0.6875rem] text-gray-600">
+          ₹{d}×<input type="number" min="0" inputMode="numeric" className="no-spin input !py-0.5 !px-1.5 !w-14 text-[0.75rem]" value={tally[prefix + d] || ''}
+            onChange={(e) => onChange({ ...tally, [prefix + d]: e.target.value.replace(/\D/g, '') })} />
+        </label>))}
+    </div>)
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-2.5 py-2 space-y-1.5">
+      {row('Currency Notes', NOTE_DENOMS)}
+      {row('Coins', COIN_DENOMS, 'c')}
+      <div className="flex items-center justify-between text-[0.6875rem]">
+        <span className="text-gray-600">{tr('Total')}: <b className="tabular-nums">₹{tallyTotal(tally).toLocaleString('en-IN')}</b></span>
+        <button type="button" onClick={onClose} className="font-semibold text-maroon-700 hover:underline">{tr('Type the total instead')}</button>
+      </div>
+    </div>)
+}
+
 const emptyLine = () => ({ hundi_item_id: '', item_name: '', item_type: '', quantity: '', unit: '', value: '', remarks: '', purity: '' })
 
 const emptyForm = () => ({
@@ -65,6 +93,8 @@ export default function Hundi() {
   const { lang } = useLang()
   const canWrite = user?.role !== 'Accountant'
   const isAdmin = isAdminRole(user)
+  // Counter Staff and the Administrator record a count; the Committee witnesses and approves (2026-11-15)
+  const canRecord = isAdmin || user?.role === 'Counter Staff'
   // Correct & Resubmit a rejected count: counter staff (who counted it) or an Administrator
   const canResubmit = isAdmin || user?.role === 'Counter Staff'
   // Only the committee members assigned to a count may approve or reject it; an
@@ -87,15 +117,9 @@ export default function Hundi() {
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [view, setView] = useState(null)
-  // Gold / silver counted by weight: valued at the collection day's rate × purity
-  const metalDay = useMetalDay(drawer?.collected_on || undefined)
+  // Gold / silver counted by weight: grams and (optional) purity — no ₹ value (2026-11-15)
   const lineMetal = (l) => (isGrams(l.unit) ? metalOf(l.item_type) : null)
-  const lineValue = (l) => {
-    const m = lineMetal(l)
-    if (!m) return l.value
-    const v = estValue(l.quantity, metalDay.rates?.[m]?.rate_per_g, factorOf(metalDay.purities, m, l.purity))
-    return v ?? ''
-  }
+  const lineValue = (l) => (lineMetal(l) ? 0 : l.value)
   const formTotal = (lines) => lines.reduce((s, l) => s + Number(lineValue(l) || 0), 0)
   const [committee, setCommittee] = useState([])
   const [banks, setBanks] = useState([])
@@ -125,7 +149,7 @@ export default function Hundi() {
     { key: 'collected_on', label: 'Date', type: 'date' },
     { key: 'cash_amount', label: 'Cash (₹)', type: 'money' },
     { key: 'valuables_amount', label: 'Valuables (₹)', type: 'money' },
-    { key: 'verification_status', label: 'Verification', type: 'text', filterable: true, filterOptions: ['Verified', 'Pending Verification', 'Rejected'] },
+    { key: 'verification_status', label: 'Verification', type: 'text', filterable: true, filterOptions: ['Verified', 'Pending Verification', 'Rejected', 'Voided'] },
     { key: 'deposit_status', label: 'Cash Status', type: 'text', filterable: true, filterOptions: ['Deposited', 'Pending Deposit', 'N/A'] },
     { key: 'valuables_status', label: 'Valuables Status', type: 'text', filterable: true, filterOptions: ['In Store', 'Pending Custody'] },
   ]
@@ -223,7 +247,11 @@ export default function Hundi() {
     HundiItemsAPI.list()
       .then((r) => { const arr = Array.isArray(r) ? r : (r.items || []); setItemMaster(arr.filter((i) => i.active)) })
       .catch(() => toast(tr('Failed to load hundi items'), 'error'))
-  }, [])
+    SettingsAPI.config().then((c) => { if (Number.isInteger(c?.donation_backdate_days)) setBackdays(c.donation_backdate_days) }).catch(() => {})
+    if (isAdminRole(user)) HundiAPI.setup().then(setSetup).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [backdays, setBackdays] = useState(7)
+  const [setup, setSetup] = useState(null)   // Administrator: what is still missing for approvals / custody
 
   // DEF-009: Use language-aware names for committee members
   const committeeNames = committee.map((c) => personName(c, lang))
@@ -250,25 +278,37 @@ export default function Hundi() {
   // Add new item at the top so the form appears first (Item 24)
   const addLine = () => setDrawer((d) => ({ ...d, lines: [emptyLine(), ...d.lines] }))
   const removeLine = (i) => setDrawer((d) => ({ ...d, lines: d.lines.length > 1 ? d.lines.filter((_, idx) => idx !== i) : d.lines }))
-  const pickItem = (i, name) => {
-    const it = itemMaster.find((x) => x.name === name)
-    if (it) setLine(i, { hundi_item_id: it.id, item_name: it.name, item_type: it.item_type || '', unit: it.unit || '' })
-    else setLine(i, { hundi_item_id: null, item_name: name, item_type: '', unit: '' })
+  // Only Hundi Item Master items — the master decides cash (bank) or valuables (vault)
+  const pickItem = (i, id) => {
+    const it = itemMaster.find((x) => String(x.id) === String(id))
+    setLine(i, it ? { hundi_item_id: it.id, item_name: it.name, item_type: it.item_type || '', unit: it.unit || '', tally: null }
+      : { hundi_item_id: '', item_name: '', item_type: '', unit: '', tally: null })
   }
 
   async function depositCollection(h) {
     const cashAmt = h.cash_amount || 0
+    // The temple account from Settings → Temple Information → Bank Details (masked)
+    const acct = await HundiAPI.depositAccount().catch(() => ({ configured: false }))
     const res = await promptDialog({
       title: `${tr('Record Cash Bank Deposit')} — ${h.code}`,
-      message: `${tr('Cash amount')}: ${inr(cashAmt)}`,
+      message: `${tr('Cash amount')}: ${inr(cashAmt)}` + (acct.configured
+        ? `\n${tr('Deposit into')}: ${acct.bank_name} · ${acct.account}${acct.account_name ? ` (${acct.account_name})` : ''}`
+        : `\n${tr('The temple bank account is not set yet — the administrator adds it in System Settings → Temple Information → Bank Details.')}`),
       confirmLabel: tr('Record Deposit'),
       fields: [
-        { k: 'bank_name', label: tr('Bank name'), defaultValue: h.bank_name || '', placeholder: tr('e.g. SBI Punjagutta') },
-        { k: 'bank_ref', label: tr('Bank reference / challan no.'), note: tr('Optional') },
+        ...(acct.configured ? [] : [{ k: 'bank_name', label: tr('Bank name'), required: true, defaultValue: h.bank_name || '', placeholder: tr('e.g. SBI Punjagutta') }]),
+        { k: 'bank_ref', label: tr('Bank reference / challan no.'), required: true, placeholder: tr('e.g. challan or UTR number') },
+        { k: 'deposited_on', label: tr('Deposit Date'), type: 'date', required: true, defaultValue: today() },
       ],
     })
     if (!res) return
-    try { await HundiAPI.deposit(h.id, { bank_name: res.bank_name.trim() || null, bank_ref: res.bank_ref.trim() || null, deposited_on: today() }); toast(tr('Cash deposited to bank.')); load() }
+    // Proof of the deposit is mandatory (the server checks the same)
+    const bankName = acct.configured ? acct.bank_name : (res.bank_name || '').trim()
+    if (bankName.length < 2) { toast(tr('Enter the bank name.'), 'error'); return }
+    if (res.bank_ref.trim().length < 3) { toast(tr('Enter the bank reference / challan number (at least 3 characters).'), 'error'); return }
+    if (res.deposited_on > today()) { toast(tr('The deposit date cannot be in the future.'), 'error'); return }
+    if (h.collected_on && res.deposited_on < String(h.collected_on).slice(0, 10)) { toast(tr('The deposit date cannot be before the collection date.'), 'error'); return }
+    try { await HundiAPI.deposit(h.id, { bank_name: bankName, bank_ref: res.bank_ref.trim(), deposited_on: res.deposited_on }); toast(tr('Cash deposited to bank.')); load() }
     catch (ex) { toast(ex.detail || tr('Could not record the deposit.'), 'error') }
   }
   async function storeValuables(h) {
@@ -283,7 +323,7 @@ export default function Hundi() {
       fields: [
         { k: 'store_location', label: tr('Store Location'), type: 'select', required: true, defaultValue: '',
           options: locs.map((l) => ({ value: l.name, label: tr(l.name) })) },
-        { k: 'custodian', label: tr('Custodian Name'), type: 'combobox', defaultValue: '', placeholder: tr('Committee member holding custody'),
+        { k: 'custodian', label: tr('Custodian (committee member)'), type: 'select', required: true, defaultValue: '',
           options: committee.map((c) => ({ value: c.name, label: personName(c, lang) })) },
       ],
     })
@@ -295,6 +335,19 @@ export default function Hundi() {
     }
     catch (ex) { toast(ex.detail || tr('Could not record custody.'), 'error') }
   }
+  // Administrator voids a count entered by mistake (duplicate, wrong day) — only before it is verified
+  async function voidCount(h) {
+    const res = await promptDialog({
+      title: `${tr('Void count')} ${h.code}?`,
+      message: tr('The count stays in the register as voided and is left out of every total. This cannot be undone.'),
+      tone: 'danger', confirmLabel: tr('Void count'), cancelLabel: tr('Keep count'),
+      fields: [{ k: 'reason', label: tr('Reason'), required: true, placeholder: tr('Why is this count being voided?') }],
+    })
+    if (!res) return
+    try { await HundiAPI.void(h.id, res.reason.trim()); toast(tr('Count voided.')); load() }
+    catch (ex) { toast(ex.detail || tr('Could not void this count.'), 'error') }
+  }
+
   async function rejectCollection(h) {
     const res = await promptDialog({
       title: `${tr('Flag a discrepancy')} — ${h.code}`,
@@ -351,20 +404,13 @@ export default function Hundi() {
       return
     }
 
-    // Gold / silver by weight need the collection day's rate and a purity
-    for (const l of m.lines) {
-      const metal = l.item_name.trim() && Number(l.quantity) > 0 ? lineMetal(l) : null
-      if (!metal) continue
-      if (!metalDay.rates?.[metal]) {
-        toast(tr(metal === 'Gold' ? 'No gold rate entered for the collection date — ask the Administrator to enter it first.' : 'No silver rate entered for the collection date — ask the Administrator to enter it first.'), 'error')
-        return
-      }
-      if (!l.purity) { toast(`${l.item_name}: ${tr('choose the purity.')}`, 'error'); return }
-    }
+    // Gold / silver by weight: the grams are the count
+    const noGrams = m.lines.find((l) => l.item_name.trim() && lineMetal(l) && !(Number(l.quantity) > 0))
+    if (noGrams) { toast(`${tr(noGrams.item_name)}: ${tr('enter the weight in grams.')}`, 'error'); return }
 
     // Filter and validate items - value must be positive
     const items = m.lines
-      .filter((l) => l.item_name.trim() && lineValue(l) !== '')
+      .filter((l) => l.item_name.trim() && (lineMetal(l) ? Number(l.quantity) > 0 : lineValue(l) !== ''))
       .map((l) => ({
         hundi_item_id: (l.hundi_item_id && l.hundi_item_id !== 'custom') ? l.hundi_item_id : null,
         item_name: l.item_name.trim(),
@@ -373,7 +419,7 @@ export default function Hundi() {
         unit: l.unit || null,
         value: Number(lineValue(l) || 0),
         remarks: l.remarks || null,
-        purity: lineMetal(l) ? l.purity : null,
+        purity: lineMetal(l) ? (l.purity || PURITY_UNKNOWN) : null,
       }))
 
     if (items.length === 0) {
@@ -466,12 +512,20 @@ export default function Hundi() {
   return (
     <div>
       <PageTitle title={tr("Hundi Management")} subtitle={tr("Manage physical hundi collections from the temple, counting, verification and bank deposits.")}
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Hundi Collection Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record New Collection</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Hundi Collection Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canRecord ? <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record New Collection</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
+      {isAdmin && setup && (setup.linked_members < setup.required_approvals || setup.store_locations < 1) && (
+        <div role="alert" className="mb-4 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-[0.8125rem] text-amber-900 flex items-start gap-2">
+          <AlertTriangle size={17} className="shrink-0 mt-0.5 text-amber-600" />
+          <div>
+            {setup.linked_members < setup.required_approvals && <div><b><T>Committee approvals cannot happen yet.</T></b> {tr('Link at least two Committee logins to their committee member in User Management — only linked members can approve a count.')}</div>}
+            {setup.store_locations < 1 && <div><b><T>Valuables cannot be stored yet.</T></b> {tr('Add a store location in Stores → Store Locations.')}</div>}
+          </div>
+        </div>)}
       {user?.role !== 'Counter Staff' && (
         <KpiGrid>
           <StatTile icon={HandCoins} color="#059669" bg="bg-emerald-50" title={tr("This Month Total")}
-            value={stats ? inr(stats.month_amount) : '—'} sub={stats ? `${num(stats.month_count)} ${tr("Collections")}` : ''} />
+            value={stats ? inr(stats.month_amount) : '—'} sub={stats ? `${num(stats.month_count)} ${tr("verified")}${stats.pending_verification_count ? ` · ${num(stats.pending_verification_count)} ${tr('waiting for approval')} (${inr(stats.pending_verification_amount)})` : ''}` : ''} />
           <StatTile icon={IndianRupee} color="#2563eb" bg="bg-blue-50" title={tr("Cash (This Month)")}
             value={stats ? inr(stats.month_cash) : '—'} sub={stats?.pending_deposit_count ? `${num(stats.pending_deposit_count)} ${tr("Pending Deposit")}` : tr("For bank deposit")} />
           <StatTile icon={Gem} color="#7c3aed" bg="bg-violet-50" title={tr("Valuables (This Month)")}
@@ -484,6 +538,7 @@ export default function Hundi() {
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <FilterPanel>
         <div className="px-5 py-5 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Reference No.</T></label>
@@ -509,6 +564,7 @@ export default function Hundi() {
           <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button onClick={() => { setFilters({ q: '', verification: '', deposit: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
+        </FilterPanel>
 
         <SortFilterPanel
           sorts={sorts}
@@ -523,11 +579,12 @@ export default function Hundi() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-              {sortColumns.map((col) => (
+              {/* the date sits under the Hundi ID so the table fits at large text (2026-11-15) */}
+              {sortColumns.filter((col) => col.key !== 'collected_on').map((col) => (
                 <SortableFilterableTh
                   key={col.key}
                   colKey={col.key}
-                  label={tr(col.label)}
+                  label={col.key === 'code' ? `${tr('Hundi ID')} / ${tr('Date')}` : tr(col.label)}
                   type={col.type}
                   // Number columns: left-aligned like their cells, so the figures sit directly under the
                   // title (a right-aligned title is pushed left by its hidden sort icon).
@@ -548,8 +605,9 @@ export default function Hundi() {
             <tbody className="divide-y divide-gray-100">
               {displayRows.map((h) => (
                 <tr key={h.id} className="hover:bg-gray-50/60">
-                  <td className="px-3 py-3 font-mono text-[0.75rem] text-gray-500 whitespace-nowrap">{h.code}</td>
-                  <td className="px-3 py-3 text-gray-600 text-[0.8125rem] whitespace-nowrap">{fmtDate(h.collected_on)}</td>
+                  <td className="px-3 py-3 whitespace-nowrap"><div className="font-mono text-[0.75rem] text-gray-500">{h.code}</div>
+                    <div className="text-gray-600 text-[0.8125rem]">{fmtDate(h.collected_on)}</div>
+                    {h.challan_shared_with?.length > 0 && <div className="text-[0.6875rem] text-blue-700" title={tr('One bank deposit for these counts')}>{tr('Challan also for')} {h.challan_shared_with.join(', ')}</div>}</td>
                   <td className="px-3 py-3 font-semibold text-blue-700">{canSeeAmounts ? (h.cash_amount > 0 ? inr(h.cash_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
                   <td className="px-3 py-3 font-semibold text-violet-700">{canSeeAmounts ? (h.valuables_amount > 0 ? inr(h.valuables_amount) : <span className="text-gray-300">—</span>) : '—'}</td>
                   <td className="px-3 py-3">
@@ -562,7 +620,7 @@ export default function Hundi() {
                   <td className="px-3 py-3">{h.valuables_status ? <Pill tone={VAL_TONE[h.valuables_status] || 'gray'}>{tr(h.valuables_status)}</Pill> : <span className="text-gray-300">—</span>}<StoreReceive r={h.store_receive} /></td>
                   <td className="px-3 py-3">
                     {/* Icon-only actions (tooltip names each one) so the column stays narrow — no horizontal scroll */}
-                    <div className="flex items-center gap-1.5 flex-nowrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <IconAction onClick={() => setView(h)} label={tr("View details")} icon={Eye} tone="border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300" />
                       {canApprove(h) && (isAdmin
                         ? <IconAction onClick={() => verify(h)} label={tr("Verify (Override)")} icon={ShieldCheck} tone="border-emerald-200 text-emerald-700 hover:bg-emerald-50" />
@@ -579,11 +637,14 @@ export default function Hundi() {
                       {canWrite && h.verification_status === 'Verified' && h.valuables_status === 'Pending Custody' && h.valuables_amount > 0 && (
                         <IconAction onClick={() => storeValuables(h)} label={tr("Store Custody")} icon={Lock} tone="border-violet-200 text-violet-700 hover:bg-violet-50" />
                       )}
+                      {isAdmin && ['Pending Verification', 'Rejected'].includes(h.verification_status) && (
+                        <IconAction onClick={() => voidCount(h)} label={tr("Void count")} icon={Ban} tone="border-gray-200 text-gray-700 hover:text-red-700 hover:border-red-300" />
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty={tr("No collections recorded.")} />}
+              {rows.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr("No collections recorded.")} />}
             </tbody>
           </table>
         </div>
@@ -617,7 +678,9 @@ export default function Hundi() {
               <DSection n="1" icon={FileText} title={tr("Collection Details")}>
                 <div id="hundi-collected-on"><label className="label"><T>Collection Date *</T></label>
                   {/* max = today: future days are greyed out and the calendar can't move past this month */}
-                  <DateField required max={today()} disabled={!!drawer.resubmit} className={`input ${collectedOnErr ? '!border-red-400 ring-1 ring-red-200' : ''}`} value={drawer.collected_on}
+                  {/* Counter Staff: today; the Administrator up to "Days Back for Late Entries" (Settings) */}
+                  <DateField required max={today()} min={isAdmin ? daysBack(backdays) : today()} disabled={!!drawer.resubmit || !isAdmin}
+                    className={`input ${collectedOnErr ? '!border-red-400 ring-1 ring-red-200' : ''}`} value={drawer.collected_on}
                     onChange={(e) => { setDateServerErr(''); setM({ collected_on: e.target.value }) }} />
                   {collectedOnErr && <div role="alert" className="text-[0.6875rem] text-red-600 mt-1">{collectedOnErr}</div>}
                 </div>
@@ -634,40 +697,36 @@ export default function Hundi() {
                     {drawer.lines.map((l, i) => (
                       <div key={i} className="border border-gray-200 rounded-lg p-2.5 space-y-2 bg-gray-50/40">
                         <div className="flex items-center gap-2">
-                          <Combobox
-                            value={l.item_name}
-                            onChange={(e) => pickItem(i, e.target.value)}
-                            options={itemMaster.map((it) => it.name)}
-                            placeholder={tr("Select or type item")}
-                            className="!py-1.5 text-[0.78125rem] flex-1"
-                          />
+                          <div className="flex-1 min-w-0">
+                            <Select value={l.hundi_item_id || ''} onChange={(e) => pickItem(i, e.target.value)} aria-label={tr('Item')}
+                              className="input !py-1.5 text-[0.78125rem]">
+                              <option value="">{tr('Select an item')}</option>
+                              {itemMaster.map((it) => <option key={it.id} value={it.id}>{tr(it.name)}</option>)}
+                            </Select>
+                          </div>
                           <button type="button" onClick={() => removeLine(i)} disabled={drawer.lines.length <= 1} title={tr("Remove line")}
                             className="w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-red-600 hover:border-red-200 disabled:opacity-40"><Trash2 size={14} /></button>
                         </div>
-                        {lineMetal(l) ? (() => {
-                          const metal = lineMetal(l)
-                          const rate = metalDay.rates?.[metal]
-                          const factor = factorOf(metalDay.purities, metal, l.purity)
-                          const v = lineValue(l)
-                          return (<>
+                        {lineMetal(l) ? (<>
                             <div className="grid grid-cols-3 gap-2">
                               <NumberField min="0" max="999999" step="0.01" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Grams *")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
-                              <Select className="input !py-1.5 text-[0.78125rem]" value={l.purity} onChange={(e) => setLine(i, { purity: e.target.value })}>
-                                <option value="">{tr('Purity *')}</option>
-                                {(metalDay.purities?.[metal] || []).map((p) => <option key={p.label} value={p.label}>{p.label}</option>)}
+                              <Select className="input !py-1.5 text-[0.78125rem] col-span-2" value={l.purity || PURITY_UNKNOWN} onChange={(e) => setLine(i, { purity: e.target.value })} aria-label={tr('Purity')}>
+                                {purityOptions(lineMetal(l)).map((p) => <option key={p} value={p}>{tr('Purity')}: {tr(p)}</option>)}
                               </Select>
-                              <div className="input !py-1.5 text-[0.78125rem] bg-gray-50 tabular-nums">{v !== '' ? inr(v) : '—'}</div>
                             </div>
-                            <div className={`text-[0.6875rem] ${rate ? 'text-gray-500' : 'text-red-600'}`}>{rate
-                              ? `${tr('Value')} = ${l.quantity || 0} ${tr('g')} × ₹${Number(rate.rate_per_g).toLocaleString('en-IN')} (${rate.basis}, ${fmtDate(metalDay.date)})${factor ? ` × ${pct(factor)}` : ''}`
-                              : tr(metal === 'Gold' ? 'No gold rate entered for the collection date — ask the Administrator to enter it first.' : 'No silver rate entered for the collection date — ask the Administrator to enter it first.')}</div>
-                          </>)
-                        })() : (
+                            <div className="text-[0.6875rem] text-gray-500">{tr('Kept by weight — no value. Pick a purity only if a hallmark can be read.')}</div>
+                          </>) : (
+                        <>
                         <div className="grid grid-cols-3 gap-2">
                           <NumberField min="0" max="999999" step="0.01" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Qty")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
-                          <input className="input !py-1.5 text-[0.78125rem]" placeholder={tr("Unit")} value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />
-                          <NumberField required min="0.01" max="99999999" step="0.01" prefix="₹" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Value *")} value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} />
-                        </div>)}
+                          <div className="input !py-1.5 text-[0.78125rem] bg-gray-50 text-gray-500">{tr(l.unit || 'Unit')}</div>
+                          <NumberField required min="0.01" max="99999999" step="0.01" prefix="₹" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Value *")} value={l.value} disabled={!!l.tally} onChange={(e) => setLine(i, { value: e.target.value })} />
+                        </div>
+                        {/* Optional denomination tally for notes / coins: fills the value (Q12) */}
+                        {['Cash', 'Coins'].includes(l.item_type) && (l.tally
+                          ? <DenomTally tally={l.tally} onChange={(t) => setLine(i, { tally: t, value: tallyTotal(t) || '', remarks: tallyText(t) })} onClose={() => setLine(i, { tally: null })} />
+                          : <button type="button" onClick={() => setLine(i, { tally: {} })} className="text-[0.6875rem] font-semibold text-maroon-700 hover:underline">{tr('Count by denomination (optional)')}</button>)}
+                        </>)}
                       </div>
                     ))}
                   </div>
@@ -817,6 +876,7 @@ export default function Hundi() {
                   <VField label={tr("Status")} value={<Pill tone={DEP_TONE[view.deposit_status]}>{tr(view.deposit_status)}</Pill>} />
                   <VField label={tr("Deposit Date")} value={view.deposited_on ? fmtDate(view.deposited_on) : '—'} />
                   <VField label={tr("Bank Name")} value={view.bank_name ? tr(view.bank_name) : '—'} />
+                  {view.deposit_account && <VField label={tr("Bank Account")} value={view.deposit_account} />}
                   <VField label={tr("Challan / Reference")} value={view.bank_ref || '—'} wide />
                 </DSection>
               )}

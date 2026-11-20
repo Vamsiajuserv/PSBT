@@ -219,7 +219,7 @@ POOJAS = [
     # Long-Term
     ("Nithya Pooja", "నిత్య పూజ", "Long-Term", [("Life Long", "Life Long", 5001, None)]),
     ("Sai Pooja with Gothranamam", "గోత్రనామ సాయి పూజ", "Long-Term", [("Yearly Once", "Yearly Once", 1001, 365)]),
-    ("Vishesha Pooja", "విశేష పూజ", "Long-Term", [("Yearly Thrice", "Yearly Thrice", 1116, 365)]),
+    ("Vishesha Pooja", "విశేష పూజ", "Long-Term", [("Yearly Thrice", "Yearly Thrice", 3000, 365)]),
     # Occasion / Special — one-time life-event ceremonies
     ("Rudrabhishekam", "రుద్రాభిషేకం", "Occasion", [("One-Time", "One-Time", 300, None)]),
     ("Namakaranam", "నామకరణం", "Occasion", [("One-Time", "One-Time", 300, None)]),

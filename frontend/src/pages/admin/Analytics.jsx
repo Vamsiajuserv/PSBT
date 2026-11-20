@@ -545,7 +545,7 @@ export default function Analytics() {
 
       {/* Summary Cards */}
       {summary && (
-        <KpiGrid className="">
+        <KpiGrid variant="cards" className="">
           {['pooja', 'donation', 'hundi', 'auction', 'annadanam', 'waste'].map(key => {
             const m = summary.metrics[key] || {}
             const comp = comparison?.metrics?.[key] || {}

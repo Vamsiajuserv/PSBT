@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../../auth/AuthContext.jsx'
+import { visibleTabs } from '../../../lib/storesMenu.js'
 import { X, Plus, Trash2, Printer, Tag } from 'lucide-react'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { Pill, inr, fmtDate } from '../../../components/admin/ui.jsx'
@@ -8,16 +10,20 @@ import { toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, getLang, useLang, gramUnit, staffName } from '../../../i18n/LanguageContext.jsx'
 export { staffName }
 import { teScript } from '../../../lib/teScript.js'
-import { estValue, pct, factorOf, metalOf, useMetalDay } from '../../../lib/metal.js'
+import { estValue, pct, factorOf, metalOf, PURITIES, purityOptions, PURITY_UNKNOWN } from '../../../lib/metal.js'
 
 // Awaiting Placement: tagged (ID + sticker) but not yet put on a shelf — Place makes it In Store
 export const AWAITING = 'Awaiting Placement'
 // Issued: lent out on an issue slip (still stock). Missing: not found at a stock check.
 export const ISSUED = 'Issued'
 export const MISSING = 'Missing'
+// Kept by Poojari: taken out on an issue slip and kept by the poojari / performer — out of stock (2026-11-15)
+export const KEPT = 'Kept by Poojari'
+// Write-off Requested: a damaged piece waiting for the Committee (cannot be issued / sold meanwhile)
+export const WRITEOFF_REQ = 'Write-off Requested'
 export const STATUS_TONE = { [AWAITING]: 'orange', 'In Store': 'green', [ISSUED]: 'maroon', 'In Auction': 'amber', 'In Open Sale': 'violet',
-  [MISSING]: 'red', Sold: 'blue', 'Written Off': 'gray' }
-export const STATUSES = [AWAITING, 'In Store', ISSUED, 'In Auction', 'In Open Sale', MISSING, 'Sold', 'Written Off']
+  [MISSING]: 'red', Sold: 'blue', 'Written Off': 'gray', [KEPT]: 'gray', [WRITEOFF_REQ]: 'amber' }
+export const STATUSES = [AWAITING, 'In Store', ISSUED, 'In Auction', 'In Open Sale', MISSING, 'Sold', 'Written Off', KEPT, WRITEOFF_REQ]
 
 // Where a piece (or a consumables receipt) came from. A counter donation shows its Donation ID
 // and receipt no. ("DON-0002797 · RCPT-2797"); hundi / manual pieces keep their own code.
@@ -35,7 +41,7 @@ const num3 = (n) => Number(n).toLocaleString('en-IN', { maximumFractionDigits: 3
 
 // Deity-Used Items: worn / used by the deity (alankaram, festival) — offered first at auction.
 export const DeityBadge = ({ item }) => (item?.deity_used
-  ? <span title={item.deity_used_note || ''} className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">{tr('Deity-Used')}</span>
+  ? <span title={item.deity_used_note ? `${tr('Used for')} ${tr(item.deity_used_note)}` : ''} className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">{tr('Used')}</span>
   : null)
 
 // Tagging, moving and manual entries: Counter Staff, Stores Officer and Administrator (backend WRITE_MATRIX).
@@ -48,8 +54,8 @@ export const canManageStores = (user) => isAdminUser(user) || isStoresOfficer(us
 // Open Sale: the Committee alone fixes the price; Counter Staff / Administrator sell (money).
 export const isCommitteeUser = (user) => user?.role === 'Committee'
 export const canSellOrDamage = (user) => ['Admin', 'Administrator', 'Counter Staff'].includes(user?.role)
-// Mark damaged / write off: the sellers plus the Stores Officer (no money involved)
-export const canDamageStock = (user) => canSellOrDamage(user) || isStoresOfficer(user)
+// Ask to write a damaged piece off: Stores Officer + Administrator; a Committee member approves (2026-11-15)
+export const canDamageStock = (user) => canManageStores(user)
 // Issue & Return: custody of the store — Stores Officer and Administrator only
 export const canIssueStock = (user) => canManageStores(user)
 // Missing Items: mark found / report lost — Stores Officer, Counter Staff, Administrator;
@@ -63,7 +69,7 @@ export const canCloseShortage = (user) => isAdminUser(user) || user?.role === 'C
 // Place an Awaiting Placement piece in a location: Stores Officer, Counter Staff, Administrator
 export const canPlaceStock = (user) => ['Admin', 'Administrator', 'Counter Staff', 'Stores Officer'].includes(user?.role)
 // Purchase requests: the Stores Officer (or Admin) raises / marks received; the Committee (or
-// Admin) approves — never whoever raised it. Festival kits and handover: Stores Officer + Admin.
+// Admin) approves — never whoever raised it. Festival kits: Stores Officer + Admin.
 export const canApprovePurchase = (user) => isAdminUser(user) || user?.role === 'Committee'
 
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
@@ -238,9 +244,9 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
     setRows((rs) => (rs.some((r) => !r.location_id) ? rs.map((r) => (r.location_id ? r : { ...r, location_id: String(home.id) })) : rs))
   }, [src, activeLocations])
 
-  // Gold / silver valued at the counter / hundi count: typing a piece's weight fills its value
-  // (grams × that day's rate × purity) until someone types a value by hand
-  const { purities } = useMetalDay()
+  // Gold / silver: no ₹ value since 2026-11-15. Receipts made before that carried a day's rate —
+  // for those, typing a piece's weight still fills its value (grams × that rate × purity)
+  const purities = PURITIES
   const valuationOf = (r) => (isHundi ? src?.progress?.lines?.find((l) => l.line_id === r.hundi_line_id) : src)
   // The receipt value of a piece: its grams × the rate used then × its purity (the receipt's
   // purity when the piece's own is not in the table) — the server checks the same
@@ -317,7 +323,7 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
   const close = () => {
     if (src && p && !p.complete) {
       const left = p.mode === 'lines' ? progressText(p) : p.mode === 'weight' ? `${qty(p.needed - p.done)} ${gramUnit()}` : `${Math.round(p.needed - p.done)} ${tr('piece(s)')}`
-      toast(`${sourceRef(src)}: ${left} ${tr('waiting in Stores → Pending Tagging')}`, 'info')
+      toast(`${sourceRef(src)}: ${left} ${tr('waiting in Stores → Receive & Tag')}`, 'info')
       window.dispatchEvent(new Event('stores:changed'))
     }
     onClose()
@@ -375,14 +381,14 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
                 </div>
                 <div className="p-3 space-y-2">
                   {rows.map((r, i) => r.hundi_line_id === l.line_id && (
-                    <TagRow key={i} r={r} i={i} weight={l.mode === 'weight'} categories={tagged} hundi locations={activeLocations} setRow={setRow} removeRow={removeRow} expected={expectedOf(r)} />
+                    <TagRow key={i} r={r} i={i} weight={l.mode === 'weight'} metal={metalOf(l.item_type || l.item_name)} categories={tagged} hundi locations={activeLocations} setRow={setRow} removeRow={removeRow} expected={expectedOf(r)} />
                   ))}
                   <button type="button" onClick={() => addRow({ hundi_line_id: l.line_id, category_id: rows.find((x) => x.hundi_line_id === l.line_id)?.category_id || '' })} className="text-[0.78rem] font-semibold text-maroon-700 inline-flex items-center gap-1"><Plus size={13} /><T>Add piece</T></button>
                 </div>
               </div>
             )) : !p.complete && (
               <div className="space-y-2">
-                {rows.map((r, i) => <TagRow key={i} r={r} i={i} weight={!!src.weight} locations={activeLocations} setRow={setRow} removeRow={removeRow} defaultValue={src.default_value} expected={expectedOf(r)} />)}
+                {rows.map((r, i) => <TagRow key={i} r={r} i={i} weight={!!src.weight} metal={metalOf(src.item_name || src.fund)} locations={activeLocations} setRow={setRow} removeRow={removeRow} defaultValue={src.default_value} expected={expectedOf(r)} />)}
                 {src.weight && (
                   <div className="flex items-center justify-between text-[0.78rem]">
                     <button type="button" onClick={() => addRow()} className="font-semibold text-maroon-700 inline-flex items-center gap-1"><Plus size={13} /><T>Add piece</T></button>
@@ -406,7 +412,7 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
   )
 }
 
-function TagRow({ r, i, weight, categories = [], hundi, locations, setRow, removeRow, defaultValue, expected }) {
+function TagRow({ r, i, weight, metal, categories = [], hundi, locations, setRow, removeRow, defaultValue, expected }) {
   const off = expected != null && r.est_value !== '' && Math.abs(Number(r.est_value) - expected) >= 1
   return (
     <div className={`grid grid-cols-2 sm:grid-cols-12 gap-2 items-end border rounded-lg p-2 ${off ? 'border-amber-300 bg-amber-50/40' : 'border-gray-100'}`}>
@@ -421,14 +427,17 @@ function TagRow({ r, i, weight, categories = [], hundi, locations, setRow, remov
         <input className="input" value={r.description} onChange={(e) => setRow(i, { description: e.target.value })} /></div>
       {weight ? (<>
         <div><label className="label"><T>Weight g *</T></label><NumberField min="0" step="0.001" value={r.weight_g} onChange={(e) => setRow(i, { weight_g: e.target.value })} /></div>
-        <div className={hundi ? '' : 'sm:col-span-2'}><label className="label"><T>Purity</T></label><input className="input" value={r.purity} onChange={(e) => setRow(i, { purity: e.target.value })} placeholder="22K" /></div>
+        <div className={hundi ? '' : 'sm:col-span-2'}><label className="label"><T>Purity</T></label>
+          <Select className="input" value={r.purity || PURITY_UNKNOWN} onChange={(e) => setRow(i, { purity: e.target.value })}>
+            {[...new Set([...purityOptions(metal || 'Gold'), ...(r.purity ? [r.purity] : [])])].map((p) => <option key={p} value={p}>{tr(p)}</option>)}
+          </Select></div>
       </>) : !hundi && (
         <div className="col-span-2 sm:col-span-2"><label className="label"><T>Size / colour</T></label><input className="input" value={r.details} onChange={(e) => setRow(i, { details: e.target.value })} /></div>
       )}
-      <div className={weight || !hundi ? 'sm:col-span-2' : ''}><label className="label"><T>Value ₹</T></label><NumberField min="0" step="1" value={r.est_value} onChange={(e) => setRow(i, { est_value: e.target.value })} placeholder={defaultValue != null ? String(defaultValue) : ''} /></div>
+      {(!weight || expected != null) && <div className={weight || !hundi ? 'sm:col-span-2' : ''}><label className="label"><T>Value ₹</T></label><NumberField min="0" step="1" value={r.est_value} onChange={(e) => setRow(i, { est_value: e.target.value })} placeholder={defaultValue != null ? String(defaultValue) : ''} /></div>}
       <div className={`col-span-2 ${hundi || weight ? 'sm:col-span-2' : 'sm:col-span-3'}`}><label className="label"><T>Location</T></label>
         <Select className="input" value={r.location_id} onChange={(e) => setRow(i, { location_id: e.target.value })}>
-          <option value="">{tr('Place later')}</option>{locations.map((l) => <option key={l.id} value={l.id}>{tr(l.name)}</option>)}
+          <option value="">{tr('Select')}</option>{locations.map((l) => <option key={l.id} value={l.id}>{tr(l.name)}</option>)}
         </Select></div>
       <button type="button" onClick={() => removeRow(i)} title={tr('Remove row')} aria-label={tr('Remove row')} className="justify-self-end mb-1 w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-red-500 hover:border-red-300"><Trash2 size={14} /></button>
       {expected != null && (
@@ -447,7 +456,7 @@ function TagRow({ r, i, weight, categories = [], hundi, locations, setRow, remov
 
 // ── A donation's items (Donations list → "2 items") ─────────────────────────
 /** The pieces tagged from one counter donation: ID, item, location and status, each ID
- *  linked to its history. Read-only; tagging stays in Stores → Pending Tagging. */
+ *  linked to its history. Read-only; tagging stays in Stores → Receive & Tag. */
 export function DonationItemsDialog({ donation, onClose }) {
   const { lang } = useLang()
   const [src, setSrc] = useState(null)
@@ -473,7 +482,7 @@ export function DonationItemsDialog({ donation, onClose }) {
           {!src && !err && <div className="text-sm text-gray-500"><T>Loading...</T></div>}
           {src && src.items.length === 0 && (
             <div className="text-sm text-gray-600"><T>No pieces are tagged yet.</T>{' '}
-              <Link to="/admin/stores/pending" className="text-maroon-700 font-semibold hover:underline"><T>Pending Tagging</T></Link></div>
+              <Link to="/admin/stores/pending" className="text-maroon-700 font-semibold hover:underline"><T>Receive & Tag</T></Link></div>
           )}
           {src && src.items.length > 0 && (
             <table className="w-full text-sm">
@@ -500,6 +509,30 @@ export function DonationItemsDialog({ donation, onClose }) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// Tab bar for the Stores screens shown as one menu entry (lib/storesMenu.js → STORES_TABS):
+// Sales from Stock (Deity-Used · Unsold · Open Sale), Stock Check (Stock Check · Missing Items),
+// Stock Reports (Stock Report · Valuables Statement). Each tab is its own route, so links and
+// access rules stay as they were; only the tabs this user may open are shown, and no bar when
+// there is just one.
+export function StoresTabs({ group }) {
+  const { user } = useAuth()
+  const { pathname } = useLocation()
+  useLang()
+  const tabs = visibleTabs(user, group)
+  if (tabs.length < 2) return null
+  return (
+    <div className="inline-flex flex-wrap mb-4 rounded-lg border border-gray-200 bg-white p-1 shadow-sm" role="tablist" aria-label={tr('Screens in this section')}>
+      {tabs.map(([to, label]) => {
+        const on = pathname === to || pathname.startsWith(to + '/')
+        return (
+          <Link key={to} to={to} role="tab" aria-selected={on}
+            className={`px-4 py-1.5 rounded-md text-[0.8125rem] font-semibold transition-colors ${on ? 'bg-maroon-700 text-cream' : 'text-gray-600 hover:bg-gray-50'}`}>{tr(label)}</Link>
+        )
+      })}
     </div>
   )
 }

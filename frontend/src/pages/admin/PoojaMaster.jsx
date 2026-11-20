@@ -215,13 +215,10 @@ export default function PoojaMaster() {
   return (
     <div>
       <PageTitle title={tr("Pooja Master")} subtitle={tr("Configure and manage temple poojas, available plans, rates, and validity")}
+        help={tr('Category classifies the pooja type. Plans define how the pooja can be booked (e.g., Daily, Monthly, One-Time, Life Long).')}
         actions={canWrite && <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Add New Pooja</T></button>} />
 
-      <div className="bg-amber-50/60 border border-amber-100 rounded-lg px-4 py-2.5 mb-5 text-[0.8125rem] text-gray-600 flex items-center gap-2">
-        <Info size={16} className="text-amber-500 shrink-0" /> <T>Category classifies the pooja type. Plans define how the pooja can be booked (e.g., Daily, Monthly, One-Time, Life Long).</T>
-      </div>
-
-      <KpiGrid>
+      <KpiGrid variant="note">
         <StatTile icon={Flame} color="#ea580c" bg="bg-orange-50" title={tr("Total Poojas")} value={stats ? num(stats.total_poojas) : '—'} sub={tr("Configured poojas")} />
         <StatTile icon={Layers} color="#059669" bg="bg-emerald-50" title={tr("Total Plans")} value={stats ? num(stats.total_plans) : '—'} sub={tr("Across all poojas")} />
         <StatTile icon={CalendarCheck} color="#d97706" bg="bg-amber-50" title={tr("Active Plans")} value={stats ? num(stats.active_plans) : '—'} sub={tr("Currently available")} />
@@ -230,10 +227,8 @@ export default function PoojaMaster() {
       </KpiGrid>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 pt-5">
-          <h3 className="font-serif text-lg font-bold text-maroon-800"><T>Pooja Master List</T></h3>
-          <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Manage poojas, rates, validity, and booking availability</T></p>
-          <div className="flex flex-col lg:flex-row lg:items-end gap-3 mt-4 mb-4">
+        <div className="px-5 pt-4">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-3 mb-4">
             <div className="flex-1 max-w-xs"><SearchInput value={q} onChange={(v) => { setQ(v); setPage(1) }} placeholder={tr("Search by Pooja Name")} /></div>
             <div><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Category</T></label>
               <Select value={cat} onChange={(e) => { setCat(e.target.value); setPage(1) }} className="input !w-48"><option value="">{tr("All Categories")}</option>{CAT_OPTIONS.map((c) => <option key={c.value} value={c.label}>{tr(c.label)}</option>)}</Select></div>
@@ -335,7 +330,7 @@ export default function PoojaMaster() {
                     {p.plans.length > 3 && <span className="inline-flex px-2 py-0.5 rounded-md text-[0.6875rem] font-medium bg-gray-100 text-gray-500">+{p.plans.length - 3} {tr('More')}</span>}
                   </div></td>
                   <td className="px-5 py-3.5 text-[0.8125rem]">{rateLines(p).map((r, i) => <div key={i} className="text-gray-700">{r}</div>)}</td>
-                  <td className="px-5 py-3.5 text-gray-700 text-[0.8125rem] whitespace-nowrap">{slotSummary(p)}</td>
+                  <td className="px-5 py-3.5 text-gray-700 text-[0.8125rem]">{slotSummary(p)}</td>
                   <td className="px-5 py-3.5 text-gray-500 text-[0.8125rem]">{validityDisplay(p)}</td>
                   <td className="px-5 py-3.5"><Pill tone={p.active ? 'green' : 'gray'}>{p.active ? tr('Active') : tr('Inactive')}</Pill></td>
                   <td className="px-5 py-3.5">

@@ -6,22 +6,28 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from .. import staff_alerts
 from ..database import get_db
 from ..models import WasteVendor, WasteSale, WasteMaterial
-from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip
-from ..helpers import gen_code, next_code_seq, assert_positive, assert_txn_date_open, validate_pagination, sort_expr, apply_column_filters
+from ..schemas import DonationVoidIn
+from ..security import RequireModule, RequireModuleOrRole, RequireRole, require_admin, log_action, client_ip
+from ..helpers import (gen_code, next_code_seq, assert_positive, assert_txn_date_open, assert_utr, ist_now, ist_today,
+                       validate_pagination, sort_expr, apply_column_filters)
+from ..helpers import ist_paid_day, ist_date_of
+from ..security import ADMIN_ROLES
 
 router = APIRouter(prefix="/api/waste", tags=["waste"])
 # Waste sales is Admin/authorised only — gated behind the "Counter" write capability.
-read = RequireModule("Counter")
+# The Committee verifies / rejects sales, so it may read them even without the Counter module.
+read = RequireModuleOrRole("Counter", roles=("Committee",))
 write = RequireModule("Counter", write=True)
 committee = RequireRole("Committee")
 
 
 @router.get("/stats")
 def stats(db: Session = Depends(get_db), user=Depends(read)):
-    today = date.today()
-    stamp = func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at))
+    today = ist_today()
+    stamp = ist_paid_day(WasteSale.paid_at, WasteSale.created_at)
     total_amount = float(db.query(func.coalesce(func.sum(WasteSale.amount), 0)).filter(WasteSale.status != "Void").scalar() or 0)
     today_amount = float(db.query(func.coalesce(func.sum(WasteSale.amount), 0)).filter(WasteSale.status != "Void", stamp == today).scalar() or 0)
     today_txns = db.query(func.count(WasteSale.id)).filter(stamp == today).scalar() or 0
@@ -90,7 +96,7 @@ def _vendor(v: WasteVendor) -> dict:
 def _sale(s: WasteSale) -> dict:
     return {"id": s.id, "code": s.code, "buyer_name": s.vendor_name, "vendor_name": s.vendor_name,
             "mobile": s.mobile, "material": s.material, "unit": s.unit or "Kilogram (kg)",
-            "weight_kg": float(s.weight_kg), "rate": float(s.rate), "amount": float(s.amount),
+            "weight_kg": float(s.weight_kg), "rate": float(s.rate), "amount": float(s.amount), "void_reason": s.void_reason,
             "mode": s.mode, "txn_ref": s.txn_ref,
             "paid_at": s.paid_at.isoformat() if s.paid_at else None,
             "verified_by": s.verified_by, "verification_status": s.verification_status or "Pending",
@@ -210,7 +216,7 @@ def list_sales(q: str = "", material: str = "", mode: str = "",
         query = query.filter(WasteSale.material == material)
     if mode:
         query = query.filter(WasteSale.mode == mode)
-    stamp = func.date(func.coalesce(WasteSale.paid_at, WasteSale.created_at))
+    stamp = ist_paid_day(WasteSale.paid_at, WasteSale.created_at)
     if start:
         query = query.filter(stamp >= start)
     if end:
@@ -254,36 +260,57 @@ def create_sale(body: dict, request: Request, db: Session = Depends(get_db), use
     assert_positive(rate, "Rate")
     # Amount is always weight × rate — never trusted from the client.
     amount = weight * rate
-    year = date.today().year
-    seq = next_code_seq(db, "waste_sale", db.query(func.max(WasteSale.id)).scalar() or 0)
+    mode = body.get("mode") or "Cash"
+    if mode not in ("Cash", "UPI/QR Code"):
+        raise HTTPException(422, "Choose Cash or Online as the payment mode.")
+    # One UTR rule on every bill (6–40 letters / digits, never on two bills) — 2026-11-15
+    ref = assert_utr(db, body.get("txn_ref"), required=True) if mode == "UPI/QR Code" else None
+    # paid_at is the IST clock time. Counter Staff record a sale as it is paid (now); only the
+    # Administrator may enter an earlier time — never the future, never on a closed day.
     paid = body.get("paid_at")
-    paid_dt = datetime.fromisoformat(paid) if paid else None
+    if user.role in ADMIN_ROLES and paid:
+        try:
+            paid_dt = datetime.fromisoformat(str(paid))
+        except ValueError:
+            raise HTTPException(422, "Enter a valid payment date and time.")
+        if paid_dt.date() > ist_today():
+            raise HTTPException(422, "The payment date cannot be in the future.")
+    else:
+        paid_dt = ist_now().replace(microsecond=0)
     assert_txn_date_open(db, paid_dt, label="payment date")
-    mode = body.get("mode", "Cash")
+    year = paid_dt.year
+    seq = next_code_seq(db, "waste_sale", db.query(func.max(WasteSale.id)).scalar() or 0)
     vendor_id = body.get("vendor_id")
     s = WasteSale(code=f"WMS-{year}-{str(seq).zfill(4)}",
                   vendor_id=(int(vendor_id) if vendor_id not in (None, "") else None),
                   vendor_name=body.get("buyer_name") or body.get("vendor_name", "Buyer"),
                   mobile=body.get("mobile"), material=body["material"],
                   unit=body.get("unit", "Kilogram (kg)"), weight_kg=weight, rate=rate, amount=amount,
-                  mode=mode, txn_ref=(body.get("txn_ref") if mode != "Cash" else None),
-                  paid_at=paid_dt, payment_ref=body.get("txn_ref"),
+                  mode=mode, txn_ref=ref, paid_at=paid_dt, payment_ref=ref,
                   verification_status="Pending",
                   status="Paid", created_by=user.username)
     db.add(s); db.commit(); db.refresh(s)
     log_action(db, username=user.username, action="CREATE", entity="WasteSale",
                detail=f"{s.material} {s.weight_kg} ₹{s.amount}", ip=client_ip(request))
+    staff_alerts.other_sale_alert(db, s, "verify", actor=user)      # the Committee
     return _sale(s)
 
 
 @router.delete("/sales/{sid}", status_code=204)
-def delete_sale(sid: int, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+def delete_sale(sid: int, body: DonationVoidIn, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    """Soft-void (Administrator): the reason is mandatory and kept; a closed day stays as closed
+    (2026-11-15). A rejected sale stays in the day's cash until it is voided — the vendor paid."""
     s = db.get(WasteSale, sid)
     if not s:
         raise HTTPException(404, "Sale not found")
-    s.status = "Void"   # soft-void: keep the record, drop it from collections
-    log_action(db, username=user.username, action="UPDATE", entity="WasteSale", detail=f"Voided {s.code}", ip=client_ip(request))
+    if s.status == "Void":
+        raise HTTPException(409, "This sale is already voided.")
+    assert_txn_date_open(db, s.paid_at.date() if s.paid_at else ist_date_of(s.created_at), label="sale date")
+    s.status, s.void_reason = "Void", body.reason   # keep the record, drop it from collections
+    log_action(db, username=user.username, action="UPDATE", entity="WasteSale", detail=f"Voided {s.code} — {body.reason}",
+               ip=client_ip(request))
     db.commit()
+    staff_alerts.mark_entity_read_for_role(db, staff_alerts.COMMITTEE, "WasteSale", s.id)   # nothing left to verify
 
 
 # ── Committee Verification ──────────────────────────────────────────────────
@@ -307,6 +334,7 @@ def verify_sale(sid: int, body: dict, request: Request, db: Session = Depends(ge
     db.commit(); db.refresh(s)
     log_action(db, username=user.username, action="VERIFY", entity="WasteSale",
                detail=f"Verified {s.code} ₹{s.amount}", ip=client_ip(request))
+    staff_alerts.mark_entity_read_for_role(db, staff_alerts.COMMITTEE, "WasteSale", s.id)   # one member decided for all
     return _sale(s)
 
 
@@ -331,4 +359,5 @@ def reject_sale(sid: int, body: dict, request: Request, db: Session = Depends(ge
     db.commit(); db.refresh(s)
     log_action(db, username=user.username, action="REJECT", entity="WasteSale",
                detail=f"Rejected {s.code}: {reason}", ip=client_ip(request))
+    staff_alerts.other_sale_alert(db, s, "rejected", actor=user, reason=reason)   # Counter Staff + Administrator
     return _sale(s)

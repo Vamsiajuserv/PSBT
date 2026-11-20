@@ -119,16 +119,27 @@ function needsTranslation(raw) {
   if (/[\w-]+-\[[^\]]+\]/.test(s)) return false
   // Tailwind class strings: every token is a utility (`-left-8`, `sm:block`,
   // `bg-gold-400/70`) rather than a word someone reads.
-  if (s.split(/\s+/).every((w) => /^-?[a-z]+[\w:/.-]*-[\w.]+(?:\/[\w.]+)?$/.test(w) || /^(?:hidden|block|flex|grid|absolute|relative|truncate)$/.test(w) || /:/.test(w)))
+  if (s.split(/\s+/).every((w) => /^-?[a-z]+[\w:/.-]*-[\w.]+(?:\/[\w.]+)?$/.test(w) || /^(?:hidden|block|flex|grid|absolute|relative|truncate|border)$/.test(w) || /:/.test(w)))
     return false
   return true
 }
 
-// Mirrors t()'s lookup: an exact entry, or a composed "<name> — <shared tail>"
+// Mirrors t()'s lookup: an exact entry, or one of the fallbacks t() applies —
+// stray spaces, the casing staff typed ("rice bags"), a trailing ":"/"*"/"…",
+// a lot count ("Cloth / Vastram × 2"), or a composed "<name> — <shared tail>"
 // where both halves resolve. Without this the audit reports strings the app
 // actually translates fine.
 const hasTelugu = (s) => {
   if (known.has(s)) return true
+  const core = s.trim()
+  if (core !== s) return hasTelugu(core)
+  const titleCase = s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+  const wordsCase = s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase())
+  if (known.has(titleCase) || known.has(wordsCase)) return true
+  const suffix = s.match(/^(.*?)([\s:*…]+)$/)
+  if (suffix && known.has(suffix[1].trim())) return true
+  const count = s.match(/^(.*\S)(\s*×\s*\d+)$/)
+  if (count && known.has(count[1])) return true
   const parts = s.split(' — ')
   return parts.length === 2 && known.has(parts[0]) && known.has(parts[1])
 }
@@ -219,7 +230,9 @@ function looseLiterals(code) {
     // scan can follow. A bare literal in render position is still a finding
     // even when Telugu exists for it.
     const prev = code.slice(Math.max(0, m.index - 24), m.index)
-    if (hasTelugu(text) && /[[,:{=]\s*$|\breturn\s*$/.test(prev)) continue
+    // A `|| 'Fallback'` default is the same case: the variable it lands in is
+    // translated where it renders (`t(activeLabel)`).
+    if (hasTelugu(text) && /[[,:{=]\s*$|\breturn\s*$|\|\|\s*$/.test(prev)) continue
     // A `FOO_TE` twin map keyed the same way as `FOO` supplies the Telugu —
     // the English half is data, not an untranslated string.
     if (/const ([A-Z][A-Z_0-9]*)\s*=/.test(code.slice(0, m.index).split('\n').slice(-400).join('\n'))) {

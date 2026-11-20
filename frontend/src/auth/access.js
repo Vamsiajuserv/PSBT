@@ -42,7 +42,8 @@ export const ACCESS = {
   donations: { module: 'Donations' },
   hundi: { module: 'Hundi' },
   annadanam: { module: 'Annadanam' },
-  'waste-sales': { module: 'Counter' },
+  // The Committee opens Other Sales to verify / reject even without the Counter module
+  'waste-sales': { module: 'Counter', alsoRoles: ['Committee'] },
   auction: { module: 'Auction' },
   reports: { module: 'Reports' },
   analytics: { module: 'Reports' },
@@ -59,6 +60,7 @@ export const ACCESS = {
   'stores/report': { module: 'Stores' },
   'stores/check': { module: 'Stores' },
   'stores/manual': { module: 'Stores' },
+  'stores/bought': { module: 'Stores' },
   'stores/item': { module: 'Stores' },
   // Store Locations: Administrator + Stores Officer (backend: RequireRole(STORES_OFFICER))
   'stores/locations': { roles: ['Stores Officer'] },
@@ -71,11 +73,6 @@ export const ACCESS = {
   'stores/missing': { module: 'Stores' },
   // Purchase Requests (Stores Officer raises, Committee approves, Accountant views) · Valuables
   // Statement (view / print) · Festival Kits (Stores Officer works, Committee views)
-  // Handover: not used by the client for the Stores Officer (removed 2026-11-09) — Committee + Administrator only.
-  'stores/purchase': { module: 'Stores', roles: ['Stores Officer', 'Committee', 'Accountant'] },
-  'stores/valuables': { module: 'Stores', roles: ['Stores Officer', 'Committee', 'Accountant'] },
-  'stores/kits': { module: 'Stores', roles: ['Stores Officer', 'Committee'] },
-  'stores/handover': { module: 'Stores', roles: ['Committee'] },
 
   // ── Poojari workflow screens (Poojari + Administrator) ──
   'my-poojas': { module: 'Bookings', roles: ['Poojari'] },
@@ -86,7 +83,6 @@ export const ACCESS = {
   'poojari-schedule': { adminOnly: true },
   'poojari-master': { adminOnly: true },
   'donation-master': { adminOnly: true },
-  'metal-rates': { adminOnly: true },   // Gold & Silver Rate: the day's rate per gram
   'hundi-items': { adminOnly: true },
   'auction-items': { adminOnly: true },
   vendors: { adminOnly: true },
@@ -99,6 +95,8 @@ export const ACCESS = {
   roles: { adminOnly: true },
   backup: { adminOnly: true },
   notifications: { adminOnly: true },
+  // Alerts (live bell history): every signed-in role sees its own alerts
+  alerts: {},
 }
 
 export function isAdminRole(user) {
@@ -119,6 +117,7 @@ export function canAccessKey(user, key) {
   const rule = ACCESS[key]
   if (!rule) return true
   if (rule.adminOnly) return false
+  if (rule.alsoRoles && rule.alsoRoles.includes(user.role)) return true
   if (rule.excludeRoles && rule.excludeRoles.includes(user.role)) return false
   if (rule.roles && !rule.roles.includes(user.role)) return false
   if (rule.module && !(user.modules || '').split(',').map((m) => m.trim()).includes(rule.module)) return false

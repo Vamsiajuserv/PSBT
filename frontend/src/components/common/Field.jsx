@@ -554,7 +554,7 @@ function TimePanel({ value, onChange }) {
 }
 
 // Shared trigger button for the date/time fields.
-function FieldTrigger({ triggerRef, open, setOpen, disabled, title, className, label, empty, icon: Icon, ariaLabel }) {
+function FieldTrigger({ triggerRef, open, setOpen, disabled, title, className, label, empty, icon: Icon, ariaLabel, display }) {
   return (
     <button
       type="button"
@@ -568,7 +568,7 @@ function FieldTrigger({ triggerRef, open, setOpen, disabled, title, className, l
       onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); setOpen(true) } }}
       className={`input flex items-center justify-between gap-2 text-left disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-transparent ${open ? 'ring-2 ring-gold-400 border-transparent' : ''} ${className}`}
     >
-      <span className={`truncate ${empty ? 'text-gray-400' : 'text-gray-800'}`}>{label}</span>
+      <span className={`truncate ${empty ? 'text-gray-400' : 'text-gray-800'}`}>{display ?? label}</span>
       <Icon size={15} className="shrink-0 text-maroon-700/50" aria-hidden="true" />
     </button>
   )
@@ -589,8 +589,11 @@ export function DateField({ value, onChange, min, max, required = false, disable
 
   return (
     <>
+      {/* A narrow date box (a From / To filter) shows just "Date" instead of a cut-off "Select date" —
+          e.g. Telugu at large text (2026-11-16) */}
       <FieldTrigger triggerRef={triggerRef} open={open} setOpen={setOpen} disabled={disabled} title={title}
-        className={className} empty={!value} label={value ? fmt(value) : ph} icon={CalendarIcon} />
+        className={`${!value && !placeholder ? 'date-ph' : ''} ${className}`} empty={!value} label={value ? fmt(value) : ph} icon={CalendarIcon}
+        display={!value && !placeholder ? <><span className="ph-long">{ph}</span><span className="ph-short">{t('Date')}</span></> : undefined} />
       {required && !disabled && <RequiredProxy value={value ?? ''} onFocus={() => setOpen(true)} />}
       {open && (
         <Popover pos={pos} popRef={popRef}>

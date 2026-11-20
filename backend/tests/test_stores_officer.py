@@ -59,7 +59,6 @@ OFFICER_CAN = [
     (stores.router, "PUT", "/api/stores/locations/{lid}"),
     (consumables.router, "POST", "/api/stores/consumables/use"),
     (consumables.router, "POST", "/api/stores/consumables/use/{uid}/cancel"),
-    (consumables.router, "PUT", "/api/stores/consumables/start-date"),
     (stock_report.router, "POST", "/api/stores/checks"),
     (stock_report.router, "GET", "/api/stores/report"),
     (open_sale.router, "GET", "/api/stores/open-sale"),
@@ -76,6 +75,8 @@ OFFICER_CANNOT = [
     (auction_lots.router, "POST", "/api/auctions/{aid}/sales/{sid}/payment"),
     (misc.hundi_router, "GET", "/api/hundi"),
     (misc.auction_router, "GET", "/api/auctions"),
+    # the consumables start date: Administrator only since 2026-11-15 (it changes every balance)
+    (consumables.router, "PUT", "/api/stores/consumables/start-date"),
 ]
 
 
@@ -97,8 +98,8 @@ class StoresOfficerAccess(unittest.TestCase):
         self.assertEqual(WRITE_MATRIX["Committee"], {"Hundi", "Auction", "Reports"})
         self.assertEqual(WRITE_MATRIX["Accountant"], {"Reports"})
         self.assertEqual(WRITE_MATRIX["Poojari"], {"Bookings"})
-        # Widened guards still admit who they admitted before
-        self.assertTrue(allowed(stores.router, "POST", "/api/stores/items/{iid}/write-off", COUNTER))
+        # Write-off is a request by the Stores Officer / Administrator only since 2026-11-15 (Committee approves)
+        self.assertFalse(allowed(stores.router, "POST", "/api/stores/items/{iid}/write-off", COUNTER))
         # Stock check is Stores Officer + Administrator only (client decision)
         self.assertTrue(allowed(stock_report.router, "POST", "/api/stores/checks", ADMIN))
         for who in (COUNTER, COMMITTEE, ACCOUNTANT):

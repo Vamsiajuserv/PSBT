@@ -92,14 +92,15 @@ export default function Notifications() {
   return (
     <div>
       <div className="mb-1 text-[0.75rem] text-gray-400"><Link to="/admin/settings" className="hover:text-maroon-600"><T>Settings</T></Link> › <span className="text-gray-500"><T>Notifications</T></span></div>
-      <PageTitle title={tr("Notifications")} subtitle={tr("Configure SMS, Email and WhatsApp channels and review delivery history.")} />
+      <PageTitle title={tr("SMS / Email Settings")} subtitle={tr("Configure SMS, Email and WhatsApp channels and review delivery history.")} />
 
       {/* Stats */}
-      <KpiGrid>
-        <StatTile icon={CheckCircle2} color="#059669" bg="bg-emerald-50" title={tr("Delivered")} value={stats ? num(stats.SENT) : '—'} sub={tr("Sent successfully")} />
-        <StatTile icon={XCircle} color="#dc2626" bg="bg-red-50" title={tr("Failed")} value={stats ? num(stats.FAILED) : '—'} sub={tr("Provider errors")} />
-        <StatTile icon={MinusCircle} color="#d97706" bg="bg-amber-50" title={tr("Skipped")} value={stats ? num(stats.SKIPPED) : '—'} sub={tr("No provider / recipient")} />
-        <StatTile icon={Ban} color="#6b7280" bg="bg-gray-100" title={tr("Disabled")} value={stats ? num(stats.DISABLED) : '—'} sub={tr("Channel switched off")} />
+      {/* delivery counts are the status filter of the log below (2026-11-15) */}
+      <KpiGrid variant="chips" label={tr('Messages by status')}>
+        <StatTile icon={CheckCircle2} color="#059669" title={tr("Delivered")} value={stats ? num(stats.SENT) : '—'} sub={tr("Sent successfully")} active={status === 'SENT'} onClick={() => setStatus(status === 'SENT' ? '' : 'SENT')} />
+        <StatTile icon={XCircle} color="#dc2626" title={tr("Failed")} value={stats ? num(stats.FAILED) : '—'} sub={tr("Provider errors")} active={status === 'FAILED'} onClick={() => setStatus(status === 'FAILED' ? '' : 'FAILED')} />
+        <StatTile icon={MinusCircle} color="#d97706" title={tr("Skipped")} value={stats ? num(stats.SKIPPED) : '—'} sub={tr("No provider / recipient")} active={status === 'SKIPPED'} onClick={() => setStatus(status === 'SKIPPED' ? '' : 'SKIPPED')} />
+        <StatTile icon={Ban} color="#6b7280" title={tr("Disabled")} value={stats ? num(stats.DISABLED) : '—'} sub={tr("Channel switched off")} active={status === 'DISABLED'} onClick={() => setStatus(status === 'DISABLED' ? '' : 'DISABLED')} />
       </KpiGrid>
 
       {!anyConfigured && (

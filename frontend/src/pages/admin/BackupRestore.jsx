@@ -93,7 +93,7 @@ export default function BackupRestore() {
       <PageTitle title={tr("Backup & Restore")} subtitle={tr("Back up temple configuration and restore it through a validated, controlled workflow.")}
         actions={<button onClick={createBackup} disabled={busy} className="btn-maroon !py-2.5 disabled:opacity-50">{busy ? <Loader2 size={16} className="animate-spin" /> : <HardDriveDownload size={16} />} {tr('Create Backup')}</button>} />
 
-      <KpiGrid>
+      <KpiGrid variant="note">
         <StatTile icon={Database} color="#8a1c1c" bg="bg-maroon-50" title={tr("Total Backups")} value={stats ? num(stats.total_backups) : '—'} sub={tr("Snapshots taken")} />
         <StatTile icon={RotateCcw} color="#2563eb" bg="bg-blue-50" title={tr("Restores")} value={stats ? num(stats.restores) : '—'} sub={tr("Restore operations")} />
         <StatTile icon={Table2} color="#7c3aed" bg="bg-violet-50" title={tr("Tables")} value={stats ? num(stats.tables) : '—'} sub={tr("Full backup (config + records)")} />

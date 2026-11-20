@@ -26,6 +26,15 @@ def login(username, role):
     return SimpleNamespace(username=username, name=username.title(), role=role)
 
 
+
+def approve_write_off(db, req, item_id, user=None):
+    """2026-11-15: a write-off is a request a Committee member approves (never the requester)."""
+    from types import SimpleNamespace as _NS
+    from app.models import MissingCase
+    from app.routers import stores_issue
+    case = db.query(MissingCase).filter(MissingCase.stock_item_id == item_id, MissingCase.status == "Write-off requested").one()
+    return stores_issue.approve_lost(case.id, req, db, user or _NS(username="committee9", name="Committee9", role="Committee"))
+
 class OpenSaleTests(unittest.TestCase):
     def setUp(self):
         engine = create_engine("sqlite://")
@@ -85,8 +94,12 @@ class OpenSaleTests(unittest.TestCase):
         self.assertEqual((s["amount"], s["price_set_by"]), (150.0, "Committee1"))   # the committee's price, not typed
         self.assertEqual((self.item(2).status, float(self.item(2).sold_amount)), ("Sold", 150.0))
         self.status(409, lambda: osr.sell(2, osr.SellIn(buyer_name="X"), self.req, self.db, self.counter))   # sold
-        with self.assertRaises(ValidationError):
-            osr.SellIn(buyer_name="Raju", mode="UPI/QR Code")                         # online needs a reference
+        # online needs a UTR under the one rule (6–40 letters / digits, never on two bills) — 2026-11-15
+        self.move([4], 300)
+        self.assertIn("UTR", self.status(422, lambda: osr.sell(4, osr.SellIn(buyer_name="Raju", mode="UPI/QR Code"), self.req, self.db, self.counter)))
+        self.status(422, lambda: osr.sell(4, osr.SellIn(buyer_name="Raju", mode="UPI/QR Code", txn_ref="12"), self.req, self.db, self.counter))
+        self.assertIn("OSR-", self.status(409, lambda: osr.sell(4, osr.SellIn(buyer_name="Raju", mode="UPI/QR Code", txn_ref="utr1234567890"),
+                                                                 self.req, self.db, self.counter)))
         with self.assertRaises(ValidationError):
             osr.SellIn(buyer_name="  ")
         # the unbought piece stays on sale at its location
@@ -98,10 +111,16 @@ class OpenSaleTests(unittest.TestCase):
         self.move([1, 4], 200)
         osr.back_to_store(4, self.req, self.db, self.committee)
         self.assertEqual((self.item(4).status, self.item(4).open_sale_price), ("In Store", None))
-        st.write_off(1, st.ReasonIn(reason="Damaged by rain"), self.req, self.db, self.counter)   # counter can mark damaged
+        # 2026-11-15: a priced Open Sale piece is never written off from Open Sale (no sale, no money) —
+        # the Committee takes it back to the store, then a write-off is asked for and approved
+        self.assertIn("in Open Sale", self.status(409, lambda: st.write_off(1, st.ReasonIn(reason="Damaged by rain"), self.req, self.db, self.admin)))
+        osr.back_to_store(1, self.req, self.db, self.committee)
+        st.write_off(1, st.ReasonIn(reason="Damaged by rain"), self.req, self.db, self.admin)
+        self.status(409, lambda: osr.sell(1, osr.SellIn(buyer_name="X"), self.req, self.db, self.counter))
+        approve_write_off(self.db, self.req, 1, self.committee)
         self.assertEqual(self.item(1).status, "Written Off")
         st.write_off(4, st.ReasonIn(reason="Torn at the border"), self.req, self.db, self.admin)
-        self.status(409, lambda: osr.sell(1, osr.SellIn(buyer_name="X"), self.req, self.db, self.counter))
+        self.assertEqual(self.item(4).status, st.WRITEOFF_REQ)
 
     def test_report_and_daily_closing(self):
         self.move([1, 2], 200)
@@ -131,7 +150,7 @@ class OpenSaleTests(unittest.TestCase):
         from app.routers import reports
         self.move([1, 2], price=200)
         osr.sell(1, osr.SellIn(buyer_name="Raju"), self.req, self.db, self.counter)
-        osr.sell(2, osr.SellIn(buyer_name="Sita", mode="UPI/QR Code", txn_ref="UTR1"), self.req, self.db, self.admin)
+        osr.sell(2, osr.SellIn(buyer_name="Sita", mode="UPI/QR Code", txn_ref="UTR000111"), self.req, self.db, self.admin)
         cons = {r["head"]: r for r in reports.generate("Consolidated Summary", TODAY, TODAY, self.db)["rows"]}
         self.assertEqual((cons["Open Sale (Stores)"]["count"], cons["Open Sale (Stores)"]["amount"]), (2, 400.0))
         cash = reports.generate("Daily Cash Collection", TODAY, TODAY, self.db)

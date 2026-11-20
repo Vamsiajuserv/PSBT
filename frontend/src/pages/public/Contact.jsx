@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { api, getErrorMessage } from '../../api/client.js'
 import {
   MapPin, Phone, Mail, Clock, TrainFront, Landmark, CarFront, Send,
   CheckCircle2, User, MessageSquare,
@@ -45,16 +46,11 @@ export default function Contact() {
     e.preventDefault()
     setBusy(true); setError('')
     try {
-      const res = await fetch('/api/public/contact', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d.detail || 'Could not send your message. Please try again.')
-      }
+      // through the API client so the live site reaches the API host (VITE_API_BASE_URL), not itself
+      await api.post('/public/contact', form, { auth: false })
       setDone(true)
     } catch (ex) {
-      setError(ex.message)
+      setError(getErrorMessage(ex, 'Could not send your message. Please try again.'))
     } finally {
       setBusy(false)
     }

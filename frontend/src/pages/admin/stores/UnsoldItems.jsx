@@ -8,11 +8,12 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { useStoresMeta, isCommitteeUser, sourceRef, DeityBadge } from './shared.jsx'
+import { useStoresMeta, isCommitteeUser, sourceRef, DeityBadge, StoresTabs } from './shared.jsx'
 import { StockAuctionDrawer } from '../auction/LotAuction.jsx'
 
 // Creating an auction needs Auction write: Counter Staff, Committee, Administrator
-const canAuction = (user) => ['Admin', 'Administrator', 'Counter Staff', 'Committee'].includes(user?.role)
+// Counter Staff and the Administrator create auctions; the Committee approves them (2026-11-15)
+const canAuction = (user) => ['Admin', 'Administrator', 'Counter Staff'].includes(user?.role)
 
 export default function UnsoldItems() {
   const { user } = useAuth()
@@ -61,6 +62,7 @@ export default function UnsoldItems() {
 
   return (
     <div>
+      <StoresTabs group="sales" />
       <PageTitle title={tr('Unsold Items')} subtitle={tr('Pieces that came back unsold from an auction and are back in store. Tick them and re-auction in one step.')}
         actions={<span className="inline-flex flex-wrap gap-2">
           {isCommitteeUser(user) && <button disabled={!chosen.length} onClick={toOpenSale} className="btn-outline !py-2.5 disabled:opacity-50">

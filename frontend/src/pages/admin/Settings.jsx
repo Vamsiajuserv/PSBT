@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Landmark, Settings as SettingsIcon, Users as UsersIcon, FileText, Shield,
-  ChevronDown, ChevronRight, Save, Upload, CheckCircle2, Info, AlertTriangle, CalendarClock, Plus, X,
+  ChevronDown, ChevronRight, Save, Upload, CheckCircle2, Info, AlertTriangle, CalendarClock, Plus, X, Bell, HandHeart,
 } from 'lucide-react'
 import { PageTitle } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
@@ -54,14 +54,44 @@ const CATS = [
       fields: [{ k: 'receipt_footer_note', label: tr('Footer Note'), type: 'textarea', full: true }] }],
   },
   {
+    key: 'alerts', title: tr('Staff Alerts'), desc: tr('Configure when the bell alerts the Administrator about a donation.'),
+    icon: Bell, color: '#b45309', bg: 'bg-orange-50',
+    subs: [{ key: 'donations', label: tr('Donation Alerts'), subtitle: tr('Medical, gold / silver, material, sponsorship and annadanam donations always alert.'),
+      fields: [{ k: 'alert_big_donation_amount', label: tr('Big Donation Alert (₹)'), type: 'number',
+        hint: tr('A cash donation of this amount or more alerts the Administrator. 0 = no alert.') }] }],
+  },
+  {
+    // 2026-11-15: values the temple may need to change, with plain explanations (no IT team to edit code)
+    key: 'donations', title: tr('Donations & Payments'), desc: tr('UPI, banks, the annadanam rate and the rules the counter follows for donations.'),
+    icon: HandHeart, color: '#047857', bg: 'bg-emerald-50',
+    subs: [
+      { key: 'upi', label: tr('UPI Payments'), subtitle: tr('The QR code shown at Counter Billing and Advance Booking.'),
+        fields: [
+          { k: 'upi_id', label: tr('UPI ID'), hint: tr('Like templename@sbi — devotees pay to this ID when they scan the QR code.') },
+          { k: 'upi_payee_name', label: tr('Payee Name'), hint: tr("The name devotees see in their UPI app before paying.") },
+        ] },
+      { key: 'rules', label: tr('Donation Rules'), subtitle: tr('How the counter records donations and annadanam.'),
+        fields: [
+          { k: 'annadanam_rate', label: tr('Annadanam Rate per Person (₹)'), type: 'number', placeholder: '50',
+            hint: tr('Charged for each person in an annadanam. The counter cannot change it — anything extra is recorded as a separate donation.') },
+          { k: 'donation_backdate_days', label: tr('Days Back for Late Entries'), type: 'number', placeholder: '7',
+            hint: tr("Counter Staff record today's donations only. The Administrator may enter a missed donation up to this many days back. 0 = today only.") },
+          { k: 'donation_confirm_amount', label: tr('Confirm Donations Above (₹)'), type: 'number', placeholder: '100000',
+            hint: tr('A donation above this amount asks the counter "Is the amount right?" before saving — it catches typing mistakes. 0 = never asks.') },
+        ] },
+      { key: 'banks', label: tr('Banks'), subtitle: tr('Banks offered when Hundi cash is deposited.'),
+        fields: [{ k: 'bank_list', label: tr('Bank Names'), type: 'textarea', hint: tr('One bank per line (or separated by commas).') }] },
+    ],
+  },
+  {
     key: 'booking', title: tr('Pooja Booking Settings'), desc: tr('Configure pooja time slots and how far ahead poojas can be booked.'),
     icon: CalendarClock, color: '#be185d', bg: 'bg-pink-50',
     subs: [{ key: 'rules', label: tr('Booking Rules'), subtitle: tr('Time slots offered in Advance Booking and the advance booking window.'),
       fields: [
         { k: 'pooja_time_slots', label: tr('Pooja Time Slots'), type: 'slots', full: true,
           hint: tr("Offered in Advance Booking. Today's slots are hidden once they end.") },
-        { k: 'advance_booking_max_days', label: tr('Maximum Days Ahead'), type: 'number',
-          hint: tr('How many days ahead a pooja can be booked. Leave blank for no limit.') },
+        { k: 'advance_booking_max_days', label: tr('Maximum Days Ahead'), type: 'number', placeholder: '90',
+          hint: tr('How many days ahead a pooja can be booked. Leave blank for the default of 90 days.') },
       ] }],
   },
   {
@@ -240,7 +270,7 @@ export default function Settings() {
                   ) : f.type === 'slots' ? (
                     <SlotsEditor value={data[f.k] || ''} onChange={(v) => set(f.k, v)} />
                   ) : f.type === 'number' ? (
-                    <input className="input" inputMode="numeric" placeholder={tr('No limit')} value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value.replace(/\D/g, ''))} />
+                    <input className="input" inputMode="numeric" placeholder={f.placeholder || tr('No limit')} value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value.replace(/\D/g, ''))} />
                   ) : f.type === 'select' ? (
                     <Select className="input" value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)}>{f.options.map((o) => <option key={o} value={o}>{tr(o)}</option>)}</Select>
                   ) : (

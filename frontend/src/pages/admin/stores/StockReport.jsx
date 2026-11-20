@@ -5,7 +5,7 @@ import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { DateField } from '../../../components/common/Field.jsx'
 import ExportButtons from '../../../components/common/ExportButtons.jsx'
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
-import { staffName, sourceRef, sourceSplit } from './shared.jsx'
+import { staffName, sourceRef, sourceSplit, StoresTabs } from './shared.jsx'
 
 const ist = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const monthStart = () => { const t = ist(new Date()); return `${t.slice(0, 8)}01` }
@@ -77,6 +77,7 @@ export default function StockReport() {
 
   return (
     <div>
+      <StoresTabs group="reports" />
       <PageTitle title={tr('Stock Report')} subtitle={tr('What came in, what went out and what is left, for any period. Closing = Opening + Received − Sold − Used / Written off.')}
         actions={data && <ExportButtons title={`${tr('Stock Report')} ${period}`} columns={exportCols} rows={exportRows} />} />
       <form onSubmit={(e) => { e.preventDefault(); load() }} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-wrap gap-3 items-end mb-5">
@@ -96,10 +97,23 @@ export default function StockReport() {
                 <div className="text-[0.75rem] text-gray-500"><T>Click an item type to see the pieces, auctions, buyers and donors behind its numbers.</T></div></div>
               <div className="text-[0.8125rem] text-gray-600">{tr('Value in store')}: <b>{inr(data.totals.value_in_store)}</b> · {tr('Realised')}: <b>{inr(data.totals.realised)}</b></div>
             </div>
+            {/* 15 figures fit at desktop width: headings wrap, grouped under what they describe */}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm tabular-nums">
-                <Head cols={[[tr('Item type')], [tr('Opening'), 1], [tr('Received'), 1], [tr('Sold'), 1], [tr('Written Off'), 1], [tr('Closing'), 1],
-                  [tr('Awaiting Placement'), 1], [tr('In Store'), 1], [tr('Issued'), 1], [tr('Missing'), 1], [tr('In Auction'), 1], [tr('In Open Sale'), 1], [tr('Unsold (returned)'), 1], [tr('Value in store (₹)'), 1], [tr('Realised (₹)'), 1]]} />
+              <table className="w-full min-w-[50rem] text-sm tabular-nums [&_td]:!px-1.5">
+                <thead>
+                  <tr className="bg-gray-50 text-[0.625rem] uppercase tracking-wider text-gray-500 [&>th]:px-2 [&>th]:pt-2 [&>th]:font-bold">
+                    <th />
+                    <th colSpan={5} className="text-center border-l border-gray-200">{tr('This period')}</th>
+                    <th colSpan={7} className="text-center border-l border-gray-200">{tr('Where it is now')}</th>
+                    <th colSpan={2} className="text-center border-l border-gray-200">{tr('Value')}</th>
+                  </tr>
+                  <tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700 [&>th]:px-1.5 [&>th]:py-2 [&>th]:font-semibold [&>th]:leading-tight [&>th]:align-bottom">
+                    {[[tr('Item type')], [tr('Opening'), 1, 1], [tr('Received'), 1], [tr('Sold'), 1], [tr('Written Off'), 1], [tr('Closing'), 1],
+                      [tr('Awaiting Placement'), 1, 1], [tr('In Store'), 1], [tr('Issued'), 1], [tr('Missing'), 1], [tr('In Auction'), 1], [tr('In Open Sale'), 1], [tr('Unsold (returned)'), 1],
+                      [tr('Value in store (₹)'), 1, 1], [tr('Realised (₹)'), 1]].map(([l, right, edge], i) => (
+                      <th key={i} className={`${right ? 'text-right' : ''} ${edge ? 'border-l border-gray-200' : ''}`}>{l}</th>))}
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-gray-100">
                   {data.tagged.map((r) => (
                     <React.Fragment key={r.category_id}>

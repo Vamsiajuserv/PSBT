@@ -1,7 +1,7 @@
 """Consumables received split by source — Donated / Purchased / Opening & other — on the
 Consumables screen, its ledger and batches, the Stock Report and Stores Day Closing. The
-balance itself stays one per item (rice is rice). Purchases are what a Purchase Request
-marked received adds (plus any "Temple purchase" manual entry). Run from backend/:
+balance itself stays one per item (rice is rice). Purchases are items bought with a shop bill
+(a Manual Entry with source Temple purchase and its bill). Run from backend/:
     python -m unittest discover -s tests -t .
 """
 import unittest
@@ -18,7 +18,6 @@ from app.routers import consumables as c
 from app.routers import stock_report as sr
 from app.routers import stores as s
 from app.routers import stores_day as sd
-from app.routers import stores_purchase as sp
 
 TODAY = ist_today()
 
@@ -43,17 +42,14 @@ class ConsumablesSourceSplit(unittest.TestCase):
                      fund="Rice", amount=0, quantity=200, unit="Kg", mode="-", donated_on=TODAY),
         ])
         self.db.commit()
-        # opening count (Opening & other) and a hand-entered temple purchase, both verified
-        for qty, src in ((30, "Opening balance (physical count)"), (5, "Temple purchase")):
-            m = s.create_manual(s.ManualIn(category_id=1, quantity=qty, source=src, reason="Counted in Store Room B"),
-                                self.req, self.db, self.officer)
-            s.verify_manual(m["id"], self.req, self.db, self.committee)
-        # a Purchase Request bought and received: 50 kg for ₹3,000
-        pr = sp.raise_request(sp.RaiseIn(category_id=1, quantity=50, approx_cost=3000, reason="Running low for annadanam"),
-                              self.req, self.db, self.officer)
-        sp.approve(pr["id"], sp.NoteIn(note=None), self.req, self.db, self.committee)
-        sp.mark_received(pr["id"], sp.ReceiveIn(quantity=50, bill_no="B-77", bill_amount=Decimal("3000")),
-                         self.req, self.db, self.officer)
+        # opening count (Opening & other), verified by the Committee
+        m = s.create_manual(s.ManualIn(category_id=1, quantity=30, source="Opening balance (physical count)",
+                                       reason="Counted in Store Room B"), self.req, self.db, self.officer)
+        s.verify_manual(m["id"], self.req, self.db, self.committee)
+        # two bills from the shop: 5 kg (no amount written) and 50 kg for ₹3,000
+        for qty, bill, amt in ((5, "B-76", None), (50, "B-77", Decimal("3000"))):
+            s.create_manual(s.ManualIn(category_id=1, quantity=qty, source="Temple purchase", shop_name="Sri Rama Stores",
+                                       bill_no=bill, bill_date=TODAY, bill_amount=amt), self.req, self.db, self.officer)
         c.record_use(c.UseIn(category_id=1, quantity=40, purpose="Annadanam", used_on=TODAY), self.req, self.db, self.officer)
 
     def tearDown(self):
@@ -66,7 +62,7 @@ class ConsumablesSourceSplit(unittest.TestCase):
         b = self.rice()
         self.assertEqual((b["received_donations"], b["received_purchased"], b["received_other"]), (200, 55, 30))
         self.assertEqual((b["received_manual"], b["received"], b["used"], b["remaining"]), (85, 285, 40, 245))
-        self.assertEqual(b["purchased_amount"], 3000.0)                 # bills of Purchase Requests received
+        self.assertEqual(b["purchased_amount"], 3000.0)                 # amounts on the shop bills
         led = c.ledger(1, self.db, self.officer)
         self.assertEqual(led["received_purchased"], 55)                  # same figures as the screen
         self.assertEqual(led["purchased_amount"], 3000.0)
@@ -80,9 +76,9 @@ class ConsumablesSourceSplit(unittest.TestCase):
         self.assertEqual(sorted(b["source"] for b in rows), ["Donated", "Opening & other", "Purchased", "Purchased"])
 
     def test_pending_or_rejected_entries_are_not_counted(self):
-        s.create_manual(s.ManualIn(category_id=1, quantity=999, source="Temple purchase", reason="Not checked yet"),
+        s.create_manual(s.ManualIn(category_id=1, quantity=999, source="Old stock in store", reason="Not checked yet"),
                         self.req, self.db, self.officer)
-        self.assertEqual(self.rice()["received_purchased"], 55)
+        self.assertEqual((self.rice()["received_purchased"], self.rice()["received_other"]), (55, 30))
 
     def test_stock_report_splits_received_in_the_period(self):
         rep = sr.stock_report(TODAY - timedelta(days=1), TODAY + timedelta(days=1), self.db, self.officer)

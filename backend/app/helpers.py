@@ -42,6 +42,44 @@ def fmt_ist_datetime(dt: datetime | None, fmt: str = "%d %b %Y %I:%M %p") -> str
     return ist_dt.strftime(fmt)
 
 
+# ── The temple's day in SQL (2026-11-15) ────────────────────────────────────
+# The database runs on UTC: created_at / sold_at / audit ts (server_default now()) are UTC, so
+# func.date(created_at) put anything entered between 00:00 and 05:30 IST on the day before — in Daily
+# Closing, reports and the dashboard. ist_day(col) is the IST calendar day of such a UTC timestamp.
+# A paid_at typed / set as IST clock time (annadanam, other sales) is already IST: ist_paid_day().
+from sqlalchemy.ext.compiler import compiles as _compiles
+from sqlalchemy.sql.expression import FunctionElement as _FunctionElement
+from sqlalchemy.types import Date as _Date
+
+
+class ist_day(_FunctionElement):
+    """SQL: the IST calendar day of a UTC timestamp column."""
+    type = _Date()
+    name = "ist_day"
+    inherit_cache = True
+
+
+@_compiles(ist_day)
+def _ist_day_pg(element, compiler, **kw):
+    return "DATE(%s + INTERVAL '330 minutes')" % compiler.process(element.clauses, **kw)
+
+
+@_compiles(ist_day, "sqlite")
+def _ist_day_sqlite(element, compiler, **kw):
+    return "DATE(%s, '+330 minutes')" % compiler.process(element.clauses, **kw)
+
+
+def ist_paid_day(paid_col, created_col):
+    """The IST day of a payment: paid_at is IST clock time already; else created_at (UTC)."""
+    from sqlalchemy import func as _func
+    return _func.coalesce(_func.date(paid_col), ist_day(created_col))
+
+
+def ist_date_of(dt):
+    """Python: a stored UTC timestamp → the IST calendar day."""
+    return (dt + timedelta(hours=5, minutes=30)).date() if dt else None
+
+
 def ist_now() -> datetime:
     """Current wall-clock time in India (naive), whatever timezone the server runs in."""
     return datetime.now(IST_OFFSET).replace(tzinfo=None)
@@ -174,10 +212,42 @@ def assert_txn_date_open(db: Session, d, *, allow_future=False, label="date") ->
         return
     if isinstance(d, datetime):
         d = d.date()
-    if not allow_future and d > _date.today():
+    if not allow_future and d > ist_today():   # the temple's day (server clock is UTC on Azure)
         raise HTTPException(422, f"The {label} cannot be in the future.")
     if day_is_closed(db, d):
         raise HTTPException(409, f"{d} has been closed in Daily Closing — no further entries can be recorded for that day.")
+
+
+def assert_utr(db: Session, utr, *, required: bool) -> str | None:
+    """One rule for a UPI transaction reference (UTR) on every bill — pooja bookings, donations,
+    annadanam (2026-11-15): 6–40 letters and digits, and never recorded on two bills (a
+    cancelled / voided bill frees it). Returns the cleaned UTR, or None when none was given."""
+    utr = (utr or "").strip()
+    if not utr:
+        if required:
+            raise HTTPException(422, "Enter the UPI transaction ID (UTR) for an online payment.")
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9]{6,40}", utr):
+        raise HTTPException(422, "The UTR must be 6–40 letters and digits.")
+    from sqlalchemy import func
+    from .models import Annadanam, Auction, AuctionSale, Booking, Donation, OpenSale, WasteSale
+    key = utr.upper()
+    hits = (
+        db.query(func.coalesce(Booking.ticket_no, Booking.booking_code))
+          .filter(func.upper(Booking.payment_ref) == key, Booking.status != "Cancelled").first(),
+        db.query(Donation.receipt_no).filter(func.upper(Donation.txn_ref) == key, Donation.voided.isnot(True)).first(),
+        db.query(Annadanam.code).filter(func.upper(Annadanam.txn_ref) == key, Annadanam.voided.isnot(True)).first(),
+        db.query(func.coalesce(Auction.receipt_no, Auction.code))
+          .filter(func.upper(Auction.payment_ref) == key, Auction.status != "Void").first(),
+        db.query(AuctionSale.receipt_no).filter(func.upper(AuctionSale.payment_ref) == key, AuctionSale.payment_status == "Paid").first(),
+        # Stores Open Sale and Other (scrap) sales — the same rule (Stores audit, 2026-11-15)
+        db.query(OpenSale.receipt_no).filter(func.upper(OpenSale.payment_ref) == key).first(),
+        db.query(WasteSale.code).filter(func.upper(WasteSale.payment_ref) == key, WasteSale.status != "Void").first(),
+    )
+    used = next((h[0] for h in hits if h), None)
+    if used:
+        raise HTTPException(409, f"This UTR is already recorded against {used} — one online payment cannot pay for two bills.")
+    return utr
 
 
 def assert_positive(amount, label="Amount") -> None:

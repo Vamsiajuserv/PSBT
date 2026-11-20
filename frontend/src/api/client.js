@@ -192,7 +192,7 @@ export const api = {
   get: (p) => request(p),
   post: (p, body, opts) => request(p, { method: 'POST', body, ...opts }),
   put: (p, body) => request(p, { method: 'PUT', body }),
-  del: (p) => request(p, { method: 'DELETE' }),
+  del: (p, body) => request(p, body === undefined ? { method: 'DELETE' } : { method: 'DELETE', body }),
 }
 
 // ── Endpoint helpers ────────────────────────────────────────────────────────
@@ -243,6 +243,8 @@ export const PaymentsAPI = {
 export const BookingsAPI = {
   list: (params = {}) => api.get('/bookings' + qs(params)),
   slotOptions: (params = {}) => api.get('/bookings/slot-options' + qs(params)),
+  // Half-hour pooja lists a booking of this pooja time can go on (auto = the one it gets now)
+  batchOptions: (params = {}) => api.get('/bookings/batch-options' + qs(params)),
   stats: () => api.get('/bookings/stats'),
   create: (b) => api.post('/bookings', b),
   // Optimized endpoint: combines create + payment in single call (for Counter)
@@ -263,7 +265,8 @@ export const DonationsAPI = {
   list: (params = {}) => api.get('/donations' + qs(params)),
   stats: () => api.get('/donations/stats'),
   create: (b) => api.post('/donations', b),
-  remove: (id) => api.del(`/donations/${id}`),
+  // Administrator only: soft-void with a mandatory reason (kept on the record + audit trail)
+  void: (id, reason) => api.del(`/donations/${id}`, { reason }),
 }
 
 export const PoojaHistoryAPI = {
@@ -281,14 +284,6 @@ export const DonationCategoriesAPI = {
   reset: () => api.post('/donation-categories/reset'),
 }
 
-// Gold & Silver Rate: the day's rate per gram (Admin enters) and the purity table
-export const MetalRatesAPI = {
-  day: (day) => api.get('/metal-rates/day' + (day ? `?day=${day}` : '')),
-  history: (limit = 60) => api.get(`/metal-rates?limit=${limit}`),
-  setRate: (b) => api.post('/metal-rates', b),
-  setPurities: (b) => api.put('/metal-rates/purities', b),
-}
-
 export const HundiAPI = {
   list: (params = {}) => api.get('/hundi' + qs(params)),
   stats: () => api.get('/hundi/stats'),
@@ -296,8 +291,11 @@ export const HundiAPI = {
   verify: (id) => api.put(`/hundi/${id}/verify`),
   reject: (id, b) => api.put(`/hundi/${id}/reject`, b),
   deposit: (id, b) => api.put(`/hundi/${id}/deposit`, b),
+  depositAccount: () => api.get('/hundi/deposit-account'),   // Settings → Bank Details, masked
   store: (id, b) => api.put(`/hundi/${id}/store`, b),
   resubmit: (id, b) => api.put(`/hundi/${id}/resubmit`, b),
+  void: (id, reason) => api.del(`/hundi/${id}`, { reason }),   // Administrator, before verification
+  setup: () => api.get('/hundi/setup'),                        // linked committee logins, store locations
 }
 export const AuctionAPI = {
   list: (params = {}) => api.get('/auctions' + qs(params)),
@@ -307,12 +305,17 @@ export const AuctionAPI = {
   remove: (id) => api.del(`/auctions/${id}`),
   verify: (id) => api.post(`/auctions/${id}/verify`),
   reject: (id, reason) => api.post(`/auctions/${id}/reject`, { reason }),
+  approve: (id, b) => api.post(`/auctions/${id}/approve`, b),        // committee, before the auction
+  decline: (id, reason) => api.post(`/auctions/${id}/decline`, { reason }),
+  resubmit: (id, b) => api.post(`/auctions/${id}/resubmit`, b),
   payment: (id, b) => api.post(`/auctions/${id}/payment`, b),
   edit: (id, b) => api.put(`/auctions/${id}/edit`, b),
   reauction: (id, b) => api.post(`/auctions/${id}/reauction`, b),
   createStock: (b) => api.post('/auctions/stock', b),
   lotResult: (id, b) => api.put(`/auctions/${id}/lot-result`, b),
   salePayment: (id, sid, b) => api.post(`/auctions/${id}/sales/${sid}/payment`, b),
+  notPaid: (id, reason) => api.post(`/auctions/${id}/not-paid`, { reason }),          // Administrator
+  saleNotPaid: (id, sid, reason) => api.post(`/auctions/${id}/sales/${sid}/not-paid`, { reason }),
 }
 
 // Stores & Inventory — tagged pieces, locations, manual entries
@@ -335,6 +338,7 @@ export const StoresAPI = {
   source: (type, id) => api.get(`/stores/source/${type}/${id}`),
   tag: (b) => api.post('/stores/tag', b),
   items: (params = {}) => api.get('/stores/items' + qs(params)),
+  itemsByType: (params = {}) => api.get('/stores/items/by-type' + qs(params)),   // Stock Register "By item"
   summary: (params = {}) => api.get('/stores/summary' + qs(params)),
   activity: (limit = 10) => api.get('/stores/activity' + qs({ limit })),
   item: (key) => api.get(`/stores/items/${encodeURIComponent(key)}`),
@@ -388,41 +392,16 @@ export const StoresAPI = {
   useSlip: (id) => api.get(`/stores/consumables/use/${id}`),
   cancelUse: (id, reason) => api.post(`/stores/consumables/use/${id}/cancel`, { reason }),
   setConsumablesStart: (start_date) => api.put('/stores/consumables/start-date', { start_date }),
+  // Physical count (2026-11-15): a shortage waits for a committee member
+  countStock: (cid, b) => api.post(`/stores/consumables/${cid}/count`, b),
+  countPending: () => api.get('/stores/consumables/count/pending'),
+  approveShortage: (id) => api.post(`/stores/consumables/use/${id}/approve`),
+  rejectShortage: (id, reason) => api.post(`/stores/consumables/use/${id}/reject`, { reason }),
   // Batches & expiry (consumables)
   batches: (params = {}) => api.get('/stores/consumables/batches' + qs(params)),
   expiryCount: () => api.get('/stores/consumables/expiry/count'),
   setBatchExpiry: (kind, id, expiry_date) => api.put(`/stores/consumables/batches/${kind}/${id}/expiry`, { expiry_date }),
   writeOffExpired: (cid, b) => api.post(`/stores/consumables/${cid}/write-off-expired`, b),
-  // Purchase requests
-  purchases: (params = {}) => api.get('/stores/purchase' + qs(params)),
-  purchaseCount: () => api.get('/stores/purchase/count'),
-  raisePurchase: (b) => api.post('/stores/purchase', b),
-  approvePurchase: (id, note) => api.post(`/stores/purchase/${id}/approve`, { note }),
-  rejectPurchase: (id, reason) => api.post(`/stores/purchase/${id}/reject`, { reason }),
-  cancelPurchase: (id, reason) => api.post(`/stores/purchase/${id}/cancel`, { reason }),
-  receivePurchase: (id, b) => api.post(`/stores/purchase/${id}/receive`, b),
-  reviewPurchase: (id, note) => api.post(`/stores/purchase/${id}/review`, { note }),
-  purchaseBill: (id) => api.get(`/stores/purchase/${id}/bill`),
-  addPurchaseBill: (id, b) => api.post(`/stores/purchase/${id}/bill`, b),
-  // Festival kits
-  kits: () => api.get('/stores/kits'),
-  kitsIssued: (params = {}) => api.get('/stores/kits/issued' + qs(params)),
-  kitsOut: () => api.get('/stores/kits/count'),
-  createKit: (b) => api.post('/stores/kits', b),
-  updateKit: (id, b) => api.put(`/stores/kits/${id}`, b),
-  removeKit: (id) => api.del(`/stores/kits/${id}`),
-  issueKit: (id, b) => api.post(`/stores/kits/${id}/issue`, b),
-  // Handover
-  handoverMeta: () => api.get('/stores/handover/meta'),
-  handoverPreview: () => api.get('/stores/handover/preview'),
-  handovers: () => api.get('/stores/handover'),
-  handover: (id) => api.get(`/stores/handover/${id}`),
-  startHandover: (b) => api.post('/stores/handover', b),
-  countHandover: (id, lines) => api.put(`/stores/handover/${id}/count`, { lines }),
-  signHandover: (id) => api.post(`/stores/handover/${id}/sign`),
-  cancelHandover: (id, reason) => api.post(`/stores/handover/${id}/cancel`, { reason }),
-  // Valuables statement (gold / silver, monthly)
-  valuables: (month) => api.get('/stores/valuables' + qs({ month })),
 }
 
 export const RefundsAPI = {
@@ -433,6 +412,7 @@ export const AnnadanamAPI = {
   list: (params = {}) => api.get('/annadanam' + qs(params)),
   stats: () => api.get('/annadanam/stats'),
   create: (b) => api.post('/annadanam', b),
+  void: (id, reason) => api.del(`/annadanam/${id}`, { reason }),   // Administrator, with a reason
 }
 
 export const UsersAPI = {
@@ -464,6 +444,9 @@ export const PoojarisAPI = {
   schedule: (day) => api.get('/poojaris/schedule' + qs({ day })),
   queue: (params = {}) => api.get('/poojaris/queue' + qs(params)),
   hourly: (params = {}) => api.get('/poojaris/hourly' + qs(params)),
+  // Print & Send a half-hour list to the poojari (Counter Staff / Admin); Undo is Admin only
+  sendSlot: (slot, day) => api.post('/poojaris/slots/send', { slot, day }),
+  undoSlot: (slot, day) => api.post('/poojaris/slots/undo', { slot, day }),
   completeDue: (body = {}) => api.post('/poojaris/queue/complete-due', body),
   assign: (booking_id, poojari_id) => api.post('/poojaris/assign', { booking_id, poojari_id }),
   setPerformer: (booking_id, performed_on, poojari_id) => api.post('/poojaris/performer', { booking_id, performed_on, poojari_id }),
@@ -601,4 +584,39 @@ function qs(params) {
     Object.entries(params).filter(([, v]) => v !== '' && v !== undefined && v !== null),
   ).toString()
   return s ? `?${s}` : ''
+}
+
+// ── Staff alerts (header bell) — live over Server-Sent Events ──
+// The stream is read with fetch() (not EventSource) so the normal login header goes with it.
+export const AlertsAPI = {
+  list: (limit = 30) => api.get(`/alerts?limit=${limit}`),
+  read: (ids = null, category = null) => api.post('/alerts/read', { ids, category }),
+  page: (p = {}) => api.get('/alerts/page' + qs(p)),
+  /** Open the live stream; calls onEvent(name, data) per event. Resolves when the stream ends
+   *  (server closes / network drop / signal aborted); rejects with ApiError(401) when logged out. */
+  async stream({ after, signal, onEvent }) {
+    const headers = { Accept: 'text/event-stream' }
+    if (getToken()) headers.Authorization = `Bearer ${getToken()}`
+    const res = await fetch(`${API_BASE}/alerts/stream${after != null ? `?after=${after}` : ''}`,
+      { headers, credentials: 'include', signal, cache: 'no-store' })
+    if (!res.ok || !res.body) throw new ApiError(res.status, `stream ${res.status}`)
+    const reader = res.body.getReader()
+    const dec = new TextDecoder()
+    let buf = ''
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) return
+      buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+      let i
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const block = buf.slice(0, i); buf = buf.slice(i + 2)
+        let name = 'message'; const data = []
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) name = line.slice(6).trim()
+          else if (line.startsWith('data:')) data.push(line.slice(5).trimStart())
+        }
+        if (data.length) { try { onEvent(name, JSON.parse(data.join('\n'))) } catch { /* bad event */ } }
+      }
+    }
+  },
 }

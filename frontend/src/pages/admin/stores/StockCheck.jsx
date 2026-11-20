@@ -7,7 +7,7 @@ import { useAuth } from '../../../auth/AuthContext.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { useStoresMeta, staffName, sourceRef } from './shared.jsx'
+import { useStoresMeta, staffName, sourceRef, StoresTabs } from './shared.jsx'
 
 // Who may record a check (backend: Counter Staff, Committee, Stores Officer, Administrator)
 const canCheck = (user) => ['Admin', 'Administrator', 'Stores Officer'].includes(user?.role)
@@ -54,6 +54,7 @@ export default function StockCheck() {
 
   return (
     <div>
+      <StoresTabs group="check" />
       <PageTitle title={tr('Stock Check')} subtitle={tr('Physically verify a store location: tick every sticker you find. Pieces not found are recorded as missing for follow-up.')} />
       <div className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-5">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm">

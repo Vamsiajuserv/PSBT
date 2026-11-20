@@ -24,7 +24,7 @@ from ..helpers import ist_today
 from ..models import DonationCategory, ManualStockEntry, StoreLocation, StoresDayClosing
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip, STORES_OFFICER
 from .stock_report import _piece_histories, _quantity_rows
-from .stores import (PLACED, TAGGED_UNPLACED, ACT_ISSUED, ACT_RETURNED, ACT_MISSING, ACT_FOUND, _who, pending_count,
+from .stores import (PLACED, TAGGED_UNPLACED, ACT_ISSUED, ACT_KEPT, ACT_RETURNED, ACT_MISSING, ACT_FOUND, _who, pending_count,
                      receive_counts, donation_codes)
 
 router = APIRouter(prefix="/api/stores/day-closing", tags=["stores-day-closing"])
@@ -63,6 +63,8 @@ def next_state(state: str | None, action: str) -> str | None:
     if action == "Sold (Open Sale)" and state == "open":
         return "sold"
     if action == "Written off" and state in ("awaiting", "store", "auction", "open", "missing"):
+        return "out"
+    if action == ACT_KEPT and state == "issued":       # kept by the poojari: leaves stock
         return "out"
     if action == "Back to store" and state in ("sold", "auction", "open"):
         return "store"
@@ -138,7 +140,10 @@ def build_day(db: Session, day: date, user=None) -> dict:
                 if new == "sold" and state != "sold" and action in SOLD_ACTIONS:
                     kpis["sold"] += 1
                 if new == "out" and state != "out":
-                    kpis["written_off"] += 1
+                    if action == ACT_KEPT:      # kept by the poojari after use — its own figure (2026-11-15);
+                        kpis["kept"] = kpis.get("kept", 0) + 1   # only on days that had one, so older
+                    else:                                        # signed closings stay unchanged
+                        kpis["written_off"] += 1
                 if action == ACT_ISSUED and new == "issued" and state != "issued":
                     kpis["issued"] += 1
                 if action == ACT_RETURNED and state == "issued":

@@ -25,7 +25,7 @@ from ..models import (ConsumableUse, Donation, DonationCategory, ManualStockEntr
                       StockMovement, StoreLocation)
 from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
 from .consumables import SRC_DONATED, SRC_OTHER, SRC_PURCHASED, manual_source, _start as consumables_start
-from .stores import (ON_SHELF, PLACED, TAGGED_UNPLACED, ACT_ISSUED, ACT_RETURNED, ACT_MISSING, ACT_FOUND, MISSING, _who,
+from .stores import (ON_SHELF, PLACED, TAGGED_UNPLACED, ACT_ISSUED, ACT_KEPT, ACT_RETURNED, ACT_MISSING, ACT_FOUND, MISSING, _who,
                      donation_codes)
 
 router = APIRouter(prefix="/api/stores", tags=["stock-report"])
@@ -85,7 +85,8 @@ def _replay(evs: list[tuple], start: date, end: date) -> dict:
             state = "sold"
             if inp:
                 r["sold"] += 1; r["sold_open"] += 1; r["sold_ev"] = (day, detail)
-        elif action == "Written off" and state in ("awaiting", "store", "auction", "open", "missing"):
+        elif (action == "Written off" and state in ("awaiting", "store", "auction", "open", "missing")) or \
+                (action == ACT_KEPT and state == "issued"):
             state = "out"
             if inp:
                 r["out"] += 1; r["out_ev"] = (day, detail, by)
@@ -312,7 +313,11 @@ def record_check(body: CheckIn, request: Request, db: Session = Depends(get_db),
     exp_ids = {i.id for i in expected}
     # Someone moved a piece in or out while the check was going on: the list on screen is stale,
     # and saving would wrongly call a piece missing (or skip one).
-    if body.listed_ids and set(body.listed_ids) != exp_ids:
+    # The list shown on screen must come with the check — without it nothing proves what was looked
+    # for, and every unticked piece would be marked Missing (2026-11-15)
+    if not body.listed_ids:
+        raise HTTPException(422, "Reload the list of pieces at this location and check again.")
+    if set(body.listed_ids) != exp_ids:
         raise HTTPException(409, "Pieces were moved at this location during the check — reload the list and check again.")
     stray = set(body.found_ids) - exp_ids
     if stray:

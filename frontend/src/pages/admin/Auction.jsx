@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import {
   Plus, X, Eye, Search, RotateCcw, Info, Trash2,
-  Gavel, CalendarClock, Users, CheckCircle2, User, ShieldCheck,
-  XCircle, Banknote, Receipt, Printer, ArrowUp, ArrowDown, ChevronsUpDown, Pencil, PackageX, Boxes,
+  Gavel, CalendarClock, Users, CheckCircle2, User,
+  XCircle, Banknote, Receipt, Printer, ArrowUp, ArrowDown, ChevronsUpDown, Pencil, PackageX, Boxes, Send, Hourglass,
 } from 'lucide-react'
 import { StockAuctionDrawer, LotResultModal, LotBuyersModal, saleAsPayable, tagRange, lotPaidCount } from './auction/LotAuction.jsx'
-import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
-import { AuctionAPI, AuctionItemsAPI, DevoteesAPI, getErrorMessage } from '../../api/client.js'
+import { PageTitle, StatTile, KpiGrid, FilterPanel, Pill, Pager, inr, num, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
+import { AuctionAPI, AuctionItemsAPI, DevoteesAPI, SettingsAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
@@ -24,6 +24,13 @@ const RESULT_STATES = ['Completed', 'Unsold']
 // Stored payment mode → what staff call it
 const modeLabel = (m) => (m === 'UPI/QR Code' ? 'Online' : m || '')
 const VERIFY_TONE = { Pending: 'gray', Verified: 'green', Rejected: 'red' }
+// Committee approval BEFORE the auction (one member; they may change the base price)
+const APPROVAL_TONE = { Pending: 'amber', Approved: 'green', Rejected: 'red' }
+const approvalLabel = (s) => (s === 'Pending' ? 'Waiting for committee' : s)
+// The base price as staff set it: per piece for a lot auction
+const baseOf = (a) => Number(a.from_stock ? a.pieces?.[0]?.base_price : a.base_amount) || 0
+const askedOf = (a) => (a.requested_base == null ? null
+  : Number(a.requested_base) / (a.from_stock && a.pieces?.length ? a.pieces.length : 1))
 const PAYMENT_TONE = { Pending: 'amber', 'Partially Paid': 'blue', Paid: 'green' }
 
 // Sortable columns configuration with filtering support
@@ -33,7 +40,10 @@ const SORT_COLUMNS = [
   { key: 'current_amount', label: 'Highest Bid', type: 'number' },
   { key: 'status', label: 'Status', type: 'text', filterable: true, filterOptions: ['Scheduled', 'In Progress', 'Completed', 'Unsold'] },
 ]
-const todayISO = () => new Date().toISOString().slice(0, 10)
+// Temple day (IST), not the browser's UTC date
+const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+const addDaysISO = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
+const UTR_OK = (v) => /^[A-Za-z0-9]{6,40}$/.test((v || '').trim())
 // Stored form ("09:00 AM") — always English, whatever the screen language;
 // clock12() localises it for display.
 const to12h = (t) => {
@@ -60,15 +70,27 @@ export default function Auction() {
   const isAdmin = ['Admin', 'Administrator'].includes(user?.role)
   const isCommittee = user?.role === 'Committee'
   // Matches the backend (WRITE_MATRIX): Counter Staff and Committee run auctions — create,
-  // record result, re-auction. Payment is Counter Staff only. Only the Committee approves or rejects a
-  // result, and only the Administrator edits details.
+  // record result, re-auction. Payment is Counter Staff only. One Committee member approves (or
+  // rejects) the auction before it is held; the result needs no second approval. Only the
+  // Administrator edits details.
   const canWrite = ['Admin', 'Administrator', 'Committee', 'Counter Staff'].includes(user?.role)
+  // New auctions (from Stock only), resubmit and re-auction: Counter Staff and the Administrator —
+  // the Committee approves them (2026-11-15)
+  const canCreate = isAdmin || user?.role === 'Counter Staff'
+  // Auctions are planned up to the Advance Booking window ahead (Settings)
+  const [maxDays, setMaxDays] = useState(90)
+  useEffect(() => { SettingsAPI.config().then((c) => { if (Number.isInteger(c?.advance_booking_max_days)) setMaxDays(c.advance_booking_max_days) }).catch(() => {}) }, [])
+  const maxDate = addDaysISO(todayISO(), maxDays)
   const canSeeAmounts = ['Admin', 'Administrator', 'Committee', 'Accountant', 'Counter Staff'].includes(user?.role)
   // Payment is collected at the counter — not by the Committee, which approves the result
   const canCollect = isAdmin || user?.role === 'Counter Staff'
-  // The person who created the auction or recorded its result cannot approve it (maker-checker)
+  // Results recorded before the approve-first rule may still wait for the committee (old records only)
   const canDecide = (a) => isCommittee && RESULT_STATES.includes(a.status) && a.verification_status === 'Pending'
     && a.payment_status !== 'Paid' && ![a.created_by, a.result_by].includes(user?.username)
+  // Approve / reject the auction before it is held — never the person who created it (maker-checker)
+  const canApprove = (a) => (isCommittee || isAdmin) && a.approval_status === 'Pending' && a.status !== 'Void'
+    && a.created_by !== user?.username
+  const isApproved = (a) => (a.approval_status || 'Approved') === 'Approved'
   const SIZE = 15
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -88,10 +110,10 @@ export default function Auction() {
 
   // filters - persisted in URL for state preservation across navigation
   const {
-    q, setQ, status, setStatus, verification, setVerification,
+    q, setQ, status, setStatus, verification, approval, setApproval,
     payment, setPayment, start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
-    q: '', status: '', verification: '', payment: '', start: '', end: '', page: 1,
+    q: '', status: '', verification: '', approval: '', payment: '', start: '', end: '', page: 1,
   })
   const [saving, setSaving] = useState(false)
 
@@ -123,6 +145,13 @@ export default function Auction() {
     else setListTrigger((t) => t + 1)
   }, [sorts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
   const displayRows = filteredSortedRows
+  // Status chips (2026-11-15): one click lists just those auctions (the status / approval / payment filter)
+  const chip = approval === 'Pending' ? 'approval' : payment === 'Paid' ? 'paid' : status
+  const pickChip = (k) => {
+    setFilters({ q, start, end, verification: '', status: ['approval', 'paid'].includes(k) ? '' : k,
+      approval: k === 'approval' ? 'Pending' : '', payment: k === 'paid' ? 'Paid' : '', page: 1 })
+    setReloadTrigger((t) => t + 1)
+  }
 
   // Fetch ALL filtered records for export when date filter is applied
   const fetchAllFiltered = useCallback(async () => {
@@ -132,7 +161,7 @@ export default function Auction() {
     }
     setLoadingExport(true)
     try {
-      const d = await AuctionAPI.list({ q, status, verification, payment, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+      const d = await AuctionAPI.list({ q, status, verification, approval, payment, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
       const items = d.items || []
       // Sort by date ascending (oldest first)
       items.sort((a, b) => (a.auction_date || '').localeCompare(b.auction_date || ''))
@@ -143,14 +172,14 @@ export default function Auction() {
     } finally {
       setLoadingExport(false)
     }
-  }, [q, status, verification, payment, start, end])
+  }, [q, status, verification, approval, payment, start, end])
 
   // Fetch all data for export ONLY when Apply button is clicked (reloadTrigger changes)
   // User must click Apply to filter - no auto-fetch on date change
   useEffect(() => {
     if (start || end) {
       setLoadingExport(true)
-      AuctionAPI.list({ q, status, verification, payment, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
+      AuctionAPI.list({ q, status, verification, approval, payment, start, end, page: 1, size: 10000, col_filters: filtersToParam(filters) })
         .then((d) => {
           const items = d.items || []
           items.sort((a, b) => (a.auction_date || '').localeCompare(b.auction_date || ''))
@@ -194,7 +223,7 @@ export default function Auction() {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        AuctionAPI.list({ q, status, verification, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'auction_date', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
+        AuctionAPI.list({ q, status, verification, approval, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'auction_date', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
         AuctionAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -204,7 +233,7 @@ export default function Auction() {
     } finally {
       setLoading(false)
     }
-  }, [q, status, verification, payment, start, end, page, sorts, filters])
+  }, [q, status, verification, approval, payment, start, end, page, sorts, filters])
   // Load on initial mount, page changes, or reload trigger
   useEffect(() => { load() }, [page, reloadTrigger, listTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -215,6 +244,10 @@ export default function Auction() {
     // Prevent scheduling auctions for past dates (an edit may keep an existing past date)
     if (d.mode !== 'edit' && d.auction_date && d.auction_date < todayISO()) {
       toast(tr('Auction date cannot be in the past. Please select today or a future date.'), 'error')
+      return
+    }
+    if (d.mode !== 'edit' && d.auction_date > maxDate) {
+      toast(tr('An auction can be planned at most {days} days ahead.').replace('{days}', maxDays), 'error')
       return
     }
     if (d.mode === 'edit' && (d.reason || '').trim().length < 5) {
@@ -229,7 +262,7 @@ export default function Auction() {
           auction_date: d.auction_date, start_time: to12h(d.start_time),
           base_amount: Number(d.base_amount) || null, notes: d.notes || null,
         })
-        toast(`${tr('Re-auction scheduled')}: ${r.code}`)
+        toast(`${tr('Re-auction scheduled')}: ${r.code} — ${tr('sent to the committee for approval.')}`)
       } else if (d.mode === 'edit') {
         // Send only what changed; the server records old → new with the reason
         const o = d.orig
@@ -247,7 +280,7 @@ export default function Auction() {
         const body = Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== prev[k]))
         if (!Object.keys(body).length) { toast(tr('Nothing was changed.'), 'error'); return }
         const r = await AuctionAPI.edit(o.id, { ...body, reason: d.reason.trim() })
-        toast(r.verification_status === 'Pending' && o.verification_status === 'Verified'
+        toast(r.approval_status === 'Pending' && o.approval_status === 'Approved'
           ? tr('Auction updated — sent back for committee approval.') : tr('Auction updated.'))
       } else {
         await AuctionAPI.create({
@@ -258,6 +291,7 @@ export default function Auction() {
           auction_date: d.auction_date || null, start_time: to12h(d.start_time) || null,
           notes: d.notes || null, status: 'Scheduled',
         })
+        toast(tr('Auction created — sent to the committee for approval.'))
       }
       setDrawer(null); setDq(''); load()
     } catch (ex) {
@@ -280,11 +314,12 @@ export default function Auction() {
     auction_date: todayISO(), start_time: to24h(a.start_time),   // pre-filled; staff adjust as needed
   })
 
-  // Record the result: bids so far, Sold (winner + amount) or Unsold. Sold / Unsold go to the committee.
+  // Record the result: bids so far, Sold (winner + amount) or Unsold — final (no second approval),
+  // correctable until payment.
   function recordResult(a) {
     if (a.from_stock) { setLotResult(a); return }
     setResultModal({ a, outcome: a.status === 'Unsold' ? 'Unsold' : 'Completed',
-      amount: String(Number(a.current_amount || a.base_amount || 0)), bids: String(a.bids ?? 0), winner: a.winner || '' })
+      amount: String(Number(a.current_amount || a.base_amount || 0)), bids: String(a.bids ?? 0), winner: a.winner || '', mobile: a.winner_mobile || '' })
   }
   async function submitResult(e) {
     e.preventDefault()
@@ -293,20 +328,101 @@ export default function Auction() {
       toast(tr('Cannot record results for future auctions. Please wait until the auction date.'), 'error')
       return
     }
+    if (m.outcome === 'Completed' && !/^\d{10}$/.test(m.mobile || '')) {
+      toast(tr("Enter the winner's 10-digit mobile number."), 'error')
+      return
+    }
     try {
       await AuctionAPI.update(a.id, m.outcome === 'Unsold'
         ? { status: 'Unsold', bids: Number(m.bids) || 0 }
-        : { status: m.outcome, bids: Number(m.bids) || 0, current_amount: Number(m.amount) || 0, winner: m.winner.trim() || null })
-      toast(m.outcome === 'In Progress' ? tr('Bid recorded.') : tr('Result recorded — sent to the committee for approval.'))
+        : { status: m.outcome, bids: Number(m.bids) || 0, current_amount: Number(m.amount) || 0, winner: m.winner.trim() || null,
+            ...(m.outcome === 'Completed' ? { winner_mobile: m.mobile } : {}) })
+      toast(m.outcome === 'In Progress' ? tr('Bid recorded.') : tr('Result recorded.'))
       setResultModal(null); load()
     } catch (ex) {
       toast(errText(ex, 'Could not record the auction result.'), 'error')
     }
   }
+  // Administrator: the winner never paid — the sale is cancelled (kept in notes and history) and the
+  // item becomes Unsold, ready to re-auction
+  async function winnerDidNotPay(a) {
+    const res = await promptDialog({
+      title: `${tr('Winner did not pay')} — ${tr(a.item)}`, confirmLabel: tr('Mark not paid'), tone: 'danger',
+      message: `${personName({ name: a.winner }, lang)}${a.winner_mobile ? ` (${a.winner_mobile})` : ''} · ${inr(a.current_amount)}. ${tr('The sale is cancelled and kept on record; the item becomes Unsold and can be re-auctioned.')}`,
+      fields: [{ k: 'reason', label: tr('Reason'), required: true, note: tr('At least 5 characters. Kept in the auction history.') }],
+    })
+    if (!res) return
+    try {
+      await AuctionAPI.notPaid(a.id, res.reason)
+      toast(tr('Marked as not paid — the item is Unsold.'))
+      load()
+    } catch (ex) { toast(errText(ex, 'Could not mark the auction as not paid.'), 'error') }
+  }
   async function remove(a) { if (await confirmDialog({ title: `${tr('Delete auction')} "${tr(a.item)}"?`, message: tr('It will be marked Void and excluded from totals.'), tone: 'danger', confirmLabel: tr('Delete') })) { await AuctionAPI.remove(a.id); toast(tr('Auction voided.')); load() } }
   const setM = (patch) => setDrawer((d) => ({ ...d, ...patch }))
 
-  // Committee verify auction
+  // Committee approves the auction before it is held — optionally with a new base price
+  async function approveAuction(a) {
+    const res = await promptDialog({
+      title: `${tr('Approve Auction')} — ${tr(a.item)}`,
+      message: `${a.code} · ${fmtDate(a.auction_date)} ${clock12(a.start_time || '')}`,
+      confirmLabel: tr('Approve'),
+      fields: [
+        { k: 'base', label: a.from_stock ? tr('Base price per piece (₹)') : tr('Base Price (₹)'), type: 'number', prefix: '₹',
+          required: true, defaultValue: String(baseOf(a)), note: tr('Change it if the base price should be higher — the new amount is shown on the auction.') },
+        { k: 'note', label: tr('Note (Optional)') },
+      ],
+    })
+    if (!res) return
+    const base = Number(res.base)
+    if (!(base > 0)) { toast(tr('Enter a base price above zero.'), 'error'); return }
+    try {
+      const r = await AuctionAPI.approve(a.id, { base_amount: base === baseOf(a) ? null : base, note: (res.note || '').trim() || null })
+      toast(r.requested_base != null
+        ? `${tr('Auction approved with the new base price')} ${inr(baseOf(r))}.` : tr('Auction approved.'))
+      load()
+    } catch (ex) {
+      toast(errText(ex, 'Could not approve the auction.'), 'error')
+    }
+  }
+  async function declineAuction(a) {
+    const res = await promptDialog({
+      title: `${tr('Reject Auction')} — ${tr(a.item)}`,
+      confirmLabel: tr('Reject'),
+      fields: [{ k: 'reason', label: tr('Rejection Reason'), required: true, note: tr('Counter staff and the administrator see this reason.') }],
+    })
+    if (!res) return
+    try {
+      await AuctionAPI.decline(a.id, res.reason)
+      toast(tr('Auction rejected.'))
+      load()
+    } catch (ex) {
+      toast(errText(ex, 'Could not reject the auction.'), 'error')
+    }
+  }
+  // A rejected auction: correct the base price / date and send it back to the committee
+  async function resubmitAuction(a) {
+    const res = await promptDialog({
+      title: `${tr('Resubmit for Approval')} — ${tr(a.item)}`,
+      message: a.approval_note ? `${tr('Rejected')}: ${tr(a.approval_note)}` : undefined,
+      confirmLabel: tr('Resubmit'),
+      fields: [
+        { k: 'base', label: a.from_stock ? tr('Base price per piece (₹)') : tr('Base Price (₹)'), type: 'number', prefix: '₹', required: true, defaultValue: String(baseOf(a)) },
+        { k: 'date', label: tr('Auction Date'), type: 'date', required: true, defaultValue: a.auction_date || todayISO() },
+        { k: 'note', label: tr('What was changed?'), required: true },
+      ],
+    })
+    if (!res) return
+    try {
+      await AuctionAPI.resubmit(a.id, { base_amount: Number(res.base) || null, auction_date: res.date || null, note: res.note.trim() })
+      toast(tr('Sent back to the committee for approval.'))
+      load()
+    } catch (ex) {
+      toast(errText(ex, 'Could not resubmit the auction.'), 'error')
+    }
+  }
+
+  // Committee approves an OLD result (recorded before the approve-first rule)
   async function verifyAuction(a) {
     const ok = await confirmDialog({
       title: `${tr('Approve Result')} — ${tr(a.item)}`,
@@ -358,12 +474,12 @@ export default function Auction() {
 
   async function submitPayment(e) {
     e.preventDefault()
-    if (payMode === 'UPI/QR Code' && !payRef.trim()) {
-      toast(tr('Transaction reference is required for online payments.'), 'error')
+    if (payMode === 'UPI/QR Code' && !UTR_OK(payRef)) {
+      toast(tr('The UTR must be 6–40 letters and digits.'), 'error')
       return
     }
     try {
-      const body = { mode: payMode, txn_ref: payRef.trim() }
+      const body = { mode: payMode, txn_ref: payMode === 'UPI/QR Code' ? payRef.trim() : '' }
       if (paymentModal.saleId) {
         // Lot auction: this buyer only; the receipt shows their pieces
         const au = await AuctionAPI.salePayment(paymentModal.id, paymentModal.saleId, body)
@@ -390,7 +506,7 @@ export default function Auction() {
   const ALL_EXPORT_COLS = [{ key: 'code', label: tr('Auction ID') }, { key: 'item', label: tr('Item') }, { key: 'auction_date', label: tr('Date') },
     { key: 'base_amount', label: tr('Base (₹)'), type: 'money' }, { key: 'current_amount', label: tr('Highest Bid (₹)'), type: 'money' },
     { key: 'winner', label: tr('Winner') }, { key: 'status', label: tr('Status') },
-    { key: 'verification_status', label: tr('Verification') }, { key: 'verified_by', label: tr('Verified By') },
+    { key: 'approval_status', label: tr('Committee Approval') }, { key: 'approved_by', label: tr('Approved By') },
     { key: 'payment_status', label: tr('Payment') }, { key: 'payment_mode_label', label: tr('Payment Mode') },
     { key: 'payment_ref', label: tr('Transaction Ref') }, { key: 'receipt_no', label: tr('Receipt No') }]
   // Hide money columns for non-finance roles
@@ -406,22 +522,24 @@ export default function Auction() {
   return (
     <div>
       <PageTitle title={tr("Auction Management")} subtitle={tr("Record temple auctions and their winning devotees.")}
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Auction Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <><button onClick={() => setStockDrawer(true)} className="btn-outline !py-2.5"><Boxes size={16} />{' '}<T>Auction from Stock</T></button><button onClick={() => { setDrawer(emptyForm()); setDq('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Create New Auction</T></button></> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Auction Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canCreate ? <button onClick={() => setStockDrawer(true)} className="btn-maroon !py-2.5"><Boxes size={16} />{' '}<T>Auction from Stock</T></button> : !canWrite && <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       {(
-        <KpiGrid>
-          <StatTile icon={Gavel} color="#d97706" bg="bg-amber-50" title={tr("Total Auctions")} value={stats ? num(stats.total) : '—'} sub={tr("All Time")} />
-          <StatTile icon={CalendarClock} color="#ea580c" bg="bg-orange-50" title={tr("Scheduled")} value={stats ? num(stats.scheduled) : '—'} sub={tr("Yet to Start")} />
-          <StatTile icon={Users} color="#7c3aed" bg="bg-violet-50" title={tr("In Progress")} value={stats ? num(stats.in_progress) : '—'} sub={tr("Active Now")} />
-          <StatTile icon={CheckCircle2} color="#3b82f6" bg="bg-blue-50" title={tr("Sold")} value={stats ? num(stats.completed) : '—'} sub={tr("Result Recorded")} />
-          <StatTile icon={PackageX} color="#ea580c" bg="bg-orange-50" title={tr("Unsold")} value={stats ? num(stats.unsold) : '—'} sub={tr("No valid bid")} />
-          <StatTile icon={ShieldCheck} color="#059669" bg="bg-emerald-50" title={tr("Verified")} value={stats ? num(stats.verified) : '—'} sub={tr("Committee Approved")} />
-          <StatTile icon={Banknote} color="#16a34a" bg="bg-green-50" title={tr("Payment Collected")} value={stats ? num(stats.paid) : '—'} sub={tr("Receipts Issued")} />
+        // Status counts are the status filter (2026-11-15): click one to list just those
+        <KpiGrid variant="chips" label={tr('Auctions by status')}>
+          <StatTile icon={Gavel} color="#d97706" title={tr("All")} value={stats ? num(stats.total) : '—'} sub={tr("All Time")} active={chip === ''} onClick={() => pickChip('')} />
+          <StatTile icon={CalendarClock} color="#ea580c" title={tr("Scheduled")} value={stats ? num(stats.scheduled) : '—'} sub={tr("Yet to Start")} active={chip === 'Scheduled'} onClick={() => pickChip('Scheduled')} />
+          <StatTile icon={Users} color="#7c3aed" title={tr("In Progress")} value={stats ? num(stats.in_progress) : '—'} sub={tr("Active Now")} active={chip === 'In Progress'} onClick={() => pickChip('In Progress')} />
+          <StatTile icon={Hourglass} color="#b45309" title={tr("Waiting Approval")} value={stats ? num(stats.pending_approval) : '—'} sub={tr("Committee to approve")} active={chip === 'approval'} onClick={() => pickChip('approval')} />
+          <StatTile icon={CheckCircle2} color="#3b82f6" title={tr("Sold")} value={stats ? num(stats.completed) : '—'} sub={tr("Result Recorded")} active={chip === 'Completed'} onClick={() => pickChip('Completed')} />
+          <StatTile icon={PackageX} color="#ea580c" title={tr("Unsold")} value={stats ? num(stats.unsold) : '—'} sub={tr("No valid bid")} active={chip === 'Unsold'} onClick={() => pickChip('Unsold')} />
+          <StatTile icon={Banknote} color="#16a34a" title={tr("Payment Collected")} value={stats ? num(stats.paid) : '—'} sub={tr("Receipts Issued")} active={chip === 'paid'} onClick={() => pickChip('paid')} />
         </KpiGrid>
       )}
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-5 flex flex-wrap items-end gap-3">
+        <FilterPanel active={[q, start, end, approval, payment].filter(Boolean).length}>
+        <div className="px-5 py-4 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[10rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search by Auction ID / Item / Winner</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -436,20 +554,17 @@ export default function Auction() {
             <DateField value={end} onChange={(e) => setEnd(e.target.value)} min={start} className="input" />
           </div>
           <div className="w-[8rem]">
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Status</T></label>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Scheduled">{tr("Scheduled")}</option><option value="In Progress">{tr("In Progress")}</option><option value="Completed">{tr("Sold")}</option><option value="Unsold">{tr("Unsold")}</option></Select>
-          </div>
-          <div className="w-[8rem]">
-            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Verification</T></label>
-            <Select value={verification} onChange={(e) => setVerification(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Pending">{tr("Pending")}</option><option value="Verified">{tr("Verified")}</option><option value="Rejected">{tr("Rejected")}</option></Select>
+            <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Committee Approval</T></label>
+            <Select value={approval} onChange={(e) => setApproval(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Pending">{tr("Waiting for committee")}</option><option value="Approved">{tr("Approved")}</option><option value="Rejected">{tr("Rejected")}</option></Select>
           </div>
           <div className="w-[8rem]">
             <label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Payment</T></label>
             <Select value={payment} onChange={(e) => setPayment(e.target.value)} className="input"><option value="">{tr("All")}</option><option value="Pending">{tr("Pending")}</option><option value="Partially Paid">{tr("Partially Paid")}</option><option value="Paid">{tr("Paid")}</option></Select>
           </div>
           <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
-          <button onClick={() => { setFilters({ q: '', status: '', verification: '', payment: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
+          <button onClick={() => { setFilters({ q: '', status: '', verification: '', approval: '', payment: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
         </div>
+        </FilterPanel>
         <SortFilterPanel
           sorts={sorts}
           filters={filters}
@@ -540,7 +655,7 @@ export default function Auction() {
                   </th>
                 )
               })()}
-              <th className="px-2.5 py-3 font-semibold whitespace-nowrap">{tr('Verification')}</th>
+              <th className="px-2.5 py-3 font-semibold whitespace-nowrap">{tr('Committee Approval')}</th>
               <th className="px-2.5 py-3 font-semibold whitespace-nowrap">{tr('Payment')}</th>
               <th className="px-2.5 py-3 font-semibold whitespace-nowrap">{tr('Actions')}</th>
             </tr></thead>
@@ -558,9 +673,19 @@ export default function Auction() {
                   <td className="px-2.5 py-3 text-gray-600">{a.winner ? personName({ name: a.winner }, lang) : <span className="text-gray-300">—</span>}</td>
                   <td className="px-2.5 py-3"><Pill tone={STATUS_TONE[a.status] || 'gray'}>{tr(statusLabel(a.status))}</Pill></td>
                   <td className="px-2.5 py-3">
-                    {RESULT_STATES.includes(a.status)
-                      ? <Pill tone={VERIFY_TONE[a.verification_status] || 'gray'}>{tr(a.verification_status)}</Pill>
-                      : <span className="text-gray-300">—</span>}
+                    <Pill tone={APPROVAL_TONE[a.approval_status] || 'gray'}>{tr(approvalLabel(a.approval_status || 'Approved'))}</Pill>
+                    {canSeeAmounts && (
+                      <div className="text-[0.6875rem] text-gray-600 mt-1 whitespace-nowrap">
+                        {tr('Base')} {inr(baseOf(a))}{a.from_stock ? ` ${tr('each')}` : ''}
+                        {askedOf(a) != null && <span className="text-amber-700"> · {tr('asked')} <s>{inr(askedOf(a))}</s></span>}
+                      </div>
+                    )}
+                    {a.approval_status === 'Rejected' && a.approval_note && (
+                      <div className="text-[0.6875rem] text-red-600 mt-0.5 max-w-[11rem] truncate" title={a.approval_note}>{tr(a.approval_note)}</div>
+                    )}
+                    {RESULT_STATES.includes(a.status) && a.verification_status !== 'Verified' && (
+                      <div className="mt-1"><Pill tone={VERIFY_TONE[a.verification_status] || 'gray'}>{tr('Result')}: {tr(a.verification_status)}</Pill></div>
+                    )}
                   </td>
                   <td className="px-2.5 py-3">
                     {a.from_stock && a.status === 'Completed' && a.verification_status === 'Verified' ? (
@@ -581,8 +706,15 @@ export default function Auction() {
                     {/* Icon-only actions (tooltip names each one) so the column stays narrow */}
                     <div className="flex items-center gap-1.5 flex-nowrap">
                       <IconAction onClick={() => setView(a)} label={tr("View details")} icon={Eye} tone="border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300" />
-                      {canWrite && a.payment_status !== 'Paid' && (['Scheduled', 'In Progress'].includes(a.status)
-                        || (RESULT_STATES.includes(a.status) && a.verification_status !== 'Verified')) && (
+                      {canApprove(a) && (<>
+                        <IconAction onClick={() => approveAuction(a)} label={tr("Approve auction")} icon={CheckCircle2} tone="border-emerald-200 text-emerald-700 hover:bg-emerald-50" />
+                        <IconAction onClick={() => declineAuction(a)} label={tr("Reject auction")} icon={XCircle} tone="border-red-200 text-red-600 hover:bg-red-50" />
+                      </>)}
+                      {canCreate && a.approval_status === 'Rejected' && a.status !== 'Void' && (
+                        <IconAction onClick={() => resubmitAuction(a)} label={tr("Correct and resubmit")} icon={Send} tone="border-amber-300 text-amber-700 hover:bg-amber-50" />
+                      )}
+                      {canWrite && isApproved(a) && a.payment_status === 'Pending' && !a.reauctioned_to
+                        && (['Scheduled', 'In Progress'].includes(a.status) || (RESULT_STATES.includes(a.status) && a.verification_status !== 'Pending')) && (
                         <IconAction onClick={() => recordResult(a)} label={RESULT_STATES.includes(a.status) ? tr("Correct result") : tr("Record result")} icon={Gavel} tone="border-violet-200 text-violet-700 hover:bg-violet-50" />
                       )}
                       {canDecide(a) && (<>
@@ -598,8 +730,11 @@ export default function Auction() {
                       {!a.from_stock && a.payment_status === 'Paid' && (
                         <IconAction onClick={() => setReceipt(a)} label={tr("Print receipt")} icon={Receipt} tone="border-blue-200 text-blue-700 hover:bg-blue-50" />
                       )}
-                      {canWrite && a.status === 'Unsold' && a.verification_status === 'Verified' && !a.reauctioned_to && (
+                      {canCreate && a.status === 'Unsold' && a.verification_status === 'Verified' && !a.reauctioned_to && (
                         <IconAction onClick={() => openReauction(a)} label={tr("Re-auction this item")} icon={RotateCcw} tone="border-orange-200 text-orange-700 hover:bg-orange-50" />
+                      )}
+                      {isAdmin && !a.from_stock && a.status === 'Completed' && a.payment_status === 'Pending' && (
+                        <IconAction onClick={() => winnerDidNotPay(a)} label={tr("Winner did not pay")} icon={PackageX} tone="border-red-200 text-red-600 hover:bg-red-50" />
                       )}
                       {isAdmin && a.status !== 'Void' && a.payment_status !== 'Paid' && (<>
                         <IconAction onClick={() => openEdit(a)} label={tr("Edit details")} icon={Pencil} tone="border-amber-300 text-amber-700 hover:bg-amber-50" />
@@ -619,7 +754,7 @@ export default function Auction() {
       </div>
 
       <div className="mt-4 flex items-start gap-2 text-[0.8125rem] text-gray-600 bg-blue-50/60 border border-blue-100 rounded-lg px-4 py-3">
-        <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Auction workflow: Create auction → Record result (Sold or Unsold) → Committee approves or rejects → Sold: collect payment and print receipt · Unsold: re-auction the item. Only the administrator can edit details, before payment.</T>
+        <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Auction workflow: Auction from Stock (Counter Staff) → one committee member approves it (and may raise the base price) or rejects it → Record result (Sold with the winner's mobile, or Unsold; correct it until payment) → Sold: collect payment and print receipt · Unsold: re-auction the item (approved again). If a winner does not pay, the administrator marks it — the item goes back for auction. Only the administrator can edit details, before payment.</T>
       </div>
 
       {/* ── Create New Auction drawer ── */}
@@ -692,16 +827,14 @@ export default function Auction() {
                   </>)}
                   <div><label className="label"><T>No. of Bidders</T></label>
                     <NumberField min="0" step="1" value={drawer.bids} onChange={(e) => setM({ bids: e.target.value })} /></div>
-                  {drawer.orig.verification_status === 'Verified' && (
-                    <div className="text-[0.6875rem] text-violet-800"><T>Changing the winner, amount or bidders sends the result back to the committee for approval.</T></div>
-                  )}
+
                 </div>
               )}
               <div><label className="label"><T>Description (Optional)</T></label>
                 <textarea className="input min-h-[5.625rem]" maxLength={250} placeholder={tr("Enter description…")} value={drawer.description} onChange={(e) => setM({ description: e.target.value })} />
                 <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{drawer.description.length} / 250</div></div>
               <div><label className="label"><T>Auction Date *</T></label>
-                <DateField required min={drawer.mode === 'edit' ? undefined : todayISO()} value={drawer.auction_date} onChange={(e) => setM({ auction_date: e.target.value })} /></div>
+                <DateField required min={drawer.mode === 'edit' ? undefined : todayISO()} max={drawer.mode === 'edit' ? undefined : maxDate} value={drawer.auction_date} onChange={(e) => setM({ auction_date: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="label"><T>Start Time *</T></label>
                   <TimeField required value={drawer.start_time} onChange={(e) => setM({ start_time: e.target.value })} /></div>
@@ -757,8 +890,20 @@ export default function Auction() {
                   ))}</span>} />}
                 {view.from_stock && view.sales.length > 0 && <VField label={tr('Buyers')} wide value={view.sales.map((x) => `${staffName(x.buyer_name)}: ${inr(x.amount)} (${tr(x.payment_status)})`).join(' · ')} />}
               </div>
-              {/* Verification Section */}
-              {RESULT_STATES.includes(view.status) && (
+              {/* Committee approval (before the auction) */}
+              <div className="border-t border-gray-100 pt-4 mt-4">
+                <h4 className="text-[0.8125rem] font-semibold text-gray-700 mb-3"><T>Committee Approval</T></h4>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                  <VField label={tr("Status")} value={<Pill tone={APPROVAL_TONE[view.approval_status] || 'gray'}>{tr(approvalLabel(view.approval_status || 'Approved'))}</Pill>} />
+                  {canSeeAmounts && <VField label={view.from_stock ? tr('Base price per piece') : tr('Base Price')} value={inr(baseOf(view))} />}
+                  {canSeeAmounts && askedOf(view) != null && <VField label={tr('Asked by counter')} value={<s>{inr(askedOf(view))}</s>} />}
+                  {view.approved_by && <VField label={view.approval_status === 'Rejected' ? tr('Rejected By') : tr('Approved By')} value={staffName(view.approved_by)} />}
+                  {view.approved_at && <VField label={tr('Date & Time')} value={fmtStamp(view.approved_at)} />}
+                  {view.approval_note && <VField label={view.approval_status === 'Rejected' ? tr('Rejection Reason') : tr('Note')} value={tr(view.approval_note)} wide />}
+                </div>
+              </div>
+              {/* Old results that still wait for the committee */}
+              {RESULT_STATES.includes(view.status) && view.verification_status !== 'Verified' && (
                 <div className="border-t border-gray-100 pt-4 mt-4">
                   <h4 className="text-[0.8125rem] font-semibold text-gray-700 mb-3"><T>Committee Verification</T></h4>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-4">
@@ -809,7 +954,8 @@ export default function Auction() {
 
       {stockDrawer && <StockAuctionDrawer onClose={() => setStockDrawer(false)} onCreated={() => { setStockDrawer(false); load() }} />}
       {lotResult && <LotResultModal auction={lotResult} onClose={() => setLotResult(null)} onSaved={() => { setLotResult(null); load() }} />}
-      {lotBuyers && <LotBuyersModal auction={lotBuyers} canCollect={canCollect} onClose={() => setLotBuyers(null)}
+      {lotBuyers && <LotBuyersModal auction={lotBuyers} canCollect={canCollect} isAdmin={isAdmin} onClose={() => setLotBuyers(null)}
+        onChanged={(au) => { setLotBuyers(au); load() }}
         onCollect={(p) => { setPayMode('Cash'); setPayRef(''); setPaymentModal(p) }} onReceipt={(p) => { setLotBuyers(null); setReceipt(p) }} />}
 
       {/* ── Record Result Modal ── */}
@@ -847,12 +993,14 @@ export default function Auction() {
                     <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('Base amount ₹{amount} — the bid cannot be below it.').replace('{amount}', Number(m.a.base_amount).toLocaleString('en-IN'))}</div></div>
                   <div><label className="label">{m.outcome === 'Completed' ? <T>Winning Bidder *</T> : <T>Highest Bidder</T>}</label>
                     <input required={m.outcome === 'Completed'} className="input" value={m.winner} onChange={(e) => set({ winner: sanitizeName(e.target.value) })} placeholder={tr("Enter Winner / Highest Bidder Name")} /></div>
+                  {m.outcome === 'Completed' && (
+                    <div><label className="label"><T>Winner's Mobile *</T></label>
+                      <input required inputMode="numeric" maxLength={10} pattern="\d{10}" className="input" value={m.mobile} onChange={(e) => set({ mobile: e.target.value.replace(/\D/g, '') })} placeholder={tr('10-digit mobile')} />
+                      <div className="text-[0.6875rem] text-gray-500 mt-1"><T>To contact the winner for payment; the devotee is linked on this number.</T></div></div>
+                  )}
                 </>)}
                 <div><label className="label"><T>No. of Bidders</T></label>
                   <NumberField min="0" step="1" value={m.bids} onChange={(e) => set({ bids: e.target.value })} /></div>
-                {m.outcome !== 'In Progress' && (
-                  <div className="text-[0.75rem] text-gray-600 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2"><T>This result goes to the committee for approval.</T></div>
-                )}
               </div>
               <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
                 <button type="button" onClick={() => setResultModal(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
@@ -886,11 +1034,12 @@ export default function Auction() {
                   <option value="UPI/QR Code">{tr("Online")}</option>
                 </Select>
               </div>
+              {payMode === 'UPI/QR Code' && (
               <div>
-                <label className="label"><T>Transaction Reference</T></label>
-                <input value={payRef} onChange={(e) => setPayRef(e.target.value)} className="input" placeholder={tr("Online transaction ID / UTR")} />
-                <div className="text-[0.6875rem] text-gray-400 mt-1"><T>Required for online payments</T></div>
-              </div>
+                <label className="label"><T>UTR / Transaction Reference *</T></label>
+                <input required value={payRef} maxLength={40} onChange={(e) => setPayRef(e.target.value.replace(/[^A-Za-z0-9]/g, ''))} className="input font-mono" placeholder={tr("Online transaction ID / UTR")} />
+                <div className="text-[0.6875rem] text-gray-400 mt-1"><T>6–40 letters and digits, as on the payment.</T></div>
+              </div>)}
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button type="button" onClick={() => setPaymentModal(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>

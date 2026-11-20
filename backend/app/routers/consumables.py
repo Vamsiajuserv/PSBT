@@ -20,8 +20,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..helpers import ist_today, next_code_seq
-from ..models import ConsumableUse, Donation, DonationCategory, ManualStockEntry, PurchaseRequest, Setting, User
-from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
+from ..models import ConsumableUse, Donation, DonationCategory, ManualStockEntry, Setting, User
+from ..security import RequireModule, RequireRole, log_action, client_ip, require_admin, STORES_OFFICER
 from .stores import ReasonIn, _qty, _who
 
 router = APIRouter(prefix="/api/stores/consumables", tags=["consumables"])
@@ -56,9 +56,9 @@ class StartIn(BaseModel):
 def _start(db: Session) -> date:
     row = db.query(Setting).filter(Setting.skey == START_KEY).first()
     try:
-        return date.fromisoformat(row.svalue) if row and row.svalue else date.today()
+        return date.fromisoformat(row.svalue) if row and row.svalue else ist_today()
     except ValueError:
-        return date.today()
+        return ist_today()
 
 
 def _quantity_category(db: Session, cid: int, lock: bool = False) -> DonationCategory:
@@ -71,8 +71,8 @@ def _quantity_category(db: Session, cid: int, lock: bool = False) -> DonationCat
     return cat
 
 
-# Where stock came from: a "Temple purchase" manual entry (a Purchase Request marked received,
-# or one entered by hand) is Purchased; every other manual entry is Opening & other.
+# Where stock came from: a "Temple purchase" entry (Stores › Add Bought Items, or an old Purchase
+# Request marked received) is Purchased; every other manual entry is Opening & other.
 PURCHASE_SOURCE = "Temple purchase"
 SRC_DONATED, SRC_PURCHASED, SRC_OTHER = "Donated", "Purchased", "Opening & other"
 
@@ -93,12 +93,12 @@ def _received(db: Session, cat: DonationCategory, start: date) -> tuple[Decimal,
 
 
 def purchase_amounts(db: Session, cat_ids: list[int]) -> dict:
-    """{category id: ₹ of bills} for Purchase Requests received into the balance."""
+    """{category id: ₹ of the shop bills} for items bought into the balance (the amount is optional)."""
     return {cid: float(v) for cid, v in (
-        db.query(PurchaseRequest.category_id, func.coalesce(func.sum(PurchaseRequest.bill_amount), 0))
-        .join(ManualStockEntry, ManualStockEntry.id == PurchaseRequest.manual_entry_id)
-        .filter(PurchaseRequest.category_id.in_(cat_ids or [0]), ManualStockEntry.status == "Verified")
-        .group_by(PurchaseRequest.category_id).all())}
+        db.query(ManualStockEntry.category_id, func.coalesce(func.sum(ManualStockEntry.bill_amount), 0))
+        .filter(ManualStockEntry.category_id.in_(cat_ids or [0]), ManualStockEntry.status == "Verified",
+                ManualStockEntry.source == PURCHASE_SOURCE)
+        .group_by(ManualStockEntry.category_id).all())}
 
 
 def _split(don: Decimal, pur: Decimal, other: Decimal) -> dict:
@@ -378,7 +378,7 @@ def make_use(db: Session, user, cat: DonationCategory, quantity: Decimal, purpos
     """Record a use (not committed): checks the balance, notes the batches it comes from.
     `cat` must have been fetched with lock=True."""
     start = start or _start(db)
-    if used_on > date.today():
+    if used_on > ist_today():
         raise HTTPException(422, "The date of use cannot be in the future.")
     if used_on < start:
         raise HTTPException(422, f"Consumables are counted from {start}. Use a date on or after it.")
@@ -477,13 +477,115 @@ def cancel_use(uid: int, body: ReasonIn, request: Request, db: Session = Depends
     return {"id": u.id, "status": u.status}
 
 
+# ── Physical count (2026-11-15) ──────────────────────────────────────────────
+# The Stores Officer counts what is on the shelf. Less than the book: a "Stock count shortage" use waits
+# for one Committee member (never the one who counted) and only then reduces the balance. More than the
+# book: a manual entry (source Other) goes to the Committee's usual verification.
+COUNT_SHORT = "Stock count shortage"
+PENDING = "Pending approval"
+committee = RequireRole("Committee")
+
+
+class CountIn(BaseModel):
+    counted: Decimal = Field(..., ge=0, le=1000000)
+    note: str | None = Field(default=None, max_length=300)
+
+
+@router.post("/{cid}/count", status_code=201)
+def count_stock(cid: int, body: CountIn, request: Request, db: Session = Depends(get_db), user=Depends(manage)):
+    cat = _quantity_category(db, cid, lock=True)
+    start = _start(db)
+    if db.query(ConsumableUse.id).filter(ConsumableUse.category_id == cat.id, ConsumableUse.status == PENDING).first():
+        raise HTTPException(409, f"A count shortage of {cat.name} is already waiting for the committee.")
+    book = Decimal(str(_balance(db, cat, start)["remaining"]))
+    diff = body.counted - book
+    note = (body.note or "").strip()
+    said = f"Counted {_qty(body.counted)}, book {_qty(book)} {cat.unit or ''}".strip() + (f" — {note}" if note else "")
+    if abs(diff) < Decimal("0.001"):
+        log_action(db, username=user.username, action="UPDATE", entity="ConsumableCount",
+                   detail=f"{cat.name}: {said} — matches", ip=client_ip(request))
+        return {"result": "Matches", "book": float(book), "counted": float(body.counted)}
+    if diff < 0:
+        u = make_use(db, user, cat, -diff, COUNT_SHORT, ist_today(), None, said, start)
+        u.status = PENDING
+        db.commit(); db.refresh(u)
+        log_action(db, username=user.username, action="CREATE", entity="ConsumableUse",
+                   detail=f"{u.code} {cat.name} short {_qty(-diff)} — {said}", ip=client_ip(request))
+        _count_alert(db, "count", u, cat, user)
+        return {"result": "Short", "code": u.code, "id": u.id, "difference": float(diff), "book": float(book)}
+    seq = next_code_seq(db, "manual_stock", db.query(func.max(ManualStockEntry.id)).scalar() or 0)
+    m = ManualStockEntry(code=f"MSE-{seq:04d}", category_id=cat.id, item_name=cat.name, quantity=diff, unit=cat.unit,
+                         source="Other", reason=f"Stock count: found more than the book — {said}"[:500],
+                         created_by=user.username)
+    db.add(m); db.commit(); db.refresh(m)
+    log_action(db, username=user.username, action="CREATE", entity="ManualStockEntry",
+               detail=f"{m.code} {cat.name} extra {_qty(diff)} — {said}", ip=client_ip(request))
+    return {"result": "Extra", "code": m.code, "id": m.id, "difference": float(diff), "book": float(book)}
+
+
+@router.get("/count/pending")
+def count_pending(db: Session = Depends(get_db), user=Depends(read)):
+    rows = (db.query(ConsumableUse).filter(ConsumableUse.status == PENDING).order_by(ConsumableUse.id).all())
+    cats = {c.id: c for c in db.query(DonationCategory).filter(DonationCategory.id.in_([u.category_id for u in rows] or [0])).all()}
+    return {"items": [{"id": u.id, "code": u.code, "category_id": u.category_id, "item": cats[u.category_id].name if u.category_id in cats else None,
+                       "unit": cats[u.category_id].unit if u.category_id in cats else None, "quantity": float(u.quantity),
+                       "notes": u.notes, "created_by": u.created_by, "used_on": str(u.used_on)} for u in rows],
+            "total": len(rows)}
+
+
+def _count_alert(db: Session, stage: str, u: ConsumableUse, cat, user, reason: str | None = None) -> None:
+    from ..staff_alerts import stores_alert
+    stores_alert(db, stage, entity="ConsumableUse", entity_id=u.id, actor=user,
+                 params={"code": u.code, "item": cat.name if cat else None, "qty": _qty(u.quantity),
+                         "unit": cat.unit if cat else None, "what": "Stock count shortage", "reason": reason})
+
+
+def _pending_use(db: Session, uid: int, user) -> ConsumableUse:
+    u = db.query(ConsumableUse).filter(ConsumableUse.id == uid).with_for_update().first()
+    if not u:
+        raise HTTPException(404, "Use entry not found")
+    if u.status != PENDING:
+        raise HTTPException(409, "Nothing is waiting for approval on this entry.")
+    if u.created_by == user.username:
+        raise HTTPException(403, "The person who counted cannot decide on the shortage — another committee member must.")
+    return u
+
+
+@router.post("/use/{uid}/approve")
+def approve_shortage(uid: int, request: Request, db: Session = Depends(get_db), user=Depends(committee)):
+    u = _pending_use(db, uid, user)
+    cat = _quantity_category(db, u.category_id, lock=True)
+    left = Decimal(str(_balance(db, cat, _start(db))["remaining"]))
+    if Decimal(str(u.quantity)) > left:
+        raise HTTPException(409, f"Only {_qty(left)} {cat.unit or ''} of {cat.name} is left now — ask for a new count.")
+    u.status = "Active"
+    u.notes = f"{u.notes or ''} · approved by {_who(user)}".strip(" ·")
+    db.commit()
+    log_action(db, username=user.username, action="UPDATE", entity="ConsumableUse", detail=f"Approved {u.code} (count shortage)",
+               ip=client_ip(request))
+    _count_alert(db, "decided", u, cat, user)
+    return {"id": u.id, "status": u.status}
+
+
+@router.post("/use/{uid}/reject")
+def reject_shortage(uid: int, body: ReasonIn, request: Request, db: Session = Depends(get_db), user=Depends(committee)):
+    u = _pending_use(db, uid, user)
+    u.status, u.cancel_reason, u.cancelled_by = "Rejected", body.reason, _who(user)
+    db.commit()
+    log_action(db, username=user.username, action="UPDATE", entity="ConsumableUse",
+               detail=f"Rejected {u.code} (count shortage): {body.reason[:80]}", ip=client_ip(request))
+    _count_alert(db, "rejected", u, db.get(DonationCategory, u.category_id), user, reason=body.reason)
+    return {"id": u.id, "status": u.status}
+
+
 @router.put("/start-date")
-def set_start(body: StartIn, request: Request, db: Session = Depends(get_db), user=Depends(manage)):
-    if body.start_date > date.today():
+def set_start(body: StartIn, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    """The day consumables counting starts (go-live). Administrator only, and fixed once any use is
+    recorded — moving it later would quietly change every balance (Stores audit, 2026-11-15)."""
+    if body.start_date > ist_today():
         raise HTTPException(422, "The start date cannot be in the future.")
-    first_use = db.query(func.min(ConsumableUse.used_on)).filter(ConsumableUse.status == "Active").scalar()
-    if first_use and body.start_date > first_use:
-        raise HTTPException(409, f"Uses are already recorded from {first_use}; the start date cannot be after that.")
+    if db.query(ConsumableUse.id).first():
+        raise HTTPException(409, "Uses are already recorded — the start date is fixed now. Enter missing stock as a manual entry instead.")
     row = db.query(Setting).filter(Setting.skey == START_KEY).first()
     old = row.svalue if row else None
     if not row:

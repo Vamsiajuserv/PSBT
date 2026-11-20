@@ -44,6 +44,7 @@ if (!existsSync(venvPython)) {
 }
 
 run(venvPython, ['-m', 'pip', 'install', '--upgrade', 'pip', '--quiet'])
-run(venvPython, ['-m', 'pip', 'install', '-r', 'requirements.txt'])
+// requirements-dev.txt = requirements.txt + what the tests need (the app itself needs only requirements.txt)
+run(venvPython, ['-m', 'pip', 'install', '-r', 'requirements-dev.txt'])
 run(venvPython, ['-m', 'app.seed'])
 console.log('\n✅ Backend ready. Now run:  npm run dev   (starts API + web together)')

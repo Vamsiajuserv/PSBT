@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Devotee, FamilyMember, Booking, Donation, Annadanam, Auction
-from ..schemas import DevoteeCreate, DevoteeUpdate, DevoteeOut
-from ..security import RequireModule, require_admin, log_action, client_ip, get_current_user
+from ..schemas import DevoteeCreate, DevoteeUpdate, DevoteeOut, PAN_UNCHANGED
+from ..security import RequireModule, require_admin, log_action, client_ip
 from ..helpers import gen_code, next_code_seq, validate_pagination, encrypt_pan, sort_expr
 
 router = APIRouter(prefix="/api/devotees", tags=["devotees"])
@@ -28,20 +28,26 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
         Devotee.registered_on >= date.today() - timedelta(days=30)).scalar() or 0
     with_donations = db.query(func.count(func.distinct(Donation.devotee_id))).filter(
         Donation.devotee_id.isnot(None)).scalar() or 0
-    annadanam_beneficiaries = db.query(func.coalesce(func.sum(Annadanam.plates), 0)).scalar() or 0
+    annadanam_beneficiaries = db.query(func.coalesce(func.sum(Annadanam.plates), 0)).filter(Annadanam.voided.isnot(True)).scalar() or 0
     return {"total": total, "active": active, "new_this_month": new_month, "repeat": repeat,
             "recent_registrations": recent, "with_donations": with_donations,
             "annadanam_beneficiaries": int(annadanam_beneficiaries)}
 
 
+# Devotee search (name + mobile) is only for screens that link a devotee to a record:
+# Devotees, Counter / Other Sales (Counter), Donations, Auction and Annadanam. Roles
+# holding none of these — Poojari (Sevas, Bookings) and Stores Officer (Stores) — are refused.
+lookup_reader = RequireModule("Devotees", "Counter", "Donations", "Auction", "Annadanam")
+
+
 @router.get("/lookup")
 def lookup_devotees(q: str = "", size: int = 10,
-                    db: Session = Depends(get_db), user=Depends(get_current_user)):
+                    db: Session = Depends(get_db), user=Depends(lookup_reader)):
     """Lightweight devotee lookup for typeahead/linking purposes.
 
-    Available to any authenticated user (no module restriction).
+    Needs one of the modules in lookup_reader (Administrator always passes).
     Returns only basic devotee info: id, code, name, name_te, mobile.
-    Used by Auction, Hundi, Donations forms for linking devotees.
+    Used by the Counter, Donations, Auction, Annadanam, Other Sales and Devotees screens.
     """
     if not q or len(q.strip()) < 1:
         return {"items": []}
@@ -156,6 +162,7 @@ def devotee_detail(did: int, db: Session = Depends(get_db), user=Depends(read)):
     donations = db.query(Donation).filter(Donation.devotee_id == did, Donation.voided.isnot(True)).order_by(Donation.id.desc()).all()
     # annadanam / auction: linked by devotee_id or (legacy) donor/winner name match
     annadanam = db.query(Annadanam).filter(
+        Annadanam.voided.isnot(True),
         or_(Annadanam.devotee_id == did, Annadanam.donor == d.name)).order_by(Annadanam.id.desc()).all()
     auctions = db.query(Auction).filter(
         or_(Auction.devotee_id == did, Auction.winner == d.name)).order_by(Auction.id.desc()).all()
@@ -209,6 +216,46 @@ def _highest_code(db: Session) -> int:
         return 12458
 
 
+def next_devotee_code(db: Session) -> str:
+    """Devotee codes are never reused, even after a delete: they come from the atomic
+    counter, seeded once from the highest code already issued."""
+    top = _highest_code(db)
+    # Codes issued by the old count-based numbering may be ahead of the counter — lift it once.
+    db.execute(text("UPDATE counters SET value = :v WHERE name = 'devotee' AND value < :v"), {"v": top})
+    seq = next_code_seq(db, "devotee", top)
+    while db.query(Devotee).filter(Devotee.code == gen_code("DEV-", seq, 8)).first():   # safety net
+        seq = next_code_seq(db, "devotee", seq)
+    return gen_code("DEV-", seq, 8)
+
+
+def new_devotee(db: Session, **fields) -> Devotee:
+    """A new devotee record with the next code (added to the session, not committed).
+    Used by Devotee Management and by Counter Billing for a first-time devotee."""
+    d = Devotee(code=next_devotee_code(db), **fields)
+    db.add(d)
+    return d
+
+
+ANONYMOUS = {"", "anonymous", "అజ్ఞాత", "అనామక"}
+
+
+def link_devotee_by_mobile(db: Session, name: str | None, mobile: str | None) -> int | None:
+    """One devotee per phone: the devotee already registered on this mobile, or — when a name is
+    given — a newly registered one. None for a missing / foreign-format mobile or an anonymous
+    donor with no record. Used by Counter Billing and Donations (2026-11-15)."""
+    mobile = (mobile or "").strip()
+    name = (name or "").strip()
+    if not (mobile.isdigit() and len(mobile) == 10):
+        return None
+    d = db.query(Devotee).filter(Devotee.mobile == mobile).order_by(Devotee.id).first()
+    if d is None:
+        if name.lower() in ANONYMOUS:
+            return None
+        d = new_devotee(db, name=name, mobile=mobile)
+        db.flush()
+    return d.id
+
+
 @router.post("", response_model=DevoteeOut, status_code=201)
 def create_devotee(body: DevoteeCreate, request: Request,
                    db: Session = Depends(get_db), user=Depends(write)):
@@ -216,19 +263,11 @@ def create_devotee(body: DevoteeCreate, request: Request,
     existing = db.query(Devotee).filter(Devotee.mobile == body.mobile).first()
     if existing:
         raise HTTPException(409, f"A devotee with mobile number {body.mobile} already exists (Code: {existing.code})")
-    # Devotee codes are never reused, even after a delete: they come from the atomic
-    # counter, seeded once from the highest code already issued.
-    top = _highest_code(db)
-    # Codes issued by the old count-based numbering may be ahead of the counter — lift it once.
-    db.execute(text("UPDATE counters SET value = :v WHERE name = 'devotee' AND value < :v"), {"v": top})
-    seq = next_code_seq(db, "devotee", top)
-    while db.query(Devotee).filter(Devotee.code == gen_code("DEV-", seq, 8)).first():   # safety net
-        seq = next_code_seq(db, "devotee", seq)
     data = body.model_dump(exclude={"family"})
     # Phase 1 Security (PRIV-001): Encrypt PAN at rest
     if data.get("pan_number"):
         data["pan_number"] = encrypt_pan(data["pan_number"])
-    d = Devotee(code=gen_code("DEV-", seq, 8), **data)
+    d = new_devotee(db, **data)
     for fm in body.family:
         d.family.append(FamilyMember(**fm.model_dump()))
     db.add(d)
@@ -251,6 +290,8 @@ def update_devotee(did: int, body: DevoteeUpdate, request: Request,
         if existing:
             raise HTTPException(409, f"A devotee with mobile number {body.mobile} already exists (Code: {existing.code})")
     for k, v in body.model_dump(exclude_unset=True).items():
+        if k == "pan_number" and v == PAN_UNCHANGED:
+            continue   # the masked PAN came back from the edit form: keep the stored one
         # Phase 1 Security (PRIV-001): Encrypt PAN at rest
         if k == "pan_number" and v:
             v = encrypt_pan(v)
