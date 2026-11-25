@@ -275,7 +275,7 @@ export default function StockRegister() {
                   <td className="px-3 py-3"><div className="flex items-center gap-2 flex-wrap"><Link className="font-mono text-[0.78rem] text-maroon-700 font-semibold hover:underline whitespace-nowrap" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link>
                     {r.deity_used && <DeityBadge item={r} />}</div>
                     <div className="text-[0.8125rem] font-semibold text-gray-800 mt-0.5">{tr(r.description || r.item_name)}</div>
-                    <div className="text-[0.6875rem] text-gray-500">{[r.description && tr(r.item_name), tr(r.details), r.weight_g ? `${num(r.weight_g)} ${gramUnit()}` : '', r.purity].filter(Boolean).join(' · ')}</div></td>
+                    <div className="text-[0.6875rem] text-gray-500">{[r.description && tr(r.item_name), tr(r.details), r.weight_g ? `${num(r.weight_g)} ${gramUnit()}` : ''].filter(Boolean).join(' · ')}</div></td>
                   <td className="px-3 py-3 min-w-[11rem]"><div className="text-[0.8125rem] text-gray-800">{from}</div>
                     <div className="text-[0.6875rem] text-gray-500">{proof.filter(Boolean).join(' · ')}</div></td>
                   <td className="px-3 py-3 min-w-[8rem] text-[0.8125rem] text-gray-700">{['In Store', 'In Open Sale'].includes(r.status) ? tr(r.location || '—')

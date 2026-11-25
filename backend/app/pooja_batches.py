@@ -5,15 +5,17 @@ to the last pooja end time in the Pooja Master, read live, so a pooja added at a
 extends the day on its own. Every booking is put on one half-hour list (`Booking.batch_slot`,
 "06:30" = 6:30–7:00 AM) when it is billed:
 
-* a fixed-time pooja (e.g. Ashtotharam 05:30 PM) stays on its own half-hour (17:30); once that
-  list was sent to the poojari the time is closed (409) — the devotee picks another time
-  (client decision 2026-11-13: never move them to the next time automatically);
-* a pooja with a time window (Car Pooja 09:00 AM – 11:30 AM, temple hours 06:00 AM – 09:00 PM)
-  or no fixed time goes on the CURRENT half-hour, or, once that list has been sent to the
-  poojari ("Print & Send", `SlotDispatch`), on the next half-hour not sent yet;
-* the counter may pick any open half-hour of the pooja's time instead (Counter Billing today,
-  Advance Booking for a later date; default: the first open one). A list stays open until it
-  is sent — starting does not close it (client rule 2026-11-14).
+* a fixed-time pooja (e.g. Ashtotharam 05:30 PM) stays on its own half-hour (17:30). It can be
+  booked until its time; from 5:30 PM today it is over (helpers.slot_is_over) and the devotee
+  picks another time — never moved on automatically (client decision 2026-11-13);
+* a pooja with a time window (temple hours 06:00 AM – 09:00 PM) or no fixed time goes on the
+  CURRENT half-hour, or the next one once the current half-hour is over;
+* the counter may pick any half-hour of the pooja's time that is not over instead (Counter
+  Billing today, Advance Booking for a later date; default: the first one).
+
+Only the clock closes a time. The lists are printed for the poojari as often as needed; printing
+does not close anything (client, 2026-11-20 — "Print & Send" and its Administrator Undo were
+removed; the old `SlotDispatch` records stay in the database but are no longer read).
 
 Times are strings "HH:MM" (24-hour start of the half-hour).
 """
@@ -131,11 +133,6 @@ def batch_of(booking) -> str | None:
     return floor_half(b[0]) if b else None
 
 
-def sent_map(db: Session, day: date) -> dict:
-    from .models import SlotDispatch
-    return {d.slot_start: d for d in db.query(SlotDispatch).filter(SlotDispatch.day == day).all()}
-
-
 def _is_over(start: str, day: date, now: datetime) -> bool:
     return day < now.date() or (day == now.date() and to_min(start) + HALF <= now.hour * 60 + now.minute)
 
@@ -143,16 +140,13 @@ def _is_over(start: str, day: date, now: datetime) -> bool:
 def assign_batch(db: Session, day: date, slot: str | None, requested: str | None = None,
                  now: datetime | None = None) -> str:
     """The half-hour list for a new booking of this pooja time on `day` (see module doc).
-    `requested` = the half-hour the counter picked (Counter Billing or Advance Booking); it must lie in the pooja's
-    time, not be over, and its list must not have been sent."""
+    `requested` = the half-hour the counter picked (Counter Billing or Advance Booking); it must lie in the
+    pooja's time and not be over."""
     now = now or ist_now()
     b = _bounds(slot)
-    sent = sent_map(db, day)
     if b and b[0] == b[1]:
-        h = floor_half(b[0])                # fixed time: its own half-hour, unless that list is sent
-        if h in sent:
-            raise HTTPException(409, f"The {label(h)} list was already sent to the poojari — choose another time.")
-        return h
+        return floor_half(b[0])             # fixed time: its own half-hour (a time already over is refused
+                                            # by the booking rules, helpers.slot_is_over)
     cands = candidates(db, slot)
     if requested not in (None, ""):
         r = parse_half(requested)
@@ -162,30 +156,25 @@ def assign_batch(db: Session, day: date, slot: str | None, requested: str | None
             raise HTTPException(422, f"{label(r)} is outside this pooja's time — choose a half-hour from the list.")
         if _is_over(r, day, now):
             raise HTTPException(422, f"The {label(r)} slot is already over — choose a later half-hour.")
-        if r in sent:
-            raise HTTPException(409, f"The {label(r)} list was already sent to the poojari — choose another half-hour.")
         return r
     for c in cands:
-        if c not in sent and not _is_over(c, day, now):
+        if not _is_over(c, day, now):
             return c
     if not b:
         # A pooja without a fixed time booked after the last half-hour of the day: keep it on
         # the last list (shown as added after sending) rather than refusing the devotee.
         return cands[-1]
-    raise HTTPException(409, "No half-hour list is left for this pooja today (all sent to the poojari or over). "
-                             "Book it for another date.")
+    raise HTTPException(409, "No half-hour is left for this pooja today (all are over). Book it for another date.")
 
 
 def options(db: Session, day: date, slot: str | None, now: datetime | None = None) -> dict:
-    """What the counter sees: every half-hour this pooja time may take on `day`, which are sent /
-    over, and the one a booking made now would get (`auto`; None + `error` when none is left)."""
+    """What the counter sees: every half-hour this pooja time may take on `day`, which are over,
+    and the one a booking made now would get (`auto`; None + `error` when none is left)."""
     now = now or ist_now()
-    sent = sent_map(db, day)
-    rows = [{"start": c, "end": fmt(to_min(c) + HALF), "sent": c in sent, "over": _is_over(c, day, now)}
+    rows = [{"start": c, "end": fmt(to_min(c) + HALF), "over": _is_over(c, day, now)}
             for c in candidates(db, slot)]
     try:
         auto, error = assign_batch(db, day, slot, now=now), None
     except HTTPException as exc:
         auto, error = None, exc.detail
-    return {"day": str(day), "fixed": is_fixed(slot), "options": rows, "auto": auto, "error": error,
-            "sent": sorted(sent)}
+    return {"day": str(day), "fixed": is_fixed(slot), "options": rows, "auto": auto, "error": error}

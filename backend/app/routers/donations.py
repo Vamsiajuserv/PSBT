@@ -136,23 +136,12 @@ def _attach_stock(db: Session, rows: list[Donation], items: list[dict]) -> None:
 
 
 def _value_metal(db: Session, data: dict) -> None:
-    """Gold / silver weighed at the counter: grams and description only — no ₹ value and no daily
-    rate (2026-11-15); purity is optional, "Not known" by default. Other goods keep the value the
-    devotee states, if any. Either way the value is kept apart from `amount` — goods are not cash."""
-    from ..models import DonationCategory
-    from .metal_rates import check_purity, metal_of
-    from .stores import _is_weight
+    """Goods at the counter: the value the devotee states (optional, ₹ ≥ 0), printed as such on
+    the receipt — gold / silver too since 2026-11-20 (client): grams stay mandatory, there is no
+    purity and no daily rate. Either way the value is kept apart from `amount` — goods are not cash."""
     data["item_desc"] = (data.get("item_desc") or "").strip() or None
-    cat = (db.query(DonationCategory).filter(DonationCategory.type == "Material", DonationCategory.name == data.get("fund"))
-           .first())
-    metal = metal_of(data.get("fund"))
-    if not metal or not (_is_weight(cat.unit if cat else None) or _is_weight(data.get("unit"))):
-        # other goods: the value the devotee states (optional), printed as such on the receipt
-        data["purity"] = data["rate_per_g"] = None
-        data["est_value"] = data.get("est_value") or None
-        return
-    data["purity"] = check_purity(db, metal, data.get("purity"))
-    data["rate_per_g"] = data["est_value"] = None
+    data["purity"] = data["rate_per_g"] = None       # no purity / rate any more (client, 2026-11-20)
+    data["est_value"] = data.get("est_value") or None
 
 
 COUNT_UNITS = ("nos", "piece", "pieces", "packet", "count", "number")

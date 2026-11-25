@@ -1,6 +1,6 @@
 """Pooja slots: the day's due poojas in half-hour lists (each booking's batch_slot, else the
 half-hour its pooja time starts in) with their devotees — the Bookings "Half-hour slots" view,
-its print sheet and the poojari's pop-up. (Assignment / Print & Send: test_half_hour_slots.py)
+its print sheet and the poojari's pop-up. (Assignment to a half-hour: test_half_hour_slots.py)
 Run from backend/:
     python -m unittest discover -s tests -t .
 """
@@ -78,7 +78,7 @@ class HourlySlots(unittest.TestCase):
         self.assertEqual(out["total"], 17)
         self.assertEqual([(h["start"], h["end"]) for h in out["hours"]][:2], [("06:00", "06:30"), ("06:30", "07:00")])
         self.assertEqual(out["hours"][-1]["end"], None)
-        self.assertTrue(all(h["sent"] is None and h["late"] == 0 for h in out["hours"]))
+        self.assertTrue(all("sent" not in h and "late" not in h for h in out["hours"]))   # print only (2026-11-20)
         d = out["hours"][4]["slots"][0]["devotees"][0]                 # the print sheet's columns
         self.assertEqual((d["ticket_no"], d["gothram"], d["nakshatram"], d["done"]), ("TKT-1001", "Kashyapa", "Rohini", False))
 
@@ -180,7 +180,7 @@ class HourlySlots(unittest.TestCase):
                          PoojaPlan(pooja_id=9, plan_name="Daily", time_slots="06:30 AM")])
         self.db.commit()
         self.book("Namakaranam", "06:00 AM - 09:00 PM", pooja_id=8, batch_slot="06:00")   # walk-in at 6:15
-        self.book("Namakaranam", "06:00 AM - 09:00 PM", pooja_id=8, batch_slot="06:30")   # after 6:00 was sent
+        self.book("Namakaranam", "06:00 AM - 09:00 PM", pooja_id=8, batch_slot="06:30")   # after 6:00–6:30 was over
         self.book("Abhishekam", "06:30 AM", pooja_id=9, batch_slot="06:30")
         self.assertEqual(self.shape(self.hourly()), [
             ("06:00", 1, [("Namakaranam", "06:00 AM - 09:00 PM", 1)]),

@@ -29,9 +29,7 @@ export const halfIsOver = (start, day) => day < todayIST() || (day === todayIST(
 /** Is "now" inside this half-hour? */
 export const halfIsNow = (start, day) => day === todayIST() && toMin(start) <= nowMinutesIST() && nowMinutesIST() < toMin(start) + HALF
 
-// ── Sent lists vs fixed pooja times (client rule 2026-11-13) ──
-// A fixed time whose half-hour list was already sent to the poojari is closed: it is shown
-// greyed out, never picked automatically, and the devotee chooses another time.
+// A fixed pooja time closes only by the clock (client, 2026-11-20 — "Print & Send" was removed).
 /** "10:45 AM" → "10:30" (the half-hour list it is on); null for a window / no time. */
 export const halfOfFixed = (slot) => {
   const b = slotBounds(slot)
@@ -39,5 +37,3 @@ export const halfOfFixed = (slot) => {
   const m = Math.floor(b[0] / HALF) * HALF
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
-/** Is this fixed time closed on `date` because its list was sent (sent = today's sent half-hours)? */
-export const fixedTimeSent = (slot, date, sent) => date === todayIST() && !!halfOfFixed(slot) && (sent || []).includes(halfOfFixed(slot))

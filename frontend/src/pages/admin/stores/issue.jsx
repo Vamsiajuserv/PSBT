@@ -7,11 +7,13 @@ import { toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, getLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
 import { useTemple } from '../../../lib/SiteContext.jsx'
 import { staffName } from './shared.jsx'
+import ResetButton from '../../../components/common/ResetButton.jsx'
 
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const qty = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 })
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
 const changed = () => window.dispatchEvent(new Event('stores:changed'))   // sidebar badges
+const emptyIssue = () => ({ issued_to: '', poojari_id: '', purpose: '', return_by: '', notes: '' })
 
 /** Issue In Store pieces on one slip. `preset` = pieces already picked (from the Stock Register). */
 export function IssueDrawer({ preset = [], onClose, onDone }) {
@@ -20,7 +22,7 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
   const [q, setQ] = useState('')
   const [found, setFound] = useState([])
   // Return date optional (2026-11-15): most things come back the same day; blank = never overdue
-  const [f, setF] = useState({ issued_to: '', poojari_id: '', purpose: '', return_by: '', notes: '' })
+  const [f, setF] = useState(emptyIssue)
   const [saving, setSaving] = useState(false)
   const [slip, setSlip] = useState(null)
 
@@ -104,6 +106,8 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
         </div>
         <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
           <button type="button" onClick={onClose} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+          {/* Reset (client, 2026-11-20): back to a freshly opened slip (pieces picked from the Stock Register stay picked) */}
+          <ResetButton onReset={() => { setPicked(preset); setQ(''); setFound([]); setF(emptyIssue()) }} disabled={saving} className="justify-center !px-3 shrink-0" />
           <button disabled={saving || !picked.length} className="btn-maroon flex-1 justify-center disabled:opacity-60">
             <Send size={15} className="mr-1" />{saving ? tr('Saving…') : `${tr('Issue')} ${picked.length} ${tr('piece(s)')}`}</button>
         </div>
@@ -139,7 +143,7 @@ export function PieceIssueSlip({ slip, onClose }) {
             <tbody>{slip.lines.map((l) => (
               <tr key={l.id} className="border-b border-gray-100">
                 <td className="py-1.5 font-mono font-semibold">{l.tag_id}</td>
-                <td className="py-1.5">{tr(l.description || l.item_name)}{l.purity ? ` · ${l.purity}` : ''}</td>
+                <td className="py-1.5">{tr(l.description || l.item_name)}</td>
                 <td className="py-1.5 text-right">{l.weight_g != null ? `${qty(l.weight_g)} ${gramUnit()}` : '—'}</td>
                 <td className="py-1.5 text-right text-[0.75rem]">{l.returned_at ? `${fmtDate(l.returned_at)}${l.condition === 'Damaged' ? ` · ${tr('Damaged')}` : l.condition === 'Kept' ? ` · ${tr('Kept by poojari')}` : ''}` : '☐'}</td>
               </tr>))}</tbody>

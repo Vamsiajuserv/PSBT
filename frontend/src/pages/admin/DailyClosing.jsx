@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { inr, num, fmtStamp, KpiGrid } from '../../components/admin/ui.jsx'
 import FitText from '../../components/common/FitText.jsx'
+import ResetButton from '../../components/common/ResetButton.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { DailyClosingAPI, RefundsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -360,10 +361,15 @@ export default function DailyClosing() {
                 </div>
               )}
               {canCloseThis && (
-                <button onClick={closeDay} disabled={busy}
-                  className="w-full mt-3 inline-flex items-center justify-center gap-2 bg-maroon-700 text-white font-semibold rounded-lg py-3 hover:bg-maroon-800">
-                  <Lock size={16} /> {busy ? tr('Closing…') : tr('Close Day & Finalize')}
-                </button>
+                <div className="mt-3 flex gap-2">
+                  {/* Reset (client, 2026-11-20): clears the drawer count and the note on screen only */}
+                  <ResetButton onReset={() => { setCounts({}); setNotes(''); setMsg('') }} disabled={busy}
+                    dirty={countEntered(counts) || !!notes.trim()} className="justify-center shrink-0" />
+                  <button onClick={closeDay} disabled={busy}
+                    className="flex-1 inline-flex items-center justify-center gap-2 bg-maroon-700 text-white font-semibold rounded-lg py-3 hover:bg-maroon-800">
+                    <Lock size={16} /> {busy ? tr('Closing…') : tr('Close Day & Finalize')}
+                  </button>
+                </div>
               )}
 
               <div className="mt-3 flex items-start gap-2.5 bg-amber-50/70 border border-amber-100 rounded-lg px-4 py-3 text-[0.75rem] text-gray-600">

@@ -238,16 +238,13 @@ HUNDI_SORT_COLUMNS = {
 
 def _value_metal_lines(db: Session, lines: list[dict], day: date) -> None:
     """Gold / silver counted by weight: kept by grams only — no ₹ value and no daily rate
-    (2026-11-15); purity optional, "Not known" by default."""
-    from .metal_rates import check_purity, metal_of
+    (2026-11-15). No purity on any line (client, 2026-11-20): one sent is ignored."""
+    from .metal_rates import metal_of
     from .stores import _is_weight
     for li in lines:
-        metal = metal_of(li.get("item_type"))
-        if metal and _is_weight(li.get("unit")) and Decimal(str(li.get("quantity") or 0)) > 0:
-            li["purity"] = check_purity(db, metal, li.get("purity"))
-            li["rate_per_g"], li["value"] = None, Decimal("0")
-        else:
-            li["purity"] = li["rate_per_g"] = None
+        li["purity"] = li["rate_per_g"] = None
+        if metal_of(li.get("item_type")) and _is_weight(li.get("unit")) and Decimal(str(li.get("quantity") or 0)) > 0:
+            li["value"] = Decimal("0")
 
 
 @hundi_router.get("", response_model=dict)
@@ -386,7 +383,7 @@ def create_hundi(body: HundiCreate, request: Request,
             hundi_item_id=li.get("hundi_item_id"), item_name=li.get("item_name"),
             item_type=li.get("item_type"), quantity=li.get("quantity"),
             unit=li.get("unit"), value=li.get("value") or 0, remarks=li.get("remarks"),
-            purity=li.get("purity"), rate_per_g=li.get("rate_per_g")))
+            purity=None, rate_per_g=None))   # no purity / rate (client, 2026-11-20)
     db.add(h); db.commit(); db.refresh(h)
     log_action(db, username=user.username, action="CREATE", entity="Hundi",
                detail=f"{h.code} ₹{h.counted_amount} ({len(item_lines)} items, cash: ₹{cash_total}, valuables: ₹{valuables_total})", ip=client_ip(request))
@@ -508,7 +505,7 @@ def resubmit_hundi(hid: int, body: HundiResubmitIn, request: Request, db: Sessio
             hundi_item_id=li.get("hundi_item_id"), item_name=li.get("item_name"),
             item_type=li.get("item_type"), quantity=li.get("quantity"),
             unit=li.get("unit"), value=li.get("value") or 0, remarks=li.get("remarks"),
-            purity=li.get("purity"), rate_per_g=li.get("rate_per_g")))
+            purity=None, rate_per_g=None))   # no purity / rate (client, 2026-11-20)
     h.counted_amount = sum((Decimal(str(li.get("value") or 0)) for li in lines), Decimal("0"))
     cash_total, valuables_total = _calc_cash_valuables(lines)
     h.deposit_status = "Pending Deposit" if cash_total > 0 else "N/A"

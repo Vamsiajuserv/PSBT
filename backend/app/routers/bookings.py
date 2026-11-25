@@ -24,7 +24,7 @@ from .refunds import record_refund
 from .schedules import scheduled_poojari
 from .almanac import assert_pournami, off_tithi_reason
 from .. import notifications as notif
-from ..pooja_batches import assign_batch, options as batch_options, parse_half, sent_map, floor_half, is_fixed, NO_LIST_CATEGORIES
+from ..pooja_batches import assign_batch, options as batch_options, parse_half, is_fixed, NO_LIST_CATEGORIES
 
 
 def _booking_notify_sync(booking_id, event, username):
@@ -211,8 +211,8 @@ def _daily_multi_day(plan, start: date) -> bool:
 
 
 def _starts_tomorrow(db: Session, plan, start: date, slot: str | None) -> bool:
-    """A multi-day plan billed today whose chosen fixed time can no longer be used today — the time has
-    passed, or its half-hour list was already handed to the poojari — starts tomorrow in the same slot
+    """A multi-day plan billed today whose chosen fixed time has already passed today starts tomorrow in
+    the same slot
     instead of being refused (client, 2026-11-18). One-day poojas are still refused: the devotee picks
     another time."""
     if start != ist_today() or not _daily_multi_day(plan, start) or getattr(plan, "tithi_type", None):
@@ -223,9 +223,7 @@ def _starts_tomorrow(db: Session, plan, start: date, slot: str | None) -> bool:
         slot = fixed[0]
     if not fixed or slot not in fixed or not is_fixed(slot):
         return False          # a missing / foreign slot is refused by the normal checks
-    if slot_is_over(slot, ist_now().time()):
-        return True
-    return floor_half(parse_slot_bounds(slot)[0]) in sent_map(db, start)
+    return slot_is_over(slot, ist_now().time())
 
 
 def _apply_booking_rules(db: Session, data: dict, plan, *, require_devotee_for_long_term=False) -> None:
@@ -372,12 +370,13 @@ def _payment_mode(method: str | None) -> str:
     return mode
 
 
-def _check_utr(db: Session, utr: str | None, mode: str, source: str | None) -> str | None:
-    """UPI transaction reference (shared rule, helpers.assert_utr): required for an Advance
-    Booking paid online, optional at the counter, never on two bills (decision D7)."""
+def _check_utr(db: Session, utr: str | None, mode: str) -> str | None:
+    """UPI transaction reference (shared rule, helpers.assert_utr): required for every booking
+    paid online — Counter Billing and Advance Booking alike (client, 2026-11-20; the counter was
+    optional before, decision D7) — and never on two bills."""
     if mode != "UPI/QR Code":
         return None
-    return assert_utr(db, utr, required=source == "Advance")
+    return assert_utr(db, utr, required=True)
 
 
 def _link_counter_devotee(db: Session, data: dict) -> None:
@@ -603,8 +602,8 @@ def batch_options_for(day: date | None = None, time_slot: str = "", pooja_id: in
                       plan_id: int | None = None,
                       db: Session = Depends(get_db), user=Depends(RequireModule("Bookings", "Counter"))):
     """The half-hour pooja lists a booking of this pooja time can go on: the Counter shows the
-    one it will get (`auto`), Advance Booking lets the operator pick one (`options`; sent / over
-    ones are shown but not selectable). With `pooja_id`, also the poojari the Poojari Schedule
+    one it will get (`auto`), Advance Booking lets the operator pick one (`options`; ones already
+    over are shown but not selectable). With `pooja_id`, also the poojari the Poojari Schedule
     will assign when none is chosen — shown before paying (Advance Booking P10)."""
     day = day or ist_today()
     slot = (time_slot or "").strip() or None
@@ -1242,7 +1241,7 @@ def quick_create(body: QuickCreateBookingIn, request: Request, db: Session = Dep
         data["poojari_id"], data["poojari_name"] = pr.id, pr.name
     data["source"] = data.get("source") if data.get("source") in ("Counter", "Advance") else "Counter"
     payment_method = _payment_mode(payment_method)
-    txn_ref = _check_utr(db, data.pop("txn_ref", None), payment_method, data["source"])
+    txn_ref = _check_utr(db, data.pop("txn_ref", None), payment_method)
 
     _link_counter_devotee(db, data)
     _apply_booking_rules(db, data, plan)
@@ -1339,7 +1338,7 @@ def bulk_quick_create(body: BulkQuickCreateBookingIn, request: Request, db: Sess
     # Advance Booking sends its cart as one payment: all lines are booked, or none (decision D1).
     atomic = bool(body.atomic)
     source = "Advance" if body.source == "Advance" else "Counter"
-    txn_ref = _check_utr(db, body.txn_ref, payment_method, source)
+    txn_ref = _check_utr(db, body.txn_ref, payment_method)
 
     success = []
     failed = []

@@ -7,10 +7,10 @@ import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { Pill, inr, fmtDate } from '../../../components/admin/ui.jsx'
 import { Select, NumberField } from '../../../components/common/Field.jsx'
 import { toast } from '../../../components/common/Dialog.jsx'
+import ResetButton from '../../../components/common/ResetButton.jsx'
 import { T, tr, personName, getLang, useLang, gramUnit, staffName } from '../../../i18n/LanguageContext.jsx'
 export { staffName }
 import { teScript } from '../../../lib/teScript.js'
-import { estValue, pct, factorOf, metalOf, PURITIES, purityOptions, PURITY_UNKNOWN } from '../../../lib/metal.js'
 
 // Awaiting Placement: tagged (ID + sticker) but not yet put on a shelf — Place makes it In Store
 export const AWAITING = 'Awaiting Placement'
@@ -157,7 +157,7 @@ export function StickerSheet({ items, title, onClose }) {
                 <div key={i.tag_id} className="border-2 border-dashed border-gray-400 rounded-lg p-3 text-[0.75rem] leading-snug break-inside-avoid">
                   <div className="font-mono font-bold text-[1.05rem] text-maroon-800">{i.tag_id}</div>
                   <div className="font-semibold text-gray-800">{tr(i.description || i.item_name)}</div>
-                  {(i.details || i.weight_g) && <div className="text-gray-600">{[tr(i.details), i.weight_g ? `${qty(i.weight_g)} ${gramUnit()}` : '', i.purity].filter(Boolean).join(' · ')}</div>}
+                  {(i.details || i.weight_g) && <div className="text-gray-600">{[tr(i.details), i.weight_g ? `${qty(i.weight_g)} ${gramUnit()}` : ''].filter(Boolean).join(' · ')}</div>}
                   <div className="text-gray-700"><T>Donor</T>: <b>{personName({ name: i.donor_name }, lang)}</b></div>
                   {i.donation_code && <div className="text-gray-700"><T>Donation</T>: <b className="font-mono">{i.donation_code}</b> ({tr('Receipt')} {i.source_ref})</div>}
                   <div className="text-gray-500">{i.donation_code ? fmtDate(i.received_on) : `${i.source_ref} · ${fmtDate(i.received_on)}`}</div>
@@ -177,7 +177,8 @@ export function StickerSheet({ items, title, onClose }) {
 }
 
 // ── Tag Items drawer: one row per piece, IDs are created on save ────────────
-const blankRow = (extra = {}) => ({ description: '', details: '', weight_g: '', purity: '', est_value: '', location_id: '', category_id: '', ...extra })
+// No purity for gold / silver (client, 2026-11-20)
+const blankRow = (extra = {}) => ({ description: '', details: '', weight_g: '', est_value: '', location_id: '', category_id: '', ...extra })
 
 /**
  * source: { type: 'Donation' | 'Hundi' | 'Manual', id }
@@ -193,6 +194,9 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
   const [saving, setSaving] = useState(false)
   const [stickers, setStickers] = useState(null)
   const [loadErr, setLoadErr] = useState('')
+  // Reset (client, 2026-11-20): bumping `start` rebuilds the rows exactly as when the form opened
+  const [start, setStart] = useState(0)
+  const resetTags = () => { setBulk({ description: '', details: '', est_value: '', location_id: '' }); setRows([]); setStart((n) => n + 1) }
 
   const isHundi = source.type === 'Hundi'
   useEffect(() => {
@@ -203,16 +207,14 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
         // One starter row for every counted valuables line that is not fully tagged
         setRows(p.lines.filter((l) => !l.complete).map((l) => {
           const left = l.mode === 'weight' ? Math.max(0, +(l.needed - l.done).toFixed(3)) : 0
-          const v = left && l.rate_per_g ? estValue(left, l.rate_per_g, l.purity_factor) : null
-          return blankRow({ hundi_line_id: l.line_id, purity: l.purity || '', ...(left ? { weight_g: String(left) } : {}), ...(v != null ? { est_value: String(v) } : {}) })
+          return blankRow({ hundi_line_id: l.line_id, ...(left ? { weight_g: String(left) } : {}) })
         }))
       } else if (p.mode === 'weight') {
-        // Gold / silver from the counter: purity and what it is carry over from the receipt
-        // …and the piece starts at the weight still to tag, valued like the receipt (grams × rate × purity)
+        // Gold / silver from the counter: what it is carries over from the receipt, and the piece
+        // starts at the weight still to tag (no purity / rate valuation — client, 2026-11-20)
         const left = Math.max(0, +(p.needed - p.done).toFixed(3))
-        const v = left && s.rate_per_g ? estValue(left, s.rate_per_g, s.purity_factor) : null
-        setRows(p.complete ? [] : [blankRow({ purity: s.purity || '', description: s.item_desc || '',
-          ...(left ? { weight_g: String(left) } : {}), ...(v != null ? { est_value: String(v) } : {}) })])
+        setRows(p.complete ? [] : [blankRow({ description: s.item_desc || '',
+          ...(left ? { weight_g: String(left) } : {}) })])
       } else {
         // cloth, utensils…: the devotee's description and value (÷ pieces) carry over from the receipt
         const left = Math.max(0, Math.round(p.needed - p.done))
@@ -220,7 +222,7 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
           ...(s.piece_value != null ? { est_value: String(s.piece_value) } : {}) })))
       }
     }).catch((ex) => setLoadErr(errText(ex, 'Could not load this source.')))
-  }, [source.type, source.id, isHundi])
+  }, [source.type, source.id, isHundi, start])
 
   // Hundi: suggest the tagged category named like the counted item type (Gold → Gold, Silver → Silver)
   useEffect(() => {
@@ -244,23 +246,15 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
     setRows((rs) => (rs.some((r) => !r.location_id) ? rs.map((r) => (r.location_id ? r : { ...r, location_id: String(home.id) })) : rs))
   }, [src, activeLocations])
 
-  // Gold / silver: no ₹ value since 2026-11-15. Receipts made before that carried a day's rate —
-  // for those, typing a piece's weight still fills its value (grams × that rate × purity)
-  const purities = PURITIES
-  const valuationOf = (r) => (isHundi ? src?.progress?.lines?.find((l) => l.line_id === r.hundi_line_id) : src)
-  // The receipt value of a piece: its grams × the rate used then × its purity (the receipt's
-  // purity when the piece's own is not in the table) — the server checks the same
-  const expectedOf = (r) => {
-    const v = valuationOf(r)
-    if (!v?.rate_per_g) return !isHundi && src?.piece_value != null && !src?.weight ? src.piece_value : null
-    const metal = metalOf(isHundi ? v.item_type : src?.item_name)
-    return estValue(r.weight_g, v.rate_per_g, factorOf(purities, metal, (r.purity || '').trim()) ?? v.purity_factor)
-  }
+  // The receipt value of a piece (cloth, utensils…: the devotee's value ÷ pieces). Gold / silver
+  // pieces get no grams × rate × purity value here any more (client, 2026-11-20) — the server
+  // fills a piece's value itself when it is left blank.
+  const expectedOf = () => (!isHundi && src?.piece_value != null && !src?.weight ? src.piece_value : null)
   const setRow = (i, patch) => setRows((rs) => rs.map((r, j) => {
     if (j !== i) return r
     const n = { ...r, ...patch }
     if ('est_value' in patch) n.autoValue = patch.autoValue ?? false
-    else if (('weight_g' in patch || 'purity' in patch) && r.autoValue !== false) {
+    else if ('weight_g' in patch && r.autoValue !== false) {
       const e = expectedOf(n)
       if (e != null) n.est_value = String(e)
     }
@@ -302,7 +296,7 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
         rows: rows.map((r) => ({
           category_id: r.category_id ? Number(r.category_id) : null, hundi_line_id: r.hundi_line_id || null,
           description: r.description || null, details: r.details || null,
-          weight_g: r.weight_g !== '' ? Number(r.weight_g) : null, purity: r.purity || null,
+          weight_g: r.weight_g !== '' ? Number(r.weight_g) : null,
           est_value: r.est_value !== '' ? Number(r.est_value) : null, location_id: r.location_id ? Number(r.location_id) : null,
           value_note: differs(r) ? (r.value_note || '').trim() : null,
         })),
@@ -342,9 +336,8 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
           <div className="px-6 py-5 space-y-5 flex-1">
             <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-50 rounded-lg px-4 py-3 text-[0.8125rem]">
               <div><b>{personName({ name: src.donor_name }, lang)}</b>{src.donor_mobile ? ` · ${src.donor_mobile}` : ''} · {tr(src.item_name)}
-                {src.quantity != null && <> · <b>{qty(src.quantity)} {tr(src.unit || '')}</b></>}{src.purity && <> · <b>{src.purity}</b></>} · <span className="font-mono">{sourceRef(src)}</span>
-                {src.rate_per_g == null && src.piece_value != null && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{tr('Value per piece')} = {inr(src.piece_value)} ({tr('value stated by the devotee')} {inr(src.est_value)} ÷ {qty(src.quantity)})</div>}
-                {src.rate_per_g != null && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{tr('Value per piece')} = {tr('grams')} × ₹{Number(src.rate_per_g).toLocaleString('en-IN')}{src.purity_factor ? ` × ${pct(src.purity_factor)}` : ''} ({tr('rate on the receipt day')})</div>}</div>
+                {src.quantity != null && <> · <b>{qty(src.quantity)} {tr(src.unit || '')}</b></>} · <span className="font-mono">{sourceRef(src)}</span>
+                {src.rate_per_g == null && src.piece_value != null && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{tr('Value per piece')} = {inr(src.piece_value)} ({tr('value stated by the devotee')} {inr(src.est_value)} ÷ {qty(src.quantity)})</div>}</div>
               <Pill tone={p.complete ? 'green' : 'amber'}>{p.complete ? tr('All tagged') : `${tr('Tagged')} ${progressText(p)}`}</Pill>
             </div>
             {p.receive && p.receive.state !== 'Received' && (
@@ -381,14 +374,14 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
                 </div>
                 <div className="p-3 space-y-2">
                   {rows.map((r, i) => r.hundi_line_id === l.line_id && (
-                    <TagRow key={i} r={r} i={i} weight={l.mode === 'weight'} metal={metalOf(l.item_type || l.item_name)} categories={tagged} hundi locations={activeLocations} setRow={setRow} removeRow={removeRow} expected={expectedOf(r)} />
+                    <TagRow key={i} r={r} i={i} weight={l.mode === 'weight'} categories={tagged} hundi locations={activeLocations} setRow={setRow} removeRow={removeRow} expected={expectedOf(r)} />
                   ))}
                   <button type="button" onClick={() => addRow({ hundi_line_id: l.line_id, category_id: rows.find((x) => x.hundi_line_id === l.line_id)?.category_id || '' })} className="text-[0.78rem] font-semibold text-maroon-700 inline-flex items-center gap-1"><Plus size={13} /><T>Add piece</T></button>
                 </div>
               </div>
             )) : !p.complete && (
               <div className="space-y-2">
-                {rows.map((r, i) => <TagRow key={i} r={r} i={i} weight={!!src.weight} metal={metalOf(src.item_name || src.fund)} locations={activeLocations} setRow={setRow} removeRow={removeRow} defaultValue={src.default_value} expected={expectedOf(r)} />)}
+                {rows.map((r, i) => <TagRow key={i} r={r} i={i} weight={!!src.weight} locations={activeLocations} setRow={setRow} removeRow={removeRow} defaultValue={src.default_value} expected={expectedOf(r)} />)}
                 {src.weight && (
                   <div className="flex items-center justify-between text-[0.78rem]">
                     <button type="button" onClick={() => addRow()} className="font-semibold text-maroon-700 inline-flex items-center gap-1"><Plus size={13} /><T>Add piece</T></button>
@@ -402,6 +395,7 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
         )}
         <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
           <button onClick={close} className="btn-outline flex-1 justify-center">{p?.complete ? <T>Close</T> : <T>Tag later</T>}</button>
+          {p && !p.complete && <ResetButton onReset={resetTags} disabled={saving} className="justify-center !px-3 shrink-0" />}
           {p && !p.complete && (
             <button disabled={saving || !rows.length} onClick={save} className="btn-maroon flex-1 justify-center disabled:opacity-60">
               <Tag size={15} className="mr-1" />{saving ? tr('Saving…') : `${tr('Tag')} ${rows.length} ${tr('piece(s)')}`}</button>
@@ -412,7 +406,7 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
   )
 }
 
-function TagRow({ r, i, weight, metal, categories = [], hundi, locations, setRow, removeRow, defaultValue, expected }) {
+function TagRow({ r, i, weight, categories = [], hundi, locations, setRow, removeRow, defaultValue, expected }) {
   const off = expected != null && r.est_value !== '' && Math.abs(Number(r.est_value) - expected) >= 1
   return (
     <div className={`grid grid-cols-2 sm:grid-cols-12 gap-2 items-end border rounded-lg p-2 ${off ? 'border-amber-300 bg-amber-50/40' : 'border-gray-100'}`}>
@@ -426,11 +420,8 @@ function TagRow({ r, i, weight, metal, categories = [], hundi, locations, setRow
       <div className={`col-span-2 ${hundi ? 'sm:col-span-2' : 'sm:col-span-3'}`}><label className="label"><T>Description</T></label>
         <input className="input" value={r.description} onChange={(e) => setRow(i, { description: e.target.value })} /></div>
       {weight ? (<>
-        <div><label className="label"><T>Weight g *</T></label><NumberField min="0" step="0.001" value={r.weight_g} onChange={(e) => setRow(i, { weight_g: e.target.value })} /></div>
-        <div className={hundi ? '' : 'sm:col-span-2'}><label className="label"><T>Purity</T></label>
-          <Select className="input" value={r.purity || PURITY_UNKNOWN} onChange={(e) => setRow(i, { purity: e.target.value })}>
-            {[...new Set([...purityOptions(metal || 'Gold'), ...(r.purity ? [r.purity] : [])])].map((p) => <option key={p} value={p}>{tr(p)}</option>)}
-          </Select></div>
+        {/* Purity removed (client, 2026-11-20): grams only */}
+        <div className={hundi ? 'sm:col-span-2' : 'sm:col-span-3'}><label className="label"><T>Weight g *</T></label><NumberField min="0" step="0.001" value={r.weight_g} onChange={(e) => setRow(i, { weight_g: e.target.value })} /></div>
       </>) : !hundi && (
         <div className="col-span-2 sm:col-span-2"><label className="label"><T>Size / colour</T></label><input className="input" value={r.details} onChange={(e) => setRow(i, { details: e.target.value })} /></div>
       )}
@@ -442,7 +433,7 @@ function TagRow({ r, i, weight, metal, categories = [], hundi, locations, setRow
       <button type="button" onClick={() => removeRow(i)} title={tr('Remove row')} aria-label={tr('Remove row')} className="justify-self-end mb-1 w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-red-500 hover:border-red-300"><Trash2 size={14} /></button>
       {expected != null && (
         <div className="col-span-2 sm:col-span-12 text-[0.75rem] flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="text-gray-500">{tr('Receipt value')}: <b className="text-gray-800">{inr(expected)}</b>{weight ? ` (${tr('grams × rate × purity')})` : ''}</span>
+          <span className="text-gray-500">{tr('Receipt value')}: <b className="text-gray-800">{inr(expected)}</b></span>
           {off && <>
             <span className="text-amber-700 font-semibold">⚠ {tr('Differs from the receipt value')}</span>
             <button type="button" onClick={() => setRow(i, { est_value: String(expected), autoValue: true })} className="text-maroon-700 font-semibold hover:underline">{tr('Use receipt value')}</button>
@@ -493,7 +484,7 @@ export function DonationItemsDialog({ donation, onClose }) {
                   <tr key={i.id}>
                     <td className="py-2.5 pr-3 font-mono text-[0.78rem] whitespace-nowrap"><Link to={`/admin/stores/item/${i.tag_id}`} className="text-maroon-700 font-semibold hover:underline">{i.tag_id}</Link></td>
                     <td className="py-2.5 pr-3 text-gray-800">{tr(i.description || i.item_name)}
-                      {(i.details || i.weight_g || i.purity) && <div className="text-[0.6875rem] text-gray-500">{[tr(i.details), i.weight_g ? `${qty(i.weight_g)} ${gramUnit()}` : '', i.purity].filter(Boolean).join(' · ')}</div>}</td>
+                      {(i.details || i.weight_g) && <div className="text-[0.6875rem] text-gray-500">{[tr(i.details), i.weight_g ? `${qty(i.weight_g)} ${gramUnit()}` : ''].filter(Boolean).join(' · ')}</div>}</td>
                     <td className="py-2.5 pr-3 text-gray-700">{i.location ? tr(i.location) : '—'}</td>
                     <td className="py-2.5"><Pill tone={STATUS_TONE[i.status] || 'gray'}>{tr(i.status)}</Pill></td>
                   </tr>

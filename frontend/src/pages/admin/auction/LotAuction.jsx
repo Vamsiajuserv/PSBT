@@ -6,6 +6,7 @@ import { Select, NumberField, DateField, TimeField, Checkbox } from '../../../co
 import { toast, confirmDialog, promptDialog } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit, teTerm } from '../../../i18n/LanguageContext.jsx'
 import { DeityBadge } from '../stores/shared.jsx'
+import ResetButton from '../../../components/common/ResetButton.jsx'
 
 // Lot auctions: a set of tagged pieces from the Stock Register, sold to one or more buyers.
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
@@ -38,14 +39,18 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
   const [maxDate, setMaxDate] = useState(() => addDaysISO(todayISO(), 90))
   useEffect(() => { SettingsAPI.config().then((c) => { if (Number.isInteger(c?.advance_booking_max_days)) setMaxDate(addDaysISO(todayISO(), c.advance_booking_max_days)) }).catch(() => {}) }, [])
   const [cats, setCats] = useState([])
-  const [catId, setCatId] = useState(preset ? String(preset.category_id) : '')
+  // starting values (also used by Reset)
+  const startCat = preset ? String(preset.category_id) : ''
+  const startF = () => ({ base_price: preset?.base_price ? String(preset.base_price) : '', auction_date: todayISO(), start_time: '', description: '',
+    notes: preset ? (preset.notes ?? tr('Re-auction of unsold items')) : '' })
+  const presetPicks = (list) => Object.fromEntries(preset.piece_ids.filter((id) => list.some((p) => p.id === id)).map((id) => [id, true]))
+  const [catId, setCatId] = useState(startCat)
   const [pieces, setPieces] = useState([])
   const [picked, setPicked] = useState({})
   const [q, setQ] = useState('')
   const [range, setRange] = useState({ from: '', to: '' })
   const [count, setCount] = useState('')
-  const [f, setF] = useState({ base_price: preset?.base_price ? String(preset.base_price) : '', auction_date: todayISO(), start_time: '', description: '',
-    notes: preset ? (preset.notes ?? tr('Re-auction of unsold items')) : '' })
+  const [f, setF] = useState(startF)
   const [saving, setSaving] = useState(false)
   useEffect(() => { StoresAPI.categories().then((r) => setCats((r.items || []).filter((c) => c.tracking === 'Tagged' && c.auctionable !== false))).catch(() => setCats([])) }, [])
   useEffect(() => {
@@ -57,7 +62,7 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
         const list = (r.items || []).sort((a, b) => (b.deity_used ? 1 : 0) - (a.deity_used ? 1 : 0) || a.tag_id.localeCompare(b.tag_id))
         setPieces(list)
         if (preset && String(preset.category_id) === String(catId)) {
-          setPicked(Object.fromEntries(preset.piece_ids.filter((id) => list.some((p) => p.id === id)).map((id) => [id, true])))
+          setPicked(presetPicks(list))
         }
       }).catch(() => setPieces([]))
   }, [catId])
@@ -79,6 +84,12 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
     setPicked(Object.fromEntries(hit.map((p) => [p.id, true])))
     const d = hit.filter((p) => p.deity_used).length
     toast(`${hit.length} ${tr('picked')}: ${d} ${tr('Deity-Used')} + ${hit.length - d} ${tr('other')}${n > pieces.length ? ` — ${tr('only these are in store')}` : ''}`)
+  }
+  // Reset (client, 2026-11-20): back to the drawer's opening values (picked pieces too; a changed type reloads its pieces)
+  const reset = () => {
+    setQ(''); setRange({ from: '', to: '' }); setCount(''); setF(startF())
+    if (catId === startCat) setPicked(preset && startCat ? presetPicks(pieces) : {})
+    else setCatId(startCat)
   }
   async function save(e) {
     e.preventDefault()
@@ -158,6 +169,7 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
         </div>
         <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
           <button type="button" onClick={onClose} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+          <ResetButton onReset={reset} disabled={saving} className="justify-center !px-3 shrink-0" />
           <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : `${tr('Create Auction')} (${chosen.length})`}</button>
         </div>
       </form>
@@ -169,11 +181,13 @@ export function StockAuctionDrawer({ onClose, onCreated, preset }) {
 const blankLine = () => ({ buyer_name: '', buyer_mobile: '', piece_ids: [], amount: '' })
 
 export function LotResultModal({ auction, onClose, onSaved }) {
-  const [lines, setLines] = useState(() => {
+  // starting lines: the result saved so far, or one empty buyer line (also used by Reset)
+  const startLines = () => {
     const prev = (auction.sales || []).map((s) => ({ buyer_name: s.buyer_name, buyer_mobile: s.buyer_mobile || '',
       piece_ids: auction.pieces.filter((p) => p.sale_id === s.id).map((p) => p.id), amount: String(Number(s.amount)) }))
     return prev.length ? prev : [blankLine()]
-  })
+  }
+  const [lines, setLines] = useState(startLines)
   const [bids, setBids] = useState(String(auction.bids ?? 0))
   const [saving, setSaving] = useState(false)
   const byId = useMemo(() => Object.fromEntries(auction.pieces.map((p) => [p.id, p])), [auction])
@@ -267,6 +281,8 @@ export function LotResultModal({ auction, onClose, onSaved }) {
         </div>
         <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
           <button type="button" onClick={onClose} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+          {/* Reset (client, 2026-11-20): back to this lot's opening values */}
+          <ResetButton onReset={() => { setLines(startLines()); setBids(String(auction.bids ?? 0)) }} disabled={saving} className="justify-center !px-3 shrink-0" />
           <button type="button" onClick={markUnsold} disabled={saving} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-orange-300 bg-orange-50 text-orange-700 font-semibold text-sm px-4 py-2 hover:bg-orange-100 disabled:opacity-60"><PackageX size={15} /><T>Unsold</T></button>
           <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60"><Gavel size={15} className="mr-1" />{saving ? tr('Saving…') : <T>Save Result</T>}</button>
         </div>

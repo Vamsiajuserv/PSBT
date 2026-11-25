@@ -9,6 +9,7 @@ import { Select, NumberField, DateField } from '../../../components/common/Field
 import { confirmDialog, promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
 import { TagItemsDrawer, canManageStores, useStoresMeta, staffName } from './shared.jsx'
+import ResetButton from '../../../components/common/ResetButton.jsx'
 
 // One screen for stock that did not come from a donation (Bought Items merged in, 2026-11-16).
 // "Temple purchase" is shown as "Bought from a shop": with a bill no. it counts at once (the bill is the
@@ -213,6 +214,8 @@ export default function ManualEntries() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              {/* Reset (client, 2026-11-20): back to a freshly opened entry */}
+              <ResetButton onReset={() => setDrawer(empty())} disabled={saving} className="justify-center !px-3 shrink-0" />
               <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : drawer.source === BOUGHT && drawer.bill_no.trim() ? <T>Save</T> : <T>Send for verification</T>}</button>
             </div>
           </form>

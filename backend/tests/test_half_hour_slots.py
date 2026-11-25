@@ -1,9 +1,11 @@
-"""Half-hour pooja lists: which list a new booking goes on, Print & Send to the poojari, Undo
-(Administrator only), and the half-hour filter / options. Run from backend/:
+"""Half-hour pooja lists: which list a new booking goes on, the counter's choice of half-hour, and the
+half-hour filter / options. Run from backend/:
     python -m unittest discover -s tests -t .
 
-The client's rule: a devotee who comes at 6:15 goes on the 6:00–6:30 list; once that list was
-printed and sent to the poojari, the next devotee goes on 6:30–7:00 (not 7:00).
+Client rule 2026-11-20: lists are only PRINTED (as often as needed). Printing closes nothing — only
+the clock does. A fixed time (e.g. 5:30 PM) can be booked until 5:30 PM; after that it is over and
+the devotee picks another time. "Print & Send" and its Administrator Undo were removed. A window /
+temple-hours pooja goes on the current half-hour, or the next one once the current one is over.
 """
 import unittest
 from datetime import date, datetime, timedelta
@@ -15,7 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import pooja_batches as pb
-from app.models import AuditLog, Base, Booking, Pooja, PoojaPlan, SlotDispatch
+from app.models import Base, Booking, Pooja, PoojaPlan, SlotDispatch
 from app.routers import bookings as rb
 from app.routers import poojaris as rp
 
@@ -75,78 +77,99 @@ class HalfHourSlots(unittest.TestCase):
         self.db.add(b); self.db.commit()
         return b
 
-    def send(self, slot, user=None, day=None):
-        return rp.send_slot(rp.SlotSendIn(slot=slot, day=day), REQ, db=self.db, user=user or login("Counter Staff"))
-
-    def undo(self, slot, user=None):
-        return rp.undo_slot(rp.SlotSendIn(slot=slot), REQ, db=self.db, user=user or login("Administrator", ""))
+    def old_send_record(self, slot, day=DAY):
+        """A "Print & Send" record saved before 2026-11-20 — it must not close anything now."""
+        self.db.add(SlotDispatch(day=day, slot_start=slot, devotee_count=1, sent_by="counter", sent_at=at(6, 0, day)))
+        self.db.commit()
 
     def status(self, exc):
         return exc.exception.status_code
 
-    # ── the client's example ──
-    def test_walk_in_goes_to_current_half_hour_then_the_next_once_sent(self):
-        a = self.book()                                   # 6:05 → 6:00–6:30
-        self.now = at(6, 15)
-        b = self.book()                                   # 6:15 → still 6:00–6:30 (not sent yet)
-        self.assertEqual((a.batch_slot, b.batch_slot), ("06:00", "06:00"))
-        self.now = at(6, 20)
-        out = self.send("06:00")                          # counter prints and hands it over
-        self.assertEqual((out["start"], out["sent"]["count"], out["sent"]["sent_at"]), ("06:00", 2, "06:20"))
-        self.now = at(6, 22)
-        self.assertEqual(self.book().batch_slot, "06:30")  # 6:22 → the next list, not 7:00
-        self.now = at(6, 35)
-        self.assertEqual(self.book().batch_slot, "06:30")
-        self.now = at(6, 40)
-        self.send("06:30")
-        self.assertEqual(self.book().batch_slot, "07:00")
+    def rules(self, data, plan_id):
+        with mock.patch.object(rb, "assert_txn_date_open"), mock.patch.object(rb, "max_advance_days", return_value=None):
+            rb._apply_booking_rules(self.db, data, self.db.get(PoojaPlan, plan_id))
+        return data
 
-    def test_unsent_past_half_hour_is_not_reused(self):
-        self.now = at(6, 35)                              # 6:00 list never sent, but its time is over
-        self.assertEqual(self.assign(), "06:30")
+    def printed(self):
+        """What the half-hour slots screen prints (each half-hour's list)."""
+        out = rp.hourly_slots(day=DAY, mine=False, pooja_id=None, all_slots=False, db=self.db, user=login("Administrator", ""))
+        return {h["start"]: h for h in out["hours"]}
 
-    def test_fixed_time_pooja_keeps_its_own_half_hour_until_sent(self):
-        self.now = at(17, 10)
-        self.assertEqual(self.assign("05:30 PM"), "17:30")
+    # ── the client's example (2026-11-20): Ashtotharam 5:30 PM ──
+    def test_fixed_time_stays_open_until_its_time_then_locks(self):
+        asht = lambda: {"pooja_id": 2, "scheduled_date": DAY, "time_slot": "05:30 PM", "devotee_name": "Ravi", "amount": 20}
+        self.now = at(16, 50)
+        self.assertEqual(self.rules(asht(), 2)["batch_slot"], "17:30")       # A books 5:30
         self.book("05:30 PM", pooja_id=2)
-        self.send("17:30")
-        with self.assertRaises(HTTPException) as cm:               # sent: closed, never moved on by itself
-            self.assign("05:30 PM")
-        self.assertEqual(self.status(cm), 409)
-        self.assertIn("choose another time", cm.exception.detail)
-        self.assertEqual(self.assign("09:30 AM", day=DAY + timedelta(days=1)), "09:30")   # tomorrow: open
-        self.undo("17:30")                                          # Admin takes the list back → open again
-        self.assertEqual(self.assign("05:30 PM"), "17:30")
+        self.now = at(17, 10)
+        self.assertEqual(self.printed()["17:30"]["total"], 1)                 # staff print: A
+        self.now = at(17, 20)
+        self.assertEqual(self.rules(asht(), 2)["batch_slot"], "17:30")       # B: still open after printing
+        self.book("05:30 PM", pooja_id=2)
+        self.assertEqual(self.printed()["17:30"]["total"], 2)                 # print again: A and B
+        self.now = at(17, 31)
+        with self.assertRaises(HTTPException) as cm:                          # C after 5:30 → locked by the clock
+            self.rules(asht(), 2)
+        self.assertEqual(self.status(cm), 422)
+        self.assertIn("already over", cm.exception.detail)
+        tomorrow = self.rules({**asht(), "scheduled_date": DAY + timedelta(days=1)}, 2)   # or another date
+        self.assertEqual(tomorrow["batch_slot"], "17:30")
 
-    def test_booking_rules_refuse_a_sent_fixed_time(self):
+    def test_printing_closes_nothing(self):
         self.now = at(9, 5)
         self.book("09:30 AM", pooja_id=2)
-        self.send("09:30")
-        data = {"pooja_id": 2, "scheduled_date": DAY, "time_slot": "09:30 AM", "devotee_name": "Ravi", "amount": 20}
-        with mock.patch.object(rb, "assert_txn_date_open"), mock.patch.object(rb, "max_advance_days", return_value=None):
-            with self.assertRaises(HTTPException) as cm:
-                rb._apply_booking_rules(self.db, data, self.db.get(PoojaPlan, 2))
-            self.assertEqual(self.status(cm), 409)
-            data = {**data, "time_slot": "05:30 PM"}                   # the devotee picks another time
-            rb._apply_booking_rules(self.db, data, self.db.get(PoojaPlan, 2))
-            self.assertEqual(data["batch_slot"], "17:30")
+        for _ in range(3):
+            self.printed()                                                    # print, reprint …
+        self.assertEqual(self.assign("09:30 AM"), "09:30")
+        h = self.printed()["09:30"]
+        self.assertNotIn("sent", h)
+        self.assertNotIn("late", h)
+        self.assertNotIn("late", h["slots"][0]["devotees"][0])
+
+    def test_old_send_records_are_ignored(self):
+        self.now = at(9, 5)
+        self.old_send_record("09:30")
+        self.old_send_record("09:00")
+        self.assertEqual(self.assign("09:30 AM"), "09:30")                    # fixed time still open
+        self.assertEqual(self.assign(), "09:00")                              # window: the current half-hour
         out = rb.batch_options_for(day=DAY, time_slot="09:30 AM", db=self.db, user=login("Counter Staff"))
-        self.assertEqual((out["auto"], out["sent"]), (None, ["09:30"]))
-        self.assertIn("already sent", out["error"])
+        self.assertEqual((out["auto"], out["error"]), ("09:30", None))
+        self.assertNotIn("sent", out)
+
+    def test_print_and_send_and_undo_are_gone(self):
+        paths = {r.path for r in rp.router.routes}
+        self.assertNotIn("/api/poojaris/slots/send", paths)
+        self.assertNotIn("/api/poojaris/slots/undo", paths)
+        self.assertFalse(hasattr(rp, "send_slot") or hasattr(rp, "undo_slot"))
+
+    # ── window / temple-hours poojas: the current half-hour, the next once it is over ──
+    def test_walk_in_goes_to_current_half_hour_then_the_next_when_it_is_over(self):
+        self.now = at(6, 5)
+        a = self.book()                                   # 6:05 → 6:00–6:30
+        self.now = at(6, 25)
+        b = self.book()                                   # 6:25 → still 6:00–6:30 (printing changes nothing)
+        self.assertEqual((a.batch_slot, b.batch_slot), ("06:00", "06:00"))
+        self.now = at(6, 30)
+        self.assertEqual(self.book().batch_slot, "06:30")  # 6:00–6:30 is over → the next list
+        self.now = at(7, 2)
+        self.assertEqual(self.book().batch_slot, "07:00")
+
+    def test_past_half_hour_is_not_reused(self):
+        self.now = at(6, 35)
+        self.assertEqual(self.assign(), "06:30")
 
     def test_time_window_pooja_starts_at_its_window(self):
         self.now = at(7, 10)
-        self.assertEqual(self.assign(CAR), "09:00")       # before the Car Pooja window: its first list
+        self.assertEqual(self.assign(CAR), "09:00")       # before the window: its first list
         self.now = at(10, 40)
         self.assertEqual(self.assign(CAR), "10:30")
-        self.book(CAR, pooja_id=3)
-        self.send("10:30")
+        self.now = at(11, 5)
         self.assertEqual(self.assign(CAR), "11:00")       # the last half-hour of 9:00–11:30
-        self.book(CAR, pooja_id=3)
-        self.send("11:00")
-        with self.assertRaises(HTTPException) as cm:      # every list of the window is sent
+        self.now = at(11, 35)
+        with self.assertRaises(HTTPException) as cm:      # the whole window is over
             self.assign(CAR)
         self.assertEqual(self.status(cm), 409)
+        self.assertIn("another date", cm.exception.detail)
 
     def test_pooja_without_fixed_time_after_the_day_stays_on_the_last_list(self):
         self.now = at(22, 5)
@@ -167,142 +190,57 @@ class HalfHourSlots(unittest.TestCase):
             self.assign(CAR, requested="12:00", day=tomorrow)
         self.assertEqual(self.status(cm), 422)
 
-    def test_chosen_half_hour_today_must_be_open(self):
+    def test_chosen_half_hour_today_must_not_be_over(self):
         self.now = at(7, 5)
         with self.assertRaises(HTTPException) as cm:
             self.assign(requested="06:30")                                 # already over
         self.assertEqual(self.status(cm), 422)
         self.book(batch="07:00")
-        self.send("07:00")
-        with self.assertRaises(HTTPException) as cm:
-            self.assign(requested="07:00")                                 # already sent
-        self.assertEqual(self.status(cm), 409)
+        self.printed()
+        self.assertEqual(self.assign(requested="07:00"), "07:00")          # current half-hour, printed: still open
         self.assertEqual(self.assign(requested="07:30"), "07:30")
 
-    def test_counter_today_choice_while_list_is_open(self):
-        # Client rule 2026-11-14: a list stays open until it is sent (starting does not close it);
-        # the earliest open one is only the default — the counter may pick any later open one.
+    def test_counter_today_choice_while_the_half_hour_lasts(self):
+        # the earliest half-hour not over is only the default — the counter may pick any later one
         self.now = at(9, 20)
         out = rb.batch_options_for(day=DAY, time_slot=CAR, db=self.db, user=login("Counter Staff"))
         rows = {o["start"]: o for o in out["options"]}
-        self.assertEqual((out["auto"], rows["09:00"]["over"], rows["09:00"]["sent"]), ("09:00", False, False))
-        rules = lambda d: rb._apply_booking_rules(self.db, d, self.db.get(PoojaPlan, 3))
+        self.assertEqual((out["auto"], rows["09:00"]["over"]), ("09:00", False))
+        self.assertNotIn("sent", rows["09:00"])
         car = lambda **kw: {"pooja_id": 3, "scheduled_date": DAY, "time_slot": CAR, "devotee_name": "Ravi",
                             "amount": 500, **kw}
-        with mock.patch.object(rb, "assert_txn_date_open"), mock.patch.object(rb, "max_advance_days", return_value=None):
-            for picked, want in ((None, "09:00"), ("09:00", "09:00"), ("10:00", "10:00"), ("11:00", "11:00")):
-                data = car(batch_slot=picked)
-                rules(data)
-                self.assertEqual(data["batch_slot"], want, picked)
-            self.book(CAR, pooja_id=3, batch="09:00")
-            self.send("09:00")
-            with self.assertRaises(HTTPException) as cm:                   # sent: closed for everyone
-                rules(car(batch_slot="09:00"))
-            self.assertEqual(self.status(cm), 409)
-            self.assertIn("choose another half-hour", cm.exception.detail)
-            data = car()
-            rules(data)
-            self.assertEqual(data["batch_slot"], "09:30")                  # default moves to the next open one
-            for bad in ("08:30", "12:00", "09:15"):                        # outside the window / not a half-hour
-                with self.assertRaises(HTTPException) as cm:
-                    rules(car(batch_slot=bad))
-                self.assertEqual(self.status(cm), 422, bad)
+        for picked, want in ((None, "09:00"), ("09:00", "09:00"), ("10:00", "10:00"), ("11:00", "11:00")):
+            self.assertEqual(self.rules(car(batch_slot=picked), 3)["batch_slot"], want, picked)
+        self.now = at(9, 35)
+        with self.assertRaises(HTTPException) as cm:                       # 9:00–9:30 is over now
+            self.rules(car(batch_slot="09:00"), 3)
+        self.assertEqual(self.status(cm), 422)
+        self.assertEqual(self.rules(car(), 3)["batch_slot"], "09:30")      # default moves on with the clock
+        for bad in ("08:30", "12:00", "09:15"):                            # outside the window / not a half-hour
+            with self.assertRaises(HTTPException) as cm:
+                self.rules(car(batch_slot=bad), 3)
+            self.assertEqual(self.status(cm), 422, bad)
 
     def test_booking_rules_set_the_half_hour(self):
         data = {"pooja_id": 1, "scheduled_date": DAY, "time_slot": TEMPLE, "devotee_name": "X", "amount": 300}
-        with mock.patch.object(rb, "assert_txn_date_open"), mock.patch.object(rb, "max_advance_days", return_value=None):
-            rb._apply_booking_rules(self.db, data, self.db.get(PoojaPlan, 1))
-            self.assertEqual(data["batch_slot"], "06:00")
-            data = {"pooja_id": 1, "scheduled_date": DAY + timedelta(days=2), "time_slot": TEMPLE, "devotee_name": "X",
-                    "amount": 300, "batch_slot": "18:30"}
-            rb._apply_booking_rules(self.db, data, self.db.get(PoojaPlan, 1))
-            self.assertEqual(data["batch_slot"], "18:30")
-            data = {"pooja_id": 2, "scheduled_date": DAY, "time_slot": "09:30 AM", "devotee_name": "X", "amount": 20,
-                    "batch_slot": "06:00"}                                 # fixed time: the pick is ignored
-            rb._apply_booking_rules(self.db, data, self.db.get(PoojaPlan, 2))
-            self.assertEqual(data["batch_slot"], "09:30")
+        self.assertEqual(self.rules(data, 1)["batch_slot"], "06:00")
+        data = {"pooja_id": 1, "scheduled_date": DAY + timedelta(days=2), "time_slot": TEMPLE, "devotee_name": "X",
+                "amount": 300, "batch_slot": "18:30"}
+        self.assertEqual(self.rules(data, 1)["batch_slot"], "18:30")
+        data = {"pooja_id": 2, "scheduled_date": DAY, "time_slot": "09:30 AM", "devotee_name": "X", "amount": 20,
+                "batch_slot": "06:00"}                                     # fixed time: the pick is ignored
+        self.assertEqual(self.rules(data, 2)["batch_slot"], "09:30")
 
     def test_batch_options_for_the_counter(self):
         self.now = at(6, 40)
         self.book(batch="06:30")
-        self.send("06:30")
         out = rb.batch_options_for(day=DAY, time_slot=TEMPLE, db=self.db, user=login("Counter Staff"))
         rows = {o["start"]: o for o in out["options"]}
-        self.assertEqual((out["auto"], out["fixed"], out["error"]), ("07:00", False, None))
-        self.assertEqual((rows["06:00"]["over"], rows["06:30"]["sent"], rows["07:00"]["sent"]), (True, True, False))
+        self.assertEqual((out["auto"], out["fixed"], out["error"]), ("06:30", False, None))
+        self.assertEqual((rows["06:00"]["over"], rows["06:30"]["over"], rows["07:00"]["over"]), (True, False, False))
         self.assertEqual((out["options"][0]["start"], out["options"][-1]["start"], out["options"][-1]["end"]), ("06:00", "20:30", "21:00"))
         fixed = rb.batch_options_for(day=DAY, time_slot="05:30 PM", db=self.db, user=login("Counter Staff"))
         self.assertEqual((fixed["auto"], fixed["fixed"], len(fixed["options"])), ("17:30", True, 1))
-
-    # ── Print & Send / Undo ──
-    def test_send_records_the_list_and_is_audited(self):
-        self.book(); self.book(); self.book(batch="06:30")
-        self.send("06:00")
-        d = self.db.query(SlotDispatch).one()
-        self.assertEqual((d.day, d.slot_start, d.devotee_count, d.booking_ids, d.sent_by), (DAY, "06:00", 2, "1,2", "counterstaff"))
-        self.assertEqual(self.db.query(AuditLog).filter(AuditLog.action == "SEND").count(), 1)
-        out = rp.hourly_slots(day=DAY, mine=False, pooja_id=None, all_slots=False, db=self.db, user=login("Administrator", ""))
-        sent = {h["start"]: h["sent"] for h in out["hours"]}
-        self.assertEqual(sent["06:00"]["sent_by_name"], "Counter Staff User")
-        self.assertIsNone(sent["06:30"])
-
-    def test_send_refusals(self):
-        self.book()
-        self.send("06:00")
-        with self.assertRaises(HTTPException) as cm:
-            self.send("06:00")                                             # twice
-        self.assertEqual(self.status(cm), 409)
-        with self.assertRaises(HTTPException) as cm:
-            self.send("08:00")                                             # nobody on it
-        self.assertEqual(self.status(cm), 409)
-        for slot in ("6:15", "x", ""):
-            with self.assertRaises(HTTPException) as cm:
-                self.send(slot)
-            self.assertEqual(self.status(cm), 422)
-        self.book(batch="09:00", day=DAY + timedelta(days=1))
-        with self.assertRaises(HTTPException) as cm:
-            self.send("09:00", day=DAY + timedelta(days=1))                # only today's lists
-        self.assertEqual(self.status(cm), 422)
-
-    def test_booking_added_after_sending_is_marked_late(self):
-        """New bookings can no longer join a sent list; one that is on it anyway (e.g. saved by an
-        older version) is still shown as added after sending, so the list gets reprinted."""
-        self.now = at(17, 0)
-        self.book("05:30 PM", pooja_id=2)
-        self.send("17:30")
-        self.book("05:30 PM", pooja_id=2, batch="17:30")
-        h = next(x for x in rp.hourly_slots(day=DAY, mine=False, pooja_id=None, all_slots=False, db=self.db,
-                                           user=login("Administrator", ""))["hours"] if x["start"] == "17:30")
-        self.assertEqual((h["total"], h["late"], [d["late"] for d in h["slots"][0]["devotees"]]), (2, 1, [False, True]))
-
-    def test_undo_reopens_the_list(self):
-        self.book()
-        self.send("06:00")
-        self.assertEqual(self.assign(), "06:30")
-        self.assertIsNone(self.undo("06:00")["sent"])
-        self.assertEqual(self.assign(), "06:00")
-        self.assertEqual(self.db.query(AuditLog).filter(AuditLog.action == "UNDO").count(), 1)
-        with self.assertRaises(HTTPException) as cm:
-            self.undo("06:00")                                             # not sent any more
-        self.assertEqual(self.status(cm), 404)
-
-    def test_who_may_send_and_undo(self):
-        def guard(path):
-            rt = next(x for x in rp.router.routes if x.path == path)
-            return next(d for d in rt.dependant.dependencies if d.name == "user").call
-        send, undo = guard("/api/poojaris/slots/send"), guard("/api/poojaris/slots/undo")
-        for u in (login("Counter Staff"), login("Administrator", ""), login("Admin", "")):
-            self.assertIs(send(u), u)
-        for role in ("Poojari", "Accountant", "Committee", "Stores Officer"):
-            with self.assertRaises(HTTPException) as cm:
-                send(login(role))
-            self.assertEqual(self.status(cm), 403, role)
-        admin = login("Administrator", "")
-        self.assertIs(undo(admin), admin)
-        for role in ("Counter Staff", "Poojari", "Accountant", "Committee", "Stores Officer"):
-            with self.assertRaises(HTTPException) as cm:
-                undo(login(role))
-            self.assertEqual(self.status(cm), 403, role)
 
     # ── All bookings: half-hour filter ──
     def test_bookings_list_half_filter_and_options(self):

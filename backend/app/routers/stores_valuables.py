@@ -5,21 +5,21 @@ Per metal, in grams: Opening (in stock on the 1st), Received (tagged during the 
 Sold / Written off, On loan (out on issue at month end) and Closing (still the temple's at
 month end, on loan included) — Opening + Received − Sold / Written off = Closing. Each piece
 is replayed from its movement history, exactly like the Stock Report. Closing is valued at
-the latest rate entered on or before the last day: grams × rate × purity (the piece's own
-value when its purity is not in the table). Page 2 lists the pieces.
+each piece's own value, when it has one — no rate × purity valuation (no daily rate since
+2026-11-15, no purity — client, 2026-11-20). Page 2 lists the pieces.
 """
 import calendar
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..helpers import ist_today
-from ..models import DonationCategory, MetalRate, StoreLocation
+from ..models import DonationCategory, StoreLocation
 from ..security import RequireModule
-from .metal_rates import BASIS, metal_of, purities
+from .metal_rates import metal_of
 from .stock_report import IN_STOCK, _piece_histories, _replay
 from .stores import _is_weight, donation_codes
 
@@ -43,11 +43,6 @@ def _month(month: str | None) -> tuple[date, date]:
     return start, min(date(y, m, calendar.monthrange(y, m)[1]), today)
 
 
-def _rate(db: Session, metal: str, day: date) -> MetalRate | None:
-    return (db.query(MetalRate).filter(MetalRate.metal == metal, MetalRate.rate_date <= day)
-            .order_by(MetalRate.rate_date.desc()).first())
-
-
 def _range(start: date | None, end: date | None) -> tuple[date, date]:
     """Custom dates (From – To), e.g. a festival week or the financial year; To stops at today."""
     if not start or not end:
@@ -68,8 +63,6 @@ def statement(month: str | None = None, db: Session = Depends(get_db), user=Depe
     start, end = _range(start, end) if custom else _month(month)
     cats = {c.id: (c, metal_of(c.name)) for c in db.query(DonationCategory).filter(DonationCategory.tracking == "Tagged").all()
             if metal_of(c.name) and _is_weight(c.unit)}
-    rates = {m: _rate(db, m, end) for m in ("Gold", "Silver")}
-    table = {m: {p["label"]: Decimal(str(p["factor"])) for p in v} for m, v in purities(db).items()}
     locs = {l.id: l.name for l in db.query(StoreLocation).all()}
     zero = lambda: {"opening": Decimal("0"), "received": Decimal("0"), "out": Decimal("0"), "on_loan": Decimal("0"),
                     "closing": Decimal("0"), "pieces": 0, "value": Decimal("0"), "unvalued": 0}
@@ -91,10 +84,7 @@ def statement(month: str | None = None, db: Session = Depends(get_db), user=Depe
             continue
         r["closing"] += g; r["pieces"] += 1
         r["on_loan"] += g if p["end_state"] == "issued" else 0
-        rate, factor = rates[metal], table.get(metal, {}).get((item.purity or "").strip())
-        if rate and factor:
-            value, basis = (g * Decimal(str(rate.rate_per_g)) * factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP), "rate"
-        elif item.est_value is not None:
+        if item.est_value is not None:
             value, basis = Decimal(str(item.est_value)), "piece"
         else:
             value, basis = None, None
@@ -103,17 +93,15 @@ def statement(month: str | None = None, db: Session = Depends(get_db), user=Depe
         else:
             r["unvalued"] += 1
         pieces.append({"tag_id": item.tag_id, "metal": metal, "item_name": item.item_name, "description": item.description,
-                       "weight_g": float(g), "purity": item.purity, "location": locs.get(item.location_id),
+                       "weight_g": float(g), "location": locs.get(item.location_id),
                        "state": STATE.get(p["end_state"], p["end_state"]), "source_ref": item.source_ref,
                        "donation_code": codes.get(item.donation_id),
                        "value": float(value) if value is not None else None, "value_basis": basis})
     pieces.sort(key=lambda x: (x["metal"], x["tag_id"]))
     out = []
     for m, r in rows.items():
-        rate = rates[m]
-        out.append({"metal": m, "basis": BASIS[m], **{k: float(v) for k, v in r.items() if k not in ("pieces", "unvalued")},
+        out.append({"metal": m, **{k: float(v) for k, v in r.items() if k not in ("pieces", "unvalued")},
                     "pieces": r["pieces"], "unvalued": r["unvalued"],
-                    "rate": {"rate_per_g": float(rate.rate_per_g), "date": str(rate.rate_date)} if rate else None,
                     "balanced": abs(r["opening"] + r["received"] - r["out"] - r["closing"]) < Decimal("0.001")})
     return {"month": None if custom else start.strftime("%Y-%m"), "custom": custom,
             "start": str(start), "end": str(end), "rows": out, "pieces": pieces,

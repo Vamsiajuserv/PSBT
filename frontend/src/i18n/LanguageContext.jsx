@@ -175,6 +175,10 @@ const UI_TE = {
   'Cancel': 'రద్దు', 'Confirm': 'నిర్ధారించండి',
   'Delete': 'తొలగించండి', 'Edit': 'సవరించండి', 'Search': 'వెతకండి',
   'Search…': 'వెతకండి…', 'Clear': 'క్లియర్', 'Reset': 'రీసెట్',
+  // Reset on entry forms (2026-11-20)
+  'Clear all entered details?': 'నమోదు చేసిన వివరాలన్నీ తొలగించాలా?',
+  'Everything typed in this form will be cleared. Nothing that is already saved is changed.': 'ఈ ఫారమ్\u200cలో టైప్ చేసినదంతా తొలగించబడుతుంది. ఇప్పటికే సేవ్ చేసినది మారదు.',
+  'Start over': 'మళ్లీ మొదలుపెట్టండి',
   'Reset current billing?': 'ప్రస్తుత బిల్లింగ్ రీసెట్ చేయాలా?',
   'All selected poojas and entered details will be cleared.': 'ఎంచుకున్న అన్ని పూజలు మరియు నమోదు చేసిన వివరాలు క్లియర్ చేయబడతాయి.',
   'Refresh': 'రిఫ్రెష్', 'Refreshing…': 'రిఫ్రెష్ అవుతోంది…',
@@ -1105,6 +1109,7 @@ const UI_TE = {
   'Please confirm duplicate plan acknowledgements.': 'దయచేసి డూప్లికేట్ ప్లాన్ అంగీకారాలను నిర్ధారించండి.',
   'Billing failed.': 'బిల్లింగ్ విఫలమైంది.',
   'item(s) billed': 'ఐటమ్(లు) బిల్ చేయబడ్డాయి',
+  'Nothing was billed': 'ఏదీ బిల్ చేయబడలేదు',
   'failed': 'విఫలమైంది',
   // Temple-profile values that arrive from the DB (settings / site content)
   // rather than as literals in the page — see the DYNAMIC check in i18n-audit.
@@ -4897,6 +4902,10 @@ const UI_TE = {
   'Pooja time': 'పూజ వేళ', 'List': 'జాబితా',
   'Print & Send': 'ప్రింట్ చేసి పంపండి', 'Send': 'పంపండి', 'Send now': 'ఇప్పుడే పంపండి',
   'Sent': 'పంపబడింది', 'sent': 'పంపబడ్డాయి', 'Not sent': 'పంపలేదు', 'Not sent yet': 'ఇంకా పంపలేదు', 'Open now': 'ఇప్పుడు తెరిచి ఉంది',
+  // Half-hour lists, print only (2026-11-20)
+  'Over': 'ముగిసింది',
+  'No half-hour is left for this pooja today (all are over). Book it for another date.': 'ఈ రోజు ఈ పూజకు అరగంట ఏదీ మిగలలేదు (అన్నీ ముగిశాయి). మరో తేదీకి బుక్ చేయండి.',
+  'The half-hour you picked is over — the earliest open one is chosen. Confirm with the devotee.': 'మీరు ఎంచుకున్న అరగంట ముగిసింది — తెరిచి ఉన్న మొదటిది ఎంచుకోబడింది. భక్తుడితో నిర్ధారించండి.',
   'Added after sending': 'పంపిన తర్వాత జోడించబడింది',
   'added after sending — reprint the list for the poojari.': 'పంపిన తర్వాత జోడించబడ్డారు — పూజారి కోసం జాబితాను మళ్లీ ప్రింట్ చేయండి.',
   'No poojas booked in this half-hour.': 'ఈ అరగంటలో పూజలు బుక్ కాలేదు.',
@@ -5209,6 +5218,13 @@ const UI_TE = {
   'select the devotee first': 'ముందుగా భక్తుని ఎంచుకోండి',
   'The whole plan must fall in this festival window.': 'మొత్తం ప్లాన్ ఈ పండుగ కాలంలోనే ఉండాలి.',
   'Add to booking': 'బుకింగ్\u200cకు చేర్చండి',
+  // Advance Booking multi-select (2026-11-20)
+  'Select one or more poojas…': 'ఒకటి లేదా అంతకంటే ఎక్కువ పూజలను ఎంచుకోండి…',
+  'Now adding': 'ఇప్పుడు చేరుస్తున్నది',
+  'more waiting': 'ఇంకా వేచి ఉన్నాయి',
+  'Click "Add to booking" to add the ticked poojas.': 'ఎంచుకున్న పూజలను చేర్చడానికి "బుకింగ్\u200cకు చేర్చండి" నొక్కండి.',
+  '{n} ticked pooja(s) not added yet — add them or untick them.': 'ఎంచుకున్న {n} పూజ(లు) ఇంకా చేర్చలేదు — చేర్చండి లేదా ఎంపిక తీసివేయండి.',
+  'Add to booking & next': 'బుకింగ్\u200cకు చేర్చి తదుపరికి',
   'Poojas you add appear here. Add as many as the devotee wants, for any dates.': 'మీరు చేర్చే పూజలు ఇక్కడ కనిపిస్తాయి. భక్తుడు కోరినన్ని పూజలు, ఏ తేదీలకైనా చేర్చండి.',
   'Already booked that day — you will be asked to confirm.': 'ఆ రోజు ఇప్పటికే బుక్ అయింది — మీరు నిర్ధారించమని అడగబడుతుంది.',
   'How did the devotee pay? *': 'భక్తుడు ఎలా చెల్లించారు? *',
@@ -6234,6 +6250,13 @@ const UI_TE = {
   'Total value': 'మొత్తం విలువ',
   'Opening + Received − Sold / Written off = Closing. On loan is part of Closing. Value = grams × rate × purity.': 'ప్రారంభం + అందినవి − అమ్మినవి / రద్దు చేసినవి = ముగింపు. జారీలో ఉన్నవి ముగింపులో భాగం. విలువ = గ్రాములు × రేటు × స్వచ్ఛత.',
   'Pieces at month end': 'నెలాఖరుకు ఉన్న వస్తువులు',
+  // Purity removed, optional amount for gold / silver, goods value in reports (client, 2026-11-20)
+  'Opening + Received − Sold / Written off = Closing. On loan is part of Closing.': 'ప్రారంభం + అందినవి − అమ్మినవి / రద్దు చేసినవి = ముగింపు. జారీలో ఉన్నవి ముగింపులో భాగం.',
+  'Gold and silver are kept by weight. The amount is optional — printed on the receipt as stated by the donor, not cash.': 'బంగారం, వెండి బరువుతో నమోదు. మొత్తం ఐచ్ఛికం — దాత తెలిపినట్లు రసీదులో ముద్రించబడుతుంది, నగదు కాదు.',
+  'Kept by weight — no value.': 'బరువుతో మాత్రమే నమోదు — విలువ లేదు.',
+  'a lower weight was sent to the committee.': 'తక్కువ బరువు కమిటీకి పంపబడింది.',
+  'Gold / silver: a lower weight goes to a committee member for approval; it changes only after that.': 'బంగారం / వెండి: తక్కువ బరువు కమిటీ సభ్యుని ఆమోదానికి వెళ్తుంది; ఆ తర్వాతే మారుతుంది.',
+  'Goods value (₹)': 'వస్తువుల విలువ (₹)',
   'piece value': 'వస్తువు విలువ',
   'No gold or silver in the store at the end of this month.': 'ఈ నెలాఖరుకు స్టోర్‌లో బంగారం లేదా వెండి లేదు.',
   'Sold / Written off': 'అమ్మినవి / రద్దు చేసినవి',

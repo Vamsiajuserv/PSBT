@@ -247,6 +247,12 @@ def _sum_total(rows, label_key, label, keys):
     return t
 
 
+def _goods_value(d) -> float:
+    """The value a devotee stated for goods (gold / silver too — client, 2026-11-20): shown in its
+    own column, never added to the cash Amount. 0 for cash and for goods without one."""
+    return float(d.est_value or 0) if d.donation_type == "Material" else 0.0
+
+
 def generate(report, start, end, db):
     # ══════════════════════════════════════════════════════════════════════════
     # POOJA REPORTS
@@ -461,19 +467,21 @@ def generate(report, start, end, db):
             "category": d.fund or "-",
             "notes": d.notes or "-",
             "amount": float(d.amount or 0),
+            "est_value": _goods_value(d),
             "mode": mode_label(d.mode),
             "txn_ref": d.txn_ref or "-",
             "g80": "Yes" if d.g80 else "No",
         } for d in rows]
         total = {"receipt": "Total", "date": "", "donor": "", "mobile": "", "category": "",
-                 "notes": "", "amount": sum(r["amount"] for r in data), "mode": "", "txn_ref": "", "g80": ""}
+                 "notes": "", "amount": sum(r["amount"] for r in data),
+                 "est_value": sum(r["est_value"] for r in data), "mode": "", "txn_ref": "", "g80": ""}
         return {
             "title": "Donation Register",
             "subtitle": "Complete donation ledger with donor details and payment info.",
             "columns": [
                 T("receipt", "Receipt#"), T("date", "Date"), T("donor", "Donor"), T("mobile", "Mobile"),
                 T("category", "Category"), T("notes", "Notes"), M("amount", "Amount (₹)"),
-                T("mode", "Mode"), T("txn_ref", "UTR"), T("g80", "80G")
+                M("est_value", "Goods value (₹)"), T("mode", "Mode"), T("txn_ref", "UTR"), T("g80", "80G")
             ],
             "rows": data, "total": total
         }
@@ -483,15 +491,18 @@ def generate(report, start, end, db):
         agg = OrderedDict()
         for d in rows:
             key = d.fund or "General"
-            a = agg.setdefault(key, {"category": key, "count": 0, "amount": 0.0})
+            a = agg.setdefault(key, {"category": key, "count": 0, "amount": 0.0, "est_value": 0.0})
             a["count"] += 1
             a["amount"] += float(d.amount or 0)
+            a["est_value"] += _goods_value(d)
         data = list(agg.values())
-        total = {"category": "Total", "count": sum(r["count"] for r in data), "amount": sum(r["amount"] for r in data)}
+        total = {"category": "Total", "count": sum(r["count"] for r in data), "amount": sum(r["amount"] for r in data),
+                 "est_value": sum(r["est_value"] for r in data)}
         return {
             "title": "Category-wise Donations",
             "subtitle": "Donations grouped by fund/category.",
-            "columns": [T("category", "Category"), N("count", "Donations"), M("amount", "Amount (₹)")],
+            "columns": [T("category", "Category"), N("count", "Donations"), M("amount", "Amount (₹)"),
+                        M("est_value", "Goods value (₹)")],
             "rows": data, "total": total
         }
 

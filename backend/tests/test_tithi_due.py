@@ -1,6 +1,6 @@
 """Tithi plans are due only on their tithi day (client report 2026-11-14): a Monthly Pournami
 plan (Sai Vratam) is ONE pooja on Pournami within its 30-day validity. On other days it must
-not appear on the half-hour lists, in the Pooja Queue, in Print & Send or in "complete all
+not appear on the half-hour lists (or their print), in the Pooja Queue or in "complete all
 due", and "Mark performed" is refused — so the devotee's single pooja is not used up early.
 Run from backend/:  python -m unittest discover -s tests -t .
 """
@@ -106,10 +106,10 @@ class TithiPlansDueOnlyOnTheirDay(unittest.TestCase):
         self.assertEqual([(s["code"], s["reason"]) for s in out["skipped"]], [("BK-Sai", "not its tithi day")])
         self.assertEqual(self.db.query(BookingPerformance).filter_by(booking_id=self.vratam.id).count(), 0)
 
-    def test_print_and_send_leaves_it_off_the_list(self):
-        with mock.patch.object(rp, "ist_now", return_value=SimpleNamespace(replace=lambda **k: None)):
-            out = rp.send_slot(rp.SlotSendIn(slot="06:00"), REQ, db=self.db, user=login("Counter Staff"))
-        self.assertEqual(out["sent"]["count"], 1)                       # Nithya only
+    def test_the_printed_list_leaves_it_off(self):
+        out = rp.hourly_slots(day=DAY, mine=False, pooja_id=None, all_slots=False, db=self.db, user=login("Administrator", ""))
+        h = next(x for x in out["hours"] if x["start"] == "06:00")
+        self.assertEqual((h["total"], [sl["pooja"] for sl in h["slots"]]), (1, ["Nithya Pooja"]))   # Nithya only
 
     def test_older_booking_without_plan_id_is_matched_by_name(self):
         self.vratam.plan_id = None

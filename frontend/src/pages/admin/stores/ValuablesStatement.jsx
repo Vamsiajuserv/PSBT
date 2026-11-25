@@ -150,28 +150,28 @@ export default function ValuablesStatement() {
               </tbody></table></div>
             <div className="px-4 py-2.5 text-[0.75rem] text-gray-500 border-t border-gray-100 flex items-center gap-1.5">
               {rows.every((r) => r.balanced) ? <CheckCircle2 size={13} className="text-emerald-600" /> : <AlertTriangle size={13} className="text-red-600" />}
-              {tr('Opening + Received − Sold / Written off = Closing. On loan is part of Closing. Value = grams × rate × purity.')}</div>
+              {tr('Opening + Received − Sold / Written off = Closing. On loan is part of Closing.')}</div>
           </Section>
 
           <Section title={`${tr(data.custom ? 'Pieces at the end of the period' : 'Pieces at month end')} (${narrowed ? `${pieces.length} ${tr('of')} ${allPieces.filter((p) => !f.metal || p.metal === f.metal).length}` : pieces.length})`} bodyClass="p-0">
             <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-                {['ID', 'Item', 'Weight', 'Purity', 'Location', 'Status', 'Value'].map((h) => <th key={h} className={`px-3 py-3 font-semibold ${['Weight', 'Value'].includes(h) ? 'text-right' : ''}`}>{tr(h)}</th>)}</tr></thead>
+                {/* no Purity column (client, 2026-11-20) */}
+                {['ID', 'Item', 'Weight', 'Location', 'Status', 'Value'].map((h) => <th key={h} className={`px-3 py-3 font-semibold ${['Weight', 'Value'].includes(h) ? 'text-right' : ''}`}>{tr(h)}</th>)}</tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {pieces.map((p) => (
                   <tr key={p.tag_id}>
                     <td className="px-3 py-2 font-mono text-[0.78rem] font-semibold"><Link to={`/admin/stores/item/${p.tag_id}`} className="text-maroon-700 hover:underline">{p.tag_id}</Link></td>
                     <td className="px-3 py-2">{tr(p.description || p.item_name)}</td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{g3(p.weight_g)} {gramUnit()}</td>
-                    <td className="px-3 py-2">{p.purity || '—'}</td>
                     <td className="px-3 py-2 text-gray-600">{tr(p.location || '—')}</td>
                     <td className="px-3 py-2"><Pill tone={STATUS_TONE[p.state] || 'gray'}>{tr(p.state)}</Pill></td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{p.value != null ? inr(p.value) : '—'}
                       {p.value_basis === 'piece' && <div className="text-[0.6875rem] text-gray-500">{tr('piece value')}</div>}</td>
                   </tr>))}
-                {narrowed && pieces.length > 0 && <tr className="bg-gray-50/70"><td colSpan={6} className="px-3 py-2.5 text-right font-semibold">{tr('Value of these pieces')}</td>
+                {narrowed && pieces.length > 0 && <tr className="bg-gray-50/70"><td colSpan={5} className="px-3 py-2.5 text-right font-semibold">{tr('Value of these pieces')}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-bold text-maroon-800 whitespace-nowrap">{inr(piecesValue)}</td></tr>}
-                {!pieces.length && <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400 text-[0.8125rem]">{allPieces.length ? tr('No pieces match the filters.') : tr(data.custom ? 'No gold or silver in the store at the end of this period.' : 'No gold or silver in the store at the end of this month.')}</td></tr>}
+                {!pieces.length && <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400 text-[0.8125rem]">{allPieces.length ? tr('No pieces match the filters.') : tr(data.custom ? 'No gold or silver in the store at the end of this period.' : 'No gold or silver in the store at the end of this month.')}</td></tr>}
               </tbody></table></div>
           </Section>
 

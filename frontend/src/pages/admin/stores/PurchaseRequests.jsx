@@ -9,6 +9,7 @@ import { Select, NumberField, DateField } from '../../../components/common/Field
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, teText } from '../../../i18n/LanguageContext.jsx'
 import { canManageStores, canApprovePurchase, staffName } from './shared.jsx'
+import ResetButton from '../../../components/common/ResetButton.jsx'
 
 const TABS = [['Waiting', 'Waiting'], ['Approved', 'Approved – to buy'], ['Review', 'Over budget – review'], ['Received', 'Received'], ['Rejected', 'Rejected'], ['Cancelled', 'Cancelled']]
 const SIZE = 25
@@ -115,7 +116,9 @@ export default function PurchaseRequests() {
   useEffect(() => { load() }, [load])
   useEffect(() => { StoresAPI.consumables().then((d) => setItems(d.items || [])).catch(() => setItems([])) }, [])
 
-  const newForm = (cid = '') => ({ category_id: String(cid), quantity: '', approx_cost: '', reason: '' })
+  // start_cid: the item the form opened with (kept by Reset)
+  const newForm = (cid = '') => ({ category_id: String(cid), quantity: '', approx_cost: '', reason: '', start_cid: String(cid) })
+  const receiveForm = (p) => ({ p, quantity: String(p.quantity), bill_no: '', bill_amount: '', expiry_date: '', note: '', over_reason: '', file: null })
   // "Raise request" from Consumables Stock opens the form for that item
   useEffect(() => {
     const cid = params.get('new')
@@ -265,7 +268,7 @@ export default function PurchaseRequests() {
                         <button onClick={() => approve(p)} className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-[0.75rem] font-semibold"><CheckCircle2 size={14} />{tr('Approve')}</button>
                         <button onClick={() => decline(p, 'reject')} className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-[0.75rem] font-semibold"><XCircle size={14} />{tr('Reject')}</button></>}
                       {p.status === 'Waiting' && canDecide && p.raised_by_user === user?.username && <span className="text-[0.6875rem] text-gray-500">{tr('Another committee member approves')}</span>}
-                      {p.status === 'Approved' && canRaise && <button onClick={() => setReceiving({ p, quantity: String(p.quantity), bill_no: '', bill_amount: '', expiry_date: '', note: '', over_reason: '', file: null })}
+                      {p.status === 'Approved' && canRaise && <button onClick={() => setReceiving(receiveForm(p))}
                         className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-[0.75rem] font-semibold whitespace-nowrap"><PackageCheck size={14} />{tr('Mark received')}</button>}
                       {p.review_status === 'Pending' && canDecide && p.received_by_user !== user?.username &&
                         <button onClick={() => reviewBill(p)} className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 text-[0.75rem] font-semibold whitespace-nowrap"><AlertTriangle size={14} />{tr('Review bill')}</button>}
@@ -313,6 +316,8 @@ export default function PurchaseRequests() {
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button type="button" disabled={saving} onClick={() => setForm(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              {/* Reset (client, 2026-11-20): back to a freshly opened request */}
+              <ResetButton onReset={() => setForm(newForm(form.start_cid))} disabled={saving} className="justify-center !px-3 shrink-0" />
               <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : tr('Send for approval')}</button>
             </div>
           </form>
@@ -356,6 +361,8 @@ export default function PurchaseRequests() {
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button type="button" disabled={saving} onClick={() => setReceiving(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              {/* Reset (client, 2026-11-20): back to the values shown when this request's form opened */}
+              <ResetButton onReset={() => setReceiving(receiveForm(receiving.p))} disabled={saving} className="justify-center !px-3 shrink-0" />
               <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60"><PackageCheck size={15} className="mr-1" />{saving ? tr('Saving…') : tr('Add to stock')}</button>
             </div>
           </form>

@@ -19,8 +19,9 @@ import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation
 import { useFilterParams } from '../../hooks/useUrlState.js'
 import { TagItemsDrawer, canWriteStores, DonationItemsDialog } from './stores/shared.jsx'
 import { canAccessKey, isAdminRole } from '../../auth/access.js'
-import { metalOf, isGrams, purityOptions, PURITY_UNKNOWN } from '../../lib/metal.js'
+import { metalOf, isGrams } from '../../lib/metal.js'
 import { AnnadanamForm, AnnadanamRegister, AnnadanamReceiptModal, canWriteAnnadanam } from './annadanam/shared.jsx'
+import ResetButton from '../../components/common/ResetButton.jsx'
 
 const TYPE_LABEL = { Cash: 'Cash Donation', Material: 'Material Donation', Sponsorship: 'Sponsorship', Annadanam: 'Annadanam' }
 const MODES = ['Cash', 'UPI/QR Code']
@@ -38,7 +39,7 @@ const fmtTime = (s) => {
 
 const newDonation = () => ({
   donation_type: 'Cash', devotee_id: '', donor_name: '', country_code: '+91', mobile: '', pan: '', fund: '', amount: '',
-  unit: '', quantity: '', mode: 'Cash', txn_ref: '', g80: false, notes: '', purity: '', item_desc: '', est_value: '', expiry_date: '',
+  unit: '', quantity: '', mode: 'Cash', txn_ref: '', g80: false, notes: '', item_desc: '', est_value: '', expiry_date: '',
   donated_on: '',
 })
 const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -265,24 +266,31 @@ export default function Donations() {
     const first = (cats || []).find((c) => c.type === t)
     setDrawer((m) => ({
       ...m, donation_type: t, fund: first?.name || '',
-      unit: '', quantity: '', amount: t === 'Material' ? '' : m.amount, purity: '', item_desc: '', est_value: '', expiry_date: '',
+      unit: '', quantity: '', amount: t === 'Material' ? '' : m.amount, item_desc: '', est_value: '', expiry_date: '',
       g80: isMedicalFund(first?.name),
     }))
   }
   function setFund(name) {
-    setDrawer((m) => ({ ...m, fund: name, g80: isMedicalFund(name), purity: '', expiry_date: '' }))
+    setDrawer((m) => ({ ...m, fund: name, g80: isMedicalFund(name), expiry_date: '' }))
     setPanErr('')
   }
   function pickDevotee(dv) {
     setDrawer((m) => ({ ...m, devotee_id: dv.id, donor_name: dv.name, mobile: dv.mobile || '' }))
     setDq(''); setDevResults([])
   }
+  // Reset (client, 2026-11-20): a fresh drawer on the same tab — as if just opened / tab just picked
+  function resetDrawer() {
+    const t = drawer?.donation_type || 'Cash'
+    setDrawer({ ...newDonation(), donation_type: t })
+    if (t !== 'Cash') setDType(t)   // other tabs pre-pick their first category, like a tab click
+    setDq(''); setDevResults([]); setPanErr(''); setMobileError('')
+  }
   function clearDevotee() {
     setDrawer((m) => ({ ...m, devotee_id: '', donor_name: '', mobile: '' }))
     setDq(''); setDevResults([])
   }
 
-  // Gold / silver category with grams: weight, what it is and (optional) purity — no ₹ value (2026-11-15)
+  // Gold / silver category with grams: weight (required), what it is and an optional amount — no purity (client, 2026-11-20)
   const fundCat = drawer ? (cats || []).find((c) => c.name === drawer.fund && c.type === 'Material') : null
   const metal = drawer?.donation_type === 'Material' && isGrams(fundCat?.unit) ? metalOf(drawer.fund) : null
   // Consumables with "Track expiry" in Donation Master (ghee, oil…): optional best-before date
@@ -354,9 +362,8 @@ export default function Donations() {
       amount: m.donation_type === 'Material' ? 0 : Number(m.amount || 0),
       unit: m.donation_type === 'Material' ? (fundCat?.unit || m.unit || null) : null,
       quantity: m.donation_type === 'Material' && m.quantity ? Number(m.quantity) : null,
-      purity: metal ? (m.purity || PURITY_UNKNOWN) : null,
       item_desc: m.donation_type === 'Material' ? ((m.item_desc || '').trim() || null) : null,
-      est_value: m.donation_type === 'Material' && !metal && m.est_value !== '' && m.est_value != null ? Number(m.est_value) : null,
+      est_value: m.donation_type === 'Material' && m.est_value !== '' && m.est_value != null ? Number(m.est_value) : null,
       expiry_date: m.donation_type === 'Material' && askExpiry && m.expiry_date ? m.expiry_date : null,
       pan: (m.pan || '').trim() || null,
       g80: isMedicalFund(m.fund), notes: m.notes || null,
@@ -392,7 +399,7 @@ export default function Donations() {
       <Boxes size={12} />{st.pieces ? `${st.pieces} ${(st.pieces === 1 ? tr('item') : tr('items'))}` : tr('Not tagged yet')}</button></div>
   }
   const amountCell = (d) => d.donation_type === 'Material'
-    ? (d.quantity ? `${num(d.quantity)} ${tr(d.unit || '')}${d.purity ? ` · ${d.purity}` : ''}`.trim() : (Number(d.amount) > 0 ? inr(d.amount) : '—'))
+    ? (d.quantity ? `${num(d.quantity)} ${tr(d.unit || '')}`.trim() : (Number(d.amount) > 0 ? inr(d.amount) : '—'))
     : inr(d.amount)
 
   const ALL_EXPORT_COLS = [{ key: 'receipt_no', label: tr('Receipt No.') }, { key: 'donated_on', label: tr('Date') },
@@ -626,17 +633,15 @@ export default function Donations() {
 
               {drawer.donation_type === 'Material' && metal ? (
                 <div className="space-y-3">
+                  {/* client, 2026-11-20: no purity; an optional amount like other goods */}
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className="label">{tr('Weight *')} ({tr('grams')})</label><NumberField required step="0.01" min="0.01" max="999999" value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
-                    <div><label className="label"><T>Purity</T></label>
-                      <Select className="input" value={drawer.purity || PURITY_UNKNOWN} onChange={(e) => setDrawer({ ...drawer, purity: e.target.value })}>
-                        {purityOptions(metal).map((p) => <option key={p} value={p}>{tr(p)}</option>)}
-                      </Select>
-                      <div className="text-[0.6875rem] text-gray-500 mt-1"><T>Pick only if a hallmark can be read.</T></div></div>
+                    <div><label className="label">{tr('Amount (₹)')} <span className="font-normal text-gray-400">{tr('(Optional)')}</span></label>
+                      <NumberField min="0" max="99999999" step="1" allowDecimal={false} prefix="₹" value={drawer.est_value} onChange={(e) => setDrawer({ ...drawer, est_value: e.target.value })} /></div>
                   </div>
                   <div><label className="label"><T>What is it</T></label>
                     <input className="input" maxLength={120} placeholder={tr('e.g. chain, ring, coin, lamp')} value={drawer.item_desc} onChange={(e) => setDrawer({ ...drawer, item_desc: e.target.value })} /></div>
-                  <div className="text-[0.75rem] text-gray-500"><Info size={13} className="inline mr-1" /><T>Gold and silver are kept by weight — no value is written on the receipt.</T></div>
+                  <div className="text-[0.75rem] text-gray-500"><Info size={13} className="inline mr-1" /><T>Gold and silver are kept by weight. The amount is optional — printed on the receipt as stated by the donor, not cash.</T></div>
                 </div>
               ) : drawer.donation_type === 'Material' ? (
                 <div className="grid grid-cols-2 gap-3">
@@ -705,6 +710,7 @@ export default function Donations() {
             <div className="px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
               {panErr && <div className="text-[0.75rem] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3 text-center">{panErr}</div>}
               <div className="flex gap-3">
+                <ResetButton onReset={resetDrawer} disabled={saving} className="justify-center !px-3" />
                 <button type="button" disabled={saving} onClick={(e) => save(e, false)} className="btn-outline flex-1 justify-center disabled:opacity-50"><T>Save</T></button>
                 <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{tr('Save & Print Receipt')} <Printer size={14} /></>}</button>
               </div>
@@ -733,10 +739,8 @@ export default function Donations() {
                   { en: 'Donor', value: printDoc.donor_name, valueTe: personName({ name: printDoc.donor_name, name_te: printDoc.donor_name_te }, 'te') },
                   { en: 'Category', value: printDoc.fund, valueTe: te(printDoc.fund) || teTerm(printDoc.fund) },
                   { en: 'Type', value: TYPE_LABEL[printDoc.donation_type], valueTe: te(printDoc.donation_type) },
-                  ...(printDoc.donation_type === 'Material' && printDoc.quantity ? [{ en: printDoc.purity ? 'Weight' : 'Quantity', value: `${num(printDoc.quantity)} ${printDoc.unit || ''}`.trim() }] : [{ en: 'Payment Mode', value: printDoc.mode === 'UPI/QR Code' ? 'Online' : printDoc.mode }]),
-                  ...(printDoc.purity ? [{ en: 'Purity', value: printDoc.purity }] : []),
+                  ...(printDoc.donation_type === 'Material' && printDoc.quantity ? [{ en: metalOf(printDoc.fund) && isGrams(printDoc.unit) ? 'Weight' : 'Quantity', value: `${num(printDoc.quantity)} ${printDoc.unit || ''}`.trim() }] : [{ en: 'Payment Mode', value: printDoc.mode === 'UPI/QR Code' ? 'Online' : printDoc.mode }]),
                   ...(printDoc.item_desc ? [{ en: 'Item', value: printDoc.item_desc }] : []),
-                  ...(printDoc.rate_per_g != null ? [{ en: 'Rate', value: `₹${Number(printDoc.rate_per_g).toLocaleString('en-IN')} / g (${metalOf(printDoc.fund) === 'Silver' ? '999' : '24K'})` }] : []),
                   ...(printDoc.txn_ref ? [{ en: 'Transaction', value: printDoc.txn_ref, valueTe: printDoc.txn_ref }] : []),
                   { en: 'Tax Exemption', value: printDoc.g80 ? tr('Eligible (80G)') : '—' },
                 ]}

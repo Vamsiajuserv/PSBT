@@ -218,9 +218,9 @@ class Booking(Base):
 
 
 class SlotDispatch(Base):
-    """A half-hour pooja list handed to the poojari ("Print & Send"). Once sent, new walk-in
-    bookings go to the next half-hour. booking_ids = the bookings on the list when it was sent
-    (a booking added later is shown as added after sending). Undo (delete) is Administrator only."""
+    """NO LONGER USED (client, 2026-11-20): "Print & Send" was removed — lists are only printed and
+    only the clock closes a time (app/pooja_batches.py). Kept so the table and its past records stay
+    readable; nothing writes or reads it any more."""
     __tablename__ = "pooja_slot_dispatches"
     __table_args__ = (UniqueConstraint("day", "slot_start", name="uq_slot_dispatch_day_slot"),)
 
@@ -305,11 +305,12 @@ class Donation(Base):
     g80 = Column(Boolean, default=False, nullable=False)
     notes = Column(Text, nullable=True)
     donated_on = Column(Date, server_default=func.current_date())
-    # Gold / silver given at the counter: purity, what it is, and its estimated value at the
-    # day's rate (grams × rate × purity). Not cash — `amount` stays 0 for material.
-    purity = Column(String(10), nullable=True)                 # 22K | 24K | 925 …
+    # Goods given at the counter: what it is, and the value the devotee states (optional — gold /
+    # silver too, client 2026-11-20). Not cash — `amount` stays 0 for material. `purity` and
+    # `rate_per_g` are legacy (no purity / daily rate any more): kept for old rows, never written.
+    purity = Column(String(10), nullable=True)
     item_desc = Column(String(120), nullable=True)             # chain, ring, coin…
-    rate_per_g = Column(Numeric(12, 2), nullable=True)         # Gold 24K / Silver 999 rate used
+    rate_per_g = Column(Numeric(12, 2), nullable=True)         # legacy, never written
     est_value = Column(Numeric(14, 2), nullable=True)
     expiry_date = Column(Date, nullable=True)                 # consumables: best before (optional)
     voided = Column(Boolean, default=False, nullable=False)   # soft-void instead of hard delete
@@ -402,7 +403,7 @@ class HundiCollectionItem(Base):
     unit = Column(String(20), nullable=True)                 # Amount | Count | Grams
     value = Column(Numeric(14, 2), nullable=False, default=0)  # rupee value counted for this line
     remarks = Column(Text, nullable=True)
-    # Gold / silver by weight: the value is grams × the collection day's rate × purity
+    # Legacy (no purity / daily rate any more — client, 2026-11-20): kept for old rows, never written
     purity = Column(String(10), nullable=True)
     rate_per_g = Column(Numeric(12, 2), nullable=True)
 
@@ -933,7 +934,7 @@ class StockItem(Base):
     description = Column(String(200), nullable=True)          # "Pancha, silk border"
     details = Column(String(120), nullable=True)              # size / colour
     weight_g = Column(Numeric(12, 3), nullable=True)          # gold / silver
-    purity = Column(String(20), nullable=True)                # 22 ct, 92.5%…
+    purity = Column(String(20), nullable=True)                # legacy: not written since 2026-11-20 (client)
     est_value = Column(Numeric(12, 2), nullable=True)
     location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)
     status = Column(String(20), default="In Store", nullable=False, index=True)  # In Store | In Auction | In Open Sale | Sold | Written Off
@@ -1142,8 +1143,8 @@ class MissingCase(Base):
     # Missing: not found at a stock check. Damaged (2026-11-15): a write-off asked for a damaged piece —
     # the Committee approves (Written Off) or rejects (back In Store, case Rejected).
     kind = Column(String(12), default="Missing", nullable=True)
-    # Correction / Weight (2026-11-15): a change to a gold / silver piece (lower weight, other purity, or the
-    # weight found on return) waits here as "Change requested"; `changes` = JSON {field: new value}
+    # Correction / Weight (2026-11-15): a change to a gold / silver piece (lower weight, or the weight
+    # found on return; no purity since 2026-11-20, client) waits here as "Change requested"; `changes` = JSON {field: new value}
     changes = Column(Text, nullable=True)
     missing_since = Column(DateTime, server_default=func.now())
     reported_by = Column(String(120), nullable=True)                     # who asked for the lost write-off
@@ -1192,8 +1193,7 @@ class StoreReceipt(Base):
 
 class MetalRate(Base):
     """The day's gold (24K) / silver (999) rate per gram, entered by the Administrator.
-    Gold and silver given at the counter or counted in a hundi are valued at it:
-    grams × rate × purity factor (22K = 91.6 % …)."""
+    Legacy: nothing reads it since 2026-11-15 (no daily rate) — no purity either (client, 2026-11-20)."""
     __tablename__ = "metal_rates"
     __table_args__ = (UniqueConstraint("rate_date", "metal", name="uq_metal_rate_day"),)
 

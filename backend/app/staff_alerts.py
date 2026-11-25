@@ -468,8 +468,8 @@ def other_sale_alert(db: Session, s, stage: str, *, actor=None, reason: str | No
 
 # ── Stores approvals (client decision 2026-11-15, category "stores_approval") ──────────────────
 # A Committee member approves what the store asks for: a write-off (damaged, or missing reported
-# lost), a change to a gold / silver piece (a lower weight, another purity, the weight found on
-# return) and a stock-count shortage. One member deciding clears it for every member; a rejection
+# lost), a change to a gold / silver piece (a lower weight, the weight found on return — no
+# purity since 2026-11-20, client) and a stock-count shortage. One member deciding clears it for every member; a rejection
 # tells the Stores Officer + Administrator with the reason. Called after the caller's own commit.
 STORES_TITLES = {
     "write_off": "Write-off waiting for approval",

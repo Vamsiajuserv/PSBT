@@ -78,7 +78,7 @@ def _kit_dict(db: Session, k: FestivalKit, names: dict | None = None) -> dict:
         if not i:
             continue
         pieces.append({"id": i.id, "tag_id": i.tag_id, "item_name": i.item_name, "description": i.description,
-                       "weight_g": float(i.weight_g) if i.weight_g is not None else None, "purity": i.purity,
+                       "weight_g": float(i.weight_g) if i.weight_g is not None else None,
                        "status": i.status, "location": names.get(i.location_id), "available": i.status == "In Store"})
     start = _start(db)
     uses = []

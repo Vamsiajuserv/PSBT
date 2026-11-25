@@ -16,6 +16,7 @@ import { Select, DateField, CountryCodeSelect, Combobox, getCountryDigits } from
 import { T, tr, personName, useLang, teText, teAddress, stamp } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
 import { toast } from '../../components/common/Dialog.jsx'
+import ResetButton from '../../components/common/ResetButton.jsx'
 import { useTemple } from '../../lib/SiteContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -664,6 +665,12 @@ export default function Devotees() {
             {saveErr && <div className="mt-3 text-[0.75rem] text-red-600">{saveErr}</div>}
             <div className="flex justify-end gap-2 mt-5">
               <button type="button" onClick={() => { setSaveErr(''); setModal(null) }} className="btn-outline"><T>Cancel</T></button>
+              {/* Reset (client, 2026-11-20): new devotee only — back to the empty "Add New Devotee" form */}
+              {modal.mode === 'create' && (
+                <ResetButton disabled={saving}
+                  dirty={Object.entries(modal.data).some(([k, v]) => (v ?? '') !== (EMPTY[k] ?? ''))}
+                  onReset={() => { setSaveErr(''); setFieldErrors({}); setModal({ mode: 'create', data: { ...EMPTY } }) }} />
+              )}
               <button disabled={saving} className="btn-maroon disabled:opacity-60">{saving ? tr('Saving…') : (modal.mode === 'create' ? tr('Create Devotee') : tr('Save Changes'))}</button>
             </div>
           </form>

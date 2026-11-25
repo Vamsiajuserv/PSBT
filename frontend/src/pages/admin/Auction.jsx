@@ -9,6 +9,7 @@ import { PageTitle, StatTile, KpiGrid, FilterPanel, Pill, Pager, inr, num, fmtDa
 import { AuctionAPI, AuctionItemsAPI, DevoteesAPI, SettingsAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
+import ResetButton from '../../components/common/ResetButton.jsx'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
 import { Select, DateField, TimeField, NumberField, Combobox } from '../../components/common/Field.jsx'
@@ -318,8 +319,19 @@ export default function Auction() {
   // correctable until payment.
   function recordResult(a) {
     if (a.from_stock) { setLotResult(a); return }
-    setResultModal({ a, outcome: a.status === 'Unsold' ? 'Unsold' : 'Completed',
-      amount: String(Number(a.current_amount || a.base_amount || 0)), bids: String(a.bids ?? 0), winner: a.winner || '', mobile: a.winner_mobile || '' })
+    setResultModal(resultForm(a))
+  }
+  // starting values of the Record Result form (also used by Reset)
+  function resultForm(a) {
+    return { a, outcome: a.status === 'Unsold' ? 'Unsold' : 'Completed',
+      amount: String(Number(a.current_amount || a.base_amount || 0)), bids: String(a.bids ?? 0), winner: a.winner || '', mobile: a.winner_mobile || '' }
+  }
+  // Reset (client, 2026-11-20): back to the drawer's opening values (create → empty; edit / re-auction → loaded values)
+  function resetDrawer() {
+    setDq(''); setResults([])
+    if (drawer?.mode === 'edit') openEdit(drawer.orig)
+    else if (drawer?.mode === 'reauction') openReauction(drawer.orig)
+    else setDrawer(emptyForm())
   }
   async function submitResult(e) {
     e.preventDefault()
@@ -855,6 +867,7 @@ export default function Auction() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <ResetButton onReset={resetDrawer} disabled={saving} className="justify-center !px-3 shrink-0" />
               <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : drawer.mode === 'edit' ? <T>Save Changes</T> : drawer.mode === 'reauction' ? <T>Schedule Re-auction</T> : <T>Create Auction</T>}</button>
             </div>
           </form>
@@ -1004,6 +1017,8 @@ export default function Auction() {
               </div>
               <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
                 <button type="button" onClick={() => setResultModal(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+                {/* Reset (client, 2026-11-20): back to this auction's opening values */}
+                <ResetButton onReset={() => setResultModal(resultForm(m.a))} className="justify-center !px-3 shrink-0" />
                 <button type="submit" className="btn-maroon flex-1 justify-center"><Gavel size={16} className="mr-1" /><T>Save Result</T></button>
               </div>
             </form>

@@ -4,19 +4,20 @@ import {
   Search, UserPlus, User, ArrowLeft, Check, X, Calendar, Clock, Flame, CalendarDays, ShieldCheck,
   IndianRupee, Printer, Plus, CreditCard, Ticket, Moon, Car, AlertTriangle, FileText, Loader2, ShoppingBag, Trash2,
 } from 'lucide-react'
-import { QRCodeSVG } from 'qrcode.react'
+import PaymentQr from '../../components/common/PaymentQr.jsx'
 import { DevoteesAPI, PoojasAPI, BookingsAPI, PoojarisAPI, FestivalsAPI, AlmanacAPI, SettingsAPI } from '../../api/client.js'
 import { fmtDate } from '../../components/admin/ui.jsx'
 import { TicketShell } from '../../components/admin/BookingTicket.jsx'
 import { toast, confirmDialog } from '../../components/common/Dialog.jsx'
-import { Select, DateField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
+import { Select, MultiSelect, DateField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
+import ResetButton from '../../components/common/ResetButton.jsx'
 import { T, tr, clock12, useLang, personName, teTerm } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
 import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
 import { addDaysISO, planValidUntil, planSpan } from '../../lib/planTerms.js'
 import { planSlots, slotIsOver, slotPeriod, isRange, isTempleHours, NOTE_VEHICLE } from '../../lib/slots.js'
-import { halfLabel, halfRange, halfPeriod, PERIODS, fixedTimeSent } from '../../lib/halfSlots.js'
+import { halfLabel, halfRange, halfPeriod, PERIODS } from '../../lib/halfSlots.js'
 
 // ── Advance Booking (redesigned 2026-11-15 — docs/plans/ADVANCE-BOOKING-FINDINGS.md) ──
 // Counter = today, next open slot. Advance = choose the date (and time), pay now, get the ticket.
@@ -25,16 +26,12 @@ import { halfLabel, halfRange, halfPeriod, PERIODS, fixedTimeSent } from '../../
 // review, so there is no separate review step. No payment mode is pre-selected; Online needs the
 // UTR. The poojari the Poojari Schedule will assign is shown before paying.
 
+const POOJA_CATS = ['Daily', 'Monthly', 'Long-Term', 'Occasion', 'Festival', 'Vehicle']   // groups in the pooja dropdown
 const todayIST = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const DEFAULT_MAX_DAYS = 90   // the server's default when Settings leaves it blank
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const stampNow = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
 const isLifetime = (planName) => /life\s*long|life\s*time|lifetime/i.test(planName || '')
-const buildUpiUrl = (upiId, payeeName, amount) => {
-  if (!upiId) return ''
-  const params = new URLSearchParams({ pa: upiId, pn: payeeName || 'Temple', am: String(Number(amount) || 0), cu: 'INR', tn: 'Temple Seva' })
-  return `upi://pay?${params.toString()}`
-}
 
 // Validity preview before booking — same calculation as the server, so it matches the ticket
 function validityPreview(pl, from) {
@@ -67,7 +64,7 @@ export default function NewBooking() {
   const [festivals, setFestivals] = useState([])
   const [poojaris, setPoojaris] = useState([])
   const [pournamiDates, setPournamiDates] = useState([])
-  const [cfg, setCfg] = useState({ maxDays: DEFAULT_MAX_DAYS, upiId: '', upiPayee: '' })
+  const [cfg, setCfg] = useState({ maxDays: DEFAULT_MAX_DAYS })
   useEffect(() => {
     PoojasAPI.list().then((d) => setPoojas(d.items || [])).catch(() => toast(tr('Failed to load poojas'), 'error'))
     FestivalsAPI.list().then((r) => setFestivals(r.items || r || [])).catch(() => toast(tr('Failed to load festivals'), 'error'))
@@ -76,7 +73,6 @@ export default function NewBooking() {
     SettingsAPI.config()
       .then((c) => setCfg({
         maxDays: Number.isInteger(c?.advance_booking_max_days) ? c.advance_booking_max_days : DEFAULT_MAX_DAYS,
-        upiId: c?.upi_id || '', upiPayee: c?.upi_payee_name || '',
       }))
       .catch(() => toast(tr('Failed to load booking settings'), 'error'))
   }, [])
@@ -132,6 +128,14 @@ export default function NewBooking() {
   const [moreDates, setMoreDates] = useState(['', ''])   // Yearly Thrice: the 2nd and 3rd pooja dates
   const pooja = poojas.find((p) => String(p.id) === String(poojaId)) || null
 
+  // ── Several poojas at once (2026-11-20): the Pooja dropdown is multi-select, one option per pooja +
+  // plan, grouped by category. Ticked options wait in `picked`; the form below opens them one at a time
+  // (date, time, poojari…) and "Add to booking" moves on to the next, keeping the date — so every line
+  // still gets all the checks of a single pooja.
+  const [picked, setPicked] = useState([])          // [{ key, pooja, plan }] in the order ticked
+  const [curKey, setCurKey] = useState('')          // the ticked option open in the form
+  const tiles = poojas.flatMap((p) => (p.plans || []).map((pl) => ({ key: `${p.id}-${pl.id}`, pooja: p, plan: pl })))
+
   const today = todayIST()
   const limitDate = addDaysISO(today, cfg.maxDays)
 
@@ -174,13 +178,37 @@ export default function NewBooking() {
     }
     return addDaysISO(today, 1)
   }
-  const choosePooja = async (id) => {
-    const p = poojas.find((x) => String(x.id) === String(id)) || null
-    if (p?.category === 'Vehicle' && !(await confirmDialog({ title: tr('Vehicle Pooja'), message: tr(NOTE_VEHICLE) + '\n\n' + tr('Please inform the devotee before booking.'), confirmLabel: tr('OK, Continue') }))) return
-    // a pooja with a single plan (Sai Vratam, Nithya Pooja, occasion poojas…) takes it straight away
-    setPoojaId(id); setPlan((p?.plans || []).length === 1 ? p.plans[0] : null); setVehicleNo(''); setSlot(''); setPoojariId('')
-    setSchedDate(defaultDateFor(p))
+  // Open a ticked tile in the form. The date carries over from the line before (several poojas on one
+  // day is common), except festival and Pournami poojas, which move to a date they can take.
+  const openPick = (t) => {
+    const special = t.pooja.category === 'Festival' || allPournami(t.pooja) || isPournamiPlan(t.plan)
+    setCurKey(t.key); setPoojaId(String(t.pooja.id)); setPlan(t.plan)
+    setVehicleNo(''); setSlot(''); setBatch(''); setPoojariId('')
+    if (special || !schedDate || schedDate < today) setSchedDate(defaultDateFor(t.pooja))
   }
+  const clearForm = () => { setCurKey(''); setPoojaId(''); setPlan(null); setSlot(''); setBatch(''); setPoojariId(''); setVehicleNo('') }
+  // The dropdown hands back every ticked key: drop the unticked ones, add the new ones in order
+  // (at most 20 poojas a booking; a vehicle pooja first shows its poojari-availability note).
+  const setPickedKeys = async (keys) => {
+    const want = new Set(keys)
+    const kept = picked.filter((x) => want.has(x.key))
+    if (curKey && !want.has(curKey)) clearForm()
+    const added = []
+    for (const k of keys) {
+      if (kept.some((x) => x.key === k) || added.some((x) => x.key === k)) continue
+      const t = tiles.find((x) => x.key === k)
+      if (!t) continue
+      if (lines.length + kept.length + added.length >= 20) { toast(tr('A booking can hold at most 20 poojas.'), 'error'); break }
+      if (t.pooja.category === 'Vehicle' && !(await confirmDialog({ title: tr('Vehicle Pooja'), message: tr(NOTE_VEHICLE) + '\n\n' + tr('Please inform the devotee before booking.'), confirmLabel: tr('OK, Continue') }))) continue
+      added.push(t)
+    }
+    setPicked([...kept, ...added])
+  }
+  const optionLabel = (t) => `${poojaName(t.pooja)} · ${tr(t.plan.plan_name)} · ${t.plan.committee_decided ? tr('Committee') : `₹${Number(t.plan.fee || 0).toLocaleString('en-IN')}`}`
+  useEffect(() => {   // nothing open in the form: open the next ticked tile
+    if (!curKey && picked.length) openPick(picked[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [curKey, picked])
   useEffect(() => {   // choosing a Pournami plan moves the date onto the first Pournami day
     if (plan && isPournamiPlan(plan) && monthlyDates.length && !monthlyDates.includes(schedDate)) setSchedDate(monthlyDates[0])
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -222,15 +250,8 @@ export default function NewBooking() {
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.id, schedDate, slot, hasFixed])
-  const [sentToday, setSentToday] = useState([])
-  useEffect(() => {
-    if (schedDate !== todayIST()) { setSentToday([]); return undefined }
-    let live = true
-    BookingsAPI.batchOptions({ day: schedDate }).then((d) => live && setSentToday(d.sent || [])).catch(() => {})
-    return () => { live = false }
-  }, [schedDate])
-  useEffect(() => { if (slot && hasFixed && fixedTimeSent(slot, schedDate, sentToday)) setSlot('') }, [sentToday, slot, schedDate, hasFixed])
-  const batchChoices = (batchOpt?.options || []).filter((o) => !o.sent && !o.over)
+  // Only the clock closes a time (client, 2026-11-20 — lists are just printed, no "Print & Send")
+  const batchChoices = (batchOpt?.options || []).filter((o) => !o.over)
   const batchShown = batch || batchOpt?.auto || ''
   const scheduledPoojari = batchOpt?.scheduled_poojari || null
 
@@ -319,8 +340,9 @@ export default function NewBooking() {
       vehicleNo: pooja.category === 'Vehicle' ? vehicleNo.trim() : '', sameDay: sameDayWarn,
       performDates: thrice ? [schedDate, ...moreDates].sort() : null,
     }])
-    // ready for the next pooja: keep the date (several poojas on one day is common)
-    setPoojaId(''); setPlan(null); setSlot(''); setBatch(''); setPoojariId(''); setVehicleNo('')
+    // ready for the next ticked pooja (opened by the effect above); the date is kept
+    setPicked((ps) => ps.filter((x) => x.key !== curKey))
+    clearForm()
     setError('')
   }
   const removeLine = (id) => setLines((ls) => ls.filter((l) => l.lineId !== id))
@@ -334,14 +356,16 @@ export default function NewBooking() {
 
   const payIssue = (() => {
     if (!devotee) return tr('Select or register the devotee.')
-    if (!lines.length) return tr('Add at least one pooja to the booking.')
+    // ticked in the dropdown but not added yet: say which button to press (2026-11-20)
+    if (!lines.length) return picked.length ? tr('Click "Add to booking" to add the ticked poojas.') : tr('Add at least one pooja to the booking.')
+    if (picked.length) return tr('{n} ticked pooja(s) not added yet — add them or untick them.').replace('{n}', picked.length)
     if (!method) return tr('Choose how the devotee paid.')
     if (method === 'UPI/QR Code' && !/^[A-Za-z0-9]{6,40}$/.test(utr.trim())) return tr('Enter the UPI transaction ID (UTR) — 6 to 40 letters and digits.')
     return ''
   })()
 
   // Leaving with a filled booking asks first (decision D8)
-  const dirty = !result && (lines.length > 0 || !!poojaId)
+  const dirty = !result && (lines.length > 0 || !!poojaId || picked.length > 0)
   useEffect(() => {
     if (!dirty) return undefined
     const warn = (e) => { e.preventDefault(); e.returnValue = '' }
@@ -430,7 +454,7 @@ export default function NewBooking() {
 
   function startNew() {
     setDevotee(null); setDevQ(''); setDevResults(null); setQuickAdd(null)
-    setPoojaId(''); setPlan(null); setSchedDate(addDaysISO(todayIST(), 1)); setSlot(''); setPoojariId(''); setVehicleNo('')
+    clearForm(); setPicked([]); setSchedDate(addDaysISO(todayIST(), 1))
     setLines([]); setMethod(''); setUtr(''); setResult(null); setError('')
   }
 
@@ -621,7 +645,16 @@ export default function NewBooking() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <div className="min-w-0">
                 <label className="label"><T>Pooja *</T></label>
-                <Select value={poojaId} onChange={(e) => choosePooja(e.target.value)} className="input" disabled={!devotee}><option value="">{tr('Select a pooja…')}</option>{poojas.map((p) => <option key={p.id} value={p.id}>{poojaName(p)}{p.category ? ` · ${tr(p.category)}` : ''}</option>)}</Select>
+                <MultiSelect value={picked.map((x) => x.key)} onChange={(e) => setPickedKeys(e.target.value)} disabled={!devotee}
+                  selectAll={false} placeholder={tr('Select one or more poojas…')}>
+                  {POOJA_CATS.map((c) => {
+                    const group = tiles.filter((t) => t.pooja.category === c)
+                    return group.length > 0 && <optgroup key={c} label={tr(c)}>{group.map((t) => <option key={t.key} value={t.key}>{optionLabel(t)}</option>)}</optgroup>
+                  })}
+                </MultiSelect>
+                {picked.length > 1 && pooja && (
+                  <div className="text-[0.75rem] text-gray-500 mt-1">{tr('Now adding')}: <b className="text-maroon-800">{poojaName(pooja)}</b> · {picked.length - 1} {tr('more waiting')}</div>
+                )}
                 {festInfo?.past && <div className="mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-[0.78125rem] text-red-700 flex items-start gap-2"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span><T>The festival window for this pooja is over</T> ({festInfo.windows}).</span></div>}
                 {fest && <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[0.78125rem] text-amber-800 flex items-start gap-2"><CalendarDays size={15} className="shrink-0 mt-0.5" /> <span>{teTerm(fest.name)}: {fmtDate(fest.start_date)} – {fmtDate(fest.end_date)}. <T>The whole plan must fall in this festival window.</T></span></div>}
                 {usePournami && <div className="mt-2 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2 text-[0.78125rem] text-blue-800 flex items-start gap-2"><Moon size={15} className="shrink-0 mt-0.5" /> <T>Monthly poojas are booked on Pournami dates.</T></div>}
@@ -692,7 +725,7 @@ export default function NewBooking() {
                 )}
 
                 {plan && hasFixed && (
-                  <div><FixedSlotPicker slots={fixedSlots} date={schedDate} value={slot} onChange={setSlot} sent={sentToday}
+                  <div><FixedSlotPicker slots={fixedSlots} date={schedDate} value={slot} onChange={setSlot}
                     vehicle={pooja?.category === 'Vehicle'} onTomorrow={() => setSchedDate(addDaysISO(today, 1))} /></div>
                 )}
 
@@ -732,7 +765,7 @@ export default function NewBooking() {
             <div className="mt-5 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-end gap-3">
               {addIssue && devotee && <span className="text-[0.78125rem] text-amber-700 text-right">{dupChecking && <Loader2 size={13} className="inline animate-spin mr-1" />}{addIssue}</span>}
               {plan && !pricingAwaited && <span className="text-[0.875rem] font-bold text-maroon-800 tabular-nums">₹{money2(fee)}</span>}
-              <button type="button" onClick={addLine} disabled={!!addIssue} className="btn-maroon disabled:opacity-40"><Plus size={15} />{' '}<T>Add to booking</T></button>
+              <button type="button" onClick={addLine} disabled={!!addIssue} className={`btn-maroon disabled:opacity-40 ${picked.length && !addIssue ? 'ring-2 ring-amber-400 ring-offset-2' : ''}`}><Plus size={15} />{' '}{picked.length > 1 ? tr('Add to booking & next') : tr('Add to booking')}</button>
             </div>
           </div>
         </div>
@@ -783,12 +816,7 @@ export default function NewBooking() {
             </div>
             {method === 'UPI/QR Code' && (
               <div className="mt-3 space-y-2">
-                {cfg.upiId && total > 0 && (
-                  <div className="flex flex-col items-center bg-gray-50 border border-gray-200 rounded-lg p-2.5">
-                    <QRCodeSVG value={buildUpiUrl(cfg.upiId, cfg.upiPayee, total)} size={112} level="M" />
-                    <p className="text-[0.6875rem] text-gray-500 mt-1">{cfg.upiId} · ₹{money2(total)}</p>
-                  </div>
-                )}
+                {total > 0 && <PaymentQr amount={total} size={140} />}
                 <div>
                   <label className="label"><T>UTR / Transaction ID *</T></label>
                   <input className="input" placeholder={tr('Enter UTR / Transaction ID')} value={utr} maxLength={40} onChange={(e) => setUtr(e.target.value.replace(/[^A-Za-z0-9]/g, ''))} />
@@ -800,10 +828,15 @@ export default function NewBooking() {
 
           <div className="px-4 py-3 border-t border-gray-100 space-y-2">
             {error && <div className="bg-red-50 border border-red-200 text-red-700 text-[0.8125rem] rounded-lg px-3 py-2" role="alert">{error}</div>}
-            {!error && payIssue && lines.length > 0 && <div className="text-[0.75rem] text-amber-700">{payIssue}</div>}
+            {!error && payIssue && (lines.length > 0 || picked.length > 0) && <div className="text-[0.75rem] text-amber-700">{payIssue}</div>}
             <button onClick={pay} disabled={busy || !!payIssue} className="btn-maroon w-full justify-center !py-3 disabled:opacity-50">
               {busy ? <><Loader2 size={15} className="animate-spin" /> {tr('Processing…')}</> : <><CreditCard size={15} /> {tr('Confirm & Pay')} ₹{money2(total)}</>}</button>
-            <button onClick={leave} className="w-full text-[0.8125rem] text-gray-500 hover:text-maroon-700 py-1"><T>Cancel</T></button>
+            <div className="flex items-center gap-2">
+              {/* Reset (client, 2026-11-20): Start over — clears the whole booking on screen (no API call) */}
+              <ResetButton label={tr('Start over')} disabled={busy} dirty={dirty || !!devotee} className="justify-center shrink-0 !py-1.5 text-[0.8125rem]"
+                onReset={() => { startNew(); setGothram(''); setNakshatram(''); setRasi(''); setBeneficiary(''); setParticipants([]); setSpecialNotes('') }} />
+              <button onClick={leave} className="flex-1 text-[0.8125rem] text-gray-500 hover:text-maroon-700 py-1"><T>Cancel</T></button>
+            </div>
           </div>
         </div>
       </div>
@@ -839,20 +872,9 @@ function HalfChips({ options, value, onChange }) {
 
 // Time slot of a plan with fixed timings: one slot is shown locked, several are
 // chips grouped Morning / Evening (today's passed ones greyed out).
-function FixedSlotPicker({ slots, date, value, onChange, vehicle, onTomorrow, sent }) {
+function FixedSlotPicker({ slots, date, value, onChange, vehicle, onTomorrow }) {
   const open = slots.filter((s) => !slotIsOver(s, date))
-  const isSent = (s) => fixedTimeSent(s, date, sent)
-  const nextFree = open.find((s) => !isSent(s))
-  if (open.length > 0 && !nextFree) {
-    return (<>
-      <label className="label"><T>Time Slot</T> *</label>
-      <div className="text-[0.8125rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
-        <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-        <span>{tr("Today's list for this pooja is already sent to the poojari — book it for another date.")}</span>
-      </div>
-      <button type="button" onClick={onTomorrow} className="mt-2 text-[0.75rem] font-semibold rounded-lg px-3 py-1.5 border border-maroon-200 text-maroon-700 hover:bg-maroon-50"><T>Book for Tomorrow</T></button>
-    </>)
-  }
+  const nextFree = open[0]
   const label = (s) => (isTempleHours(s) ? `${tr('Temple hours')} ${clock12(s)}` : clock12(s))
   if (open.length === 0) {
     return (<>
@@ -884,10 +906,10 @@ function FixedSlotPicker({ slots, date, value, onChange, vehicle, onTomorrow, se
           <span className="text-[0.6875rem] font-semibold text-gray-500 w-16 pt-1.5 shrink-0">{tr(g)}</span>
           <div className="flex flex-wrap gap-1.5">
             {list.map((s) => {
-              const over = slotIsOver(s, date), closed = !over && isSent(s), on = value === s, hint = !value && s === nextFree
-              return <button key={s} type="button" disabled={over || closed} onClick={() => onChange(s)} aria-pressed={on}
-                title={closed ? tr('List already sent to the poojari') : hint ? tr('Next available') : undefined}
-                className={`px-2.5 py-1.5 rounded-lg text-[0.75rem] font-medium border ${on ? 'bg-maroon-700 text-cream border-maroon-700' : over ? 'bg-gray-50 text-gray-300 border-gray-100 line-through cursor-not-allowed' : closed ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : hint ? 'bg-amber-50 text-maroon-800 border-amber-400 ring-1 ring-amber-300 hover:bg-amber-100' : 'bg-white text-maroon-700 border-maroon-200 hover:bg-maroon-50'}`}>{closed && '🔒 '}{clock12(s)}{hint && <span className="ml-1 text-[0.5625rem] font-bold uppercase text-amber-700">{tr('Next')}</span>}</button>
+              const over = slotIsOver(s, date), on = value === s, hint = !value && s === nextFree
+              return <button key={s} type="button" disabled={over} onClick={() => onChange(s)} aria-pressed={on}
+                title={over ? tr("Today's time slot for this pooja is over") : hint ? tr('Next available') : undefined}
+                className={`px-2.5 py-1.5 rounded-lg text-[0.75rem] font-medium border ${on ? 'bg-maroon-700 text-cream border-maroon-700' : over ? 'bg-gray-50 text-gray-300 border-gray-100 line-through cursor-not-allowed' : hint ? 'bg-amber-50 text-maroon-800 border-amber-400 ring-1 ring-amber-300 hover:bg-amber-100' : 'bg-white text-maroon-700 border-maroon-200 hover:bg-maroon-50'}`}>{clock12(s)}{hint && <span className="ml-1 text-[0.5625rem] font-bold uppercase text-amber-700">{tr('Next')}</span>}</button>
             })}
           </div>
         </div>

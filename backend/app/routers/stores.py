@@ -83,11 +83,10 @@ class TagRow(BaseModel):
     description: str | None = Field(default=None, max_length=200)
     details: str | None = Field(default=None, max_length=120)
     weight_g: Decimal | None = Field(default=None, gt=0, le=1000000)
-    purity: str | None = Field(default=None, max_length=20)
     est_value: Decimal | None = Field(default=None, ge=0, le=100000000)
     # Optional: blank = Awaiting Placement. Hundi pieces fall back to the custody location.
     location_id: int | None = None
-    # Gold / silver: why the value differs from the receipt value (grams × rate × purity)
+    # Why the value differs from the receipt value (the devotee's stated value per piece)
     value_note: str | None = Field(default=None, max_length=200)
 
 
@@ -292,46 +291,19 @@ def _progress(db: Session, source_type: str, obj) -> dict:
     return out
 
 
-def _valuation(db: Session, name: str | None, purity: str | None, rate, table: dict | None = None) -> dict:
-    """Purity and the rate a receipt / hundi line was valued at, so Tag Items can pre-fill
-    each piece: piece grams × rate × purity factor. `table`: the purity table, when the
-    caller already loaded it (a list of many receipts)."""
-    if not purity or rate is None:
-        return {"purity": purity, "rate_per_g": None, "purity_factor": None}
-    from .metal_rates import metal_of, purities
-    metal = metal_of(name)
-    table = table if table is not None else purities(db)
-    factor = next((p["factor"] for p in table.get(metal, []) if p["label"] == purity), None) if metal else None
-    return {"purity": purity, "rate_per_g": float(rate), "purity_factor": factor}
-
-
 VALUE_SET = "Value set"          # a piece tagged at a value other than its share of the receipt's
 CORRECTED = "Corrected"          # a piece's details corrected later (with the reason)
 
 
-def piece_value(db: Session, src, grams, purity: str | None = None) -> Decimal | None:
-    """A piece's share of the value on its receipt / hundi line. Gold / silver: grams × the
-    rate used then × purity (the piece's own purity when it is in the table, else the
-    receipt's). Other goods: the devotee's stated value ÷ the number of pieces. None when the
-    source carries no value."""
-    rate = getattr(src, "rate_per_g", None)
-    if rate is None:
-        # cloth, utensils…: the value the devotee stated on the receipt, shared per piece
-        est, qty = getattr(src, "est_value", None), getattr(src, "quantity", None)
-        if isinstance(src, Donation) and est is not None and qty and not _is_weight(src.unit):
-            from decimal import ROUND_HALF_UP
-            return (Decimal(str(est)) / Decimal(str(qty))).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-        return None
-    if grams is None:
-        return None
-    from .metal_rates import metal_of, purities
-    metal = metal_of(getattr(src, "fund", None) or getattr(src, "item_type", None))
-    table = {p["label"]: p["factor"] for p in purities(db).get(metal, [])} if metal else {}
-    factor = table.get((purity or "").strip()) or table.get(getattr(src, "purity", None) or "")
-    if not factor:
-        return None
-    from decimal import ROUND_HALF_UP
-    return (Decimal(str(grams)) * Decimal(str(rate)) * Decimal(str(factor))).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+def piece_value(src) -> Decimal | None:
+    """A piece's share of the value its devotee stated on the receipt: cloth, utensils… — the
+    stated value ÷ the number of pieces. None otherwise: gold / silver have no rate × purity
+    valuation any more (no daily rate 2026-11-15, no purity — client, 2026-11-20)."""
+    est, qty = getattr(src, "est_value", None), getattr(src, "quantity", None)
+    if isinstance(src, Donation) and est is not None and qty and not _is_weight(src.unit):
+        from decimal import ROUND_HALF_UP
+        return (Decimal(str(est)) / Decimal(str(qty))).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return None
 
 
 def _hundi_lines(h: HundiCollection) -> list:
@@ -381,10 +353,10 @@ def hundi_receive_info(h: HundiCollection, rec: StoreReceipt | None) -> dict | N
 
 
 def _hundi_progress(db: Session, h: HundiCollection, pieces_of: dict | None = None,
-                    recs: dict | None = None, table: dict | None = None) -> dict:
+                    recs: dict | None = None) -> dict:
     """Tagging progress per counted valuables line. When the custody goes through Receive at
     store, a line may be tagged only up to what the store received (nothing before that).
-    pieces_of / recs / table: already loaded by a caller listing many custodies."""
+    pieces_of / recs: already loaded by a caller listing many custodies."""
     rec = (recs.get(h.id) if h.store_receive_required else None) if recs is not None else hundi_receipt(db, h)
     got = receipt_lines(rec)
     lines = []
@@ -403,7 +375,7 @@ def _hundi_progress(db: Session, h: HundiCollection, pieces_of: dict | None = No
         lines.append({"line_id": li.id, "item_name": li.item_name, "item_type": li.item_type, "unit": li.unit,
                       "quantity": float(li.quantity) if li.quantity is not None else None,
                       "value": float(li.value or 0), "mode": mode, "needed": float(need), "done": float(done),
-                      "counted": float(counted), **_valuation(db, li.item_type, li.purity, li.rate_per_g, table),
+                      "counted": float(counted),
                       "pieces": len(pieces), "complete": done >= need - (WEIGHT_TOLERANCE if mode == "weight" else 0)})
     return {"mode": "lines", "lines": lines, "pieces": sum(l["pieces"] for l in lines),
             "complete": bool(lines) and all(l["complete"] for l in lines), "receive": hundi_receive_info(h, rec)}
@@ -429,7 +401,7 @@ def _item_dict(i: StockItem, loc_names: dict, codes: dict | None = None) -> dict
         codes = donation_codes(object_session(i), [i]) if i.donation_id else {}
     return {"id": i.id, "tag_id": i.tag_id, "category_id": i.category_id, "item_name": i.item_name,
             "description": i.description, "details": i.details,
-            "weight_g": float(i.weight_g) if i.weight_g is not None else None, "purity": i.purity,
+            "weight_g": float(i.weight_g) if i.weight_g is not None else None,
             "est_value": float(i.est_value) if i.est_value is not None else None,
             "location_id": i.location_id, "location": loc_names.get(i.location_id),
             "status": i.status, "source_type": i.source_type, "source_ref": i.source_ref,
@@ -559,9 +531,9 @@ def _source_summary(db: Session, source_type: str, obj, cat) -> dict:
                 "billed_by": (db.query(User.name).filter(User.username == obj.created_by).scalar() or obj.created_by)
                 if obj.created_by else None,
                 "billed_at": obj.created_at.isoformat() if obj.created_at else None,
-                **_valuation(db, obj.fund, obj.purity, obj.rate_per_g), "item_desc": obj.item_desc,
+                "item_desc": obj.item_desc,
                 "est_value": float(obj.est_value) if obj.est_value is not None else None,
-                "piece_value": (float(v) if (v := piece_value(db, obj, None)) is not None else None)}
+                "piece_value": (float(v) if (v := piece_value(obj)) is not None else None)}
     elif source_type == "Manual":
         base = {"source_type": "Manual", "source_id": obj.id, "source_ref": obj.code,
                 "donor_name": obj.donor_name or f"Manual — {obj.source}", "donor_mobile": obj.donor_mobile,
@@ -584,7 +556,6 @@ def _pending_donations(db: Session, tagged: dict) -> list[dict]:
     """The donation rows of Receive & Tag, built from a few bulk queries (receipts, store
     counts, tagging done, who billed) instead of several queries per receipt — the same
     fields as _source_summary("Donation", …)."""
-    from .metal_rates import purities
     dons = (db.query(Donation).filter(Donation.donation_type == "Material", Donation.voided.isnot(True),
                                       Donation.fund.in_(list(tagged))).order_by(Donation.id.desc()).all())
     if not dons:
@@ -596,7 +567,6 @@ def _pending_donations(db: Session, tagged: dict) -> list[dict]:
         .filter(StockItem.donation_id.in_([d.id for d in dons])).group_by(StockItem.donation_id).all()}
     names = dict(db.query(User.username, User.name).filter(
         User.username.in_({d.created_by for d in dons if d.created_by} or {""})).all())
-    table = purities(db)
     out = []
     for d in dons:
         cat = tagged[d.fund]
@@ -611,13 +581,13 @@ def _pending_donations(db: Session, tagged: dict) -> list[dict]:
         prog["receive"] = receive_info(d, rec, cutoff)
         if prog["complete"] and (prog["receive"] or {}).get("state") not in (TO_RECEIVE, SHORT):
             continue
-        pv = piece_value(db, d, None)
+        pv = piece_value(d)
         out.append({"source_type": "Donation", "source_id": d.id, "source_ref": d.receipt_no,
                     "donation_code": d.donation_code, "donor_name": d.donor_name, "donor_mobile": d.mobile, "item_name": d.fund,
                     "quantity": float(d.quantity or 0), "unit": d.unit, "date": str(d.donated_on) if d.donated_on else None,
                     "billed_by": (names.get(d.created_by) or d.created_by) if d.created_by else None,
                     "billed_at": d.created_at.isoformat() if d.created_at else None,
-                    **_valuation(db, d.fund, d.purity, d.rate_per_g, table), "item_desc": d.item_desc,
+                    "item_desc": d.item_desc,
                     "est_value": float(d.est_value) if d.est_value is not None else None,
                     "piece_value": float(pv) if pv is not None else None,
                     "category_id": cat.id, "id_prefix": cat.id_prefix, "weight": _is_weight(cat.unit),
@@ -636,19 +606,17 @@ def pending_tagging(db: Session = Depends(get_db), user=Depends(read)):
                                                HundiCollection.valuables_status == "In Store")
               .order_by(HundiCollection.id.desc()).all())
     from collections import defaultdict
-    from .metal_rates import purities
     pieces_of = defaultdict(list)
     for it in db.query(StockItem).filter(StockItem.hundi_id.in_([h.id for h in hundis] or [0])).all():
         pieces_of[it.hundi_line_id].append(it)
     recs = {r.hundi_id: r for r in db.query(StoreReceipt).filter(StoreReceipt.hundi_id.in_([h.id for h in hundis] or [0])).all()}
-    table = purities(db)
     for h in hundis:
         s = {"source_type": "Hundi", "source_id": h.id, "source_ref": h.code,
              "donor_name": "Anonymous (Hundi)", "donor_mobile": None, "item_name": "Hundi valuables",
              "quantity": None, "unit": None, "date": str(h.collected_on) if h.collected_on else None,
              "store_location": h.store_location, "custodian": h.valuables_custodian,
              "verified_by": h.verified_by, "stored_on": str(h.valuables_stored_on) if h.valuables_stored_on else None,
-             "progress": _hundi_progress(db, h, pieces_of, recs, table)}
+             "progress": _hundi_progress(db, h, pieces_of, recs)}
         rcv = s["progress"].get("receive") or {}
         if s["progress"]["lines"] and (not s["progress"]["complete"] or rcv.get("state") in (TO_RECEIVE, SHORT)):
             out.append(s)
@@ -701,14 +669,12 @@ def pending_count(db: Session = Depends(get_db), user=Depends(read)):
     hundis = db.query(HundiCollection).filter(HundiCollection.verification_status == "Verified",
                                               HundiCollection.valuables_status == "In Store").all()
     from collections import defaultdict
-    from .metal_rates import purities
     pieces_of = defaultdict(list)
     for it in db.query(StockItem).filter(StockItem.hundi_id.in_([h.id for h in hundis] or [0])).all():
         pieces_of[it.hundi_line_id].append(it)
     recs = {r.hundi_id: r for r in db.query(StoreReceipt).filter(StoreReceipt.hundi_id.in_([h.id for h in hundis] or [0])).all()}
-    table = purities(db)
     for h in hundis:
-        p = _hundi_progress(db, h, pieces_of, recs, table)
+        p = _hundi_progress(db, h, pieces_of, recs)
         n += bool(p["lines"]) and (not p["complete"] or (p.get("receive") or {}).get("state") in (TO_RECEIVE, SHORT))
     tagged_ids = [c.id for c in db.query(DonationCategory).filter(DonationCategory.tracking == "Tagged").all()]
     for m in db.query(ManualStockEntry).filter(ManualStockEntry.status == "Verified",
@@ -844,14 +810,13 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
     if any(r.location_id is None for r in body.rows):
         raise HTTPException(422, "Choose the store location for every piece.")
     locations = {r.location_id: _location(db, r.location_id) for r in body.rows if r.location_id is not None}
-    # A receipt / hundi line that carries a value (gold / silver at the day's rate, or the value
-    # a devotee stated for cloth…): a piece's value defaults to its share of it; a different
-    # value needs a reason.
+    # A receipt that carries the value a devotee stated for cloth…: a piece's value defaults to
+    # its share of it; a different value needs a reason. No purity on pieces (client, 2026-11-20).
     lines = {li.id: li for li in _hundi_lines(obj)} if body.source_type == "Hundi" else {}
     expected = {}
     for n, r in enumerate(body.rows):
         src = lines.get(r.hundi_line_id) if body.source_type == "Hundi" else obj
-        e = piece_value(db, src, r.weight_g, r.purity) if src is not None and body.source_type != "Manual" else None
+        e = piece_value(src) if src is not None and body.source_type != "Manual" else None
         if e is None:
             continue
         expected[n] = e
@@ -865,7 +830,7 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
         c = cats[None] if body.source_type != "Hundi" else cats[r.category_id]
         item = StockItem(tag_id=_next_tag(db, c.id_prefix), category_id=c.id, item_name=c.name,
                          description=(r.description or "").strip() or None, details=(r.details or "").strip() or None,
-                         weight_g=r.weight_g, purity=(r.purity or "").strip() or None,
+                         weight_g=r.weight_g, purity=None,
                          est_value=r.est_value if r.est_value is not None else c.default_value,
                          location_id=r.location_id, status="In Store" if r.location_id else AWAITING,
                          hundi_line_id=r.hundi_line_id, **common)
@@ -1108,9 +1073,8 @@ def item_detail(key: str, db: Session = Depends(get_db), user=Depends(read)):
                               "received_by": rec.received_by,
                               "received_at": rec.received_at.isoformat() if rec.received_at else None}
     src = _piece_source(db, item)
-    v = piece_value(db, src, item.weight_g, item.purity) if src is not None else None
-    d["receipt_value"] = float(v) if v is not None else None      # what the receipt valuation gives this piece
-    d["rate_per_g"] = float(src.rate_per_g) if src is not None and getattr(src, "rate_per_g", None) is not None else None
+    v = piece_value(src) if src is not None else None
+    d["receipt_value"] = float(v) if v is not None else None      # this piece's share of the stated value
     pend = open_change(db, item.id)
     d["pending_change"] = pend.report_reason if pend else None      # waiting for the committee
     return d
@@ -1129,7 +1093,6 @@ class CorrectIn(BaseModel):
     description: str | None = Field(default=None, max_length=200)
     details: str | None = Field(default=None, max_length=120)
     weight_g: Decimal | None = Field(default=None, gt=0, le=1000000)
-    purity: str | None = Field(default=None, max_length=20)
     est_value: Decimal | None = Field(default=None, ge=0, le=100000000)
     reason: str = Field(..., max_length=300)
 
@@ -1145,7 +1108,7 @@ class CorrectIn(BaseModel):
 @router.put("/items/{iid}/correct")
 def correct_item(iid: int, body: CorrectIn, request: Request, db: Session = Depends(get_db),
                  user=Depends(RequireRole(STORES_OFFICER))):
-    """Correct a piece's description, size / colour, weight, purity or value — with the reason,
+    """Correct a piece's description, size / colour, weight or value — with the reason,
     kept in its history. Weight never goes beyond what its receipt / hundi line received."""
     item = db.query(StockItem).filter(StockItem.id == iid).with_for_update().first()
     if not item:
@@ -1153,7 +1116,7 @@ def correct_item(iid: int, body: CorrectIn, request: Request, db: Session = Depe
     if item.status in ("Sold", "Written Off"):
         raise HTTPException(409, f"{item.tag_id} is {item.status.lower()} — its details can no longer be corrected.")
     clean = lambda x: (x or "").strip() or None
-    new = {"description": clean(body.description), "details": clean(body.details), "purity": clean(body.purity),
+    new = {"description": clean(body.description), "details": clean(body.details),     # no purity (client, 2026-11-20)
            "weight_g": body.weight_g if item.weight_g is not None else None, "est_value": body.est_value}
     if item.weight_g is not None and body.weight_g is None:
         raise HTTPException(422, "Enter the weight (g).")
@@ -1166,9 +1129,9 @@ def correct_item(iid: int, body: CorrectIn, request: Request, db: Session = Depe
         same = (Decimal(str(old)) == Decimal(str(v))) if (old is not None and v is not None and k in ("weight_g", "est_value")) else old == v
         if same:
             continue
-        # gold / silver: a lower weight or another purity needs a Committee member's approval (2026-11-15)
-        if gold and ((k == "weight_g" and old is not None and Decimal(str(v)) < Decimal(str(old))) or k == "purity"):
-            held[k] = str(v) if k == "weight_g" else v
+        # gold / silver: a lower weight needs a Committee member's approval (2026-11-15; purity gone, 2026-11-20)
+        if gold and k == "weight_g" and old is not None and Decimal(str(v)) < Decimal(str(old)):
+            held[k] = str(v)
             continue
         changes.append(f"{labels[k]} {shown(k, old)} → {shown(k, v)}")
         setattr(item, k, v)
@@ -1199,7 +1162,7 @@ def correct_item(iid: int, body: CorrectIn, request: Request, db: Session = Depe
 
 
 CORRECT_LABELS = {"description": "Description", "details": "Size / colour", "weight_g": "Weight",
-                  "purity": "Purity", "est_value": "Value"}
+                  "est_value": "Value"}
 
 
 def _shown(k, v):
@@ -1216,7 +1179,7 @@ def open_change(db: Session, item_id: int):
 
 
 def request_change(db: Session, item: StockItem, user, kind: str, changes: dict, reason: str) -> None:
-    """Gold / silver: a lower weight or another purity (kind Correction), or the weight found when a lent
+    """Gold / silver: a lower weight (kind Correction), or the weight found when a lent
     piece came back (kind Weight), waits for one Committee member — never the one who asked — in
     Missing Items. The piece itself stays where it is (2026-11-15)."""
     from ..models import MissingCase
@@ -1246,10 +1209,13 @@ def apply_change(db: Session, item: StockItem, case, user) -> None:
     vals = json.loads(case.changes or "{}")
     done = []
     for k, v in vals.items():
+        if k not in CORRECT_LABELS:      # e.g. a purity asked before 2026-11-20: no longer applied (client)
+            continue
         v = Decimal(str(v)) if k == "weight_g" else v
         done.append(f"{CORRECT_LABELS[k]} {_shown(k, getattr(item, k))} → {_shown(k, v)}")
         setattr(item, k, v)
-    _move(db, item, user, CORRECTED, " · ".join(done) + f" (approved by {_who(user)})")
+    if done:
+        _move(db, item, user, CORRECTED, " · ".join(done) + f" (approved by {_who(user)})")
 
 
 @router.post("/items/{iid}/move")

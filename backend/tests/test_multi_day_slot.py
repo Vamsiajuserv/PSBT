@@ -61,7 +61,8 @@ class MultiDaySlot(unittest.TestCase):
     def plan(self, pid):
         return self.db.get(PoojaPlan, pid)
 
-    def send(self, start, day=DAY):
+    def old_send_record(self, start, day=DAY):
+        """A "Print & Send" record from before 2026-11-20 — ignored now (only the clock closes a time)."""
         self.db.add(SlotDispatch(day=day, slot_start=start, devotee_count=1, sent_by="counter", sent_at=at(8, 0)))
         self.db.commit()
 
@@ -90,11 +91,12 @@ class MultiDaySlot(unittest.TestCase):
         self.assertEqual((d["scheduled_date"], d["time_slot"], d["batch_slot"]), (DAY + timedelta(days=1), "08:15 AM", "08:00"))
         self.assertEqual(d["valid_until"], DAY + timedelta(days=30))        # 30 days from tomorrow
 
-    def test_monthly_whose_list_was_sent_starts_tomorrow(self):
+    def test_monthly_before_its_time_starts_today_even_with_an_old_send_record(self):
+        # 2026-11-20: printing / an old "sent" record no longer closes a time — only the clock does
         self.now = at(8, 5)
-        self.send("08:00")
+        self.old_send_record("08:00")
         d = self.bill(2, "08:15 AM")
-        self.assertEqual((d["scheduled_date"], d["batch_slot"]), (DAY + timedelta(days=1), "08:00"))
+        self.assertEqual((d["scheduled_date"], d["batch_slot"]), (DAY, "08:00"))
 
     def test_the_slot_the_devotee_picked_is_the_one_kept(self):
         self.now = at(10, 40)                       # 10:00 and 10:30 are gone, 11:00 is not
@@ -120,10 +122,13 @@ class MultiDaySlot(unittest.TestCase):
         self.assertEqual(code, 422)
         self.assertIn("already over", msg)
 
-    def test_a_one_day_pooja_on_a_sent_list_is_still_refused(self):
+    def test_a_one_day_pooja_before_its_time_is_booked_even_with_an_old_send_record(self):
         self.now = at(8, 5)
-        self.send("08:00")
-        self.assertEqual(self.status(lambda: self.bill(1, "08:15 AM"))[0], 409)
+        self.old_send_record("08:00")
+        d = self.bill(1, "08:15 AM")
+        self.assertEqual((d["scheduled_date"], d["batch_slot"]), (DAY, "08:00"))
+        self.now = at(8, 16)                         # after its time: refused by the clock
+        self.assertEqual(self.status(lambda: self.bill(1, "08:15 AM", ))[0], 422)
 
     def test_a_pournami_plan_is_never_moved(self):
         self.now = at(10, 0)

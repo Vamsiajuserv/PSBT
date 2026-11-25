@@ -352,7 +352,7 @@ def receive_hundi(hid: int, body: HundiReceiveIn, request: Request, db: Session 
             raise HTTPException(422, f"{li.item_name}: more than the committee counted ({_qty(counted)} {_unit(mode)}). "
                                      "Check the count with the committee first.")
         line = {"line_id": li.id, "item_name": li.item_name, "item_type": li.item_type, "mode": mode,
-                "counted": float(counted), "received": float(got), "value": float(li.value or 0), "purity": li.purity}
+                "counted": float(counted), "received": float(got), "value": float(li.value or 0)}
         lines.append(line)
         if _line_short(line) > 0:
             shorts.append(line)

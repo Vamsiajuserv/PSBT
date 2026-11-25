@@ -8,6 +8,7 @@ import { Select } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
 import { TagItemsDrawer, canWriteStores, canReceiveStock, canCloseShortage, progressText, staffName, sourceRef } from './shared.jsx'
+import ResetButton from '../../../components/common/ResetButton.jsx'
 
 const SOURCE_TONE = { Donation: 'blue', Hundi: 'violet', Manual: 'amber' }
 const SHORT_REASONS = ['Not handed over yet by counter', 'Counted wrong at counter', 'Other']
@@ -17,7 +18,7 @@ const changed = () => window.dispatchEvent(new Event('stores:changed'))
 const amount = (n, weight) => `${qty(n)} ${weight ? gramUnit() : tr('piece(s)')}`
 // One hundi line: grams, pieces, or (a line counted only by value) ✔ / ✘
 const lineAmt = (l, n) => (l.mode === 'value' ? (n > 0 ? `✔ ${tr('Received')}` : `✘ ${tr('Not received')}`) : amount(n, l.mode === 'weight'))
-const counted = (l) => (l.mode === 'value' ? inr(l.value) : `${amount(l.counted, l.mode === 'weight')}${l.purity ? ` · ${l.purity}` : ''}`)
+const counted = (l) => (l.mode === 'value' ? inr(l.value) : amount(l.counted, l.mode === 'weight'))
 const isHundi = (r) => r.source_type === 'Hundi'
 const PAGE = 20
 
@@ -201,7 +202,8 @@ function ReceiveDialog({ row, rest, fewer, onClose, onDone }) {
   const left = billed - already
   const ref = rest ? row.receipt_no : sourceRef(row)
   const tagged = fewer ? Number(row.progress?.done || 0) : 0          // never below what is already tagged
-  const [n, setN] = useState(fewer ? '' : String(rest ? left : billed))
+  const startN = fewer ? '' : String(rest ? left : billed)
+  const [n, setN] = useState(startN)
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -234,7 +236,7 @@ function ReceiveDialog({ row, rest, fewer, onClose, onDone }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-3 text-[0.8125rem]">
-            <div className="rounded-lg bg-gray-50 px-3 py-2"><div className="text-gray-500">{tr('Counter receipt says')}</div><div className="font-bold text-gray-800">{amount(billed, weight)}{row.purity ? ` · ${row.purity}` : ''}</div>{row.item_desc && <div className="text-[0.6875rem] text-gray-500">{row.item_desc}</div>}</div>
+            <div className="rounded-lg bg-gray-50 px-3 py-2"><div className="text-gray-500">{tr('Counter receipt says')}</div><div className="font-bold text-gray-800">{amount(billed, weight)}</div>{row.item_desc && <div className="text-[0.6875rem] text-gray-500">{row.item_desc}</div>}</div>
             <div className="rounded-lg bg-gray-50 px-3 py-2"><div className="text-gray-500">{rest ? tr('Still short') : fewer ? tr('Already tagged') : tr('Already received')}</div><div className="font-bold text-gray-800">{amount(rest ? left : fewer ? tagged : already, weight)}</div></div>
           </div>
           <div><label className="label">{rest ? tr('Received now *') : fewer ? tr('How many actually arrived *') : tr('Received at store *')} ({weight ? gramUnit() : tr('piece(s)')})</label>
@@ -253,6 +255,8 @@ function ReceiveDialog({ row, rest, fewer, onClose, onDone }) {
         </div>
         <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
           <button type="button" onClick={onClose} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+          {/* Reset (client, 2026-11-20): back to the values shown when this receipt's form opened */}
+          <ResetButton onReset={() => { setN(startN); setReason(''); setNote('') }} disabled={saving} className="justify-center !px-3 shrink-0" />
           <button disabled={saving || !valid} className="btn-maroon flex-1 justify-center disabled:opacity-60"><PackageCheck size={15} className="mr-1" />{saving ? tr('Saving…') : tr('Confirm received')}</button>
         </div>
       </form>
@@ -267,8 +271,9 @@ function HundiReceiveDialog({ row, rest, onClose, onDone }) {
   const hid = rest ? row.hundi_id : row.source_id
   const base = rest ? row.lines.filter((l) => l.short > 0)
     : row.progress.lines.map((l) => ({ line_id: l.line_id, item_name: l.item_name, mode: l.mode, counted: l.counted, value: l.value, received: 0 }))
-  const [vals, setVals] = useState(() => Object.fromEntries(base.map((l) => [l.line_id,
-    l.mode === 'value' ? true : String(rest ? l.short : l.counted)])))
+  const startVals = () => Object.fromEntries(base.map((l) => [l.line_id,
+    l.mode === 'value' ? true : String(rest ? l.short : l.counted)]))
+  const [vals, setVals] = useState(startVals)
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -334,6 +339,8 @@ function HundiReceiveDialog({ row, rest, onClose, onDone }) {
         </div>
         <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
           <button type="button" onClick={onClose} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+          {/* Reset (client, 2026-11-20): back to the values shown when this receipt's form opened */}
+          <ResetButton onReset={() => { setVals(startVals()); setReason(''); setNote('') }} disabled={saving} className="justify-center !px-3 shrink-0" />
           <button disabled={saving || !valid} className="btn-maroon flex-1 justify-center disabled:opacity-60"><PackageCheck size={15} className="mr-1" />{saving ? tr('Saving…') : tr('Confirm received')}</button>
         </div>
       </form>

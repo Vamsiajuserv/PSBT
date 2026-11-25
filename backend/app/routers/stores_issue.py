@@ -94,7 +94,6 @@ def _slip_dict(db: Session, s: IssueSlip, names: dict | None = None) -> dict:
         lines.append({"id": l.id, "stock_item_id": l.stock_item_id, "tag_id": l.tag_id,
                       "item_name": it.item_name if it else None, "description": it.description if it else None,
                       "weight_g": float(it.weight_g) if it and it.weight_g is not None else None,
-                      "purity": it.purity if it else None,
                       "from_location": names.get(l.from_location_id), "from_location_id": l.from_location_id,
                       "returned_at": _iso(l.returned_at), "returned_by": l.returned_by, "condition": l.condition,
                       "return_note": l.return_note, "return_location": names.get(l.return_location_id)})
@@ -411,7 +410,7 @@ def report_lost(cid: int, body: ReasonIn, request: Request, db: Session = Depend
 @router.post("/missing/{cid}/approve")
 def approve_lost(cid: int, request: Request, db: Session = Depends(get_db), user=Depends(committee)):
     """Committee approves: the piece is written off (lost / damaged) — or, for a gold / silver change, the
-    asked weight / purity is applied."""
+    asked weight is applied (no purity since 2026-11-20, client)."""
     c, item = _open_case(db, cid)
     if c.kind not in ("Correction", "Weight"):
         if c.status != "Write-off requested":

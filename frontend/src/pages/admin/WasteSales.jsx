@@ -13,6 +13,7 @@ import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI, WasteMaterialsAPI } fr
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
+import ResetButton from '../../components/common/ResetButton.jsx'
 import { Select, DateField, DateTimeField, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, trLocal, clock12, personName, useLang, getLang, staffName } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone } from '../../lib/validation.js'
@@ -622,6 +623,8 @@ export default function WasteSales() {
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
+              {/* Reset (client, 2026-11-20): back to a freshly opened sale form */}
+              <ResetButton onReset={() => { openNewSale(); setDevQ(''); setDevResults([]); setFieldErrors({}) }} disabled={saving} className="justify-center shrink-0" />
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
               <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{tr('Save Payment & Generate Receipt')} <Printer size={15} /></>}</button>
             </div>

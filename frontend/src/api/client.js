@@ -445,8 +445,6 @@ export const PoojarisAPI = {
   queue: (params = {}) => api.get('/poojaris/queue' + qs(params)),
   hourly: (params = {}) => api.get('/poojaris/hourly' + qs(params)),
   // Print & Send a half-hour list to the poojari (Counter Staff / Admin); Undo is Admin only
-  sendSlot: (slot, day) => api.post('/poojaris/slots/send', { slot, day }),
-  undoSlot: (slot, day) => api.post('/poojaris/slots/undo', { slot, day }),
   completeDue: (body = {}) => api.post('/poojaris/queue/complete-due', body),
   assign: (booking_id, poojari_id) => api.post('/poojaris/assign', { booking_id, poojari_id }),
   setPerformer: (booking_id, performed_on, poojari_id) => api.post('/poojaris/performer', { booking_id, performed_on, poojari_id }),

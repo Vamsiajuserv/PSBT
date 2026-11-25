@@ -16,6 +16,7 @@ import { AnnadanamAPI, DevoteesAPI, SettingsAPI, FestivalsAPI } from '../../../a
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
 import ExportButtons from '../../../components/common/ExportButtons.jsx'
+import ResetButton from '../../../components/common/ResetButton.jsx'
 import { Select, DateField, DateTimeField, Combobox } from '../../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang, getLang, stamp } from '../../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../../hooks/useUrlState.js'
@@ -201,6 +202,8 @@ export function AnnadanamForm({ onSaved, onCancel }) {
   }, [dq, m.devotee])
 
   const setM = (patch) => setForm((d) => ({ ...d, ...patch }))
+  // Reset (client, 2026-11-20): back to a fresh form — the Settings rate stays, paid time = now
+  const reset = () => { setForm(emptyForm(m.rate)); setDq(''); setResults([]); setSaveErr('') }
   const amount = Number(m.persons) * (Number(m.rate) || 0)
 
   async function save(e) {
@@ -342,6 +345,7 @@ export function AnnadanamForm({ onSaved, onCancel }) {
       {saveErr && <div className="px-6 pt-3 text-[0.75rem] text-red-600">{saveErr}</div>}
       <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
         <button type="button" onClick={onCancel} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+        <ResetButton onReset={reset} disabled={saving} className="justify-center !px-3" />
         <button type="submit" disabled={!m.devotee || saving} className="btn-maroon flex-1 justify-center disabled:opacity-50">{saving ? tr('Saving…') : <>{tr('Save Payment & Generate Receipt')} <Printer size={15} /></>}</button>
       </div>
     </form>

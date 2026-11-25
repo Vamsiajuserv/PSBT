@@ -87,7 +87,8 @@ class CounterBilling(unittest.TestCase):
 
     def test_several_lines_upi(self):
         out = self.bill(self.item(), self.item(plan_id=2, plan_name="Monthly", amount=500,
-                                               scheduled_date=DAY + timedelta(days=1)), mode="UPI")
+                                               scheduled_date=DAY + timedelta(days=1)), mode="UPI",
+                        txn_ref="UTR000000002")
         self.assertEqual(out["success_count"], 2, out)
         # "UPI" is stored under the one name the screens use, so Daily Closing sees one online mode
         self.assertEqual({b.payment_method for b in self.db.query(Booking)}, {"UPI/QR Code"})
@@ -181,11 +182,40 @@ class CounterBilling(unittest.TestCase):
                 self.bill(self.item(), mode=mode)
             self.assertEqual(cm.exception.status_code, 422, mode)
         self.assertEqual(self.db.query(Booking).count(), 0)
-        self.bill(self.item(), mode="Online")
+        self.bill(self.item(), mode="Online", txn_ref="UTR000000001")
         self.assertEqual(self.db.query(Booking).one().payment_method, "UPI/QR Code")
 
-    def test_counter_online_without_utr_is_allowed(self):
-        self.assertEqual(self.bill(self.item(), mode="UPI/QR Code")["success_count"], 1)
+    # ── UTR at the counter (client, 2026-11-20: mandatory, as in Advance Booking; was optional, D7) ──
+    def test_counter_online_needs_a_utr(self):
+        for utr in (None, "", "   ", "12-34", "ABC12"):           # missing, blank, bad characters, too short
+            with self.subTest(utr=utr):
+                with self.assertRaises(HTTPException) as cm:
+                    self.bill(self.item(), mode="UPI/QR Code", txn_ref=utr)
+                self.assertEqual(cm.exception.status_code, 422)
+        self.assertEqual(self.db.query(Booking).count(), 0)
+
+    def test_counter_online_single_line_needs_a_utr(self):
+        with self.assertRaises(HTTPException) as cm:
+            rb.quick_create(QuickCreateBookingIn(**self.item(), payment_method="Online"), REQ, db=self.db, user=COUNTER)
+        self.assertEqual(cm.exception.status_code, 422)
+        self.assertEqual(self.db.query(Booking).count(), 0)
+
+    def test_counter_online_with_utr_saves_it_on_every_line(self):
+        out = self.bill(self.item(), self.item(plan_id=2, plan_name="Monthly", amount=500,
+                                               scheduled_date=DAY + timedelta(days=1)),
+                        mode="Online", txn_ref="UTR555555555", atomic=True)
+        self.assertEqual(out["success_count"], 2, out)
+        self.assertEqual({(b.source, b.payment_ref) for b in self.db.query(Booking).all()}, {("Counter", "UTR555555555")})
+
+    def test_counter_utr_never_pays_two_bills(self):
+        self.bill(self.item(), mode="Online", txn_ref="UTR555555555")
+        with self.assertRaises(HTTPException) as cm:
+            self.bill(self.item(mobile="9000000202"), mode="Online", txn_ref="utr555555555")   # any case
+        self.assertEqual(cm.exception.status_code, 409)
+
+    def test_cash_at_the_counter_needs_no_utr(self):
+        self.assertEqual(self.bill(self.item(), mode="Cash")["success_count"], 1)
+        self.assertEqual(self.db.query(Booking).one().payment_method, "Cash")
 
 
 class AdvanceBooking(CounterBilling):

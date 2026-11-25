@@ -138,7 +138,7 @@ export default function DeityUsedItems() {
                   <td className="px-3 py-3"><Checkbox checked={!!picked[r.id]} onChange={() => setPicked((p) => ({ ...p, [r.id]: !p[r.id] }))} /></td>
                   <td className="px-3 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link></td>
                   <td className="px-3 py-3"><div className="font-semibold text-gray-800">{tr(r.description || r.item_name)}</div>
-                    <div className="text-[0.6875rem] text-gray-500">{[tr(r.item_name), tr(r.details), r.weight_g ? `${num(r.weight_g)} ${gramUnit()}` : '', r.purity].filter(Boolean).join(' · ')}</div>
+                    <div className="text-[0.6875rem] text-gray-500">{[tr(r.item_name), tr(r.details), r.weight_g ? `${num(r.weight_g)} ${gramUnit()}` : ''].filter(Boolean).join(' · ')}</div>
                     {!auctionable.has(r.category_id) && <div className="text-[0.6875rem] text-gray-500 italic">{tr('Tracked only — never auctioned')}</div>}</td>
                   <td className="px-3 py-3 text-[0.8125rem] text-amber-800">{r.deity_used_note || '—'}</td>
                   <td className="px-3 py-3"><div className="text-gray-800">{personName({ name: r.donor_name }, lang)}</div><div className="text-[0.6875rem] font-mono text-gray-400">{sourceRef(r)}</div></td>

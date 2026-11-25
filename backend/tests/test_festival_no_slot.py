@@ -1,6 +1,6 @@
 """Festival and vehicle poojas have no slot: the devotee comes at any time in temple hours and the
-ticket scan records the visit. They are on no half-hour list, never counted in a list that is sent,
-and never block Print & Send. Occasion and daily poojas keep their lists. Client rule 2026-11-18.
+ticket scan records the visit. They are on no half-hour list and never on a printed list.
+Occasion and daily poojas keep their lists. Client rule 2026-11-18 (lists only printed since 2026-11-20).
 Run from backend/:
     python -m unittest discover -s tests -t .
 """
@@ -85,12 +85,12 @@ class NoSlot(unittest.TestCase):
         self.assertEqual(self.bill(3, TEMPLE)["batch_slot"], "09:00")
         self.assertEqual(self.bill(4, "09:30 AM")["batch_slot"], "09:30")
 
-    def test_a_festival_bill_is_not_refused_when_every_list_is_sent(self):
+    def test_a_festival_bill_is_not_refused_with_old_send_records(self):
         from app.models import SlotDispatch
         for h in pb.range_halves(self.db):
             self.db.add(SlotDispatch(day=DAY, slot_start=h, devotee_count=1, sent_by="c", sent_at=self.now))
         self.db.commit()
-        self.assertIsNone(self.bill(1, TEMPLE)["batch_slot"])        # a window pooja with a list would get a 409
+        self.assertIsNone(self.bill(1, TEMPLE)["batch_slot"])        # no list, and old "sent" records are ignored
 
     # ── the lists ──
     def test_batch_of_ignores_an_old_festival_list(self):
@@ -105,14 +105,10 @@ class NoSlot(unittest.TestCase):
         self.book(4, "Ashtotharam", "Daily", "09:30 AM", "09:30")
         self.assertEqual({h: n for h, n in self.lists().items() if n}, {"09:30": 1})
 
-    def test_print_and_send_does_not_take_festival_devotees(self):
+    def test_the_printed_list_does_not_take_festival_devotees(self):
         self.book(1, "Devi Navaratri Pooja", "Festival", TEMPLE, None)
         self.book(3, "Namakaranam", "Occasion", TEMPLE, "09:00")
-        out = rp.send_slot(rp.SlotSendIn(slot="09:00"), REQ, db=self.db, user=login("Counter Staff"))
-        self.assertEqual(out["sent"]["count"], 1)
-        with self.assertRaises(HTTPException) as cm:                              # nothing else to send
-            rp.send_slot(rp.SlotSendIn(slot="06:00"), REQ, db=self.db, user=login("Counter Staff"))
-        self.assertEqual(cm.exception.status_code, 409)
+        self.assertEqual({h: n for h, n in self.lists().items() if n}, {"09:00": 1})   # the Namakaranam only
 
 
 if __name__ == "__main__":

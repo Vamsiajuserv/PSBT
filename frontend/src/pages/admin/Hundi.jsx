@@ -17,7 +17,8 @@ import { promptDialog, confirmDialog, toast } from '../../components/common/Dial
 import { T, tr, personName, useLang, auditDetail } from '../../i18n/LanguageContext.jsx'
 import { sanitizeItemName } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
-import { metalOf, isGrams, purityOptions, PURITY_UNKNOWN } from '../../lib/metal.js'
+import { metalOf, isGrams } from '../../lib/metal.js'
+import ResetButton from '../../components/common/ResetButton.jsx'
 
 const DENOMINATIONS = ['Mixed', 'Notes', 'Coins', 'Foreign Currency', 'Jewellery']
 // Stored values stay as above; 'Notes' is shown as 'Currency Notes' because plain
@@ -79,7 +80,7 @@ function DenomTally({ tally, onChange, onClose }) {
     </div>)
 }
 
-const emptyLine = () => ({ hundi_item_id: '', item_name: '', item_type: '', quantity: '', unit: '', value: '', remarks: '', purity: '' })
+const emptyLine = () => ({ hundi_item_id: '', item_name: '', item_type: '', quantity: '', unit: '', value: '', remarks: '' })
 
 const emptyForm = () => ({
   collected_on: today(), counting_completed_on: nowLocal(),
@@ -117,7 +118,7 @@ export default function Hundi() {
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [view, setView] = useState(null)
-  // Gold / silver counted by weight: grams and (optional) purity — no ₹ value (2026-11-15)
+  // Gold / silver counted by weight: grams only — no ₹ value (2026-11-15), no purity (client, 2026-11-20)
   const lineMetal = (l) => (isGrams(l.unit) ? metalOf(l.item_type) : null)
   const lineValue = (l) => (lineMetal(l) ? 0 : l.value)
   const formTotal = (lines) => lines.reduce((s, l) => s + Number(lineValue(l) || 0), 0)
@@ -266,7 +267,7 @@ export default function Hundi() {
       members: h.committee_member_ids || [],
       lines: (h.items || []).length ? h.items.map((it) => ({
         hundi_item_id: it.hundi_item_id || '', item_name: it.item_name || '', item_type: it.item_type || '',
-        quantity: it.quantity ?? '', unit: it.unit || '', value: it.value ?? '', remarks: it.remarks || '', purity: it.purity || '',
+        quantity: it.quantity ?? '', unit: it.unit || '', value: it.value ?? '', remarks: it.remarks || '',
       })) : [emptyLine()],
     })
   }
@@ -419,7 +420,6 @@ export default function Hundi() {
         unit: l.unit || null,
         value: Number(lineValue(l) || 0),
         remarks: l.remarks || null,
-        purity: lineMetal(l) ? (l.purity || PURITY_UNKNOWN) : null,
       }))
 
     if (items.length === 0) {
@@ -710,11 +710,8 @@ export default function Hundi() {
                         {lineMetal(l) ? (<>
                             <div className="grid grid-cols-3 gap-2">
                               <NumberField min="0" max="999999" step="0.01" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Grams *")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
-                              <Select className="input !py-1.5 text-[0.78125rem] col-span-2" value={l.purity || PURITY_UNKNOWN} onChange={(e) => setLine(i, { purity: e.target.value })} aria-label={tr('Purity')}>
-                                {purityOptions(lineMetal(l)).map((p) => <option key={p} value={p}>{tr('Purity')}: {tr(p)}</option>)}
-                              </Select>
                             </div>
-                            <div className="text-[0.6875rem] text-gray-500">{tr('Kept by weight — no value. Pick a purity only if a hallmark can be read.')}</div>
+                            <div className="text-[0.6875rem] text-gray-500">{tr('Kept by weight — no value.')}</div>
                           </>) : (
                         <>
                         <div className="grid grid-cols-3 gap-2">
@@ -799,6 +796,8 @@ export default function Hundi() {
               )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
+              {/* Reset (client, 2026-11-20): new count only — back to a freshly opened form */}
+              {!drawer.resubmit && <ResetButton onReset={openCreate} disabled={saving} className="justify-center shrink-0" />}
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
               <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{drawer.resubmit ? <T>Resubmit for Approval</T> : <T>Save Collection</T>}{' '}<ChevronDown size={14} /></>}</button>
             </div>
@@ -838,7 +837,7 @@ export default function Hundi() {
                           <div className="text-[0.8125rem] font-medium text-gray-800 truncate">{tr(it.item_name)}</div>
                           <div className="text-[0.6875rem] text-gray-400">
                             {it.item_type ? tr(it.item_type) : '—'}
-                            {it.quantity != null && ` · ${num(it.quantity)}${it.unit ? ` ${tr(it.unit)}` : ''}`}{it.purity && ` · ${it.purity}`}{it.rate_per_g != null && ` · ₹${Number(it.rate_per_g).toLocaleString('en-IN')}/${tr('g')}`}
+                            {it.quantity != null && ` · ${num(it.quantity)}${it.unit ? ` ${tr(it.unit)}` : ''}`}
                           </div>
                         </div>
                         <div className="text-[0.8125rem] font-semibold text-gray-800 tabular-nums shrink-0">{canSeeAmounts ? inr(it.value) : '—'}</div>

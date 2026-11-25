@@ -243,7 +243,8 @@ export function Select({ value, onChange, children, className = '', disabled = f
 // ── MultiSelect ─────────────────────────────────────────────────────────────
 // Multi-select dropdown for filters with "Select All" capability
 
-export function MultiSelect({ value = [], onChange, children, className = '', disabled = false, placeholder, title, allLabel }) {
+// selectAll={false} hides the Select All / Clear All button (e.g. picking poojas for a booking).
+export function MultiSelect({ value = [], onChange, children, className = '', disabled = false, placeholder, title, allLabel, selectAll: showSelectAll = true }) {
   const { t } = useLang()
   const ph = placeholder || t('Select…')
   const allLbl = allLabel || t('Select All')
@@ -315,9 +316,11 @@ export function MultiSelect({ value = [], onChange, children, className = '', di
             </div>
           )}
           <div className="px-3 py-2 border-b border-gold-100 flex items-center justify-between gap-2">
-            <button type="button" onClick={allSelected ? clearAll : selectAll} className="text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-900">
-              {allSelected ? t('Clear All') : allLbl}
-            </button>
+            {showSelectAll ? (
+              <button type="button" onClick={allSelected ? clearAll : selectAll} className="text-[0.75rem] font-semibold text-maroon-700 hover:text-maroon-900">
+                {allSelected ? t('Clear All') : allLbl}
+              </button>
+            ) : <span />}
             {vals.size > 0 && <span className="text-[0.75rem] text-gray-400">{vals.size} {t('selected')}</span>}
           </div>
           <div className="overflow-y-auto py-1" style={{ maxHeight: (pos?.maxHeight ?? 300) - (searchable ? 80 : 40) }}>
