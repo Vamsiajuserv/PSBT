@@ -1,6 +1,7 @@
-"""Gold & silver without a daily rate (2026-11-15, client decision): kept by grams and description,
-no ₹ value; purity optional — "Not known" by default, else one from the purity list (a readable
-hallmark). The Gold & Silver Rate screen and its API are gone. Run from backend/:
+"""Gold & silver without a daily rate (2026-11-15, client decision): kept by grams and description.
+Client, 2026-11-20: NO PURITY anywhere (one sent is ignored, never stored); grams stay mandatory; a
+gold / silver donation may carry an OPTIONAL amount the donor states (est_value) — goods, never cash.
+The Gold & Silver Rate screen and its API are gone. Run from backend/:
     python -m unittest discover -s tests -t .
 """
 import unittest
@@ -54,21 +55,21 @@ class GoldSilver(unittest.TestCase):
         self.assertEqual([mr.metal_of(x) for x in ("GOLD", "Silver coins", "Cloth / Vastram", None)],
                          ["Gold", "Silver", None, None])
 
-    def test_purity_is_optional(self):
-        self.assertEqual([mr.check_purity(self.db, "Gold", x) for x in (None, "", " not known ", "22K")],
-                         ["Not known", "Not known", "Not known", "22K"])
-        self.assertEqual(mr.check_purity(self.db, "Silver", "925"), "925")
-        self.assertIn("or Not known", self.status(422, lambda: mr.check_purity(self.db, "Gold", "925")))
+    def test_purity_is_gone(self):
+        # no purity list, no purity check (client, 2026-11-20)
+        self.assertFalse(any(hasattr(mr, x) for x in ("check_purity", "purities", "DEFAULT_PURITIES", "PURITY_KEY")))
 
-    def test_counter_gold_needs_no_rate_and_has_no_value(self):
+    def test_counter_gold_keeps_grams_and_an_optional_amount(self):
         data = {"donation_type": "Material", "fund": "Gold", "quantity": Decimal("10"), "unit": "Grams",
                 "amount": 0, "item_desc": " chain ", "est_value": Decimal("65000")}
         d = dict(data); dn._value_metal(self.db, d)                               # no rate entered — not refused
         self.assertEqual((d["purity"], d["rate_per_g"], d["est_value"], d["item_desc"], d["amount"]),
-                         ("Not known", None, None, "chain", 0))               # a typed value is dropped too
-        h = {**data, "purity": "22K"}; dn._value_metal(self.db, h)
-        self.assertEqual((h["purity"], h["est_value"]), ("22K", None))
-        self.status(422, lambda: dn._value_metal(self.db, {**data, "purity": "99K"}))
+                         (None, None, Decimal("65000"), "chain", 0))           # the donor's amount is kept; not cash
+        blank = {**data, "est_value": None}; dn._value_metal(self.db, blank)
+        self.assertIsNone(blank["est_value"])                                     # the amount is optional
+        for sent in ("22K", "99K", "925"):                                        # any purity sent is ignored
+            h = {**data, "purity": sent}; dn._value_metal(self.db, h)
+            self.assertEqual((h["purity"], h["est_value"]), (None, Decimal("65000")), sent)
         pancha = {"donation_type": "Material", "fund": "Cloth / Vastram", "quantity": 3, "unit": "Nos", "purity": "22K",
                   "est_value": Decimal("1000"), "item_desc": " silk pancha "}
         dn._value_metal(self.db, pancha)                                          # other goods: the devotee's value kept
@@ -80,8 +81,8 @@ class GoldSilver(unittest.TestCase):
                  {"item_type": "Jewellery", "item_name": "Jewellery", "unit": "Amount", "quantity": None, "value": 15000, "purity": "22K"},
                  {"item_type": "Cash", "item_name": "₹500", "unit": "Count", "quantity": 4, "value": 2000}]
         misc._value_metal_lines(self.db, lines, None)
-        self.assertEqual([(x["value"], x["purity"], x["rate_per_g"]) for x in lines],
-                         [(Decimal("0"), "Not known", None), (Decimal("0"), "999", None), (15000, None, None), (2000, None, None)])
+        self.assertEqual([(x["value"], x["purity"], x["rate_per_g"]) for x in lines],    # no purity on any line
+                         [(Decimal("0"), None, None), (Decimal("0"), None, None), (15000, None, None), (2000, None, None)])
 
     def test_a_hundi_with_gold_is_accepted_without_a_value(self):
         lines = [{"item_type": "Gold", "item_name": "Gold", "unit": "Grams", "quantity": Decimal("10")},
@@ -102,12 +103,16 @@ class GoldSilver(unittest.TestCase):
         return r.tag_items(r.TagIn(source_type="Donation", source_id=1, rows=[r.TagRow(location_id=1, **row)]),
                            self.req, self.db, self.officer)
 
-    def test_tagging_gold_has_no_value(self):
-        self.receipt()
+    def test_tagging_gold_has_no_value_and_no_purity(self):
+        self.receipt()                                                            # an old receipt with a purity
         s = r.source_detail("Donation", 1, self.db, self.officer)
-        self.assertEqual((s["purity"], s["rate_per_g"], s["purity_factor"], s["est_value"]), ("Not known", None, None, None))
-        out = self.tag(weight_g=Decimal("4"), purity="22K")                     # no value note needed
-        self.assertEqual((out["items"][0]["est_value"], out["items"][0]["purity"]), (None, "22K"))
+        self.assertTrue(all(k not in s for k in ("purity", "rate_per_g", "purity_factor")))
+        self.assertIsNone(s["est_value"])
+        out = self.tag(weight_g=Decimal("4"), purity="22K")                     # a purity sent is ignored
+        self.assertIsNone(out["items"][0]["est_value"])
+        self.assertNotIn("purity", out["items"][0])
+        self.assertIsNone(self.db.query(StockItem).one().purity)
+        self.status(422, lambda: self.tag())                                     # grams stay mandatory
         self.assertIn("Only 6 g is left", self.status(422, lambda: self.tag(weight_g=Decimal("7"))))   # 4 + 7 > 10 g received
 
     def test_correct_a_piece(self):
@@ -116,10 +121,16 @@ class GoldSilver(unittest.TestCase):
         fix = lambda **kw: r.correct_item(iid, r.CorrectIn(**{"description": None, "details": None, "weight_g": Decimal("6"),
                                                             "purity": None, "est_value": None,
                                                             "reason": "Hallmark read later", **kw}), self.req, self.db, self.officer)
-        # description: direct; purity of gold: a request the Committee approves (2026-11-15)
+        # description: applied at once; a purity sent is ignored (no purity since 2026-11-20, client)
         out = fix(purity="22K", description="chain")
-        self.assertEqual((out["purity"], out["description"]), (None, "chain"))
-        self.assertIn("Purity — → 22K", out["pending_change"])
+        self.assertEqual(out["description"], "chain")
+        self.assertNotIn("purity", out)
+        self.assertIsNone(out.get("pending_change"))
+        self.assertIsNone(self.db.get(StockItem, iid).purity)
+        # gold: a lower weight is a request the Committee approves (2026-11-15)
+        out = fix(weight_g=Decimal("5.5"), description="chain")
+        self.assertEqual(out["weight_g"], 6.0)                                    # unchanged until approved
+        self.assertIn("Weight", out["pending_change"])
         self.assertIn("already waiting", self.status(409, lambda: fix(weight_g=Decimal("5"), description="chain")))
         from app.models import MissingCase
         from app.routers import stores_issue as si
@@ -128,17 +139,16 @@ class GoldSilver(unittest.TestCase):
         self.status(403, lambda: si.approve_lost(case.id, self.req, self.db, self.officer))      # never the one who asked
         committee = login("committee1", "Committee")
         si.approve_lost(case.id, self.req, self.db, committee)
-        it = self.db.get(StockItem, iid)
-        self.assertEqual((it.purity, case.status), ("22K", "Approved"))
-        # a lower weight waits too; rejected → unchanged
-        out = fix(weight_g=Decimal("5.5"), purity="22K", description="chain")
-        self.assertEqual(out["weight_g"], 6.0)
+        self.assertEqual((float(self.db.get(StockItem, iid).weight_g), case.status), (5.5, "Approved"))
+        # another lower weight waits too; rejected → unchanged
+        out = fix(weight_g=Decimal("5"), description="chain")
+        self.assertEqual(out["weight_g"], 5.5)
         case2 = self.db.query(MissingCase).filter(MissingCase.stock_item_id == iid, MissingCase.status == "Change requested").one()
         si.reject_lost(case2.id, si.ReasonIn(reason="Scale was wrong"), self.req, self.db, committee)
-        self.assertEqual((float(self.db.get(StockItem, iid).weight_g), case2.status), (6.0, "Rejected"))
+        self.assertEqual((float(self.db.get(StockItem, iid).weight_g), case2.status), (5.5, "Rejected"))
         # a higher weight (within the receipt) is applied at once; beyond the receipt is refused
-        self.assertEqual(fix(weight_g=Decimal("6.5"), purity="22K", description="chain")["weight_g"], 6.5)
-        self.assertIn("more than was received", self.status(422, lambda: fix(weight_g=Decimal("11"), purity="22K", description="chain")))
+        self.assertEqual(fix(weight_g=Decimal("6.5"), description="chain")["weight_g"], 6.5)
+        self.assertIn("more than was received", self.status(422, lambda: fix(weight_g=Decimal("11"), description="chain")))
         self.assertEqual(float(self.db.get(StockItem, iid).weight_g), 6.5)
         with self.assertRaises(ValidationError):
             r.CorrectIn(est_value=1, reason="no")

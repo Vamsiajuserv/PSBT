@@ -1,6 +1,7 @@
 """Gold & silver: kept by grams and description only — no daily rate and no rupee value
-(client decision 2026-11-15). Purity is optional ("Not known" by default), and lowering a
-weight or changing a purity after tagging waits for a Committee member. Run from backend/:
+(client decision 2026-11-15). No purity anywhere since 2026-11-20 (client): one sent is ignored.
+A gold / silver donation may carry an optional amount the donor states (est_value) — goods, never
+cash. Lowering a weight after tagging waits for a Committee member. Run from backend/:
     python -m unittest discover -s tests -t .
 """
 import json
@@ -50,41 +51,43 @@ class Metals(unittest.TestCase):
         self.assertEqual([mr.metal_of(x) for x in ("GOLD", "Silver coins", "Cloth / Vastram", None)],
                          ["Gold", "Silver", None, None])
 
-    def test_purity_defaults_to_not_known(self):
-        for blank in (None, "", "  ", "Not known", "NOT KNOWN"):
-            self.assertEqual(mr.check_purity(self.db, "Gold", blank), "Not known")
+    # ── no purity (client, 2026-11-20) ───────────────────────────────────────
+    def test_no_purity_list_or_check_is_left(self):
+        self.assertFalse(any(hasattr(mr, x) for x in ("check_purity", "purities", "DEFAULT_PURITIES", "PURITY_KEY")))
 
-    def test_purity_must_come_from_the_list(self):
-        self.assertEqual(mr.check_purity(self.db, "Gold", "22K"), "22K")
-        self.assertEqual(mr.check_purity(self.db, "Silver", " 925 "), "925")
-        self.assertIn("gold purity", self.status(422, lambda: mr.check_purity(self.db, "Gold", "925")))
-        self.status(422, lambda: mr.check_purity(self.db, "Silver", "22K"))
+    def test_any_purity_sent_with_a_donation_is_ignored(self):
+        for sent in (None, "", "Not known", "22K", "925", "99K"):
+            data = {"donation_type": "Material", "fund": "Gold", "quantity": Decimal("10"), "unit": "Grams", "purity": sent}
+            dn._value_metal(self.db, data)                                        # never refused
+            self.assertIsNone(data["purity"], sent)
 
-    def test_purity_list_can_be_changed_in_settings(self):
-        self.assertEqual(mr.purities(self.db), mr.DEFAULT_PURITIES)
-        custom = {"Gold": [{"label": "20K", "factor": 0.833}], "Silver": [{"label": "999", "factor": 1}]}
-        self.db.add(Setting(skey=mr.PURITY_KEY, svalue=json.dumps(custom)))
+    def test_an_old_purity_setting_changes_nothing(self):
+        self.db.add(Setting(skey="metal_purities", svalue=json.dumps({"Gold": [{"label": "20K", "factor": 0.833}]})))
         self.db.commit()
-        self.assertEqual(mr.check_purity(self.db, "Gold", "20K"), "20K")
-        self.status(422, lambda: mr.check_purity(self.db, "Gold", "22K"))
-        # a stored list that is damaged falls back to the default list
-        self.db.query(Setting).filter(Setting.skey == mr.PURITY_KEY).update({"svalue": "not json"})
-        self.db.commit()
-        self.assertEqual(mr.purities(self.db), mr.DEFAULT_PURITIES)
+        data = {"donation_type": "Material", "fund": "Gold", "quantity": Decimal("10"), "unit": "Grams", "purity": "22K"}
+        dn._value_metal(self.db, data)
+        self.assertIsNone(data["purity"])
 
     # ── counter donations: grams, no rupee value ─────────────────────────────
-    def test_counter_gold_has_no_rate_and_no_value(self):
+    def test_counter_gold_has_no_rate_and_an_optional_stated_amount(self):
         data = {"donation_type": "Material", "fund": "Gold", "quantity": Decimal("10"), "unit": "Grams",
                 "amount": 0, "item_desc": " chain ", "est_value": Decimal("99999"), "rate_per_g": Decimal("7200")}
         dn._value_metal(self.db, data)
         self.assertEqual((data["purity"], data["rate_per_g"], data["est_value"], data["item_desc"], data["amount"]),
-                         ("Not known", None, None, "chain", 0))
+                         (None, None, Decimal("99999"), "chain", 0))       # the stated amount is kept; no rate; not cash
 
-    def test_counter_gold_keeps_a_readable_purity_and_refuses_a_wrong_one(self):
-        data = {"donation_type": "Material", "fund": "Gold", "quantity": Decimal("10.5"), "unit": "Grams", "purity": "22K"}
+    def test_counter_silver_without_an_amount(self):
+        data = {"donation_type": "Material", "fund": "Silver", "quantity": Decimal("10.5"), "unit": "Grams"}
         dn._value_metal(self.db, data)
-        self.assertEqual((data["purity"], data["est_value"]), ("22K", None))
-        self.status(422, lambda: dn._value_metal(self.db, {**data, "purity": "925"}))
+        self.assertEqual((data["purity"], data["est_value"], data["rate_per_g"]), (None, None, None))
+
+    def test_a_negative_amount_is_refused(self):
+        from pydantic import ValidationError
+        from app.schemas import DonationCreate
+        base = dict(donation_type="Material", fund="Gold", donor_name="Ravi", amount=0, quantity=10, unit="Grams")
+        self.assertEqual(DonationCreate(**base, est_value=5000).est_value, Decimal("5000"))
+        with self.assertRaises(ValidationError):
+            DonationCreate(**base, est_value=-1)
 
     def test_other_goods_keep_the_value_the_devotee_states(self):
         pancha = {"donation_type": "Material", "fund": "Cloth / Vastram", "quantity": 3, "unit": "Nos", "purity": "22K"}
@@ -103,11 +106,12 @@ class Metals(unittest.TestCase):
                  {"item_type": "Cash", "item_name": "Rs 500", "unit": "Count", "quantity": 4, "value": 2000}]
         misc._value_metal_lines(self.db, lines, None)
         self.assertEqual([(x["purity"], x["rate_per_g"], x["value"]) for x in lines],
-                         [("22K", None, Decimal("0")), ("Not known", None, Decimal("0")), (None, None, 15000), (None, None, 2000)])
+                         [(None, None, Decimal("0")), (None, None, Decimal("0")), (None, None, 15000), (None, None, 2000)])
 
-    def test_hundi_gold_line_refuses_a_wrong_purity(self):
+    def test_hundi_gold_line_ignores_any_purity(self):
         line = {"item_type": "Gold", "item_name": "Gold", "unit": "Grams", "quantity": Decimal("10"), "purity": "925"}
-        self.status(422, lambda: misc._value_metal_lines(self.db, [line], None))
+        misc._value_metal_lines(self.db, [line], None)                           # no longer refused
+        self.assertEqual((line["purity"], line["value"]), (None, Decimal("0")))
 
     # ── tagging gold pieces ──────────────────────────────────────────────────
     def _gold_receipt(self, grams=10):
@@ -122,9 +126,10 @@ class Metals(unittest.TestCase):
     def test_a_gold_receipt_carries_no_value_so_pieces_get_none(self):
         self._gold_receipt()
         s = r.source_detail("Donation", 1, self.db, self.officer)
-        self.assertIsNone(s["rate_per_g"])
-        out = self.tag(weight_g=Decimal("4"), purity="22K")
+        self.assertNotIn("rate_per_g", s)
+        out = self.tag(weight_g=Decimal("4"), purity="22K")                     # a purity sent is ignored
         self.assertIsNone(out["items"][0]["est_value"])
+        self.assertIsNone(self.db.query(StockItem).one().purity)
         self.assertEqual(float(self.db.query(StockItem).one().weight_g), 4.0)
 
     def test_pieces_never_weigh_more_than_was_received(self):
@@ -164,11 +169,11 @@ class Metals(unittest.TestCase):
         self.assertEqual(json.loads(case.changes), {"weight_g": "5.5"})
         self.assertIn("already waiting", self.status(409, lambda: self.fix(iid, weight_g=Decimal("5"))))
 
-    def test_another_purity_waits_for_the_committee(self):
+    def test_a_purity_correction_is_no_longer_possible(self):
         iid = self._gold_piece()
-        self.fix(iid, purity="22K")
+        self.assertIn("Nothing", self.status(422, lambda: self.fix(iid, purity="22K", description="chain")))   # ignored → nothing changed
+        self.assertEqual(self.db.query(MissingCase).count(), 0)                            # no request for the Committee
         self.assertIsNone(self.db.get(StockItem, iid).purity)
-        self.assertEqual(json.loads(self.db.query(MissingCase).one().changes), {"purity": "22K"})
 
     def test_weight_above_what_was_received_is_refused_and_rolled_back(self):
         iid = self._gold_piece()
