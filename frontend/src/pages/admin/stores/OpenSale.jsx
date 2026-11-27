@@ -8,8 +8,9 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, DateField } from '../../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
-import { isCommitteeUser, canSellOrDamage, isStoresOfficer, staffName, useStoresMeta, sourceRef, DeityBadge, StoresTabs } from './shared.jsx'
+import { isCommitteeUser, canSellOrDamage, isStoresOfficer, staffName, useStoresMeta, sourceRef, DeityBadge, BundleBadge, StoresTabs } from './shared.jsx'
 import { useTemple } from '../../../lib/SiteContext.jsx'
+import BuyerField, { MOBILE_OK, NAME_OK } from '../../../components/admin/BuyerField.jsx'
 
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
 const modeLabel = (m) => (m === 'UPI/QR Code' ? 'Online' : m || '')
@@ -61,7 +62,7 @@ export default function OpenSale() {
 
   async function changePrice(i) {
     const res = await promptDialog({ title: `${tr('Change Open Sale price')} — ${i.tag_id}`, confirmLabel: tr('Save'),
-      fields: [{ k: 'price', label: tr('Open Sale price (₹)'), type: 'number', required: true, defaultValue: String(i.open_sale_price) }] })
+      fields: [{ k: 'price', label: i.pieces > 1 ? tr('Open Sale price per piece (₹)') : tr('Open Sale price (₹)'), type: 'number', required: true, defaultValue: String(i.open_sale_price) }] })
     if (!res) return
     try { await StoresAPI.openSalePrice(i.id, Number(res.price)); toast(tr('Price changed.')); load() }
     catch (ex) { toast(errText(ex, 'Could not change the price.'), 'error') }
@@ -75,15 +76,22 @@ export default function OpenSale() {
   async function sell(e) {
     e.preventDefault()
     const f = selling
+    if (!NAME_OK(f.buyer_name)) { toast(tr("Enter the buyer's name — it goes on the receipt."), 'error'); return }
+    if (f.buyer_mobile.trim() && !MOBILE_OK.test(f.buyer_mobile.trim())) { toast(tr('Enter a valid 10-digit mobile number (starts with 6, 7, 8 or 9).'), 'error'); return }
+    const n = sellCount(f)
+    if (!(n >= 1 && n <= (f.item.pieces || 1))) { toast(`${f.item.tag_id}: ${tr('enter how many pieces — 1 to')} ${f.item.pieces}.`, 'error'); return }
     try {
       const s = await StoresAPI.openSaleSell(f.item.id, { buyer_name: f.buyer_name.trim(), buyer_mobile: f.buyer_mobile.trim() || null,
-        mode: f.mode, txn_ref: f.mode === 'UPI/QR Code' ? f.txn_ref.trim() : null })
+        devotee_id: f.devotee_id || null,
+        mode: f.mode, txn_ref: f.mode === 'UPI/QR Code' ? f.txn_ref.trim() : null, ...(f.item.pieces > 1 ? { pieces: n } : {}) })
       toast(`${s.receipt_no}: ${tr('sold')} ${s.tag_id} ${inr(s.amount)}`)
       setSelling(null); setReceipt(s); changed(); load()
     } catch (ex) { toast(errText(ex, 'Could not record the sale.'), 'error') }
   }
 
   const items = data?.items || []
+  // several pieces of a bundle on sale: the buyer takes some or all, at the price per piece (2026-11-27)
+  const sellCount = (f) => (f?.item?.pieces > 1 ? Math.round(Number(f.pieces)) || 0 : 1)
   return (
     <div>
       <StoresTabs group="sales" />
@@ -116,15 +124,15 @@ export default function OpenSale() {
             <tbody className="divide-y divide-gray-100">
               {items.map((i) => (
                 <tr key={i.id} className="hover:bg-gray-50/60">
-                  <td className="pl-5 pr-4 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${i.tag_id}`}>{i.tag_id}</Link>{i.deity_used && <div className="mt-1"><DeityBadge item={i} /></div>}</td>
+                  <td className="pl-5 pr-4 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${i.tag_id}`}>{i.tag_id}</Link>{i.pieces > 1 && <div className="mt-1"><BundleBadge item={i} /></div>}{i.deity_used && <div className="mt-1"><DeityBadge item={i} /></div>}</td>
                   <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(i.description || i.item_name)}</div><div className="text-[0.6875rem] text-gray-500">{[tr(i.item_name), tr(i.details)].filter(Boolean).join(' · ')}</div></td>
-                  <td className="px-4 py-3 text-right tabular-nums font-bold text-maroon-800 whitespace-nowrap">{inr(i.open_sale_price)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-bold text-maroon-800 whitespace-nowrap">{inr(i.open_sale_price)}{i.pieces > 1 && <div className="text-[0.6875rem] font-normal text-gray-500">{tr('per piece')}</div>}</td>
                   <td className="px-4 py-3 text-[0.8125rem]">{staffName(i.open_sale_by)}<div className="text-[0.6875rem] text-gray-400">{fmtStamp(i.open_sale_at)}</div></td>
                   <td className="px-4 py-3 text-center"><Pill tone={i.unsold_count >= 2 ? 'red' : 'orange'}>×{i.unsold_count}</Pill></td>
                   <td className="px-4 py-3">{tr(i.location || '—')}</td>
                   <td className="px-4 py-3"><div>{personName({ name: i.donor_name }, lang)}</div><div className="text-[0.6875rem] font-mono text-gray-400">{sourceRef(i)}</div></td>
                   <td className="pl-4 pr-5 py-3"><div className="flex gap-1.5 flex-nowrap">
-                    {canSell && <button onClick={() => setSelling({ item: i, buyer_name: '', buyer_mobile: '', mode: 'Cash', txn_ref: '' })} title={tr('Sell')} aria-label={tr('Sell')} className="w-8 h-8 grid place-items-center rounded-lg border border-green-200 text-green-700 hover:bg-green-50"><Banknote size={15} /></button>}
+                    {canSell && <button onClick={() => setSelling({ item: i, buyer_name: '', buyer_mobile: '', devotee_id: null, devotee_code: null, mode: 'Cash', txn_ref: '', pieces: String(i.pieces || 1) })} title={tr('Sell')} aria-label={tr('Sell')} className="w-8 h-8 grid place-items-center rounded-lg border border-green-200 text-green-700 hover:bg-green-50"><Banknote size={15} /></button>}
                     {committee && <button onClick={() => changePrice(i)} title={tr('Change price')} aria-label={tr('Change price')} className="w-8 h-8 grid place-items-center rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50"><Pencil size={15} /></button>}
                     {committee && <button onClick={() => back(i)} title={tr('Back to store')} aria-label={tr('Back to store')} className="w-8 h-8 grid place-items-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"><Undo2 size={15} /></button>}
                   </div></td>
@@ -166,7 +174,9 @@ export default function OpenSale() {
                 <tr key={s.id}>
                   <td className="pl-5 pr-4 py-3 font-mono text-[0.78rem]">{s.receipt_no}</td>
                   <td className="px-4 py-3"><Link className="font-mono text-[0.78rem] text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${s.tag_id}`}>{s.tag_id}</Link> · {tr(s.item_name)}</td>
-                  <td className="px-4 py-3">{personName({ name: s.buyer_name }, lang)}{s.buyer_mobile && <div className="text-[0.6875rem] text-gray-400">{s.buyer_mobile}</div>}</td>
+                  <td className="px-4 py-3">{personName({ name: s.buyer_name }, lang)}{' '}
+                    {s.devotee_code ? <Pill tone="green">{tr('Devotee')} {s.devotee_code}</Pill> : <Pill tone="gray">{tr('Outsider')}</Pill>}
+                    {s.buyer_mobile && <div className="text-[0.6875rem] text-gray-400">{s.buyer_mobile}</div>}</td>
                   <td className="px-4 py-3 text-right tabular-nums font-semibold">{inr(s.amount)}</td>
                   <td className="px-4 py-3"><Pill tone="green">{tr(modeLabel(s.payment_mode))}</Pill>{s.payment_ref && <div className="text-[0.6875rem] text-gray-400 font-mono">{s.payment_ref}</div>}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-[0.8125rem]">{fmtStamp(s.sold_at)}<div className="text-[0.6875rem] text-gray-400">{staffName(s.sold_by)}</div></td>
@@ -194,11 +204,15 @@ export default function OpenSale() {
               <div className="bg-gray-50 rounded-lg px-4 py-3">
                 <div className="font-mono text-[0.78rem] text-gray-500">{selling.item.tag_id}</div>
                 <div className="font-semibold text-gray-800">{tr(selling.item.description || selling.item.item_name)}</div>
-                <div className="text-lg font-bold text-maroon-700">{inr(selling.item.open_sale_price)}</div>
+                <div className="text-lg font-bold text-maroon-700">{inr(selling.item.open_sale_price)}{selling.item.pieces > 1 && <span className="text-[0.75rem] font-normal text-gray-500"> {tr('per piece')}</span>}</div>
                 <div className="text-[0.6875rem] text-gray-500">{tr('Price fixed by')} {staffName(selling.item.open_sale_by)}</div>
               </div>
-              <div><label className="label"><T>Buyer name *</T></label><input required maxLength={120} className="input" value={selling.buyer_name} onChange={(e) => setSelling({ ...selling, buyer_name: e.target.value })} /></div>
-              <div><label className="label"><T>Mobile</T></label><input className="input" inputMode="numeric" maxLength={10} value={selling.buyer_mobile} onChange={(e) => setSelling({ ...selling, buyer_mobile: e.target.value.replace(/\D/g, '') })} /></div>
+              {selling.item.pieces > 1 && (
+                <div><label className="label">{tr('How many?')} (1 – {selling.item.pieces}) *</label>
+                  <input type="number" required min="1" max={selling.item.pieces} step="1" className="input" value={selling.pieces} onChange={(e) => setSelling({ ...selling, pieces: e.target.value })} /></div>
+              )}
+              {/* one box: a devotee picked from the suggestions, or an outsider (2026-11-27) */}
+              <BuyerField value={selling} mobileRequired={false} onChange={(patch) => setSelling((x) => ({ ...x, ...patch }))} />
               <div><label className="label"><T>Payment Mode *</T></label>
                 <Select className="input" value={selling.mode} onChange={(e) => setSelling({ ...selling, mode: e.target.value })}>
                   <option value="Cash">{tr('Cash')}</option><option value="UPI/QR Code">{tr('Online')}</option></Select></div>
@@ -207,7 +221,7 @@ export default function OpenSale() {
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
               <button type="button" onClick={() => setSelling(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button type="submit" className="btn-maroon flex-1 justify-center"><Banknote size={15} className="mr-1" />{tr('Sell for')} {inr(selling.item.open_sale_price)}</button>
+              <button type="submit" className="btn-maroon flex-1 justify-center"><Banknote size={15} className="mr-1" />{tr('Sell for')} {inr(Number(selling.item.open_sale_price) * sellCount(selling))}</button>
             </div>
           </form>
         </div>
@@ -225,7 +239,7 @@ export default function OpenSale() {
                 <div className="text-[0.75rem] text-gray-500">{fmtDate(receipt.sold_at)}</div>
               </div>
               <div className="space-y-2 text-[0.875rem]">
-                {[[tr('Receipt No'), receipt.receipt_no], [tr('Item'), `${receipt.tag_id} · ${tr(receipt.item_name)}`], [tr('Buyer'), personName({ name: receipt.buyer_name }, lang)],
+                {[[tr('Receipt No'), receipt.receipt_no], [tr('Item'), `${receipt.tag_id} · ${tr(receipt.item_name)}`], [tr('Buyer'), personName({ name: receipt.buyer_name }, lang) + (receipt.devotee_code ? ` (${receipt.devotee_code})` : '')],
                   [tr('Mode'), tr(modeLabel(receipt.payment_mode))], ...(receipt.payment_ref ? [[tr('Ref'), receipt.payment_ref]] : [])].map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-3"><span className="text-gray-500">{k}:</span><span className="font-semibold text-right">{v}</span></div>))}
                 <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-2"><span><T>Amount Paid</T>:</span><span className="text-maroon-700">{inr(receipt.amount)}</span></div>

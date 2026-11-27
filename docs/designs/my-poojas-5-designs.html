@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Poojas — 5 Designs</title>
+<style>
+  :root{--maroon:#7A1F2B;--maroon-dk:#5A1520;--saffron:#C2410C;--gold:#B8860B;--cream:#FBF8F3;--line:#EFE9DF;--ink:#1F2430;--muted:#4B5563}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--ink);background:#E9E2D6}
+  button{font-family:inherit;cursor:pointer}
+  .picker{position:sticky;top:0;z-index:9;background:var(--maroon-dk);color:#fff;padding:12px 18px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .picker b{margin-right:8px}
+  .picker button{border:1px solid #ffffff55;background:transparent;color:#fff;border-radius:999px;padding:8px 14px;font-weight:600;font-size:13px}
+  .picker button.on{background:#FBF3E6;color:var(--maroon-dk)}
+  .design{display:none;max-width:1240px;margin:20px auto;padding:0 12px}
+  .design.on{display:block}
+  .cap{background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:14px;color:var(--muted);box-shadow:0 2px 10px #0001}
+  .cap b{color:var(--maroon-dk)}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .p-due{background:#FFF1DC;color:#8A4B00}.p-done{background:#E3F5EC;color:#065F46}.p-rep{background:#F1E8FF;color:#5B21B6}.p-all{background:#E6EEFF;color:#1E3A8A}
+  .mono{font-family:Consolas,ui-monospace,monospace}
+  .muted{color:var(--muted)}
+  .btn{border:1px solid #E5DED2;background:#fff;border-radius:10px;padding:10px 16px;font-weight:600;font-size:14px;min-height:42px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid #E5DED2;background:#fff;border-radius:999px;padding:8px 16px;font-weight:600;font-size:14px;color:#374151}
+  .chip.on{background:var(--maroon);color:#fff;border-color:var(--maroon)}
+  .hide{display:none!important}
+
+  /* ── 1: Day schedule (timeline) ── */
+  .d1{background:var(--cream);border-radius:18px;overflow:hidden;box-shadow:0 6px 30px #0002}
+  .d1 .hero{background:linear-gradient(120deg,#7A1F2B,#9B2C2C);color:#FFF7EC;padding:26px 28px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between}
+  .d1 .hero h1{margin:0;font-size:26px}.d1 .hero small{opacity:.85;font-size:14px}
+  .d1 .stats{display:flex;gap:12px;flex-wrap:wrap}
+  .d1 .stat{background:#ffffff1f;border:1px solid #ffffff33;border-radius:14px;padding:10px 18px;min-width:110px}
+  .d1 .stat div{font-size:26px;font-weight:700}.d1 .stat span{font-size:12px;opacity:.9}
+  .d1 .bar{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;padding:16px 28px;border-bottom:1px solid var(--line);background:#fff}
+  .d1 .body{padding:22px 28px;display:grid;grid-template-columns:110px 1fr;gap:0 18px}
+  .d1 .slot{font-weight:700;color:var(--maroon-dk);font-size:15px;padding-top:14px;text-align:right}
+  .d1 .slot small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+  .d1 .rail{border-left:3px solid #E8DCC8;padding:6px 0 18px 18px;position:relative;display:flex;flex-direction:column;gap:10px}
+  .d1 .rail::before{content:"";position:absolute;left:-9px;top:16px;width:15px;height:15px;border-radius:50%;background:var(--saffron);border:3px solid var(--cream)}
+  .d1 .rail.done::before{background:#059669}
+  .d1 .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:6px 14px}
+  .d1 .card.done{opacity:.72}
+  .d1 .card h3{margin:0;font-size:17px}
+  .d1 .card .who{font-size:15px}.d1 .card .meta{font-size:13px;color:var(--muted)}
+
+  /* ── 2: Big tiles (tablet at the sanctum) ── */
+  .d2{background:#2A0F12;border-radius:18px;padding:26px;color:#FFF3E0;box-shadow:0 6px 30px #0003}
+  .d2 .top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px;align-items:center;margin-bottom:20px}
+  .d2 h1{margin:0;font-size:30px;color:#FFD9A0}.d2 .clock{font-size:42px;font-weight:700;color:#FFD9A0}
+  .d2 .now{background:linear-gradient(135deg,#C2410C,#9A3412);border-radius:20px;padding:24px;margin-bottom:20px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+  .d2 .now .lbl{font-size:13px;letter-spacing:.12em;text-transform:uppercase;opacity:.9}
+  .d2 .now h2{margin:4px 0;font-size:34px}.d2 .now .big{font-size:22px}.d2 .now .sm{font-size:16px;opacity:.92}
+  .d2 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  .d2 .tile{background:#3B1519;border:1px solid #5A2A2E;border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:6px}
+  .d2 .tile .t{font-size:22px;font-weight:700;color:#FFD9A0}.d2 .tile .p{font-size:19px;font-weight:600}
+  .d2 .tile .n{font-size:17px}.d2 .tile .g{font-size:14px;color:#E8C9A8}
+  .d2 .tile.done{opacity:.55}
+  .d2 .seg{display:flex;background:#3B1519;border-radius:999px;padding:4px}
+  .d2 .seg button{border:0;background:transparent;color:#E8C9A8;border-radius:999px;padding:10px 18px;font-weight:700;font-size:15px}
+  .d2 .seg button.on{background:#FFD9A0;color:#2A0F12}
+
+  /* ── 3: Next up + Later + Done (board) ── */
+  .d3{background:var(--cream);border-radius:18px;padding:24px;box-shadow:0 6px 30px #0002}
+  .d3 .head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-end;margin-bottom:18px}
+  .d3 h1{margin:0;font-size:26px;color:var(--maroon-dk)}
+  .d3 .cols{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:16px;align-items:start}
+  .d3 .col{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}
+  .d3 .col h2{margin:2px 4px 12px;font-size:15px;display:flex;justify-content:space-between;color:var(--maroon-dk)}
+  .d3 .next{background:linear-gradient(135deg,#FFF7EC,#FFE9CC);border:2px solid #F3C38A;border-radius:16px;padding:18px;margin-bottom:12px}
+  .d3 .next .time{font-size:28px;font-weight:800;color:var(--saffron)}
+  .d3 .next h3{margin:6px 0 2px;font-size:22px}
+  .d3 .item{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;display:flex;gap:12px}
+  .d3 .item .tm{min-width:62px;font-weight:700;color:var(--maroon-dk)}
+  .d3 .item b{display:block}.d3 .item small{color:var(--muted)}
+  .d3 .doneItem{opacity:.7}
+
+  /* ── 4: Phone app ── */
+  .d4{display:flex;flex-wrap:wrap;gap:30px;justify-content:center;padding:10px}
+  .phone{width:380px;height:780px;background:#111;border-radius:44px;padding:14px;box-shadow:0 10px 40px #0004}
+  .screen{background:var(--cream);height:100%;border-radius:32px;overflow:hidden;display:flex;flex-direction:column}
+  .ph-top{background:var(--maroon);color:#fff;padding:22px 18px 16px}
+  .ph-top h1{margin:0;font-size:20px}.ph-top small{opacity:.85}
+  .ph-days{display:flex;gap:8px;overflow-x:auto;padding:12px 14px;background:#fff;border-bottom:1px solid var(--line)}
+  .day{min-width:54px;text-align:center;border-radius:14px;padding:8px 6px;border:1px solid var(--line);font-size:12px;color:var(--muted);background:#fff}
+  .day b{display:block;font-size:18px;color:var(--ink)}
+  .day.on{background:var(--maroon);color:#FBE7D6;border-color:var(--maroon)}.day.on b{color:#fff}
+  .ph-list{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+  .ph-card{background:#fff;border-radius:16px;padding:14px;border:1px solid var(--line);box-shadow:0 1px 4px #0000000d}
+  .ph-card .r1{display:flex;justify-content:space-between;align-items:center}
+  .ph-card .tm{font-weight:800;color:var(--saffron);font-size:15px}
+  .ph-card h3{margin:6px 0 2px;font-size:17px}
+  .ph-card .g{font-size:13px;color:var(--muted)}
+  .ph-card .acts{display:flex;gap:8px;margin-top:10px}
+  .ph-card .acts a{flex:1;text-align:center;text-decoration:none;border:1px solid var(--line);border-radius:10px;padding:9px;font-weight:600;font-size:13px;color:var(--maroon-dk)}
+  .ph-tabs{display:flex;border-top:1px solid var(--line);background:#fff}
+  .ph-tabs button{flex:1;border:0;background:#fff;padding:12px 4px;font-size:12px;color:var(--muted);font-weight:600}
+  .ph-tabs button.on{color:var(--maroon)}
+  .ph-tabs i{display:block;font-style:normal;font-size:18px}
+
+  /* ── 5: Sankalpam sheet (clean, printable) ── */
+  .d5{background:#fff;border-radius:14px;padding:30px 34px;box-shadow:0 6px 30px #0002;border-top:6px solid var(--gold)}
+  .d5 .h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-end;border-bottom:2px solid #F1E6CF;padding-bottom:14px}
+  .d5 h1{margin:0;font-family:Georgia,serif;font-size:26px;color:var(--maroon-dk)}
+  .d5 .sub{color:var(--muted);font-size:14px;margin-top:4px}
+  .d5 .grp{margin-top:20px}
+  .d5 .grp h2{font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin:0 0 8px;display:flex;gap:10px;align-items:center}
+  .d5 .grp h2::after{content:"";flex:1;height:1px;background:#F1E6CF}
+  .d5 table{width:100%;border-collapse:collapse}
+  .d5 th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px;background:#FBF6EC}
+  .d5 td{padding:11px 10px;border-bottom:1px solid #F3EDE2;font-size:15px;vertical-align:top}
+  .d5 .tick{width:22px;height:22px;border:2px solid #CDBB97;border-radius:6px;display:inline-block}
+  .d5 tr.done .tick{background:#059669;border-color:#059669}
+  .d5 tr.done td{color:#6B7280}
+  .d5 .mode{display:flex;background:#FBF6EC;border:1px solid #F1E6CF;border-radius:999px;padding:4px;width:fit-content;margin-top:16px}
+  .d5 .mode button{border:0;background:transparent;border-radius:999px;padding:9px 18px;font-weight:700;font-size:14px;color:#7A5B1E}
+  .d5 .mode button.on{background:var(--maroon);color:#fff}
+  .busy-top{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+  .bcard{border:1px solid #F1E6CF;background:#FFFCF6;border-radius:14px;padding:12px 14px}
+  .bcard small{color:var(--muted);font-size:12px}.bcard div{font-size:24px;font-weight:800;color:var(--maroon-dk)}
+  .bcard .bar{height:6px;background:#F1E6CF;border-radius:99px;margin-top:6px;overflow:hidden}.bcard .bar i{display:block;height:6px;background:#059669}
+  .tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
+  .tools input{flex:1 1 260px;border:1px solid #E5DED2;border-radius:10px;padding:11px 12px;font-size:15px}
+  .scroll{max-height:560px;overflow:auto;border:1px solid #F1E6CF;border-radius:12px}
+  .scroll thead th{position:sticky;top:0;z-index:1}
+  .gh td{background:#FFF4E0;font-weight:800;color:var(--maroon-dk);font-size:14px;position:sticky;top:34px}
+  .d5 .compact td{padding:7px 10px;font-size:14px}
+  .pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;margin-top:10px;font-size:14px;color:var(--muted)}
+  .pager button{border:1px solid #E5DED2;background:#fff;border-radius:8px;padding:7px 12px;font-weight:600}
+  .pager button:disabled{opacity:.4}
+  .strip{display:flex;flex-direction:column;gap:10px;padding:16px 0 6px}
+  .prow{display:flex;gap:12px;align-items:flex-start}
+  .pname{width:118px;flex:none;font-weight:800;color:var(--gold);font-size:13px;text-transform:uppercase;letter-spacing:.06em;padding-top:8px}
+  .pname small{display:block;text-transform:none;letter-spacing:0;font-weight:500;color:var(--muted);font-size:11px;margin-top:2px}
+  .pchips{display:flex;flex-wrap:wrap;gap:6px}
+  .tchip{position:relative;width:64px;border:1px solid #E8DCC8;background:#fff;border-radius:12px;padding:7px 4px;text-align:center;display:flex;flex-direction:column;gap:1px}
+  .tchip b{font-size:14px;color:var(--maroon-dk)}.tchip span{font-size:12px;font-weight:700;color:#374151}
+  .tchip.empty{background:#F7F5F1;border-style:dashed;cursor:default}.tchip.empty b,.tchip.empty span{color:#A8A29E}
+  .tchip.now{border:2px solid #C2410C}
+  .tchip i{position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:#C2410C;color:#fff;font-style:normal;font-size:9px;font-weight:800;padding:1px 6px;border-radius:99px}
+  .tchip.over{background:#F3FBF6;border-color:#B7E4CC}
+  .tchip.on{background:var(--maroon);border-color:var(--maroon)}.tchip.on b,.tchip.on span{color:#fff}
+  .slotbox{border:1px solid #F1E6CF;border-radius:14px;margin-top:12px;overflow:hidden;scroll-margin-top:70px}
+  .slotbox.open{border-color:#E0C48E;box-shadow:0 4px 18px #b8860b1f}
+  .slothead{width:100%;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border:0;background:#FFFCF6;padding:14px 16px;text-align:left;font-size:15px}
+  .slothead .st{font-weight:800;color:var(--maroon-dk);min-width:150px}.slothead .sp{flex:1;min-width:160px;color:#374151}
+  .slothead .sc{font-weight:700}.slothead .arr{color:var(--muted);font-size:18px}
+  .slotbody{padding:12px 16px 16px;border-top:1px solid #F1E6CF}
+  .slotbody .scroll{max-height:440px}
+  @media (max-width:900px){.busy-top{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:900px){.d2 .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.d3 .cols{grid-template-columns:1fr}.d1 .body{grid-template-columns:78px 1fr}}
+  @media (max-width:560px){.d2 .tiles{grid-template-columns:1fr}.phone{width:100%;max-width:380px}}
+  @media print{.picker,.cap{display:none}.design{margin:0}.d5{box-shadow:none}}
+</style>
+</head>
+<body>
+
+<div class="picker" id="picker">
+  <b>Poojari · My Poojas — pick a design:</b>
+  <button data-d="1" class="on">1 · Day schedule</button>
+  <button data-d="2">2 · Big tiles (tablet)</button>
+  <button data-d="3">3 · Next up board</button>
+  <button data-d="4">4 · Phone app</button>
+  <button data-d="5">5 · Sankalpam sheet</button>
+</div>
+
+<!-- ───── 1 ───── -->
+<section class="design on" id="d1">
+  <div class="cap"><b>Design 1 — Day schedule.</b> A warm header with today's counts, then a time line: each half-hour with its poojas. Done ones turn green. Click the chips.</div>
+  <div class="d1">
+    <div class="hero">
+      <div><small>Welcome back,</small><h1>Pandit Venkatesh Sharma</h1><small>Friday, 27 Nov 2026 · Margasira Suddha Saptami</small></div>
+      <div class="stats">
+        <div class="stat"><div id="d1due">5</div><span>To perform</span></div>
+        <div class="stat"><div>3</div><span>Done today</span></div>
+        <div class="stat"><div>8</div><span>Total today</span></div>
+      </div>
+    </div>
+    <div class="bar">
+      <div class="chips" data-group="d1"><button class="chip on" data-t="today">Today</button><button class="chip" data-t="tomorrow">Tomorrow</button><button class="chip" data-t="week">This week</button></div>
+      <div class="chips" data-group="d1show"><button class="chip on" data-t="mine">Assigned to me</button><button class="chip" data-t="all">All poojas</button><button class="btn">🖨 Print</button></div>
+    </div>
+    <div class="body" id="d1body"></div>
+  </div>
+</section>
+
+<!-- ───── 2 ───── -->
+<section class="design" id="d2">
+  <div class="cap"><b>Design 2 — Big tiles for a tablet.</b> Dark, calm, large letters that can be read from a distance at the sanctum. The current pooja is shown big at the top.</div>
+  <div class="d2">
+    <div class="top">
+      <div><div style="font-size:14px;color:#E8C9A8">Om Sai Ram · Welcome back</div><h1>Pandit Venkatesh</h1></div>
+      <div class="seg" data-group="d2"><button class="on" data-t="due">To perform · 5</button><button data-t="done">Done · 3</button></div>
+      <div class="clock">10:12 AM</div>
+    </div>
+    <div class="now" id="d2now"></div>
+    <div class="tiles" id="d2tiles"></div>
+  </div>
+</section>
+
+<!-- ───── 3 ───── -->
+<section class="design" id="d3">
+  <div class="cap"><b>Design 3 — Next up board.</b> Three columns: <b>Next up</b> (with all sankalpam details), <b>Later today</b>, and <b>Done</b>. The poojari always sees what comes next.</div>
+  <div class="d3">
+    <div class="head">
+      <div><div class="muted" style="font-size:14px">Friday, 27 Nov 2026</div><h1>Good morning, Pandit Venkatesh 🙏</h1></div>
+      <div class="chips"><button class="chip on">Today</button><button class="chip">Tomorrow</button><button class="btn">🖨 Print list</button></div>
+    </div>
+    <div class="cols">
+      <div class="col"><h2>Next up <span class="pill p-due">10:00 – 10:30</span></h2><div id="d3next"></div></div>
+      <div class="col"><h2>Later today <span class="muted" id="d3laterN"></span></h2><div id="d3later"></div></div>
+      <div class="col"><h2>Done <span class="muted" id="d3doneN"></span></h2><div id="d3done"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ───── 4 ───── -->
+<section class="design" id="d4">
+  <div class="cap"><b>Design 4 — Phone app.</b> Made for the poojari's mobile: day strip at the top, simple cards, one-tap call to the devotee, tabs at the bottom.</div>
+  <div class="d4">
+    <div class="phone"><div class="screen">
+      <div class="ph-top"><small>Om Sai Ram 🙏</small><h1>My Poojas</h1><small>5 to perform · 3 done</small></div>
+      <div class="ph-days" id="d4days"></div>
+      <div class="ph-list" id="d4list"></div>
+      <div class="ph-tabs"><button class="on"><i>🪔</i>Today</button><button><i>📅</i>Upcoming</button><button><i>✔</i>Done</button><button><i>🔍</i>Scan ticket</button></div>
+    </div></div>
+    <div class="phone"><div class="screen">
+      <div class="ph-top" style="background:#5A1520"><small>‹ Back</small><h1>Rudrabhishekam</h1><small>10:00 – 10:30 AM · Ticket TKT-2026-0418</small></div>
+      <div class="ph-list">
+        <div class="ph-card"><div class="g">Devotee</div><h3>Ramesh Kumar</h3><div class="g">📞 98480 12345 · <span class="pill p-rep">Repeat devotee</span></div></div>
+        <div class="ph-card"><div class="g">Sankalpam</div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin-top:6px;font-size:15px">
+            <span class="muted">Gothram</span><b>Bharadwaja</b><span class="muted">Nakshatram</span><b>Rohini</b><span class="muted">Rasi</span><b>Vrishabha</b>
+            <span class="muted">For</span><b>Ramesh Kumar &amp; family (4)</b></div></div>
+        <div class="ph-card"><div class="g">Plan</div><b>Monthly · 3 of 12 left</b><div class="g">Valid till 31 Mar 2027</div></div>
+        <div class="ph-card" style="background:#E3F5EC;border-color:#B7E4CC"><b style="color:#065F46">Recorded as performed automatically</b><div class="g">when its time slot ends (10:30 AM)</div></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ───── 5 ───── -->
+<section class="design" id="d5">
+  <div class="cap"><b>Design 5 — Sankalpam sheet.</b> The whole pooja day, <b>6:00 AM – 9:00 PM (30 half-hours)</b>, on one strip in Morning · Afternoon · Evening. Tap a time to open <b>only that slot's names</b> — even 100 at 6:00 AM. Empty half-hours are grey; the current one is marked NOW and opens by itself. Each slot has its own search and can be grouped by gothram for reading the sankalpam.</div>
+  <div class="d5">
+    <div class="h">
+      <div><h1>Pooja List — Friday, 27 Nov 2026</h1><div class="sub">Pandit Venkatesh Sharma · <span id="d5sum"></span></div></div>
+      <div class="chips"><button class="chip on">Today</button><button class="chip">Tomorrow</button><button class="btn" onclick="window.print()">🖨 Print</button></div>
+    </div>
+    <div class="strip" id="d5strip"></div>
+    <div id="d5slots"></div>
+    <div class="muted" style="font-size:12px;margin-top:14px">✔ green = performed (recorded automatically when the time slot ends). Print gives every slot with all its names.</div>
+  </div>
+</section>
+
+<script>
+const P = [
+  {t:'06:00 AM', slot:'6:00 – 6:30 AM', pooja:'Suprabhatam Archana', dev:'Lakshmi Devi', mob:'99000 11122', got:'Kasyapa', nak:'Aswini', forr:'Self', tk:'TKT-0401', plan:'One time', done:true},
+  {t:'07:00 AM', slot:'7:00 – 7:30 AM', pooja:'Sai Vratam', dev:'Suresh Babu', mob:'90000 12345', got:'Vasishta', nak:'Bharani', forr:'Family (3)', tk:'TKT-0405', plan:'Pournami · 2 of 6 left', done:true},
+  {t:'08:30 AM', slot:'8:30 – 9:00 AM', pooja:'Vahana Pooja', dev:'Kiran Reddy', mob:'98490 55555', got:'Atreya', nak:'Krittika', forr:'New car TS09 AB 1234', tk:'TKT-0409', plan:'One time', done:true},
+  {t:'10:00 AM', slot:'10:00 – 10:30 AM', pooja:'Rudrabhishekam', dev:'Ramesh Kumar', mob:'98480 12345', got:'Bharadwaja', nak:'Rohini', forr:'Family (4)', tk:'TKT-0418', plan:'Monthly · 3 of 12 left', rep:true},
+  {t:'10:00 AM', slot:'10:00 – 10:30 AM', pooja:'Archana', dev:'Padma Rao', mob:'97010 22334', got:'Koundinya', nak:'Mrigasira', forr:'Self', tk:'TKT-0419', plan:'One time', all:true},
+  {t:'11:30 AM', slot:'11:30 AM – 12:00 PM', pooja:'Namakaranam', dev:'Anil & Sravani', mob:'96660 44556', got:'Gautama', nak:'Punarvasu', forr:'Baby boy', tk:'TKT-0423', plan:'One time'},
+  {t:'05:00 PM', slot:'5:00 – 5:30 PM', pooja:'Sai Satyanarayana Vratam', dev:'Venkat Rao', mob:'93910 77889', got:'Haritasa', nak:'Pushyami', forr:'Family (5)', tk:'TKT-0431', plan:'One time', rep:true},
+  {t:'06:30 PM', slot:'6:30 – 7:00 PM', pooja:'Pallaki Seva', dev:'Srinivas', mob:'90590 66778', got:'Kasyapa', nak:'Aslesha', forr:'Self', tk:'TKT-0436', plan:'Yearly · 1 of 1 left'},
+];
+const due = P.filter(p => !p.done), done = P.filter(p => p.done);
+const $ = (id) => document.getElementById(id);
+const status = (p) => p.done ? '<span class="pill p-done">✔ Performed</span>' : '<span class="pill p-due">To perform</span>';
+const tags = (p) => (p.rep ? ' <span class="pill p-rep">Repeat devotee</span>' : '') + (p.all ? ' <span class="pill p-all">For all poojaris</span>' : '');
+
+document.querySelectorAll('#picker button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#picker button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.design').forEach(s => s.classList.toggle('on', s.id === 'd' + b.dataset.d));
+  window.scrollTo({top: 0});
+});
+document.querySelectorAll('[data-group]').forEach(g => g.querySelectorAll('[data-t]').forEach(b => b.addEventListener('click', () => {
+  g.querySelectorAll('[data-t]').forEach(x => x.classList.toggle('on', x === b));
+})));
+
+// 1 — timeline grouped by half-hour
+(function () {
+  const slots = [...new Set(P.map(p => p.slot))];
+  $('d1body').innerHTML = slots.map(s => {
+    const rows = P.filter(p => p.slot === s), allDone = rows.every(r => r.done);
+    return `<div class="slot">${s.split(' – ')[0]}<small>${s.includes('PM') ? 'evening' : 'morning'}</small></div>
+      <div class="rail ${allDone ? 'done' : ''}">${rows.map(p => `<div class="card ${p.done ? 'done' : ''}">
+        <div><h3>${p.pooja}${tags(p)}</h3><div class="who">${p.dev} <span class="muted">· ${p.forr}</span></div>
+          <div class="meta">Gothram <b>${p.got}</b> · Nakshatram <b>${p.nak}</b> · 📞 ${p.mob}</div></div>
+        <div style="text-align:right">${status(p)}<div class="meta mono" style="margin-top:6px">${p.tk}</div><div class="meta">${p.plan}</div></div>
+      </div>`).join('')}</div>`;
+  }).join('');
+})();
+
+// 2 — big tiles
+(function () {
+  const cur = due[0];
+  $('d2now').innerHTML = `<div><div class="lbl">Now · ${cur.slot}</div><h2>${cur.pooja}</h2>
+      <div class="big">${cur.dev} · ${cur.forr}</div><div class="sm">Gothram ${cur.got} · Nakshatram ${cur.nak} · ${cur.tk}</div></div>
+    <div style="text-align:right;font-size:15px">${cur.plan}<br><span style="opacity:.85">Auto-marked at the end of the slot</span></div>`;
+  const draw = (list) => $('d2tiles').innerHTML = list.map(p => `<div class="tile ${p.done ? 'done' : ''}">
+      <div class="t">${p.t}</div><div class="p">${p.pooja}</div><div class="n">${p.dev}</div>
+      <div class="g">${p.got} · ${p.nak}</div><div class="g">${p.done ? '✔ Performed' : p.forr}</div></div>`).join('');
+  draw(due.slice(1));
+  document.querySelectorAll('[data-group="d2"] [data-t]').forEach(b => b.addEventListener('click', () => {
+    $('d2now').classList.toggle('hide', b.dataset.t === 'done');
+    draw(b.dataset.t === 'done' ? done : due.slice(1));
+  }));
+})();
+
+// 3 — next up / later / done
+(function () {
+  const n = due[0];
+  $('d3next').innerHTML = `<div class="next"><div class="time">${n.t}</div><h3>${n.pooja}</h3>
+      <div style="font-size:16px"><b>${n.dev}</b> · ${n.forr}${tags(n)}</div>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:10px;font-size:14px">
+        <span class="muted">Gothram</span><b>${n.got}</b><span class="muted">Nakshatram</span><b>${n.nak}</b>
+        <span class="muted">Mobile</span><b>${n.mob}</b><span class="muted">Ticket</span><b class="mono">${n.tk}</b><span class="muted">Plan</span><b>${n.plan}</b></div></div>
+    <div class="item"><div class="tm">${due[1].t}</div><div><b>${due[1].pooja}</b><small>${due[1].dev} · same slot${tags(due[1])}</small></div></div>`;
+  const later = due.slice(2);
+  $('d3laterN').textContent = later.length;
+  $('d3later').innerHTML = later.map(p => `<div class="item"><div class="tm">${p.t}</div><div><b>${p.pooja}</b><small>${p.dev} · ${p.got} · ${p.nak}</small></div></div>`).join('');
+  $('d3doneN').textContent = done.length;
+  $('d3done').innerHTML = done.map(p => `<div class="item doneItem"><div class="tm">✔ ${p.t}</div><div><b>${p.pooja}</b><small>${p.dev}</small></div></div>`).join('');
+})();
+
+// 4 — phone
+(function () {
+  const days = [['Thu','26'],['Fri','27'],['Sat','28'],['Sun','29'],['Mon','30'],['Tue','1']];
+  $('d4days').innerHTML = days.map(([d, n], i) => `<div class="day ${i === 1 ? 'on' : ''}">${d}<b>${n}</b></div>`).join('');
+  $('d4list').innerHTML = P.map(p => `<div class="ph-card" style="${p.done ? 'opacity:.6' : ''}">
+      <div class="r1"><span class="tm">${p.t}</span>${p.done ? '<span class="pill p-done">✔ Done</span>' : '<span class="pill p-due">To perform</span>'}</div>
+      <h3>${p.pooja}</h3><div><b>${p.dev}</b> <span class="g">· ${p.forr}</span></div>
+      <div class="g">${p.got} · ${p.nak}</div>
+      ${p.done ? '' : `<div class="acts"><a href="#">📞 Call</a><a href="#">Details ›</a></div>`}</div>`).join('');
+})();
+
+// 5 — slot strip + one open slot at a time (6:00 AM has 100 devotees)
+(function () {
+  const first = ['Ramesh','Suresh','Lakshmi','Padma','Venkat','Srinivas','Anil','Sravani','Kiran','Madhavi','Prasad','Sita','Rajesh','Kavitha','Naresh','Anitha','Gopal','Swathi','Mahesh','Divya'];
+  const last = ['Kumar','Rao','Reddy','Sharma','Devi','Babu','Naidu','Varma','Goud','Chary'];
+  const gots = ['Bharadwaja','Kasyapa','Vasishta','Atreya','Koundinya','Gautama','Haritasa','Srivatsa'];
+  const naks = ['Aswini','Bharani','Krittika','Rohini','Mrigasira','Arudra','Punarvasu','Pushyami','Aslesha'];
+  let seed = 11; const rnd = (n) => { seed = (seed * 9301 + 49297) % 233280; return Math.floor(seed / 233280 * n) };
+  // The temple's pooja day: half-hours from 6:00 AM to 9:00 PM — 30 slots (app/pooja_batches.py)
+  const lab = (m) => { const h = Math.floor(m / 60), mm = m % 60, h12 = ((h + 11) % 12) + 1; return `${h12}:${String(mm).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}` };
+  const ALL = Array.from({ length: 30 }, (_, i) => 360 + i * 30);                 // 06:00 … 20:30
+  const slotName = (m) => `${lab(m)} – ${lab(m + 30)}`;
+  const NOW = 600;                                                               // sample "now": 10:00 AM
+  // sample bookings per half-hour: a big 6:00 AM Suprabhatam, a busy morning, a quiet afternoon, a busy evening
+  const COUNT = { 360: 100, 390: 18, 420: 25, 450: 12, 480: 9, 510: 6, 540: 14, 570: 4, 600: 22, 630: 8, 660: 5, 690: 3,
+                  720: 2, 750: 0, 780: 0, 810: 1, 840: 0, 870: 0, 900: 2, 930: 3, 960: 6, 990: 15, 1020: 31, 1050: 12,
+                  1080: 40, 1110: 9, 1140: 6, 1170: 3, 1200: 0, 1230: 1 };
+  const POOJA = (m) => m === 360 ? 'Suprabhatam Archana' : m < 720 ? ['Archana', 'Abhishekam', 'Sai Vratam'][m % 3]
+    : m < 960 ? 'Archana' : m === 1080 ? 'Sai Satyanarayana Vratam' : ['Archana', 'Pallaki Seva', 'Ashtotharam'][m % 3];
+  let tkn = 1000;
+  const rows = ALL.flatMap((m) => Array.from({ length: COUNT[m] }, () => ({ m, t: lab(m), slot: slotName(m), pooja: POOJA(m),
+    dev: `${first[rnd(20)]} ${last[rnd(10)]}`, forr: ['Self','Family (3)','Family (4)'][rnd(3)], got: gots[rnd(8)], nak: naks[rnd(9)],
+    tk: `TKT-${++tkn}`, mob: '9' + String(100000000 + rnd(899999999)).slice(0, 9), plan: 'One time', done: m + 30 <= NOW, rep: rnd(9) === 0 })));
+  const slots = ALL.map(slotName);
+  const bySlot = Object.fromEntries(ALL.map((m) => [slotName(m), rows.filter((r) => r.m === m)]));
+  const minOf = Object.fromEntries(ALL.map((m) => [slotName(m), m]));
+  const used = slots.filter((sl) => bySlot[sl].length);
+  $('d5sum').textContent = `${rows.length} devotees in ${used.length} of 30 half-hours · ${rows.filter((r) => r.done).length} performed · now 10:00 AM`;
+  let open = slotName(NOW); const qOf = {}, groupOf = {};
+
+  const PERIODS = [['Morning', 360, 720], ['Afternoon', 720, 960], ['Evening', 960, 1260]];
+  function strip() {
+    $('d5strip').innerHTML = PERIODS.map(([name, a, b]) => {
+      const ms = ALL.filter((m) => m >= a && m < b), n = ms.reduce((t, m) => t + COUNT[m], 0);
+      return `<div class="prow"><div class="pname">${name}<small>${lab(a)} – ${lab(b)} · ${n}</small></div><div class="pchips">${ms.map((m) => {
+        const sl = slotName(m), c = COUNT[m];
+        const cls = [sl === open ? 'on' : '', !c ? 'empty' : '', m + 30 <= NOW && c ? 'over' : '', m === NOW ? 'now' : ''].join(' ');
+        return `<button class="tchip ${cls}" data-sl="${sl}" ${c ? '' : 'disabled'} title="${sl}">${m === NOW ? '<i>NOW</i>' : ''}<b>${lab(m).replace(' AM', '').replace(' PM', '')}</b><span>${c ? c : '—'}</span></button>` }).join('')}</div></div>` }).join('');
+    document.querySelectorAll('#d5strip .tchip:not([disabled])').forEach((b) => b.onclick = () => { open = b.dataset.sl; draw();
+      document.getElementById('slot-' + slots.indexOf(open)).scrollIntoView({ behavior: 'smooth', block: 'start' }) });
+  }
+  function table(sl) {
+    const q = (qOf[sl] || '').toLowerCase(), g = groupOf[sl] || 'none';
+    let l = bySlot[sl].filter((r) => !q || `${r.dev} ${r.mob} ${r.tk} ${r.got} ${r.nak}`.toLowerCase().includes(q));
+    if (g === 'got') l = l.slice().sort((a, b) => a.got.localeCompare(b.got));
+    let html = '', prev = null, k = 0;
+    l.forEach((r) => {
+      if (g === 'got' && r.got !== prev) { prev = r.got; html += `<tr class="gh"><td colspan="7">${prev} gothram · ${l.filter((x) => x.got === prev).length}</td></tr>` }
+      k++; html += `<tr class="${r.done ? 'done' : ''}"><td><span class="tick"></span></td><td class="muted">${k}</td>
+        <td><b>${r.dev}</b> <span class="muted" style="font-size:12px">· ${r.forr}</span>${tags(r)}</td><td>${r.pooja}</td>
+        <td>${r.got}</td><td>${r.nak}</td><td class="mono" style="font-size:12px">${r.tk}</td></tr>` });
+    return html || '<tr><td colspan="7" class="muted" style="padding:18px;text-align:center">No devotee matches.</td></tr>';
+  }
+  function draw() {
+    strip();
+    $('d5slots').innerHTML = slots.map((sl, idx) => { const l = bySlot[sl], d = l.filter((r) => r.done).length, isOpen = sl === open;
+      if (!l.length) return '';                                               // empty half-hours: only on the strip
+      const poojas = [...new Set(l.map((r) => r.pooja))].join(' · ');
+      return `<div class="slotbox ${isOpen ? 'open' : ''}" id="slot-${idx}">
+        <button class="slothead" data-sl="${sl}"><span class="st">${sl}</span><span class="sp">${poojas}</span>
+          <span class="sc">${l.length} devotee${l.length > 1 ? 's' : ''}</span>
+          ${minOf[sl] === NOW ? '<span class="pill" style="background:#C2410C;color:#fff">NOW</span>' : ''}
+          <span class="pill ${d === l.length ? 'p-done' : 'p-due'}">${d === l.length ? '✔ Performed' : `${l.length - d} to perform`}</span>
+          <span class="arr">${isOpen ? '▾' : '▸'}</span></button>
+        ${isOpen ? `<div class="slotbody">
+          ${l.length > 10 ? `<div class="tools"><input data-q="${sl}" value="${qOf[sl] || ''}" placeholder="Search in ${sl.split(' – ')[0]} — name, mobile, ticket, gothram…">
+            <div class="chips"><button class="chip ${(groupOf[sl] || 'none') === 'none' ? 'on' : ''}" data-g="none" data-gs="${sl}">In booking order</button>
+            <button class="chip ${groupOf[sl] === 'got' ? 'on' : ''}" data-g="got" data-gs="${sl}">Group by gothram</button></div></div>` : ''}
+          <div class="scroll"><table class="compact"><thead><tr><th></th><th>#</th><th>Devotee / for</th><th>Pooja</th><th>Gothram</th><th>Nakshatram</th><th>Ticket</th></tr></thead>
+          <tbody data-body="${sl}">${table(sl)}</tbody></table></div></div>` : ''}
+      </div>` }).join('');
+    document.querySelectorAll('.slothead').forEach((b) => b.onclick = () => { open = open === b.dataset.sl ? null : b.dataset.sl; draw() });
+    document.querySelectorAll('[data-q]').forEach((inp) => inp.oninput = (e) => { qOf[inp.dataset.q] = e.target.value;
+      document.querySelector(`[data-body="${inp.dataset.q}"]`).innerHTML = table(inp.dataset.q) });
+    document.querySelectorAll('[data-gs]').forEach((b) => b.onclick = () => { groupOf[b.dataset.gs] = b.dataset.g; draw() });
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

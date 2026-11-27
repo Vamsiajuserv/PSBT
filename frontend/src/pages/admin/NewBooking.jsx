@@ -12,11 +12,14 @@ import { toast, confirmDialog } from '../../components/common/Dialog.jsx'
 import { Select, MultiSelect, DateField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
 import ResetButton from '../../components/common/ResetButton.jsx'
+import usePickList from '../../hooks/usePickList.js'
 import { T, tr, clock12, useLang, personName, teTerm } from '../../i18n/LanguageContext.jsx'
-import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
+import { sanitizePhone, sanitizeName, validatePhone, validateEmail, sanitizeVehicle } from '../../lib/validation.js'
 import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
 import { addDaysISO, planValidUntil, planSpan } from '../../lib/planTerms.js'
-import { planSlots, slotIsOver, slotPeriod, isRange, isTempleHours, NOTE_VEHICLE } from '../../lib/slots.js'
+import { festDaysLeftMsg, festTicketNote } from '../../lib/festivalPlan.js'
+import { useActivePlans, activeTag } from '../../lib/activePlans.js'
+import { planSlots, slotIsOver, slotPeriod, isRange, isTempleHours, NOTE_VEHICLE, closedSlotMsg } from '../../lib/slots.js'
 import { halfLabel, halfRange, halfPeriod, PERIODS } from '../../lib/halfSlots.js'
 
 // ── Advance Booking (redesigned 2026-11-15 — docs/plans/ADVANCE-BOOKING-FINDINGS.md) ──
@@ -34,9 +37,10 @@ const stampNow = () => new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolk
 const isLifetime = (planName) => /life\s*long|life\s*time|lifetime/i.test(planName || '')
 
 // Validity preview before booking — same calculation as the server, so it matches the ticket
-function validityPreview(pl, from) {
+function validityPreview(pl, from, festEnd) {
   if (!pl || !from) return ''
-  const end = planValidUntil(pl, from)
+  let end = planValidUntil(pl, from)
+  if (festEnd && end && end > festEnd) end = festEnd      // a festival plan ends with the festival
   if (end === null) return tr('Lifetime')
   if (end === from) return `${tr('On')} ${fmtDate(from)}`
   return `${fmtDate(from)} – ${fmtDate(end)}`
@@ -83,10 +87,14 @@ export default function NewBooking() {
   const [searchCountryCode, setSearchCountryCode] = useState('+91')
   const [devResults, setDevResults] = useState(null)
   const [devotee, setDevotee] = useState(null)
+  // First match highlighted; ↑ / ↓ move, Enter picks (client 2026-11-25). Enter on a changed query searches again.
+  const searchedQ = useRef('')
+  const devPick = usePickList(devResults, (d) => setDevotee(d), { open: !devotee })
   const [quickAdd, setQuickAdd] = useState(null)   // null | {name, mobile, email, country_code}
   const [qaBusy, setQaBusy] = useState(false)
   const [qaErr, setQaErr] = useState('')
   const [qaMobileError, setQaMobileError] = useState('')
+  const [qaEmailError, setQaEmailError] = useState('')   // email is optional, but if typed it must look like name@gmail.com
   useEffect(() => {   // debounced search; a full mobile match is linked straight away (one devotee per phone)
     if (devotee) return undefined
     const q = devQ.trim()
@@ -128,13 +136,16 @@ export default function NewBooking() {
   const [moreDates, setMoreDates] = useState(['', ''])   // Yearly Thrice: the 2nd and 3rd pooja dates
   const pooja = poojas.find((p) => String(p.id) === String(poojaId)) || null
 
-  // ── Several poojas at once (2026-11-20): the Pooja dropdown is multi-select, one option per pooja +
-  // plan, grouped by category. Ticked options wait in `picked`; the form below opens them one at a time
+  // ── Several poojas at once (2026-11-20): the Pooja dropdown is multi-select, one option per pooja
+  // by name (2026-11-26; Daily / Monthly is picked in Plan below), grouped by category. Ticked options wait in `picked`; the form below opens them one at a time
   // (date, time, poojari…) and "Add to booking" moves on to the next, keeping the date — so every line
   // still gets all the checks of a single pooja.
   const [picked, setPicked] = useState([])          // [{ key, pooja, plan }] in the order ticked
   const [curKey, setCurKey] = useState('')          // the ticked option open in the form
-  const tiles = poojas.flatMap((p) => (p.plans || []).map((pl) => ({ key: `${p.id}-${pl.id}`, pooja: p, plan: pl })))
+  // One option per pooja, by name only (client, 2026-11-26) — the Plan buttons below pick Daily / Monthly
+  // and show the price. A pooja with a single plan has it chosen already.
+  const tiles = poojas.filter((p) => (p.plans || []).length > 0)
+    .map((p) => ({ key: String(p.id), pooja: p, plan: p.plans.length === 1 ? p.plans[0] : null }))
 
   const today = todayIST()
   const limitDate = addDaysISO(today, cfg.maxDays)
@@ -157,15 +168,18 @@ export default function NewBooking() {
   const isPournamiPlan = (pl) => pl?.tithi_type === 'Pournami'
   const allPournami = (p) => (p?.plans || []).length > 0 && p.plans.every(isPournamiPlan)
   const usePournami = plan ? isPournamiPlan(plan) : allPournami(pooja)
-  const pournamiChoices = pournamiDates.filter((d) => d.event_date >= today && d.event_date <= limitDate)
+  // Today is Pournami but its fixed time (Sai Vratam 9:00 AM) is over → today is not offered; the
+  // screen says the slot expired and to book the next Pournami in advance (client, 2026-11-25)
+  const tithiSlots = planSlots(plan || (pooja?.plans || []).find(isPournamiPlan))
+  const todayTithiOver = usePournami && tithiSlots.length > 0 && tithiSlots.every((s) => slotIsOver(s, today))
+  const pournamiExpired = todayTithiOver && pournamiDates.some((d) => d.event_date === today)
+  const pournamiChoices = pournamiDates.filter((d) => d.event_date >= today && d.event_date <= limitDate && !(todayTithiOver && d.event_date === today))
   const monthlyDates = pournamiChoices.map((d) => d.event_date)
 
-  // A festival plan must end by the festival's last day (decision D4): the latest start moves back
-  const planDays = plan ? planSpan(plan).days || 1 : 1
-  const festLastStart = fest && plan ? addDaysISO(fest.end_date, -(planDays - 1)) : null
+  // A festival plan can start any day of the festival (client, 2026-11-26): full fee, valid from that
+  // day to the festival's last day — Karthika Masam Full Month on 26 Nov runs 26 Nov → 9 Dec
   const minDate = fest && fest.start_date > today ? fest.start_date : today
-  const maxDate = [festLastStart || fest?.end_date, limitDate].filter(Boolean).sort()[0]
-  const festTooShort = !!(fest && plan && festLastStart < minDate)
+  const maxDate = [fest?.end_date, limitDate].filter(Boolean).sort()[0]
 
   const defaultDateFor = (p) => {
     if (!p) return addDaysISO(today, 1)
@@ -204,7 +218,7 @@ export default function NewBooking() {
     }
     setPicked([...kept, ...added])
   }
-  const optionLabel = (t) => `${poojaName(t.pooja)} · ${tr(t.plan.plan_name)} · ${t.plan.committee_decided ? tr('Committee') : `₹${Number(t.plan.fee || 0).toLocaleString('en-IN')}`}`
+  const optionLabel = (t) => poojaName(t.pooja)
   useEffect(() => {   // nothing open in the form: open the next ticked tile
     if (!curKey && picked.length) openPick(picked[0])
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,7 +228,7 @@ export default function NewBooking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.id])
   useEffect(() => {   // a festival plan's date stays inside the window it can still fit
-    if (fest && plan && !festTooShort && schedDate > maxDate) setSchedDate(maxDate)
+    if (fest && plan && schedDate > maxDate) setSchedDate(maxDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.id, fest?.id])
 
@@ -253,7 +267,6 @@ export default function NewBooking() {
   // Only the clock closes a time (client, 2026-11-20 — lists are just printed, no "Print & Send")
   const batchChoices = (batchOpt?.options || []).filter((o) => !o.over)
   const batchShown = batch || batchOpt?.auto || ''
-  const scheduledPoojari = batchOpt?.scheduled_poojari || null
 
   // Pricing — committee plans need the committee's festival price
   const fee = plan?.committee_decided ? Number(fest?.plan_fees?.[String(plan.id)] || 0) : Number(plan?.fee || 0)
@@ -266,6 +279,10 @@ export default function NewBooking() {
 
   // Active-plan check for the pooja being added (renewals that start after the current plan ends are allowed)
   const [dupWarning, setDupWarning] = useState(null)
+  // Poojas this devotee already holds a plan for: tagged in the list, red when ticked (2026-11-26)
+  const heldPlans = useActivePlans(devotee?.id, devotee?.mobile)
+  const heldTags = Object.fromEntries(tiles.map((t) => [t.key, activeTag(heldPlans, t.pooja.id, fmtDate)]).filter(([, v]) => v))
+  const flaggedKeys = new Set([...picked.map((x) => x.key).filter((k) => heldTags[k]), ...(dupWarning && curKey ? [curKey] : [])])
   const [dupChecking, setDupChecking] = useState(false)
   const [sameDayWarn, setSameDayWarn] = useState(null)
   useEffect(() => {
@@ -315,7 +332,6 @@ export default function NewBooking() {
     if (festInfo?.past) return tr('The festival window for this pooja is over') + ` (${festInfo.windows}).`
     if (!plan) return tr('Select a plan.')
     if (pricingAwaited) return tr('Awaiting committee decision on pricing.')
-    if (festTooShort) return tr('This plan no longer fits inside the festival — choose the 1-Day plan.')
     if (!schedDate) return tr('Select the pooja date.')
     if (schedDate < minDate) return tr('The pooja date cannot be before') + ` ${fmtDate(minDate)}.`
     if (maxDate && schedDate > maxDate) return tr('The pooja date cannot be after') + ` ${fmtDate(maxDate)}.`
@@ -334,9 +350,9 @@ export default function NewBooking() {
     if (addIssue) return
     const poojariName = poojariId ? personName(poojaris.find((p) => String(p.id) === String(poojariId)), lang) : ''
     setLines((ls) => [...ls, {
-      lineId: ++lineSeq.current, pooja, plan, fee, date: schedDate, slot,
+      lineId: ++lineSeq.current, pooja, plan, fee, date: schedDate, slot, festEnd: fest?.end_date || null,
+      festLeft: festDaysLeftMsg(plan, schedDate, fest, fmtDate, fest && teTerm(fest.name)),
       batch: (!batchOpt?.fixed && batch) || '', batchShown, poojariId, poojariName,
-      scheduledPoojari: !poojariId && scheduledPoojari ? personName(scheduledPoojari, lang) : '',
       vehicleNo: pooja.category === 'Vehicle' ? vehicleNo.trim() : '', sameDay: sameDayWarn,
       performDates: thrice ? [schedDate, ...moreDates].sort() : null,
     }])
@@ -380,16 +396,21 @@ export default function NewBooking() {
   function openQuickAdd() {
     const q = devQ.trim()
     const isMobile = /^\d{6,}$/.test(q)
-    setQaErr(''); setQaMobileError('')
+    setQaErr(''); setQaMobileError(''); setQaEmailError('')
     setQuickAdd({ name: isMobile ? '' : q, mobile: isMobile ? q : '', email: '', country_code: '+91' })
   }
   async function saveQuickAdd() {
     setQaErr('')
     if (!quickAdd.name.trim() || !quickAdd.mobile.trim()) { setQaErr(tr('Name and mobile are required.')); return }
+    // Mobile and email are both checked, so both show together when both are wrong (client, 2026-11-26)
+    let mob = ''
     if ((quickAdd.country_code || '+91') === '+91') {
-      if (!/^\d{10}$/.test(quickAdd.mobile.trim())) { setQaErr(tr('Please Enter 10 digits Mobile Number')); return }
-      if (!validatePhone(quickAdd.mobile.trim()).valid) { setQaErr(tr('Invalid Mobile Number')); return }
+      if (!/^\d{10}$/.test(quickAdd.mobile.trim())) mob = tr('Please Enter 10 digits Mobile Number')
+      else if (!validatePhone(quickAdd.mobile.trim()).valid) mob = tr('Invalid Mobile Number')
     }
+    const em = validateEmail(quickAdd.email).error || ''
+    setQaMobileError(mob); setQaEmailError(em)
+    if (mob || em) { setQaErr(mob && em ? tr('Please fix the errors above.') : (mob || em)); return }
     setQaBusy(true)
     try {
       const d = await DevoteesAPI.create({ name: quickAdd.name.trim(), mobile: quickAdd.mobile.trim(), email: quickAdd.email.trim() || undefined })
@@ -400,7 +421,12 @@ export default function NewBooking() {
     const q = devQ.trim()
     if (!q) return
     const r = await DevoteesAPI.list({ q, size: 8 }).catch(() => ({ items: [] }))
+    searchedQ.current = q
     setDevResults(r.items || [])
+  }
+  const devKey = (e) => {
+    if (devQ.trim() === searchedQ.current && devPick.onKeyDown(e)) return
+    if (e.key === 'Enter') search()
   }
   const changeDevotee = async () => {
     if (lines.length && !(await confirmDialog({ title: tr('Change the devotee?'), message: tr('The poojas added for this devotee will be removed from the list.'), confirmLabel: tr('Change') }))) return
@@ -470,13 +496,69 @@ export default function NewBooking() {
           <div className="flex-1 min-w-[14rem]"><h2 className="font-serif text-xl font-bold text-emerald-700"><T>Booking Successful!</T></h2>
             <p className="text-[0.8125rem] text-gray-600">{personName(devotee, lang)} · {result.tickets.length} {tr(result.tickets.length === 1 ? 'pooja' : 'poojas')} · <b>₹{money2(result.total)}</b> {tr('paid by')} {modeLabel(result.method)}{result.utr ? ` (UTR ${result.utr})` : ''} · {result.paidAt}</p></div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => window.print()} className="btn-outline"><Printer size={15} />{' '}{tr(result.tickets.length > 1 ? 'Print all tickets' : 'Print Ticket / Receipt')}</button>
+            <button onClick={() => window.print()} className="btn-outline"><Printer size={15} />{' '}{tr('Print Ticket / Receipt')}</button>
             <button onClick={startNew} className="btn-outline"><Plus size={15} />{' '}<T>New Booking</T></button>
             <button onClick={() => nav('/admin/bookings')} className="btn-maroon"><ArrowLeft size={15} />{' '}<T>Back to Bookings</T></button>
           </div>
         </div>
         <div id="print-tickets" className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          {result.tickets.map((t) => {
+          {/* Several poojas: ONE ticket — the QR is the Bill No., Verify Ticket lists every pooja (client, 2026-11-26) */}
+          {result.tickets.length > 1 && (() => {
+            const first = result.tickets[0]
+            const cats = result.tickets.map((t) => t._line?.pooja?.category).filter(Boolean)
+            return (
+              <div className="ticket-page">
+                <TicketShell code={first.bill_no || first.booking_code} categories={cats} after={
+                  <div className="text-[0.5625rem] text-gray-500 leading-relaxed border-t border-dashed border-amber-200 pt-3 mt-3">
+                    <div className="font-semibold text-gray-600 mb-1"><T>Terms & Conditions</T>:</div>
+                    <ol className="list-decimal list-inside space-y-0.5 pl-1">
+                      {result.tickets.some((t) => t.time_slot) && <li><T>Please arrive 15 minutes before the scheduled pooja time.</T></li>}
+                      <li><T>Ticket is valid only for the pooja date or validity period mentioned.</T></li>
+                      <li><T>Refunds are subject to temple policy.</T></li>
+                      <li><T>Temple is not responsible for lost or damaged tickets.</T></li>
+                    </ol>
+                  </div>
+                }>
+                  <TField k={tr('Bill No')} v={first.bill_no || first.receipt_no} mono />
+                  <TField k={tr('Poojas')} v={`${result.tickets.length} ${tr('poojas')} · ${tr('one QR for all')}`} />
+                  <TField k={tr('Devotee')} v={<>{personName(devotee, lang)}<span className="block text-[0.6875rem] text-gray-500 font-normal">{devotee.mobile}</span></>} />
+                  {(first.gothram || first.nakshatram || first.rasi) && <TField k={tr('Sankalpam')} v={[first.gothram, first.nakshatram, first.rasi].filter(Boolean).join(' · ')} />}
+                  {first.beneficiary_name && <TField k={tr('In the name of')} v={first.beneficiary_name} />}
+                  {participants.length > 0 && <TField k={tr('Participants')} v={participants.map((p) => personName({ name: p.name }, lang)).join(', ')} />}
+                  <div className="col-span-2 bg-amber-50/50 rounded-lg p-3 -mx-1">
+                    <div className="text-[0.6875rem] text-gray-700 mb-2">{tr('Poojas Booked')}</div>
+                    <div className="space-y-2">
+                      {result.tickets.map((t, i) => {
+                        const l = t._line || {}
+                        return (
+                          <div key={t.id} className="flex items-start justify-between gap-3 text-[0.8125rem]">
+                            <span className="text-gray-800 min-w-0">
+                              <span className="font-semibold">{i + 1}. {poojaName(l.pooja) || tr(t.seva_name)}</span>
+                              <span className="text-gray-600 text-[0.6875rem] ml-1">· {tr(t.plan_name)}</span>
+                              <span className="block text-gray-600 text-[0.6875rem]">
+                                {(t.perform_dates || '').includes(',') ? t.perform_dates.split(',').map((d) => fmtDate(d)).join(' · ') : ticketValidity(t)}
+                                {t.time_slot ? ` · ${clock12(t.time_slot)}` : ''}{t.batch_slot ? ` · ${halfLabel(t.batch_slot)}` : ''}
+                                {` · ${tr('Poojari')}: ${t.poojari_name ? personName({ name: t.poojari_name }, lang) : tr('All poojaris')}`}
+                                {t.vehicle_no ? ` · ${t.vehicle_no}` : ''}
+                              </span>
+                              {festTicketNote(t, fmtDate) && <span className="block text-amber-800 text-[0.6875rem] font-semibold">{festTicketNote(t, fmtDate)}</span>}
+                              {t.special_notes && <span className="block text-gray-500 text-[0.6875rem]">{t.special_notes}</span>}
+                              <span className="block font-mono text-gray-500 text-[0.625rem]">#{t.ticket_no}</span>
+                            </span>
+                            <span className="font-semibold text-gray-700 shrink-0">{money2(t.amount)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="bg-amber-100/60 rounded-lg px-3 py-2 col-span-2 flex items-center justify-between"><span className="text-[0.6875rem] text-gray-500"><T>Amount Paid (₹)</T></span><span className="font-extrabold text-maroon-800">{money2(result.total)}</span></div>
+                  <TField k={tr('Payment Mode')} v={`${modeLabel(result.method)}${result.utr ? ` · UTR ${result.utr}` : ''}`} />
+                  <TField k={tr('Payment Date & Time')} v={result.paidAt} />
+                </TicketShell>
+              </div>
+            )
+          })()}
+          {result.tickets.length === 1 && result.tickets.map((t) => {
             const l = t._line || {}
             return (
               <div key={t.id} className="ticket-page">
@@ -504,9 +586,10 @@ export default function NewBooking() {
                     : <TField k={tr('Pooja Date')} v={fmtDate(t.scheduled_date)} />}
                   {t.time_slot && <TField k={tr('Time Slot')} v={clock12(t.time_slot)} />}
                   {t.batch_slot && <TField k={tr('Pooja slot')} v={halfLabel(t.batch_slot)} />}
-                  {t.poojari_name && <TField k={tr('Poojari')} v={personName({ name: t.poojari_name }, lang)} />}
+                  <TField k={tr('Poojari')} v={t.poojari_name ? personName({ name: t.poojari_name }, lang) : tr('All poojaris')} />
                   {t.vehicle_no && <TField k={tr('Vehicle No')} v={t.vehicle_no} />}
                   <TField k={tr('Validity')} v={ticketValidity(t)} />
+                  {festTicketNote(t, fmtDate) && <TField k={tr('Festival plan')} v={festTicketNote(t, fmtDate)} />}
                   {t.special_notes && <TField k={tr('Special Notes')} v={t.special_notes} />}
                   <div className="bg-amber-100/60 rounded-lg px-3 py-2 col-span-2 flex items-center justify-between"><span className="text-[0.6875rem] text-gray-500"><T>Amount Paid (₹)</T></span><span className="font-extrabold text-maroon-800">{money2(t.amount)}</span></div>
                   <TField k={tr('Payment Mode')} v={modeLabel(result.method)} />
@@ -558,10 +641,10 @@ export default function NewBooking() {
                     {searchBy === 'Mobile Number' ? (
                       <div className="flex flex-1 min-w-0">
                         <CountryCodeSelect value={searchCountryCode} onChange={(e) => setSearchCountryCode(e.target.value)} />
-                        <input className="input flex-1 min-w-0 !rounded-l-none" placeholder={tr('Enter Mobile Number')} aria-label={tr('Mobile number')} value={devQ} maxLength={getCountryDigits(searchCountryCode)} onChange={(e) => setDevQ(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => e.key === 'Enter' && search()} />
+                        <input className="input flex-1 min-w-0 !rounded-l-none" placeholder={tr('Enter Mobile Number')} aria-label={tr('Mobile number')} value={devQ} maxLength={getCountryDigits(searchCountryCode)} onChange={(e) => setDevQ(e.target.value.replace(/\D/g, ''))} onKeyDown={devKey} />
                       </div>
                     ) : (
-                      <input className="input flex-1 min-w-0" placeholder={tr('Enter Devotee Name')} aria-label={tr('Devotee name')} value={devQ} onChange={(e) => setDevQ(sanitizeName(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && search()} />
+                      <input className="input flex-1 min-w-0" placeholder={tr('Enter Devotee Name')} aria-label={tr('Devotee name')} value={devQ} onChange={(e) => setDevQ(sanitizeName(e.target.value))} onKeyDown={devKey} />
                     )}
                     <button type="button" onClick={search} className="btn-maroon !px-3.5" aria-label={tr('Search devotee')}><Search size={15} aria-hidden="true" /></button>
                   </div>
@@ -574,10 +657,10 @@ export default function NewBooking() {
                     </div>
                   ) : (
                     <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 max-h-44 overflow-y-auto">
-                      {devResults.map((d) => (
-                        <button key={d.id} type="button" onClick={() => setDevotee(d)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50">
-                          <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</div>
-                          <div className="flex-1 min-w-0"><div className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</div><div className="text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</div></div>
+                      {devResults.map((d, i) => (
+                        <button key={d.id} type="button" onClick={() => setDevotee(d)} {...devPick.rowProps(i)} className={`pick-row ${devPick.rowClass(i)} w-full flex items-center gap-3 px-3 py-2.5 text-left`}>
+                          <div className="pick-avatar w-8 h-8 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold transition-colors">{d.name[0]}</div>
+                          <div className="flex-1 min-w-0"><div className="pick-name font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</div><div className="text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</div></div>
                         </button>
                       ))}
                       <div className="px-3 py-2.5 text-center">
@@ -612,7 +695,10 @@ export default function NewBooking() {
                     </div>
                     {qaMobileError && <p className="text-[0.6875rem] text-red-600 mt-1 font-medium">{qaMobileError}</p>}
                   </div>
-                  <div><label className="label"><T>Email (optional)</T></label><input className="input" aria-label={tr('Email')} placeholder={tr('email@example.com')} value={quickAdd.email} onChange={(e) => setQuickAdd((q) => ({ ...q, email: e.target.value }))} /></div>
+                  <div><label className="label"><T>Email (optional)</T></label><input type="text" inputMode="email" autoComplete="email" className={`input ${qaEmailError ? 'border-red-400' : ''}`} aria-label={tr('Email')} placeholder={tr('email@example.com')} value={quickAdd.email}
+                    onChange={(e) => { const v = e.target.value; setQuickAdd((q) => ({ ...q, email: v })); if (qaEmailError) setQaEmailError(validateEmail(v).error || '') }}
+                    onBlur={(e) => setQaEmailError(validateEmail(e.target.value).error || '')} />
+                    {qaEmailError && <p className="text-[0.6875rem] text-red-600 mt-1 font-medium">{qaEmailError}</p>}</div>
                 </div>
                 {qaErr && <div className="text-[0.75rem] text-red-600 mt-2" role="alert">{qaErr}</div>}
                 <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -646,17 +732,25 @@ export default function NewBooking() {
               <div className="min-w-0">
                 <label className="label"><T>Pooja *</T></label>
                 <MultiSelect value={picked.map((x) => x.key)} onChange={(e) => setPickedKeys(e.target.value)} disabled={!devotee}
-                  selectAll={false} placeholder={tr('Select one or more poojas…')}>
+                  selectAll={false} placeholder={tr('Select one or more poojas…')}
+                  chips flagged={flaggedKeys} doneButton className="!h-auto min-h-[2.625rem]">
                   {POOJA_CATS.map((c) => {
                     const group = tiles.filter((t) => t.pooja.category === c)
                     return group.length > 0 && <optgroup key={c} label={tr(c)}>{group.map((t) => <option key={t.key} value={t.key}>{optionLabel(t)}</option>)}</optgroup>
                   })}
                 </MultiSelect>
+                {/* No tags in the list itself (client, 2026-11-26): a pooja the devotee already holds a plan for is
+                    flagged only once ticked — red chip above, its name and plan here */}
+                {picked.filter((x) => heldTags[x.key]).map((x) => (
+                  <div key={x.key} className="mt-1 text-[0.75rem] font-semibold text-red-700 flex items-start gap-1">
+                    <AlertTriangle size={13} className="shrink-0 mt-0.5" />{poojaName(x.pooja)}: {heldTags[x.key]}
+                  </div>
+                ))}
                 {picked.length > 1 && pooja && (
                   <div className="text-[0.75rem] text-gray-500 mt-1">{tr('Now adding')}: <b className="text-maroon-800">{poojaName(pooja)}</b> · {picked.length - 1} {tr('more waiting')}</div>
                 )}
                 {festInfo?.past && <div className="mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-[0.78125rem] text-red-700 flex items-start gap-2"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span><T>The festival window for this pooja is over</T> ({festInfo.windows}).</span></div>}
-                {fest && <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[0.78125rem] text-amber-800 flex items-start gap-2"><CalendarDays size={15} className="shrink-0 mt-0.5" /> <span>{teTerm(fest.name)}: {fmtDate(fest.start_date)} – {fmtDate(fest.end_date)}. <T>The whole plan must fall in this festival window.</T></span></div>}
+                {fest && <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[0.78125rem] text-amber-800 flex items-start gap-2"><CalendarDays size={15} className="shrink-0 mt-0.5" /> <span>{teTerm(fest.name)}: {fmtDate(fest.start_date)} – {fmtDate(fest.end_date)}. <T>A plan booked during the festival is valid until its last day.</T></span></div>}
                 {usePournami && <div className="mt-2 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2 text-[0.78125rem] text-blue-800 flex items-start gap-2"><Moon size={15} className="shrink-0 mt-0.5" /> <T>Monthly poojas are booked on Pournami dates.</T></div>}
                 {pooja && (
                   <div className="mt-3">
@@ -681,6 +775,7 @@ export default function NewBooking() {
                   <div className="mt-3 rounded-xl px-3.5 py-3 flex items-start gap-2.5 bg-red-50 border-2 border-red-300">
                     <AlertTriangle size={18} className="text-red-700 shrink-0 mt-0.5" />
                     <div className="text-[0.8125rem] text-red-700"><b><T>Active Plan Exists - Booking Blocked</T></b><div>{tr(dupWarning.message)}</div>
+                      <div className="font-semibold mt-0.5">{tr('Untick {pooja} or choose another plan.').replace('{pooja}', poojaName(pooja))}</div>
                       {dupWarning.valid_until && <div className="text-[0.75rem] text-gray-600 mt-0.5"><T>Valid until</T>: {fmtDate(dupWarning.valid_until)} — <T>a renewal can start the next day.</T></div>}</div>
                   </div>
                 )}
@@ -708,8 +803,12 @@ export default function NewBooking() {
                   ) : (
                     <DateField value={schedDate} min={minDate} max={maxDate} onChange={(e) => setSchedDate(e.target.value)} disabled={!devotee} />
                   )}
+                  {usePournami && pournamiExpired && (
+                    <div className="mt-1.5 text-[0.75rem] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5" role="status"><AlertTriangle size={14} className="shrink-0 mt-0.5" /><span>{closedSlotMsg(pooja?.name, tithiSlots, pournamiChoices[0] ? fmtDate(pournamiChoices[0].event_date) : '')}</span></div>
+                  )}
                   <div className="text-[0.75rem] text-gray-400 mt-1">{usePournami ? <T>Only Pournami days can be booked for this pooja.</T> : <>{tr('Bookings are open up to')} {fmtDate(limitDate)}.</>}</div>
-                  {plan && <div className="text-[0.75rem] text-emerald-700 mt-0.5"><T>Validity</T>: {validityPreview(plan, schedDate)}</div>}
+                  {plan && <div className="text-[0.75rem] text-emerald-700 mt-0.5"><T>Validity</T>: {validityPreview(plan, schedDate, fest?.end_date)}</div>}
+                  {festDaysLeftMsg(plan, schedDate, fest, fmtDate, fest && teTerm(fest.name)) && <div className="mt-1 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 text-[0.75rem] font-semibold text-amber-800 flex items-start gap-1.5"><AlertTriangle size={13} className="shrink-0 mt-0.5" />{festDaysLeftMsg(plan, schedDate, fest, fmtDate, teTerm(fest.name))}</div>}
                 </div>
 
                 {thrice && (
@@ -745,11 +844,11 @@ export default function NewBooking() {
                   <div>
                     <label className="label"><T>Poojari</T> <span className="text-gray-400 font-normal">(<T>Optional</T>)</span></label>
                     <Select value={poojariId} onChange={(e) => setPoojariId(e.target.value)}>
-                      <option value="">{scheduledPoojari ? `${tr('As scheduled')} — ${personName(scheduledPoojari, lang)}` : tr('Not assigned')}</option>
+                      <option value="">{tr('All poojaris')}</option>
                       {poojaris.map((p) => <option key={p.id} value={p.id}>{personName(p, lang)}{p.specialization ? ` · ${tr(p.specialization)}` : ''}</option>)}</Select>
                     {poojariClash.length > 0
                       ? <div className="text-[0.75rem] text-amber-700 mt-1 flex items-start gap-1"><AlertTriangle size={13} className="shrink-0 mt-0.5" /> <span><T>This poojari already has a booking in this slot</T>: {poojariClash.map((b) => b.booking_code).join(', ')}</span></div>
-                      : <div className="text-[0.75rem] text-gray-400 mt-1">{scheduledPoojari && !poojariId ? tr('From the Poojari Schedule — choose another to change.') : tr('Optionally assign a poojari to perform this booking.')}</div>}
+                      : <div className="text-[0.75rem] text-gray-400 mt-1">{poojariId ? tr('Only this poojari gets this booking.') : tr('Goes to all poojaris — choose one only for a special pooja.')}</div>}
                   </div>
                 )}
 
@@ -784,11 +883,12 @@ export default function NewBooking() {
                   <div className="font-semibold text-gray-800">{poojaName(l.pooja)} <span className="text-[0.75rem] font-normal text-gray-500">· {tr(l.plan.plan_name)}</span></div>
                   <div className="text-gray-600 flex items-center gap-1"><Calendar size={12} className="text-gray-400" />{fmtDate(l.date)}{l.slot ? ` · ${isTempleHours(l.slot) ? tr('Temple hours') : clock12(l.slot)}` : ''}</div>
                   {l.batchShown && <div className="text-[0.75rem] text-gray-500"><T>Pooja slot</T>: {halfLabel(l.batchShown)}</div>}
-                  {(l.poojariName || l.scheduledPoojari) && <div className="text-[0.75rem] text-gray-500"><T>Poojari</T>: {l.poojariName || l.scheduledPoojari}{!l.poojariName && <span className="text-gray-400"> ({tr('as scheduled')})</span>}</div>}
+                  <div className="text-[0.75rem] text-gray-500"><T>Poojari</T>: {l.poojariName || tr('All poojaris')}</div>
                   {l.vehicleNo && <div className="text-[0.75rem] text-gray-500 flex items-center gap-1"><Car size={12} />{l.vehicleNo}</div>}
                   {l.performDates
                     ? <div className="text-[0.75rem] text-emerald-700"><T>Pooja dates</T>: {l.performDates.map((d) => fmtDate(d)).join(' · ')}</div>
-                    : planSpan(l.plan).days !== 1 && <div className="text-[0.75rem] text-emerald-700"><T>Validity</T>: {validityPreview(l.plan, l.date)}</div>}
+                    : planSpan(l.plan).days !== 1 && <div className="text-[0.75rem] text-emerald-700"><T>Validity</T>: {validityPreview(l.plan, l.date, l.festEnd)}</div>}
+                  {l.festLeft && <div className="text-[0.75rem] font-semibold text-amber-700 flex items-start gap-1"><AlertTriangle size={12} className="shrink-0 mt-0.5" />{l.festLeft}</div>}
                   {l.sameDay && <div className="text-[0.75rem] text-amber-700 flex items-center gap-1"><AlertTriangle size={12} /><T>Already booked that day — you will be asked to confirm.</T></div>}
                 </div>
                 <div className="text-right shrink-0">

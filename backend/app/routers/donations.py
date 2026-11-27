@@ -13,6 +13,7 @@ from ..database import get_db
 from ..models import Donation, Devotee
 from ..schemas import DonationCreate, DonationOut, DonationVoidIn
 from ..security import RequireModule, require_admin, log_action, client_ip, ADMIN_ROLES
+from ..helpers import clean_mobile  # mobile / email format (2026-11-26)
 
 # Phase 1 Security (API-004): Rate limits for donation operations
 DONATION_CREATE_RATE_LIMIT = 30  # max donations per minute per user
@@ -127,8 +128,9 @@ def _attach_stock(db: Session, rows: list[Donation], items: list[dict]) -> None:
         return
     cats = {c.name: c for c in db.query(DonationCategory).filter(
         DonationCategory.type == "Material", DonationCategory.name.in_({r.fund for r in mats})).all()}
-    pieces = dict(db.query(StockItem.donation_id, func.count(StockItem.id))
-                  .filter(StockItem.donation_id.in_([r.id for r in mats])).group_by(StockItem.donation_id).all())
+    pieces = dict(db.query(StockItem.donation_id, func.sum(StockItem.tagged_pieces))          # a bundle counts its pieces
+                  .filter(StockItem.donation_id.in_([r.id for r in mats]), StockItem.bundle_id.is_(None))
+                  .group_by(StockItem.donation_id).all())
     for r, d in zip(rows, items):
         cat = cats.get(r.fund) if r.donation_type == "Material" else None
         if cat and cat.tracking in ("Tagged", "Quantity"):
@@ -232,7 +234,7 @@ def create_donation(body: DonationCreate, request: Request,
     _check_category(db, data)
     _check_date(db, data, user)
     # Walk-in donor's mobile: link the devotee on that number, or register them (one devotee per phone)
-    data["mobile"] = (data.get("mobile") or "").strip() or None
+    data["mobile"] = clean_mobile(data.get("mobile"), foreign_ok=True)
     if not data.get("devotee_id") and data["mobile"]:
         from .devotees import link_devotee_by_mobile
         data["devotee_id"] = link_devotee_by_mobile(db, data.get("donor_name"), data["mobile"])
@@ -273,11 +275,15 @@ def create_donation(body: DonationCreate, request: Request,
             raise HTTPException(422, "A valid PAN (e.g. ABCDE1234F) is required for an 80G receipt.")
         # Phase 1 Security (PRIV-001): Encrypt PAN at rest
         data["pan"] = encrypt_pan(pan)
-    elif data.get("pan"):
-        # Encrypt PAN even for non-80G donations if provided
-        pan = (data.get("pan") or "").strip().upper()
-        if pan and re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan):
-            data["pan"] = encrypt_pan(pan)
+    elif (data.get("pan") or "").strip():
+        # An optional PAN must still be a real one (client, 2026-11-26) — a wrong one was stored as typed,
+        # unencrypted; it is refused now, and a valid one is encrypted like an 80G PAN.
+        pan = data["pan"].strip().upper()
+        if not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan):
+            raise HTTPException(422, "Invalid PAN format (e.g. ABCDE1234F) — correct it or leave it blank.")
+        data["pan"] = encrypt_pan(pan)
+    else:
+        data["pan"] = None
     assert_txn_date_open(db, data.get("donated_on"), label="donation date")
     assert_txn_date_open(db, ist_today(), label="today")   # money lands today (closing buckets by created_at)
     seq = next_code_seq(db, "donation", DON_BASE + (db.query(func.max(Donation.id)).scalar() or 0))
@@ -309,7 +315,8 @@ def _assert_stock_allows_void(db: Session, d: Donation) -> None:
     disappear — tagged pieces would be left without a receipt, and a used consumable
     would go below zero."""
     from ..models import DonationCategory, StockItem, StoreReceipt
-    tagged = db.query(func.count(StockItem.id)).filter(StockItem.donation_id == d.id).scalar() or 0
+    tagged = db.query(func.sum(StockItem.tagged_pieces)).filter(StockItem.donation_id == d.id,
+                                                                StockItem.bundle_id.is_(None)).scalar() or 0
     if tagged:
         raise HTTPException(409, f"{tagged} piece(s) from {d.receipt_no} are already in the Stock Register — "
                                  "this receipt can no longer be voided.")
@@ -321,7 +328,9 @@ def _assert_stock_allows_void(db: Session, d: Donation) -> None:
         from .consumables import _balance, _start
         from .stores import _qty
         start = _start(db)
-        if d.donated_on and d.donated_on >= start:
+        from .stores import consumables_cutoff, consumable_needs_receiving
+        # not yet received at the store (2026-11-27): it is not in the balance, so voiding it takes nothing away
+        if d.donated_on and d.donated_on >= start and not consumable_needs_receiving(d, consumables_cutoff(db)):
             left = Decimal(str(_balance(db, cat, start)["remaining"]))
             if left - Decimal(str(d.quantity or 0)) < 0:
                 raise HTTPException(409, f"{d.fund}: only {_qty(left)} {cat.unit or ''} is left in Consumables Stock — "

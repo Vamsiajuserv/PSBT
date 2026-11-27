@@ -30,6 +30,7 @@ export default function ValuablesStatement() {
   const [range, setRange] = useState({ start: `${months[0]}-01`, end: todayIso })
   const [data, setData] = useState(null)
   const [err, setErr] = useState('')
+  const monthEndIso = (ym) => { const [y, m] = ym.split('-').map(Number); return `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}` }
   const period = custom ? `${fmtDate(range.start)} – ${fmtDate(range.end)}` : monthLabel(month)
   // Filters (on screen, print and export): metal for the whole statement; status, location and
   // search narrow the piece list.
@@ -84,7 +85,8 @@ export default function ValuablesStatement() {
               onChange={(e) => setRange({ ...range, end: e.target.value })} /></div>
           </> : <div className="w-[9.5rem]"><Select className="input !py-2" value={month} onChange={(e) => setMonth(e.target.value)}>
             {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}</Select></div>}
-          <ExportButtons title={`${tr('Valuables Statement')} — ${period}${f.metal ? ` — ${tr(f.metal)}` : ''}`} columns={exportCols} rows={rows.map((r) => ({ ...r, metal: tr(r.metal) }))} />
+          <ExportButtons title={`${tr('Valuables Statement')} — ${period}${f.metal ? ` — ${tr(f.metal)}` : ''}`} columns={exportCols} rows={rows.map((r) => ({ ...r, metal: tr(r.metal) }))}
+            screen="Valuables Statement" start={custom ? range.start : `${month}-01`} end={custom ? range.end : monthEndIso(month)} filters={[['Metal', f.metal]]} />
           <button onClick={() => window.print()} disabled={!data} className="btn-outline !py-2.5 disabled:opacity-50"><Printer size={15} />{' '}<T>Print</T></button>
         </span>} />
 

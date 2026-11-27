@@ -14,6 +14,8 @@ import { Select, DateField } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, stamp, teText, clock12 } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { guardExport, colFilters } from '../../lib/exportGuard.js'
+import { monthStartISO, todayISO as periodToday } from '../../lib/period.js'
 
 const PLAN_TONE = { Daily: 'blue', Monthly: 'green', 'Life Long': 'orange', 'One-Time': 'violet',
   'Full Month': 'violet', '30-Day': 'violet', 'Yearly Once': 'orange', 'Yearly Thrice': 'orange' }
@@ -85,8 +87,11 @@ export default function PoojaHistory() {
     start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
     q: '', pooja: '', plan: '', status: '',
-    start: '', end: '', page: 1,
-  })
+    start: monthStartISO(), end: periodToday(), page: 1,   // opens on this month (2026-11-26)
+  }, { blankable: ['start', 'end'] })
+  const [printHeading, setPrintHeading] = useState('')
+  // What a Download / Print is about to take — for the pop-up, the file heading and the Audit Trail
+  const exportFilters = () => [['Search', q], ['Pooja', pooja], ['Plan', plan], ['Status', status], ...colFilters(filters, sortColumns)]
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [reloadTrigger, setReloadTrigger] = useState(0)
 
@@ -132,6 +137,9 @@ export default function PoojaHistory() {
   const handlePrint = async () => {
     if (!displayRows.length) return
     const data = (start || end) ? await fetchAllFiltered() : displayRows
+    const heading = await guardExport({ screen: 'Pooja History', format: 'Print', start, end, filters: exportFilters(), count: data.length, available: total, user })
+    if (heading == null) return
+    setPrintHeading(heading)
     setPrintData(data)
     setShowPrintModal(true)
   }
@@ -144,11 +152,13 @@ export default function PoojaHistory() {
     // If date filter applied, fetch all records; otherwise use current page
     const dataToExport = (start || end) ? await fetchAllFiltered() : displayRows
     if (!dataToExport.length) return
+    const heading = await guardExport({ screen: 'Pooja History', format: 'CSV', start, end, filters: exportFilters(), count: dataToExport.length, available: total, user })
+    if (heading == null) return
 
     const headers = canSeeAmounts
       ? ['Receipt No', 'Ticket No', 'Devotee', 'Mobile', 'Pooja', 'Plan', 'Date', 'Amount', 'Status']
       : ['Receipt No', 'Ticket No', 'Devotee', 'Mobile', 'Pooja', 'Plan', 'Date', 'Status']
-    const csvRows = [headers.join(',')]
+    const csvRows = [`"${tr('Pooja History')} — ${heading.replace(/"/g, '""')}"`, '', headers.join(',')]
     for (const r of dataToExport) {
       const row = canSeeAmounts ? [
         r.receipt_no || r.booking_code,
@@ -218,7 +228,7 @@ export default function PoojaHistory() {
 
   const load = useCallback(async () => {
     const [d, s] = await Promise.all([
-      PoojaHistoryAPI.list({ q, pooja, plan, status, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'scheduled_date', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
+      PoojaHistoryAPI.list({ q, pooja, plan, status, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'scheduled_date', sort_dir: sorts[0]?.direction || 'desc', col_filters: filtersToParam(filters) }),
       PoojaHistoryAPI.stats().catch(() => null),
     ])
     setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -442,7 +452,7 @@ export default function PoojaHistory() {
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between no-print">
               <div>
                 <h3 className="font-bold text-gray-900 text-lg"><T>Print Pooja History</T></h3>
-                <p className="text-sm text-gray-500">{fmtDate(start)} — {fmtDate(end)} · {printData.length} {tr('records')}</p>
+                <p className="text-sm text-gray-500">{printHeading}</p>
               </div>
               <button onClick={() => setShowPrintModal(false)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
@@ -459,9 +469,8 @@ export default function PoojaHistory() {
                   </div>
                 </div>
                 <h2 className="text-lg font-semibold text-gray-800 mt-4"><T>Pooja History Report</T></h2>
-                <p className="text-sm text-gray-600">
-                  <T>Date Range</T>: {fmtDate(start)} — {fmtDate(end)}
-                </p>
+                {/* What this printout covers — period, filters, records, who printed it (2026-11-26) */}
+                <p className="text-sm text-gray-600">{printHeading}</p>
               </div>
 
               {/* Summary Stats */}

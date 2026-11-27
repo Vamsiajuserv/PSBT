@@ -1,5 +1,5 @@
 """Devotee master-record management."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import case, or_, func, text
 from sqlalchemy.orm import Session
@@ -9,6 +9,8 @@ from ..models import Devotee, FamilyMember, Booking, Donation, Annadanam, Auctio
 from ..schemas import DevoteeCreate, DevoteeUpdate, DevoteeOut, PAN_UNCHANGED
 from ..security import RequireModule, require_admin, log_action, client_ip
 from ..helpers import gen_code, next_code_seq, validate_pagination, encrypt_pan, sort_expr
+from ..helpers import is_indian_mobile, clean_mobile, clean_email  # mobile / email format (2026-11-26)
+from ..helpers import ist_date_of
 
 router = APIRouter(prefix="/api/devotees", tags=["devotees"])
 
@@ -62,6 +64,52 @@ def lookup_devotees(q: str = "", size: int = 10,
     rank = case((Devotee.name.ilike(f"{q}%"), 0), (Devotee.name.ilike(like), 1), else_=2)
     rows = query.order_by(rank, Devotee.id.desc()).limit(size).all()
     return {"items": [{"id": d.id, "code": d.code, "name": d.name, "name_te": d.name_te, "mobile": d.mobile} for d in rows]}
+
+
+def buyer_devotee(db: Session, devotee_id: int | None, mobile: str | None):
+    """The devotee an auction / Open Sale buyer is (2026-11-27): the one picked from the search, else the
+    one devotee whose mobile is exactly the buyer's — so the same person is never kept as both a devotee
+    and an outsider. None = an outsider. A family sharing one mobile (several devotees) is not guessed."""
+    if devotee_id:
+        d = db.get(Devotee, devotee_id)
+        if not d or d.status != "Active":
+            raise HTTPException(422, "That devotee was not found — search again, or enter the buyer by hand.")
+        return d
+    m = (mobile or "").strip()
+    if not m:
+        return None
+    rows = db.query(Devotee).filter(Devotee.mobile == m, Devotee.status == "Active").limit(2).all()
+    return rows[0] if len(rows) == 1 else None
+
+
+@router.get("/buyer-lookup")
+def buyer_lookup(q: str = "", db: Session = Depends(get_db), user=Depends(lookup_reader)):
+    """Auction / Open Sale buyer box (2026-11-27): devotees first, then outsiders who bought before
+    (name + mobile from earlier auction / Open Sale buyers — suggested again, never added to Devotees)."""
+    from ..models import AuctionSale, OpenSale
+    t = (q or "").strip()
+    if len(t) < 3:
+        return {"items": []}
+    like = f"%{t}%"
+    devs = (db.query(Devotee).filter(Devotee.status == "Active",
+                                     or_(Devotee.name.ilike(like), Devotee.mobile.ilike(like), Devotee.code.ilike(like)))
+            .order_by(case((Devotee.name.ilike(f"{t}%"), 0), else_=1), Devotee.id.desc()).limit(6).all())
+    items = [{"kind": "devotee", "id": d.id, "code": d.code, "name": d.name, "name_te": d.name_te, "mobile": d.mobile}
+             for d in devs]
+    seen = {d.mobile for d in devs}
+    past = []
+    for model, at in ((AuctionSale, AuctionSale.created_at), (OpenSale, OpenSale.sold_at)):
+        past += (db.query(model.buyer_name, model.buyer_mobile, at)
+                 .filter(model.devotee_id.is_(None), model.buyer_mobile.isnot(None),
+                         or_(model.buyer_name.ilike(like), model.buyer_mobile.ilike(like)))
+                 .order_by(at.desc()).limit(20).all())
+    past.sort(key=lambda r: r[2] or datetime.min, reverse=True)
+    for name, mobile, _ in past:                       # latest name per mobile
+        if mobile in seen or len(items) >= 8:
+            continue
+        seen.add(mobile)
+        items.append({"kind": "buyer", "id": None, "code": None, "name": name, "name_te": None, "mobile": mobile})
+    return {"items": items}
 
 
 # Column mapping for server-side sorting
@@ -164,19 +212,44 @@ def devotee_detail(did: int, db: Session = Depends(get_db), user=Depends(read)):
     annadanam = db.query(Annadanam).filter(
         Annadanam.voided.isnot(True),
         or_(Annadanam.devotee_id == did, Annadanam.donor == d.name)).order_by(Annadanam.id.desc()).all()
+    # single-item auctions only: a lot auction's buyers are listed from its buyer lines below (2026-11-27)
     auctions = db.query(Auction).filter(
+        Auction.from_stock.isnot(True),
         or_(Auction.devotee_id == did, Auction.winner == d.name)).order_by(Auction.id.desc()).all()
 
     def money(v):
         return float(v or 0)
 
+    # Every list is latest first by its own date (client, 2026-11-26). An annadanam's date is the day it
+    # was paid (paid_at is IST, created_at UTC — both sent as UTC for the screen's stamp); its optional
+    # "annadanam on" date is a separate column.
+    old = datetime.min
+    def anna_paid_utc(a):
+        return (a.paid_at - timedelta(hours=5, minutes=30)) if a.paid_at else a.created_at
+    annadanam.sort(key=lambda a: (anna_paid_utc(a) or old, a.id), reverse=True)
+    donations.sort(key=lambda x: (str(x.donated_on or ''), x.created_at or old, x.id), reverse=True)
+    bookings.sort(key=lambda b: (b.created_at or old, b.id), reverse=True)
+    auctions.sort(key=lambda a: (str(a.closes_on or ''), a.id), reverse=True)
+    # Lot auctions and Open Sale (2026-11-27): what this devotee bought from the store
+    from ..models import AuctionSale, OpenSale
+    bought = [{"code": au.code, "item": au.item, "amount": money(s.amount),
+               "status": "Paid" if s.payment_status == "Paid" else "Pending payment",
+               "date": str(ist_date_of(s.paid_at or s.created_at)) if (s.paid_at or s.created_at) else None}
+              for s, au in db.query(AuctionSale, Auction).join(Auction, Auction.id == AuctionSale.auction_id)
+              .filter(AuctionSale.devotee_id == did, AuctionSale.payment_status != "Not Paid").all()]
+    bought += [{"code": o.receipt_no, "item": f"{o.item_name} · {o.tag_id} (Open Sale)", "amount": money(o.amount),
+                "status": "Paid", "date": str(ist_date_of(o.sold_at)) if o.sold_at else None}
+               for o in db.query(OpenSale).filter(OpenSale.devotee_id == did).all()]
+    bought.sort(key=lambda x: x["date"] or "", reverse=True)
+
     stats = {
         "bookings": {"count": len(bookings), "amount": sum(money(b.amount) for b in bookings)},
         "donations": {"count": len(donations), "amount": sum(money(x.amount) for x in donations)},
         "annadanam": {"count": len(annadanam), "persons": sum(int(a.plates or 0) for a in annadanam)},
-        "auction": {"count": len(auctions), "amount": sum(money(a.current_amount) for a in auctions)},
+        "auction": {"count": len(auctions) + len(bought),
+                    "amount": sum(money(a.current_amount) for a in auctions) + sum(b["amount"] for b in bought)},
     }
-    total_txns = len(bookings) + len(donations) + len(annadanam) + len(auctions)
+    total_txns = len(bookings) + len(donations) + len(annadanam) + len(auctions) + len(bought)
 
     return {
         "devotee": {
@@ -198,10 +271,13 @@ def devotee_detail(did: int, db: Session = Depends(get_db), user=Depends(read)):
         "donations": [{"receipt_no": x.receipt_no, "fund": x.fund, "type": x.donation_type,
                        "amount": money(x.amount), "mode": x.mode, "g80": x.g80,
                        "date": str(x.donated_on) if x.donated_on else None} for x in donations],
-        "annadanam": [{"code": a.code, "plates": a.plates, "amount": money(a.amount),
-                       "occasion": a.occasion, "date": str(a.scheduled_on) if a.scheduled_on else None} for a in annadanam],
+        "annadanam": [{"code": a.code, "plates": a.plates, "amount": money(a.amount), "occasion": a.occasion,
+                       "donated_at": anna_paid_utc(a).isoformat() if anna_paid_utc(a) else None,
+                       "scheduled_on": str(a.scheduled_on) if a.scheduled_on else None,
+                       "date": (str(ist_date_of(anna_paid_utc(a))) if anna_paid_utc(a) else None)} for a in annadanam],
         "auction": [{"code": a.code, "item": a.item, "amount": money(a.current_amount),
-                     "status": a.status, "date": str(a.closes_on) if a.closes_on else None} for a in auctions],
+                     "status": a.status, "date": str(a.closes_on) if a.closes_on else None} for a in auctions]
+                   + bought,
     }
 
 
@@ -245,7 +321,7 @@ def link_devotee_by_mobile(db: Session, name: str | None, mobile: str | None) ->
     donor with no record. Used by Counter Billing and Donations (2026-11-15)."""
     mobile = (mobile or "").strip()
     name = (name or "").strip()
-    if not (mobile.isdigit() and len(mobile) == 10):
+    if not is_indian_mobile(mobile):        # 10 digits starting 6–9 — never a devotee on "1234567890"
         return None
     d = db.query(Devotee).filter(Devotee.mobile == mobile).order_by(Devotee.id).first()
     if d is None:
@@ -290,6 +366,8 @@ def update_devotee(did: int, body: DevoteeUpdate, request: Request,
         if existing:
             raise HTTPException(409, f"A devotee with mobile number {body.mobile} already exists (Code: {existing.code})")
     for k, v in body.model_dump(exclude_unset=True).items():
+        if k == "email":
+            v = clean_email(v)              # the edit form's email is checked here too (2026-11-26)
         if k == "pan_number" and v == PAN_UNCHANGED:
             continue   # the masked PAN came back from the edit form: keep the stored one
         # Phase 1 Security (PRIV-001): Encrypt PAN at rest
@@ -316,7 +394,7 @@ def add_family_member(did: int, body: dict, request: Request,
         raise HTTPException(422, "Family member name is required")
     fm = FamilyMember(devotee_id=did, name=name,
                       relation=(body.get("relation") or "").strip() or None,
-                      mobile=(body.get("mobile") or "").strip() or None,
+                      mobile=clean_mobile(body.get("mobile")),
                       age_dob=(body.get("age_dob") or "").strip() or None)
     db.add(fm); db.commit(); db.refresh(fm)
     log_action(db, username=user.username, action="UPDATE", entity="Devotee",

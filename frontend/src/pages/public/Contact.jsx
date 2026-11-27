@@ -8,7 +8,7 @@ import { Flourish, MinimalBanner } from '../../components/common/UI.jsx'
 import { useSite } from '../../lib/SiteContext.jsx'
 import { useLang, tr, useTempleAddress, clock12 } from '../../i18n/LanguageContext.jsx'
 import { Select, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
-import { sanitizePhone, validatePhone } from '../../lib/validation.js'
+import { sanitizePhone, validatePhone, validateEmail } from '../../lib/validation.js'
 
 const MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=Shirdi+Sai+Baba+Temple+Dwarakapuri+Colony+Punjagutta+Hyderabad'
 
@@ -40,10 +40,16 @@ export default function Contact() {
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
   const [mobileError, setMobileError] = useState('')  // Mobile validation error
+  const [emailError, setEmailError] = useState('')
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   async function submit(e) {
     e.preventDefault()
+    // A typed mobile (+91) and email must be real ones; both show together when both are wrong (client, 2026-11-26)
+    const mob = form.countryCode === '+91' && form.mobile.trim() ? (validatePhone(form.mobile.trim()).error || '') : ''
+    const em = validateEmail(form.email).error || ''
+    setMobileError(mob); setEmailError(em)
+    if (mob || em) return
     setBusy(true); setError('')
     try {
       // through the API client so the live site reaches the API host (VITE_API_BASE_URL), not itself
@@ -157,7 +163,8 @@ export default function Contact() {
               </div>
               <div>
                 <label className="label">{t('Email')}</label>
-                <input className="input" type="email" placeholder={tr("you@example.com")} value={form.email} onChange={set('email')} />
+                <input className={`input ${emailError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`} type="text" inputMode="email" autoComplete="email" placeholder={tr("you@example.com")} value={form.email} onChange={(e) => { set('email')(e); setEmailError('') }} />
+                {emailError && <p className="text-[0.6875rem] text-red-600 mt-1 font-medium">{emailError}</p>}
               </div>
               <div>
                 <label className="label">{t('Subject')}</label>

@@ -141,9 +141,9 @@ class Placement(unittest.TestCase):
     def test_place_guard(self):
         guard = next(d for rt in r.router.routes if rt.path == "/api/stores/items/place"
                      for d in rt.dependant.dependencies if d.name == "user").call
-        for role in ("Stores Officer", "Counter Staff", "Administrator"):
+        for role in ("Stores Officer", "Administrator"):
             guard(user=login("u", role))
-        for role in ("Committee", "Accountant", "Poojari"):
+        for role in ("Counter Staff", "Committee", "Accountant", "Poojari"):     # Counter only views (2026-11-27)
             with self.assertRaises(HTTPException):
                 guard(user=login("u", role))
 

@@ -6,7 +6,7 @@ import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
 import { T, tr, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { canIssueStock, staffName, useStoresMeta } from './shared.jsx'
+import { canIssueStock, staffName, useStoresMeta, itemsText } from './shared.jsx'
 import { IssueDrawer, PieceIssueSlip, ReturnDialog, SlipStatus } from './issue.jsx'
 
 const qty = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 })
@@ -44,14 +44,14 @@ export default function IssueReturn() {
 
   return (
     <div>
-      <PageTitle title={tr('Issue & Return')} subtitle={tr('Pieces lent out of the store for poojas, alankaram and festivals — who has them and when they come back.')}
+      <PageTitle title={tr('Issue & Return')} subtitle={tr('Items lent out of the store for poojas, alankaram and festivals — who has them and when they come back.')}
         actions={canIssue && <button onClick={() => setIssuing(true)} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Issue items</T></button>} />
 
       <KpiGrid>
-        <StatTile icon={PackageMinus} color="#8a1c1c" bg="bg-maroon-50" title={tr('Out now')} value={sum ? `${num(sum.out_now)} ${tr('piece(s)')}` : '—'} sub={tr('Issued, not yet back')} />
+        <StatTile icon={PackageMinus} color="#8a1c1c" bg="bg-maroon-50" title={tr('Out now')} value={sum ? `${num(sum.out_now)} ${tr('item(s)')}` : '—'} sub={tr('Issued, not yet back')} />
         <StatTile icon={AlertTriangle} color="#dc2626" bg="bg-red-50" title={tr('Overdue')} value={sum ? num(sum.overdue) : '—'} sub={tr('Past the return date')} />
-        <StatTile icon={Send} color="#2563eb" bg="bg-blue-50" title={tr('Issued today')} value={sum ? num(sum.issued_today) : '—'} sub={tr('Pieces')} />
-        <StatTile icon={Undo2} color="#059669" bg="bg-emerald-50" title={tr('Returned today')} value={sum ? num(sum.returned_today) : '—'} sub={tr('Pieces')} />
+        <StatTile icon={Send} color="#2563eb" bg="bg-blue-50" title={tr('Issued today')} value={sum ? num(sum.issued_today) : '—'} sub={tr('Items')} />
+        <StatTile icon={Undo2} color="#059669" bg="bg-emerald-50" title={tr('Returned today')} value={sum ? num(sum.returned_today) : '—'} sub={tr('Items')} />
       </KpiGrid>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -64,7 +64,7 @@ export default function IssueReturn() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-              {['Slip', 'Pieces', 'Issued to', 'Purpose', 'Issued', 'Return by', 'Status', 'Actions'].map((h) => <th key={h} className="px-3 py-3 font-semibold whitespace-nowrap">{tr(h)}</th>)}
+              {['Slip', 'Items', 'Issued to', 'Purpose', 'Issued', 'Return by', 'Status', 'Actions'].map((h) => <th key={h} className="px-3 py-3 font-semibold whitespace-nowrap">{tr(h)}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((s) => (
@@ -73,7 +73,7 @@ export default function IssueReturn() {
                   <td className="px-3 py-3"><div className="space-y-0.5">{s.lines.map((l) => (
                     <div key={l.id} className={`text-[0.8125rem] ${l.returned_at ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
                       <Link to={`/admin/stores/item/${l.tag_id}`} className="font-mono font-semibold hover:underline">{l.tag_id}</Link>{' '}
-                      {tr(l.description || l.item_name)}{l.weight_g != null && <span className="text-gray-500"> · {qty(l.weight_g)} {gramUnit()}</span>}
+                      {tr(l.description || l.item_name)}{itemsText(l)}{l.weight_g != null && <span className="text-gray-500"> · {qty(l.weight_g)} {gramUnit()}</span>}
                       {l.returned_at && l.condition === 'Damaged' && <span className="no-underline text-red-600"> ({tr('Damaged')})</span>}
                     </div>))}</div></td>
                   <td className="px-3 py-3 text-gray-800">{staffName(s.issued_to)}</td>

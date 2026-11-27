@@ -11,6 +11,7 @@ from ..schemas import PoojariCreate, PoojariUpdate
 from ..security import RequireModule, require_admin, log_action, client_ip
 from ..helpers import gen_code, ist_today, ist_now, normalize_slot, parse_slot_bounds
 from .almanac import off_tithi_ids
+from ..helpers import clean_mobile  # mobile / email format (2026-11-26)
 
 router = APIRouter(prefix="/api/poojaris", tags=["poojaris"])
 
@@ -60,7 +61,7 @@ def create_poojari(body: PoojariCreate, request: Request, db: Session = Depends(
     seq = (db.query(func.count(Poojari.id)).scalar() or 0) + 1
     while db.query(Poojari).filter(Poojari.code == gen_code("PR", seq, 2)).first():
         seq += 1
-    p = Poojari(code=gen_code("PR", seq, 2), name=body.name, phone=body.phone,
+    p = Poojari(code=gen_code("PR", seq, 2), name=body.name, phone=clean_mobile(body.phone),
                 email=body.email, specialization=body.specialization,
                 active=body.active)
     db.add(p); db.commit(); db.refresh(p)
@@ -74,6 +75,8 @@ def update_poojari(pid: int, body: PoojariUpdate, request: Request, db: Session 
     if not p:
         raise HTTPException(404, "Poojari not found")
     data = body.model_dump(exclude_unset=True)
+    if "phone" in data:
+        data["phone"] = clean_mobile(data["phone"])
     for k, v in data.items():
         setattr(p, k, v)
     db.commit(); db.refresh(p)
@@ -184,7 +187,9 @@ def queue(day: date | None = None, start: date | None = None, end: date | None =
     day = day or today
     q = _due_on(db, day)
     if mine:
-        q = q.filter(Booking.poojari_id == me) if me else q.filter(False)
+        # A booking with no poojari goes to ALL poojaris (client, 2026-11-25), so "mine" = assigned to me
+        # + the unassigned ones. (A Poojari Schedule match is already saved on the booking when it is made.)
+        q = q.filter(or_(Booking.poojari_id == me, Booking.poojari_id.is_(None))) if me else q.filter(False)
     bookings = q.order_by(Booking.time_slot, Booking.id).all()
     off = off_tithi_ids(db, bookings, day)          # Sai Vratam: only on Pournami
     bookings = [b for b in bookings if b.id not in off]
@@ -307,13 +312,12 @@ def hourly_slots(day: date | None = None, mine: bool = False, pooja_id: int | No
     view and its print sheet (printed as often as needed; printing closes nothing — only the clock
     does, client 2026-11-20). `range` = every half-hour from the first pooja start to
     the last pooja end in the Pooja Master (read live, so a new timing extends it).
-    Each slot names the poojari responsible: the booking's own, else the one the Poojari
-    Schedule gives that pooja / day / slot. mine=true (a poojari) keeps the slots they are
-    responsible for, plus unassigned ones nobody is scheduled for (anyone may do those).
+    Each slot names the poojari chosen on the booking; a booking with none is for all poojaris
+    (client, 2026-11-25 — the Poojari Schedule no longer fills one in). mine=true (a poojari) keeps
+    the slots assigned to them plus the all-poojari ones.
     all_slots=true also lists every Pooja Master slot performed that day with 0 devotees, and
     each Settings slot once as a "General slot" (poojas without fixed timings). A tithi plan's
     slot shows only on its tithi day, a festival pooja's only inside its festival window."""
-    from .schedules import scheduled_poojari
     from ..pooja_batches import batch_of, range_halves, to_min, fmt, HALF, NO_LIST_CATEGORIES
     day = day or ist_today()
     me = user.poojari_id if user.role == "Poojari" else None
@@ -326,18 +330,11 @@ def hourly_slots(day: date | None = None, mine: bool = False, pooja_id: int | No
     done = {p.booking_id for p in db.query(BookingPerformance).filter(
         BookingPerformance.performed_on == day, BookingPerformance.booking_id.in_([b.id for b in bookings] or [0]))}
     names = {p.id: p.name for p in db.query(Poojari).all()}
-    sched = {}
     halves = {}
     for b in bookings:
         if (b.category or "") in NO_LIST_CATEGORIES:
             continue                        # festival / vehicle: no slot, on no list (seen in the queue)
-        who = b.poojari_id
-        if not who:
-            k = (b.pooja_id, b.time_slot)
-            if k not in sched:
-                p = scheduled_poojari(db, b.pooja_id, day, b.time_slot)
-                sched[k] = p.id if p else None
-            who = sched[k]
+        who = b.poojari_id              # None = all poojaris (client, 2026-11-25): on every poojari's list
         if mine and (not me or (who is not None and who != me)):
             continue
         h = batch_of(b)

@@ -1,20 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Boxes, Store, Gavel, BadgeIndianRupee, Archive, Search, RotateCcw, Eye, PackageOpen, XCircle, Plus, Tags, CheckCircle2, AlertTriangle, MapPin, Send, SearchX, MoreHorizontal, List, LayoutGrid } from 'lucide-react'
+import { Boxes, Store, Gavel, BadgeIndianRupee, Archive, Search, RotateCcw, PackageOpen, XCircle, Plus, Tags, CheckCircle2, AlertTriangle, MapPin, Send, SearchX, MoreHorizontal, List, LayoutGrid } from 'lucide-react'
 import { PageTitle, StatTile, KpiGrid, FilterPanel, Pill, Pager, inr, num, fmtDate } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
+import { canAccessKey } from '../../../auth/access.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { STATUS_TONE, STATUSES, AWAITING, ISSUED, MISSING, KEPT, WRITEOFF_REQ, StickerSheet, canWriteStores, canDamageStock, canPlaceStock, canIssueStock, staffName, useStoresMeta, sourceRef, DeityBadge } from './shared.jsx'
-import { IssueDrawer } from './issue.jsx'
+import { STATUS_TONE, STATUSES, AWAITING, ISSUED, MISSING, KEPT, WRITEOFF_REQ, StickerSheet, BundleBadge, canWriteStores, canPrintStickers, canDamageStock, canPlaceStock, canIssueStock, staffName, useStoresMeta, sourceRef, DeityBadge } from './shared.jsx'
 
 const SIZE = 25
 // Stock Register tabs (2026-11-16): what the temple holds / what has left for good
 const IN_HAND = ['In Store', ISSUED, 'In Auction', 'In Open Sale', MISSING, WRITEOFF_REQ, AWAITING]
-const GONE_OUT = ['Sold', 'Written Off', KEPT]
+const GONE_OUT = ['Sold', 'Written Off', KEPT, 'Used Up']
 const CHIP = { 'In Store': [Store, '#059669'], [ISSUED]: [Send, '#8a1c1c'], 'In Auction': [Gavel, '#d97706'], 'In Open Sale': [BadgeIndianRupee, '#7c3aed'],
   [MISSING]: [SearchX, '#dc2626'], [WRITEOFF_REQ]: [AlertTriangle, '#b45309'], [AWAITING]: [MapPin, '#c2410c'],
   Sold: [BadgeIndianRupee, '#2563eb'], 'Written Off': [Archive, '#6b7280'], [KEPT]: [Send, '#6b7280'] }
@@ -27,7 +27,7 @@ function cameFrom(r, lang) {
   if (c.kind === 'Donated') return [`${tr('Donated')}${c.who ? ` · ${personName({ name: c.who }, lang)}` : ''}`, [sourceRef(r), date]]
   if (c.kind === 'Hundi') return [tr('Hundi'), [c.ref, date]]
   if (c.kind === 'Bought') return [`${tr('Bought')}${c.who ? ` · ${c.who}` : ''}`, [c.bill ? `${tr('Bill')} ${c.bill}` : c.ref, date]]
-  return [tr(c.kind || 'Manual entry'), [c.ref, c.verified_by && `${tr('verified by')} ${staffName(c.verified_by)}`]]
+  return [tr(!c.kind || c.kind === 'Manual entry' ? 'Purchased item' : c.kind), [c.ref, c.verified_by && `${tr('verified by')} ${staffName(c.verified_by)}`]]
 }
 
 // The ⋯ menu of a row: fixed position so the table's scroll box does not clip it
@@ -63,8 +63,12 @@ export default function StockRegister() {
   const { lang } = useLang()
   const canWrite = canWriteStores(user)
   const canDamage = canDamageStock(user)   // ask to write off: Stores Officer + Administrator (Committee approves)
-  const canPlace = canPlaceStock(user)     // Stores Officer, Counter Staff + Administrator
+  const canPlace = canPlaceStock(user)     // Stores Officer + Administrator
   const canIssue = canIssueStock(user)     // Stores Officer + Administrator
+  const canPrint = canPrintStickers(user)  // print a sticker again: not Counter Staff (2026-11-27)
+  // Issuing is done only in Issue & Return; the item ID opens its history (client, 2026-11-27)
+  const canPick = canPrint || canPlace   // the tick boxes serve Print stickers and Place selected
+  const canTag = canAccessKey(user, 'stores/pending')
   const { categories, locations, activeLocations } = useStoresMeta()
   const tagged = categories.filter((c) => c.tracking === 'Tagged')
 
@@ -93,7 +97,6 @@ export default function StockRegister() {
   const [moveFor, setMoveFor] = useState(null)
   const [placeFor, setPlaceFor] = useState(null)   // { items: [...], location_id, note }
   const [placing, setPlacing] = useState(false)
-  const [issueFor, setIssueFor] = useState(null)   // pieces to issue
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr('')
@@ -122,7 +125,6 @@ export default function StockRegister() {
   const c = (s) => by[s]?.count ?? 0
   const pickedRows = rows.filter((r) => picked[r.id])
   const pickedAwaiting = pickedRows.filter((r) => r.status === AWAITING)
-  const pickedInStore = pickedRows.filter((r) => r.status === 'In Store')
   const showStatus = (s) => { const z = { ...f, status: s }; setF(z); setPage(1); setApplied(z) }
   const showTab = (held) => { const z = { ...f, held, status: '' }; setF(z); setPage(1); setApplied(z); setView('pieces') }
   const tabStatuses = applied.held === 'out' ? GONE_OUT : applied.held === 'in' ? IN_HAND : [...IN_HAND, ...GONE_OUT]
@@ -131,7 +133,6 @@ export default function StockRegister() {
   const clear = () => { const z = { ...NO_FILTER, held: applied.held || 'in' }; setF(z); setPage(1); setApplied(z) }
   const rowActions = (r) => [
     canWrite && ['In Store', 'In Open Sale'].includes(r.status) && [tr('Move to another location'), PackageOpen, () => setMoveFor({ item: r, location_id: '' }), 'text-blue-700'],
-    canIssue && r.status === 'In Store' && [tr('Issue'), Send, () => setIssueFor([r]), 'text-maroon-700'],
     canPlace && r.status === AWAITING && [tr('Place in a location'), MapPin, () => setPlaceFor({ items: [r], location_id: '', note: '' }), 'text-orange-700'],
     canDamage && ['In Store', AWAITING].includes(r.status) && [tr('Ask to write off'), XCircle, () => writeOff(r), 'text-red-600'],
   ].filter(Boolean)
@@ -139,11 +140,15 @@ export default function StockRegister() {
   async function writeOff(item) {
     const res = await promptDialog({
       title: `${tr('Ask to write off')} — ${item.tag_id}`, tone: 'danger', confirmLabel: tr('Send to committee'),
-      message: tr('A committee member approves it in Missing Items. Until then the piece stays in the register and cannot be issued or sold.'),
-      fields: [{ k: 'reason', label: tr('Reason'), required: true, placeholder: tr('e.g. Torn, cannot be used') }],
+      message: tr('A committee member approves it in Write-offs & Approvals. Until then the item stays in the register and cannot be issued or sold.'),
+      // a bundle: only the damaged pieces (1 torn pancha of 8) — 2026-11-27
+      fields: [...(item.bundle ? [{ k: 'pieces', label: `${tr('How many?')} (1 – ${item.pieces})`, type: 'number', required: true, defaultValue: '1' }] : []),
+        { k: 'reason', label: tr('Reason'), required: true, placeholder: tr('e.g. Torn, cannot be used') }],
     })
     if (!res) return
-    try { await StoresAPI.writeOff(item.id, res.reason.trim()); toast(tr('Sent to the committee for approval.')); load(); window.dispatchEvent(new Event('stores:changed')) }
+    const n = item.bundle ? Math.round(Number(res.pieces)) : null
+    if (item.bundle && !(n >= 1 && n <= item.pieces)) { toast(`${item.tag_id}: ${tr('enter how many pieces — 1 to')} ${item.pieces}.`, 'error'); return }
+    try { await StoresAPI.writeOff(item.id, res.reason.trim(), n); toast(tr('Sent to the committee for approval.')); load(); window.dispatchEvent(new Event('stores:changed')) }
     catch (ex) { toast(errText(ex, 'Could not write off this piece.'), 'error') }
   }
 
@@ -172,9 +177,8 @@ export default function StockRegister() {
     <div>
       <PageTitle title={tr('Stock Register')} subtitle={tr('Every tagged piece the temple has received — where it is kept and where it went.')}
         actions={<span className="inline-flex items-center gap-2">
-          {canIssue && pickedInStore.length > 0 && <button onClick={() => setIssueFor(pickedInStore)} className="btn-outline !py-2.5"><Send size={15} />{' '}{tr('Issue selected')} ({pickedInStore.length})</button>}
           {canPlace && pickedAwaiting.length > 0 && <button onClick={() => setPlaceFor({ items: pickedAwaiting, location_id: '', note: '' })} className="btn-outline !py-2.5 !border-orange-300 !text-orange-700"><MapPin size={15} />{' '}{tr('Place selected')} ({pickedAwaiting.length})</button>}
-          <button disabled={!pickedRows.length} onClick={() => setStickers(pickedRows)} title={pickedRows.length ? undefined : tr('Tick the pieces to print stickers for')} className="btn-outline !py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"><Tags size={15} />{' '}{tr('Print stickers')}{pickedRows.length > 0 && ` (${pickedRows.length})`}</button>
+          {canPrint && <button disabled={!pickedRows.length} onClick={() => setStickers(pickedRows)} title={pickedRows.length ? undefined : tr('Tick the pieces to print stickers for')} className="btn-outline !py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"><Tags size={15} />{' '}{tr('Print stickers')}{pickedRows.length > 0 && ` (${pickedRows.length})`}</button>}
           {canIssue && <Link to="/admin/stores/manual" className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Manual Stock Entry</T></Link>}
         </span>} />
 
@@ -205,9 +209,9 @@ export default function StockRegister() {
           <span className="inline-flex items-center gap-1.5 font-semibold">{sum.balanced ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
             {sum.balanced ? tr('Register balances — every piece received is accounted for.')
               : <>{tr('Received')} {num(sum.received)} ≠ {STATUSES.map((st) => `${tr(st)} ${num(c(st))}`).join(' + ')}</>}</span>
-          {pendingCount > 0 && <Link to="/admin/stores/pending" className="text-amber-800 font-semibold hover:underline">{num(pendingCount)} {tr('receipt(s) waiting to be tagged')} →</Link>}
+          {canTag && pendingCount > 0 && <Link to="/admin/stores/pending" className="text-amber-800 font-semibold hover:underline">{num(pendingCount)} {tr('receipt(s) waiting to be tagged')} →</Link>}
           {sum.deity_used_in_store > 0 && <button onClick={() => { const z = { ...NO_FILTER, deity_used: 'true', status: 'In Store' }; setF(z); setPage(1); setApplied(z) }} className="text-amber-800 font-semibold hover:underline">{num(sum.deity_used_in_store)} {tr('used item(s) in store')} →</button>}
-          {sum.pending_manual > 0 && <Link to="/admin/stores/manual" className="text-amber-800 font-semibold hover:underline">{num(sum.pending_manual)} {tr('manual entry(s) waiting for committee')} →</Link>}
+          {canAccessKey(user, 'stores/manual') && sum.pending_manual > 0 && <Link to="/admin/stores/manual" className="text-amber-800 font-semibold hover:underline">{num(sum.pending_manual)} {tr('purchased item(s) waiting for committee')} →</Link>}
         </div>
       )}
 
@@ -258,7 +262,7 @@ export default function StockRegister() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-              <th className="px-3 py-3 w-8"><Checkbox checked={rows.length > 0 && rows.every((r) => picked[r.id])} onChange={() => { const all = rows.every((r) => picked[r.id]); setPicked(all ? {} : Object.fromEntries(rows.map((r) => [r.id, true]))) }} /></th>
+              {canPick && <th className="px-3 py-3 w-8"><Checkbox checked={rows.length > 0 && rows.every((r) => picked[r.id])} onChange={() => { const all = rows.every((r) => picked[r.id]); setPicked(all ? {} : Object.fromEntries(rows.map((r) => [r.id, true]))) }} /></th>}
               <th className="px-3 py-3 font-semibold">{tr('Piece')}</th>
               <th className="px-3 py-3 font-semibold">{tr('Came from')}</th>
               <th className="px-3 py-3 font-semibold">{tr('Where now')}</th>
@@ -271,9 +275,9 @@ export default function StockRegister() {
                 const [from, proof] = cameFrom(r, lang)
                 return (
                 <tr key={r.id} className="hover:bg-gray-50/60 align-top">
-                  <td className="px-3 py-3"><Checkbox checked={!!picked[r.id]} onChange={() => setPicked((p) => ({ ...p, [r.id]: !p[r.id] }))} /></td>
+                  {canPick && <td className="px-3 py-3"><Checkbox checked={!!picked[r.id]} onChange={() => setPicked((p) => ({ ...p, [r.id]: !p[r.id] }))} /></td>}
                   <td className="px-3 py-3"><div className="flex items-center gap-2 flex-wrap"><Link className="font-mono text-[0.78rem] text-maroon-700 font-semibold hover:underline whitespace-nowrap" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link>
-                    {r.deity_used && <DeityBadge item={r} />}</div>
+                    <BundleBadge item={r} />{r.deity_used && <DeityBadge item={r} />}</div>
                     <div className="text-[0.8125rem] font-semibold text-gray-800 mt-0.5">{tr(r.description || r.item_name)}</div>
                     <div className="text-[0.6875rem] text-gray-500">{[r.description && tr(r.item_name), tr(r.details), r.weight_g ? `${num(r.weight_g)} ${gramUnit()}` : ''].filter(Boolean).join(' · ')}</div></td>
                   <td className="px-3 py-3 min-w-[11rem]"><div className="text-[0.8125rem] text-gray-800">{from}</div>
@@ -281,10 +285,10 @@ export default function StockRegister() {
                   <td className="px-3 py-3 min-w-[8rem] text-[0.8125rem] text-gray-700">{['In Store', 'In Open Sale'].includes(r.status) ? tr(r.location || '—')
                     : r.status === AWAITING ? <span className="text-orange-700">{tr('Not placed yet')}</span>
                     : r.status === ISSUED && r.issue ? <span className="text-maroon-800">{tr('With')} {staffName(r.issue.issued_to)}
-                        <span className="block text-[0.6875rem] text-gray-500"><Link to="/admin/stores/issue" className="font-mono hover:underline">{r.issue.code}</Link>{r.issue.return_by ? <> · {tr('return by')} {fmtDate(r.issue.return_by)}</> : null}</span></span>
+                        <span className="block text-[0.6875rem] text-gray-500">{canAccessKey(user, 'stores/issue') ? <Link to="/admin/stores/issue" className="font-mono hover:underline">{r.issue.code}</Link> : <span className="font-mono">{r.issue.code}</span>}{r.issue.return_by ? <> · {tr('return by')} {fmtDate(r.issue.return_by)}</> : null}</span></span>
                     : r.status === 'In Auction' ? <span>{tr('In auction')}{r.last_auction_code && <span className="block text-[0.6875rem] font-mono text-gray-500">{r.last_auction_code}</span>}</span>
                     : [MISSING, WRITEOFF_REQ].includes(r.status) ? <span className="text-red-700">{tr('Last at')} {tr(r.location || '—')}
-                        {r.missing && <span className="block text-[0.6875rem] text-gray-500"><Link to="/admin/stores/missing" className="font-mono hover:underline">{r.missing.check_code}</Link> · {tr(r.missing.status)}</span>}</span>
+                        {r.missing && <span className="block text-[0.6875rem] text-gray-500">{canAccessKey(user, 'stores/missing') ? <Link to="/admin/stores/missing" className="font-mono hover:underline">{r.missing.check_code}</Link> : <span className="font-mono">{r.missing.check_code}</span>} · {tr(r.missing.status)}</span>}</span>
                     : r.status === 'Sold' && r.last_auction_code ? <span className="text-gray-500">{tr('Sold in')} <span className="font-mono text-[0.75rem]">{r.last_auction_code}</span></span>
                     : <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-3"><Pill tone={STATUS_TONE[r.status] || 'gray'}>{tr(r.status)}</Pill>
@@ -294,7 +298,6 @@ export default function StockRegister() {
                     : r.est_value ? <>{inr(r.est_value)}<span className="block text-[0.6875rem] text-gray-500">{tr('est.')}</span></>
                     : <span className="text-gray-300">—</span>}</td>
                   <td className="px-3 py-3"><div className="flex items-center gap-1.5 justify-end">
-                    <Link to={`/admin/stores/item/${r.tag_id}`} title={tr('History')} aria-label={tr('History')} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700"><Eye size={15} /></Link>
                     <RowMenu actions={rowActions(r)} />
                   </div></td>
                 </tr>)
@@ -326,7 +329,6 @@ export default function StockRegister() {
           </form>
         </div>
       )}
-      {issueFor && <IssueDrawer preset={issueFor} onClose={() => { setIssueFor(null); setPicked({}); load() }} />}
       {placeFor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => !placing && setPlaceFor(null)} />

@@ -9,6 +9,7 @@ import ResetButton from '../../components/common/ResetButton.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { DailyClosingAPI, RefundsAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { canAccessKey } from '../../auth/access.js'
 import { DateField } from '../../components/common/Field.jsx'
 import { Link } from 'react-router-dom'
 import { confirmDialog } from '../../components/common/Dialog.jsx'
@@ -197,7 +198,8 @@ export default function DailyClosing() {
             <b>{sum.untagged_material.length} {tr('material donation(s) on this day are not tagged yet')}</b>
             <div className="text-[0.75rem] mt-0.5">{sum.untagged_material.map((d) => `${d.receipt_no} · ${personName({ name: d.donor_name }, lang)} · ${tr(d.item_name)} (${d.mode === 'weight' ? `${num(d.tagged)}/${num(d.quantity)} ${gramUnit()}` : `${d.tagged}/${num(d.quantity)}`})`).join('  ·  ')}</div>
           </div>
-          <Link to="/admin/stores/pending" className="shrink-0 font-semibold text-maroon-700 hover:underline">{tr('Tag them now')} →</Link>
+          {canAccessKey(user, 'stores/pending') ? <Link to="/admin/stores/pending" className="shrink-0 font-semibold text-maroon-700 hover:underline">{tr('Tag them now')} →</Link>
+            : <span className="shrink-0 text-amber-800">{tr('The Stores Officer tags')}</span>}
         </div>
       )}
 

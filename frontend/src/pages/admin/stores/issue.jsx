@@ -6,7 +6,7 @@ import { Select, DateField, Combobox } from '../../../components/common/Field.js
 import { toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, getLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
 import { useTemple } from '../../../lib/SiteContext.jsx'
-import { staffName } from './shared.jsx'
+import { staffName, HowMany, BundleBadge, itemsText } from './shared.jsx'
 import ResetButton from '../../../components/common/ResetButton.jsx'
 
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -19,6 +19,8 @@ const emptyIssue = () => ({ issued_to: '', poojari_id: '', purpose: '', return_b
 export function IssueDrawer({ preset = [], onClose, onDone }) {
   const [meta, setMeta] = useState({ purposes: [], poojaris: [] })
   const [picked, setPicked] = useState(preset)
+  // Bundles (2026-11-27): how many of each picked bundle go out — starts at all of them
+  const [howMany, setHowMany] = useState(() => Object.fromEntries(preset.filter((i) => i.bundle).map((i) => [i.id, String(i.pieces)])))
   const [q, setQ] = useState('')
   const [found, setFound] = useState([])
   // Return date optional (2026-11-15): most things come back the same day; blank = never overdue
@@ -45,14 +47,17 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
 
   async function save(e) {
     e.preventDefault()
-    if (!picked.length) { toast(tr('Pick at least one piece.'), 'error'); return }
+    if (!picked.length) { toast(tr('Pick at least one item.'), 'error'); return }
+    const badN = picked.find((i) => i.bundle && !(Number.isInteger(Number(howMany[i.id])) && Number(howMany[i.id]) >= 1 && Number(howMany[i.id]) <= i.pieces))
+    if (badN) { toast(`${badN.tag_id}: ${tr('enter how many items — 1 to')} ${badN.pieces}.`, 'error'); return }
     setSaving(true)
     try {
+      const pieces = Object.fromEntries(picked.filter((i) => i.bundle).map((i) => [i.id, Number(howMany[i.id])]))
       const s = await StoresAPI.issue({ ids: picked.map((p) => p.id), issued_to: f.issued_to.trim(), poojari_id: f.poojari_id || null,
-        purpose: f.purpose.trim(), return_by: f.return_by || null, notes: f.notes.trim() || null })
-      toast(`${s.code}: ${s.lines.length} ${tr('piece(s) issued to')} ${staffName(s.issued_to)}`)
+        purpose: f.purpose.trim(), return_by: f.return_by || null, notes: f.notes.trim() || null, pieces })
+      toast(`${s.code}: ${s.lines.reduce((n, l) => n + (l.pieces || 1), 0)} ${tr('item(s) issued to')} ${staffName(s.issued_to)}`)
       changed(); setSlip(s); onDone?.(s)
-    } catch (ex) { toast(errText(ex, 'Could not issue these pieces.'), 'error') }
+    } catch (ex) { toast(errText(ex, 'Could not issue these items.'), 'error') }
     finally { setSaving(false) }
   }
 
@@ -63,20 +68,20 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
       <form onSubmit={save} className="relative w-full max-w-2xl bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
         <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
           <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Issue items</T></h3>
-            <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Lend pieces out of the store. They stay the temple's stock and must come back by the return date.</T></p></div>
+            <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Lend items out of the store. They stay the temple's stock and must come back by the return date.</T></p></div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={20} /></button>
         </div>
         <div className="px-6 py-5 space-y-4 flex-1">
-          <div><label className="label"><T>Pieces *</T></label>
+          <div><label className="label"><T>Items *</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input className="input !pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('Search In Store pieces: SLV-…, PAN-…, description')} /></div>
+              <input className="input !pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('Search In Store items: SLV-…, PAN-…, description')} /></div>
             {found.length > 0 && (
               <div className="mt-1 border border-gray-200 rounded-lg max-h-48 overflow-y-auto divide-y divide-gray-100">
-                {found.filter((i) => !pickedIds.has(i.id)).map((i) => (
-                  <button type="button" key={i.id} onClick={() => { setPicked([...picked, i]); setQ('') }}
+                {found.filter((i) => !pickedIds.has(i.id) && !(i.bundle && i.pieces < 1)).map((i) => (
+                  <button type="button" key={i.id} onClick={() => { setPicked([...picked, i]); if (i.bundle) setHowMany((h) => ({ ...h, [i.id]: String(i.pieces) })); setQ('') }}
                     className="w-full text-left px-3 py-2 text-[0.8125rem] hover:bg-cream/60 flex items-center gap-2">
                     <Plus size={13} className="text-maroon-700" /><span className="font-mono font-semibold text-maroon-700">{i.tag_id}</span>
-                    <span>{tr(i.description || i.item_name)}</span>
+                    <span>{tr(i.description || i.item_name)}</span> <BundleBadge item={i} />
                     {i.weight_g != null && <span className="text-gray-500">· {qty(i.weight_g)} {gramUnit()}</span>}
                     <span className="ml-auto text-gray-400">{tr(i.location || '')}</span>
                   </button>))}
@@ -86,9 +91,10 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
                 <span key={i.id} className="inline-flex items-center gap-1.5 rounded-full bg-maroon-50 text-maroon-800 px-3 py-1 text-[0.78rem]">
                   <span className="font-mono font-semibold">{i.tag_id}</span> {tr(i.description || i.item_name)}
                   {i.weight_g != null && <span className="text-maroon-700/70">· {qty(i.weight_g)} {gramUnit()}</span>}
+                  <HowMany item={i} value={howMany[i.id] ?? ''} onChange={(v) => setHowMany((h) => ({ ...h, [i.id]: v }))} />
                   <button type="button" onClick={() => setPicked(picked.filter((x) => x.id !== i.id))} aria-label={tr('Remove')}><Trash2 size={12} /></button>
                 </span>))}
-              {!picked.length && <span className="text-[0.75rem] text-gray-400"><T>No pieces picked yet.</T></span>}
+              {!picked.length && <span className="text-[0.75rem] text-gray-400"><T>No items picked yet.</T></span>}
             </div>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
@@ -109,7 +115,7 @@ export function IssueDrawer({ preset = [], onClose, onDone }) {
           {/* Reset (client, 2026-11-20): back to a freshly opened slip (pieces picked from the Stock Register stay picked) */}
           <ResetButton onReset={() => { setPicked(preset); setQ(''); setFound([]); setF(emptyIssue()) }} disabled={saving} className="justify-center !px-3 shrink-0" />
           <button disabled={saving || !picked.length} className="btn-maroon flex-1 justify-center disabled:opacity-60">
-            <Send size={15} className="mr-1" />{saving ? tr('Saving…') : `${tr('Issue')} ${picked.length} ${tr('piece(s)')}`}</button>
+            <Send size={15} className="mr-1" />{saving ? tr('Saving…') : `${tr('Issue')} ${picked.reduce((n, i) => n + (i.bundle ? (Number(howMany[i.id]) || 0) : 1), 0)} ${tr('item(s)')}`}</button>
         </div>
       </form>
     </div>
@@ -143,7 +149,7 @@ export function PieceIssueSlip({ slip, onClose }) {
             <tbody>{slip.lines.map((l) => (
               <tr key={l.id} className="border-b border-gray-100">
                 <td className="py-1.5 font-mono font-semibold">{l.tag_id}</td>
-                <td className="py-1.5">{tr(l.description || l.item_name)}</td>
+                <td className="py-1.5">{tr(l.description || l.item_name)}{itemsText(l)}</td>
                 <td className="py-1.5 text-right">{l.weight_g != null ? `${qty(l.weight_g)} ${gramUnit()}` : '—'}</td>
                 <td className="py-1.5 text-right text-[0.75rem]">{l.returned_at ? `${fmtDate(l.returned_at)}${l.condition === 'Damaged' ? ` · ${tr('Damaged')}` : l.condition === 'Kept' ? ` · ${tr('Kept by poojari')}` : ''}` : '☐'}</td>
               </tr>))}</tbody>
@@ -170,27 +176,34 @@ export function PieceIssueSlip({ slip, onClose }) {
  *  by the poojari — it leaves stock with the reason (never gold / silver). */
 export function ReturnDialog({ slip, locations, onClose, onDone }) {
   const open = slip.lines.filter((l) => !l.returned_at)
-  const [rows, setRows] = useState(() => Object.fromEntries(open.map((l) => [l.id, { tick: true, condition: 'Good', note: '', weight: '' }])))
+  const [rows, setRows] = useState(() => Object.fromEntries(open.map((l) => [l.id, { tick: true, condition: 'Good', note: '', weight: '', kept: '' }])))
   const [locationId, setLocationId] = useState('')
   const [saving, setSaving] = useState(false)
   const set = (id, patch) => setRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }))
   const ticked = open.filter((l) => rows[l.id]?.tick)
+  // "Previous location" — named when every item came from the same place (client, 2026-11-27)
+  const froms = [...new Set(open.map((l) => l.from_location || ''))]
+  const prevLabel = froms.length === 1 && froms[0] ? `${tr('Previous location')} (${tr(froms[0])})` : tr('Previous location')
 
   async function save(e) {
     e.preventDefault()
-    if (!ticked.length) { toast(tr('Tick the pieces that came back.'), 'error'); return }
+    if (!ticked.length) { toast(tr('Tick the items that came back.'), 'error'); return }
     // gold / silver come back on the scale (2026-11-15)
     const unweighed = ticked.find((l) => l.weight_g != null && !(Number(rows[l.id].weight) > 0))
     if (unweighed) { toast(`${unweighed.tag_id}: ${tr('weigh it and enter the weight (g).')}`, 'error'); return }
-    const noWhy = ticked.find((l) => rows[l.id].condition === 'Kept' && rows[l.id].note.trim().length < 3)
+    // a bundle's pieces: some kept by the poojari, the rest back (2026-11-27)
+    const keptOf = (l) => (rows[l.id].condition !== 'Kept' && l.pieces > 1 ? Math.round(Number(rows[l.id].kept) || 0) : 0)
+    const badKept = ticked.find((l) => keptOf(l) < 0 || keptOf(l) >= l.pieces)
+    if (badKept) { toast(`${badKept.tag_id}: ${tr('choose Kept by poojari when every item was kept.')}`, 'error'); return }
+    const noWhy = ticked.find((l) => (rows[l.id].condition === 'Kept' || keptOf(l) > 0) && rows[l.id].note.trim().length < 3)
     if (noWhy) { toast(`${noWhy.tag_id}: ${tr('write why the poojari kept it.')}`, 'error'); return }
     setSaving(true)
     try {
       const s = await StoresAPI.returnIssue(slip.id, { location_id: locationId ? Number(locationId) : null,
         lines: ticked.map((l) => ({ line_id: l.id, condition: rows[l.id].condition, note: rows[l.id].note.trim() || null,
-          weight_g: l.weight_g != null ? Number(rows[l.id].weight) : null })) })
+          weight_g: l.weight_g != null ? Number(rows[l.id].weight) : null, kept: keptOf(l) || null })) })
       const kept = ticked.filter((l) => rows[l.id].condition === 'Kept').length
-      toast(`${s.code}: ${ticked.length - kept} ${tr('piece(s) returned')}${kept ? ` · ${kept} ${tr('kept by the poojari')}` : ''}${s.out ? ` · ${s.out} ${tr('still out')}` : ''}`)
+      toast(`${s.code}: ${ticked.length - kept} ${tr('item(s) returned')}${kept ? ` · ${kept} ${tr('kept by the poojari')}` : ''}${s.out ? ` · ${s.out} ${tr('still out')}` : ''}`)
       changed(); onDone?.(s)
     } catch (ex) { toast(errText(ex, 'Could not record the return.'), 'error') }
     finally { setSaving(false) }
@@ -208,15 +221,21 @@ export function ReturnDialog({ slip, locations, onClose, onDone }) {
               <label className="col-span-12 sm:col-span-5 flex items-center gap-2 text-[0.8125rem]">
                 <input type="checkbox" checked={rows[l.id].tick} onChange={(e) => set(l.id, { tick: e.target.checked })} className="accent-maroon-700 w-4 h-4" />
                 <span className="font-mono font-semibold text-maroon-700">{l.tag_id}</span>
-                <span className="truncate">{tr(l.description || l.item_name)}{l.weight_g != null ? ` · ${qty(l.weight_g)} ${gramUnit()}` : ''}</span>
+                <span className="truncate">{tr(l.description || l.item_name)}{itemsText(l)}{l.weight_g != null ? ` · ${qty(l.weight_g)} ${gramUnit()}` : ''}</span>
               </label>
               <div className="col-span-5 sm:col-span-3">
                 <Select className="input !py-1.5" value={rows[l.id].condition} onChange={(e) => set(l.id, { condition: e.target.value })} aria-label={tr('Condition')}>
                   <option value="Good">{tr('Back — good')}</option><option value="Damaged">{tr('Back — damaged')}</option>
                   {l.weight_g == null && <option value="Kept">{tr('Kept by poojari')}</option>}
                 </Select></div>
-              <input className="input !py-1.5 col-span-7 sm:col-span-4" maxLength={200} required={rows[l.id].condition === 'Kept'} value={rows[l.id].note} onChange={(e) => set(l.id, { note: e.target.value })}
-                placeholder={rows[l.id].condition === 'Kept' ? tr('Why kept * (e.g. pancha after abhishekam)') : tr('Note')} />
+              <input className="input !py-1.5 col-span-7 sm:col-span-4" maxLength={200} required={rows[l.id].condition === 'Kept' || Number(rows[l.id].kept) > 0} value={rows[l.id].note} onChange={(e) => set(l.id, { note: e.target.value })}
+                placeholder={rows[l.id].condition === 'Kept' || Number(rows[l.id].kept) > 0 ? tr('Why kept * (e.g. pancha after abhishekam)') : tr('Note')} />
+              {l.pieces > 1 && rows[l.id].condition !== 'Kept' && (
+                <div className="col-span-12 sm:col-span-7 sm:col-start-6 flex items-center gap-2 text-[0.75rem]">
+                  <span className="text-gray-600 whitespace-nowrap">{tr('Kept by poojari')}:</span>
+                  <input type="number" min="0" max={l.pieces - 1} step="1" className="input !py-1 w-20" value={rows[l.id].kept} onChange={(e) => set(l.id, { kept: e.target.value })} placeholder="0" />
+                  <span className="text-gray-500 whitespace-nowrap">{tr('of')} {l.pieces} — {tr('the rest come back')}</span>
+                </div>)}
               {l.weight_g != null && (
                 <div className="col-span-12 sm:col-span-6 sm:col-start-6 flex items-center gap-2 text-[0.75rem]">
                   <span className="text-gray-600 whitespace-nowrap">{tr('Weight now (g) *')}</span>
@@ -224,19 +243,20 @@ export function ReturnDialog({ slip, locations, onClose, onDone }) {
                   <span className="text-gray-500 whitespace-nowrap">{tr('was')} {qty(l.weight_g)} {gramUnit()}</span>
                   {rows[l.id].weight !== '' && Math.abs(Number(rows[l.id].weight) - l.weight_g) > 0.01 && <span className="text-amber-700 font-semibold whitespace-nowrap">⚠ {tr('to committee')}</span>}
                 </div>)}
-              <div className="col-span-12 text-[0.6875rem] text-gray-500 pl-6">{rows[l.id].condition === 'Kept' ? tr('Leaves the stock — kept in its history.') : `${tr('Back to')}: ${tr(l.from_location || '—')}`}</div>
+              <div className="col-span-12 text-[0.6875rem] text-gray-500 pl-6">{rows[l.id].condition === 'Kept' ? tr('Leaves the stock — kept in its history.')
+                : l.tag_id.includes('/') ? `${tr('Back into bundle')} ${l.tag_id.split('/')[0]}` : `${tr('Back to')}: ${tr(l.from_location || '—')}`}</div>
             </div>))}
           <div className="pt-2"><label className="label"><T>Put back in</T></label>
             <Select className="input" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-              <option value="">{tr('Each to the shelf it came from')}</option>
+              <option value="">{prevLabel}</option>
               {locations.map((l) => <option key={l.id} value={l.id}>{tr(l.name)}</option>)}
             </Select></div>
           {ticked.some((l) => rows[l.id].condition === 'Damaged') && (
-            <div className="text-[0.75rem] text-amber-800 bg-amber-50 rounded-lg px-3 py-2"><T>Damaged pieces come back In Store with a note in their history. Write them off from the Stock Register if they cannot be used.</T></div>)}
+            <div className="text-[0.75rem] text-amber-800 bg-amber-50 rounded-lg px-3 py-2"><T>Damaged items come back In Store with a note in their history. Write them off from the Stock Register if they cannot be used.</T></div>)}
         </div>
         <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
           <button type="button" disabled={saving} onClick={onClose} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-          <button disabled={saving || !ticked.length} className="btn-maroon flex-1 justify-center disabled:opacity-60"><Undo2 size={15} className="mr-1" />{saving ? tr('Saving…') : `${tr('Return')} ${ticked.length} ${tr('piece(s)')}`}</button>
+          <button disabled={saving || !ticked.length} className="btn-maroon flex-1 justify-center disabled:opacity-60"><Undo2 size={15} className="mr-1" />{saving ? tr('Saving…') : `${tr('Return')} ${ticked.length} ${tr('item(s)')}`}</button>
         </div>
       </form>
     </div>

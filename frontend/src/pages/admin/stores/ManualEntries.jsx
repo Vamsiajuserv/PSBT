@@ -10,6 +10,7 @@ import { confirmDialog, promptDialog, toast } from '../../../components/common/D
 import { T, tr, personName, useLang } from '../../../i18n/LanguageContext.jsx'
 import { TagItemsDrawer, canManageStores, useStoresMeta, staffName } from './shared.jsx'
 import ResetButton from '../../../components/common/ResetButton.jsx'
+import { validatePhone } from '../../../lib/validation.js'
 
 // One screen for stock that did not come from a donation (Bought Items merged in, 2026-11-16).
 // "Temple purchase" is shown as "Bought from a shop": with a bill no. it counts at once (the bill is the
@@ -65,6 +66,7 @@ export default function ManualEntries() {
     e.preventDefault()
     const bought = drawer.source === BOUGHT
     if (!bought && drawer.reason.trim().length < 5) { toast(tr('Enter the reason (at least 5 characters).'), 'error'); return }
+    if (drawer.donor_mobile.trim() && !validatePhone(drawer.donor_mobile.trim()).valid) { toast(validatePhone(drawer.donor_mobile.trim()).error, 'error'); return }
     setSaving(true)
     try {
       const m = await StoresAPI.createManual({
@@ -100,7 +102,7 @@ export default function ManualEntries() {
 
   return (
     <div>
-      <PageTitle title={tr('Manual Entries')} subtitle={tr('Stock that did not come from a donation — bought from a shop, opening balance, old stock.')}
+      <PageTitle title={tr('Purchased Items')} subtitle={tr('Stock that did not come from a donation — bought from a shop, opening balance, old stock.')}
         help={tr('Bought from a shop with a bill no.: counts at once — the bill is the proof. Without a bill (and opening balance, old stock…): a committee member verifies it first.')}
         actions={canWrite && <button onClick={() => setDrawer(empty())} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Manual Stock Entry</T></button>} />
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -155,7 +157,7 @@ export default function ManualEntries() {
                 </tr>
               ))}
               {rows.length === 0 && <TableStates colSpan={6} loading={loading} error={loadErr} onRetry={load}
-                empty={filtered ? tr('No entries match these filters.') : tr('No manual entries.')} />}
+                empty={filtered ? tr('No entries match these filters.') : tr('No purchased items.')} />}
             </tbody>
           </table>
         </div>

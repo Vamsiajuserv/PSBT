@@ -114,7 +114,7 @@ export default function StoresDayClosing() {
             className="!w-48 !py-2.5 text-[0.8125rem] font-medium" />
           <button onClick={load} className="btn-outline !py-2.5" title={tr('Refresh')} aria-label={tr('Refresh')}><RefreshCw size={15} /></button>
           <button onClick={() => window.print()} disabled={!rep} className="btn-outline !py-2.5 disabled:opacity-50"><Printer size={15} />{' '}<T>Print</T></button>
-          {rep && <ExportButtons title={`${tr('Stores Day Closing')} — ${dateLabel}`} columns={exportCols} rows={exportRows} />}
+          {rep && <ExportButtons title={`${tr('Stores Day Closing')} — ${dateLabel}`} columns={exportCols} rows={exportRows} screen="Stores Day Closing" start={day} end={day} />}
         </span>} />
 
       {loadErr && <div className="mb-4 text-[0.8125rem] rounded-lg px-4 py-2.5 border bg-red-50 border-red-200 text-red-700">{loadErr}{' '}
@@ -177,7 +177,7 @@ export default function StoresDayClosing() {
                 <tbody className="divide-y divide-gray-100">
                   {rep.received.map((g) => (
                     <tr key={g.source_ref}>
-                      <td className={td}><Pill tone={SOURCE_TONE[g.source_type] || 'gray'}>{tr(g.source_type === 'Manual' ? 'Manual entry' : g.source_type)}</Pill></td>
+                      <td className={td}><Pill tone={SOURCE_TONE[g.source_type] || 'gray'}>{tr(g.source_type === 'Manual' ? 'Purchased item' : g.source_type)}</Pill></td>
                       <td className={`${td} font-mono text-[0.78rem]`}>{sourceRef(g)}</td>
                       <td className={td}>{personName({ name: g.donor_name }, lang)}</td>
                       <td className={td}>{tr(g.item_name)}</td>
@@ -196,8 +196,8 @@ export default function StoresDayClosing() {
                         <tr key={`${g.receipt_no}-${g.item_name}`}>
                           <td className={`${td} font-mono text-[0.78rem]`}>{g.receipt_no}</td>
                           <td className={td}>{tr(g.item_name)}</td>
-                          <td className={tdr}>{g.mode === 'value' ? '1' : q3(g.billed)}{g.mode === 'weight' ? ` ${gramUnit()}` : ''}</td>
-                          <td className={tdr}>{g.mode === 'value' ? (g.received > 0 ? '✔' : '—') : q3(g.received)}{g.mode === 'weight' ? ` ${gramUnit()}` : ''}</td>
+                          <td className={tdr}>{g.mode === 'value' ? '1' : q3(g.billed)}{g.mode === 'weight' ? ` ${gramUnit()}` : g.unit ? ` ${tr(g.unit)}` : ''}</td>
+                          <td className={tdr}>{g.mode === 'value' ? (g.received > 0 ? '✔' : '—') : q3(g.received)}{g.mode === 'weight' ? ` ${gramUnit()}` : g.unit ? ` ${tr(g.unit)}` : ''}</td>
                           <td className={tdr}>{g.short ? <span className="text-red-700 font-semibold">{q3(g.short)} · {g.short_code}</span> : '—'}</td>
                           <td className={td}>{staffName(g.by || '—')}</td>
                         </tr>))}
@@ -262,7 +262,7 @@ export default function StoresDayClosing() {
                 <li className="flex items-center gap-2">{data.live.attention.pending_tagging ? <AlertTriangle size={15} className="text-amber-600" /> : <CheckCircle2 size={15} className="text-emerald-600" />}
                   <Link to="/admin/stores/pending" className="hover:underline">{num(data.live.attention.pending_tagging)} {tr('receipt(s) waiting to be tagged')}</Link></li>
                 <li className="flex items-center gap-2">{data.live.attention.manual_pending ? <AlertTriangle size={15} className="text-amber-600" /> : <CheckCircle2 size={15} className="text-emerald-600" />}
-                  <Link to="/admin/stores/manual" className="hover:underline">{num(data.live.attention.manual_pending)} {tr('manual entry(s) waiting for committee')}</Link></li>
+                  <Link to="/admin/stores/manual" className="hover:underline">{num(data.live.attention.manual_pending)} {tr('purchased item(s) waiting for committee')}</Link></li>
               </ul>
             </Section>
           </div>

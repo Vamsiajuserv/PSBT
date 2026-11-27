@@ -63,12 +63,12 @@ export default function StoresOverview() {
           sub={tr('Consumables at or below the warning level')} onClick={() => navigate('/admin/stores/consumables')} />
         <StatTile icon={Undo2} color="#7c3aed" bg="bg-violet-50" title={tr('Unsold Items')} value={v(data?.unsold)}
           sub={tr('Back in store after an auction')} onClick={() => navigate('/admin/stores/unsold')} />
-        <StatTile icon={Hourglass} color="#2563eb" bg="bg-blue-50" title={tr('Manual Entries')} value={v(data?.summary?.pending_manual)}
+        <StatTile icon={Hourglass} color="#2563eb" bg="bg-blue-50" title={tr('Purchased Items')} value={v(data?.summary?.pending_manual)}
           sub={tr('Waiting for committee verification')} onClick={() => navigate('/admin/stores/manual')} />
         <StatTile icon={Send} color="#8a1c1c" bg="bg-maroon-50" title={tr('Out on issue')} value={v(data?.out)}
           sub={data?.overdue ? `${num(data.overdue)} ${tr('overdue')} ⚠` : tr('Lent out, not yet back')} onClick={() => navigate('/admin/stores/issue')} />
-        <StatTile icon={SearchX} color="#dc2626" bg="bg-red-50" title={tr('Missing')} value={v(data?.missing)}
-          sub={tr('Not found at a stock check')} onClick={() => navigate('/admin/stores/missing')} />
+        <StatTile icon={SearchX} color="#dc2626" bg="bg-red-50" title={tr('Write-offs & Approvals')} value={v(data?.missing)}
+          sub={tr('Waiting for the committee')} onClick={() => navigate('/admin/stores/missing')} />
         <StatTile icon={CalendarClock} color="#dc2626" bg="bg-red-50" title={tr('Expiring soon')} value={v(data?.expiry?.total)}
           sub={data?.expiry?.first ? `${tr(data.expiry.first.name)} ${q3(data.expiry.first.left)} ${tr(data.expiry.first.unit || '')} · ${data.expiry.first.days_left < 0 ? tr('expired') : `${data.expiry.first.days_left} ${tr('days')}`}${data.expiry.expired ? ' ⚠' : ''}`
             : tr('Batches expiring within 7 days')} onClick={() => navigate('/admin/stores/consumables')} />
@@ -105,7 +105,7 @@ export default function StoresOverview() {
         </Section>
 
         {/* ── Low stock ── */}
-        <Section title={tr('Low stock')} actions={<Link to="/admin/stores/consumables" className="text-[0.8125rem] text-maroon-700 font-semibold hover:underline inline-flex items-center gap-1">{tr('Consumables Stock')} <ArrowRight size={14} /></Link>}>
+        <Section title={tr('Low stock')} actions={<Link to="/admin/stores/consumables" className="text-[0.8125rem] text-maroon-700 font-semibold hover:underline inline-flex items-center gap-1">{tr('Consumable Stock Management')} <ArrowRight size={14} /></Link>}>
           {!data ? <p className="text-[0.8125rem] text-gray-500">{tr('Loading...')}</p>
             : data.low.length === 0 ? (
               <p className="text-[0.8125rem] text-emerald-700 inline-flex items-center gap-1.5"><CheckCircle2 size={15} /> {tr('No consumable is running low.')}</p>

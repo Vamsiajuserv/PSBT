@@ -100,15 +100,15 @@ class HourlySlots(unittest.TestCase):
     def test_responsible_poojari_and_mine(self):
         self.book("Ashtotharam", "05:30 PM", poojari=1)                       # assigned to Venkatesh
         self.book("Abhishekam", "06:00 AM", pooja_id=2, poojari=2)            # assigned to Ravi
-        self.book("Sahasranamam", "06:00 PM", pooja_id=3)                     # unassigned, scheduled → Ravi
+        self.book("Sahasranamam", "06:00 PM", pooja_id=3)                     # unassigned + a schedule: still all poojaris (2026-11-25)
         self.db.add(Schedule(code="SCH-1", pooja_id=3, pooja_name="Sahasranamam", poojari_id=2, poojari_name="Ravi",
                              schedule_type="Recurring", status="Active", schedule_date=DAY - timedelta(days=30)))
         self.book("Archana", "07:00 PM", pooja_id=5)                          # unassigned, nobody scheduled
         self.db.commit()
         everyone = {s["pooja"]: s["poojaris"] for h in self.hourly()["hours"] for s in h["slots"]}
-        self.assertEqual(everyone, {"Ashtotharam": ["Venkatesh"], "Abhishekam": ["Ravi"], "Sahasranamam": ["Ravi"], "Archana": []})
+        self.assertEqual(everyone, {"Ashtotharam": ["Venkatesh"], "Abhishekam": ["Ravi"], "Sahasranamam": [], "Archana": []})
         venkatesh = self.hourly(login("Poojari", poojari_id=1), mine=True)
-        self.assertEqual([s["pooja"] for h in venkatesh["hours"] for s in h["slots"]], ["Ashtotharam", "Archana"])
+        self.assertEqual([s["pooja"] for h in venkatesh["hours"] for s in h["slots"]], ["Ashtotharam", "Sahasranamam", "Archana"])
         self.assertEqual((venkatesh["poojari_name"], venkatesh["linked"]), ("Venkatesh", True))
         ravi = self.hourly(login("Poojari", poojari_id=2), mine=True)
         self.assertEqual([s["pooja"] for h in ravi["hours"] for s in h["slots"]], ["Abhishekam", "Sahasranamam", "Archana"])

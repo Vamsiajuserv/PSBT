@@ -1,5 +1,6 @@
 """PSBT-Portal FastAPI application entry point."""
 import logging
+import os
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -124,6 +125,11 @@ def on_startup():
         link_festival_master_on_startup()
     except Exception as exc:  # the calendar can still generate on demand
         logger.warning("almanac generation skipped: %s", exc)
+    # Every booked pooja is recorded as performed once its time window ends — devotee present or
+    # not, ticket scanned or not (client, 2026-11-26). Checks every 5 minutes; catches up missed days.
+    if os.environ.get("AUTO_PERFORM", "on").lower() != "off":
+        from .auto_perform import start_background_loop
+        start_background_loop()
     # DEMO ONLY: roll the mock dataset's transaction dates forward so the demo's
     # "today"/"this-week" KPIs always have data. This bulk-rewrites Date/DateTime
     # columns across every transactional table (incl. the audit log), so it MUST

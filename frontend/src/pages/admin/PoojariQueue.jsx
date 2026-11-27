@@ -1,19 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Clock, User, Phone, CheckCircle2, Repeat, Flame, Loader2, Download, Printer, X,
-  ArrowUp, ArrowDown, ChevronsUpDown, Undo2, AlertTriangle, UserCheck, Users as UsersIcon, RefreshCw, Info,
+  Clock, User, Phone, CheckCircle2, Repeat, Flame, Download, Printer, X,
+  ArrowUp, ArrowDown, ChevronsUpDown, AlertTriangle, UserCheck, Users as UsersIcon, RefreshCw, Info,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { useSortableTable } from '../../components/common/SortableTable.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { isAdminRole } from '../../auth/access.js'
-import { PoojarisAPI, BookingsAPI, ApiError, getErrorMessage } from '../../api/client.js'
+import { PoojarisAPI, ApiError, getErrorMessage } from '../../api/client.js'
 import { DateField, Select } from '../../components/common/Field.jsx'
-import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
+import { toast } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, stamp, staffName } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
+import { guardExport } from '../../lib/exportGuard.js'
 import { HourlySlotsView } from '../../components/admin/HourlySlots.jsx'
+import SankalpamSheet from '../../components/admin/SankalpamSheet.jsx'
 
 // Sortable fields for the cards (applied within each group)
 const SORT_COLUMNS = [
@@ -53,6 +55,19 @@ const isFinished = (i) => i.status === 'Completed' || i.remaining === 0
 // A finished pooja nobody is assigned to is done, not "Unassigned": it gets its own
 // group at the end instead of sitting among the poojas anyone can still perform.
 const doneGroup = (rows) => ({ key: 'done', title: tr('Completed'), hint: tr('All performances used — nothing left to assign.'), icon: CheckCircle2, rows })
+
+// For the Poojari the Sankalpam sheet comes first; the full cards (plan, validity, performed by, festival /
+// vehicle poojas with no half-hour) stay one click away below it.
+function CardsWrap({ folded, count, children }) {
+  if (!folded) return children
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer select-none font-semibold text-maroon-800 text-[0.9375rem] mb-3">
+        {tr('All poojas as cards')} <span className="text-[0.75rem] font-normal text-gray-500">({count} · {tr('plan, validity, who performed')})</span></summary>
+      {children}
+    </details>
+  )
+}
 
 export default function PoojariQueue() {
   const { lang } = useLang()
@@ -125,7 +140,7 @@ export default function PoojariQueue() {
       const others = sortedRows.filter((r) => r.poojari_id && !r.assigned_to_me)
       return [
         { key: 'mine', title: tr('Assigned to you'), icon: UserCheck, rows: mine, empty: tr('Nothing assigned to you for this day.') },
-        { key: 'open', title: tr('Unassigned'), hint: tr('Anyone can perform these — performing one assigns it to you.'), icon: AlertTriangle, rows: open },
+        { key: 'open', title: tr('All poojaris'), hint: tr('Booked for all poojaris.'), icon: AlertTriangle, rows: open },
         ...(show === 'all' ? [{ key: 'others', title: tr('Other poojaris'), icon: UsersIcon, rows: others }] : []),
         doneGroup(done),
       ].filter((g) => g.rows.length || g.key === 'mine')
@@ -141,7 +156,7 @@ export default function PoojariQueue() {
       if (!k && isFinished(r)) { done.push(r); continue }
       const pid = k ? Number(k) : null
       const pname = h ? h.name : r.poojari_name
-      if (!byPoojari.has(k)) byPoojari.set(k, { key: k || 'open', poojariId: pid, title: pname || tr('Unassigned'), icon: pid ? User : AlertTriangle, rows: [] })
+      if (!byPoojari.has(k)) byPoojari.set(k, { key: k || 'open', poojariId: pid, title: pname || tr('All poojaris'), icon: pid ? User : AlertTriangle, rows: [] })
       byPoojari.get(k).rows.push(r)
     }
     const open = byPoojari.get('')
@@ -150,50 +165,11 @@ export default function PoojariQueue() {
   }, [sortedRows, isQueueMode, isPoojari, linked, show, held])
 
   const visible = groups.flatMap((g) => g.rows)
-  const dueMine = items.filter((i) => isDue(i) && i.assigned_to_me).length
-  const dueAll = items.filter(isDue).length
   const doneCount = isQueueMode ? visible.filter((i) => i.done_today || i.status === 'Completed').length : visible.length
 
   // ── Actions ──
-  async function markPerformed(b) {
-    if (b.poojari_id && isPoojari && !b.assigned_to_me) {
-      const ok = await confirmDialog({
-        title: tr('Perform a pooja assigned to someone else?'),
-        message: `${tr(b.pooja)} · ${tr('Assigned to')} ${personName({ name: b.poojari_name }, lang)}. ${tr('It will be recorded as performed by you.')}`,
-        confirmLabel: tr('Mark Performed'),
-      })
-      if (!ok) return
-    }
-    setBusyId(b.id)
-    try {
-      await BookingsAPI.complete(b.id)
-      await load({ silent: true })
-    } catch (e) {
-      toast(getErrorMessage(e, tr('Could not mark the pooja performed.')), 'error')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function undo(b) {
-    const ok = await confirmDialog({
-      title: tr("Undo today's performance?"),
-      message: `${tr(b.pooja)} · ${personName({ name: b.devotee_name, name_te: b.devotee_name_te }, lang)} — ${tr('the performance is given back to the ticket.')}`,
-      tone: 'danger', confirmLabel: tr('Undo'),
-    })
-    if (!ok) return
-    setBusyId(b.id)
-    try {
-      await BookingsAPI.undoPerformed(b.id)
-      toast(tr('Performance undone.'))
-      await load({ silent: true })
-    } catch (e) {
-      toast(getErrorMessage(e, tr('Could not undo the performance.')), 'error')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
+  // No "Mark Performed" / "Mark all" / Undo any more (client, 2026-11-26): every pooja is recorded as
+  // performed automatically once its time window ends (backend app/auto_perform.py).
   // Who performed it — recorded after the fact (an administrator marked it on a
   // poojari's behalf). Updates the card in place; an unassigned booking also moves
   // to that poojari's group, as when the poojari marks it themselves.
@@ -229,7 +205,7 @@ export default function PoojariQueue() {
       setHeld((h) => ({ ...h, [b.id]: { key: b.poojari_id ? String(b.poojari_id) : '', name: b.poojari_name } }))
       setFlashId(b.id)
       setData((d) => d && ({ ...d, items: d.items.map((i) => (i.id === b.id ? { ...i, poojari_id: newId, poojari_name: newName } : i)) }))
-      toast(newName ? `${tr('Assigned to')} ${personName({ name: newName }, lang)} ✓` : tr('Poojari removed — now Unassigned.'))
+      toast(newName ? `${tr('Assigned to')} ${personName({ name: newName }, lang)} ✓` : tr('Poojari removed — now for all poojaris.'))
       setTimeout(() => {
         setHeld((h) => { const { [b.id]: _, ...rest } = h; return rest })
         // Follow the card to its new group
@@ -244,29 +220,26 @@ export default function PoojariQueue() {
     }
   }
 
-  // Poojari: their own due poojas. Administrator: everything, or one poojari's group.
-  async function markAllDue(poojariId) {
-    const count = isPoojari ? dueMine
-      : poojariId ? items.filter((i) => isDue(i) && i.poojari_id === poojariId).length : dueAll
-    if (!count) return
-    if (!(await confirmDialog({ title: `${tr('Mark all due poojas as performed?')} (${count})`, message: tr('Each will be recorded as performed for today.'), confirmLabel: tr('Mark All') }))) return
-    try {
-      const r = await PoojarisAPI.completeDue(poojariId ? { poojari_id: poojariId } : {})
-      toast(`${r.completed} ${tr('performed')}${r.skipped?.length ? ` · ${r.skipped.length} ${tr('skipped (quota exhausted).')}` : ''}`)
-      await load({ silent: true })
-    } catch (e) {
-      toast(getErrorMessage(e, tr('Bulk action failed.')), 'error')
-    }
-  }
-
   // ── Export ──
   const poojariOf = (r) => (isQueueMode ? (r.performed_by_poojari || r.poojari_name) : r.performed_by_poojari) || ''
   const statusOf = (r) => (r.performed_on ? 'Performed' : r.status === 'Completed' ? 'Completed' : 'Pending')
-  const downloadCSV = () => {
+  // Download / Print first say what is taken; the file / printout carries it; the Audit Trail records it (2026-11-26)
+  const [printHeading, setPrintHeading] = useState('')
+  const exportFilters = () => (isPoojari ? [['Show', show === 'mine' ? 'Mine + All poojaris' : 'All']] : [])
+  const askExport = (format) => guardExport({ screen: isQueueMode ? 'Pooja Queue Report' : 'Pooja Performance Report', format,
+    start: startDate, end: endDate, filters: exportFilters(), count: visible.length, user })
+  const openPrint = async () => {
+    const heading = await askExport('Print')
+    if (heading == null) return
+    setPrintHeading(heading); setShowPrintModal(true)
+  }
+  const downloadCSV = async () => {
     if (!visible.length) return
+    const heading = await askExport('CSV')
+    if (heading == null) return
     const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
     const headers = ['Date', 'Time', 'Pooja', 'Plan', 'Devotee', 'Mobile', 'Ticket No', 'Poojari', 'Status']
-    const lines = [headers.join(',')]
+    const lines = [q(`${tr(isQueueMode ? 'Pooja Queue Report' : 'Pooja Performance Report')} — ${heading}`), '', headers.join(',')]
     for (const r of visible) {
       lines.push([r.performed_on || startDate, r.time_slot || '', q(r.pooja), r.plan || '', q(r.devotee_name), r.mobile || '',
         r.ticket_no || r.booking_code || '', q(poojariOf(r)), statusOf(r)].join(','))
@@ -325,7 +298,7 @@ export default function PoojariQueue() {
         </div>
         {isPoojari && linked && (
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-            {[['mine', isQueueMode ? 'Mine + Unassigned' : 'Performed by me'], ['all', isQueueMode ? 'All poojas' : 'All poojaris']].map(([val, lbl]) => (
+            {[['mine', isQueueMode ? 'Mine + All poojaris' : 'Performed by me'], ['all', isQueueMode ? 'All poojas' : 'All poojaris']].map(([val, lbl]) => (
               <button key={val} onClick={() => setShow(val)}
                 className={`px-4 py-2 text-[0.8125rem] font-semibold transition ${show === val ? 'bg-maroon-700 text-cream' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
                 {tr(lbl)}
@@ -333,12 +306,9 @@ export default function PoojariQueue() {
             ))}
           </div>
         )}
-        {isToday && (isPoojari ? (linked && dueMine > 0) : dueAll > 0) && (
-          <button onClick={() => markAllDue()} className="btn-maroon !py-2"><CheckCircle2 size={15} /> {isPoojari ? tr('Mark all mine due') : tr('Mark all due')} ({isPoojari ? dueMine : dueAll})</button>
-        )}
         <div className="ml-auto flex items-center gap-2">
           <button onClick={downloadCSV} disabled={!visible.length} className="btn-outline !py-2 disabled:opacity-50" title={tr('Download CSV')}><Download size={15} /> <T>Download</T></button>
-          <button onClick={() => setShowPrintModal(true)} disabled={!visible.length} className="btn-outline !py-2 disabled:opacity-50" title={tr('Print')}><Printer size={15} /> <T>Print</T></button>
+          <button onClick={openPrint} disabled={!visible.length} className="btn-outline !py-2 disabled:opacity-50" title={tr('Print')}><Printer size={15} /> <T>Print</T></button>
         </div>
       </div>
 
@@ -379,8 +349,16 @@ export default function PoojariQueue() {
         )}
       </div>
 
+      {/* Poojari, a day's list: the Sankalpam sheet — the whole day on one strip, tap a half-hour to open
+          only its names (client picked Design 5, 2026-11-27). Everything else is in "All poojas as cards". */}
+      {isPoojari && isQueueMode && (
+        <div className="mb-5">
+          <SankalpamSheet day={startDate} mine={onlyMine} poojariName={onlyMine ? meName : null} refreshKey={updatedAt?.getTime()} />
+        </div>
+      )}
+
       {/* The day by hour: next slot, devotees per slot, a print sheet per hour */}
-      {isQueueMode && (
+      {isQueueMode && !isPoojari && (
         <details open={isPoojari} className="mb-5 group/hourly">
           <summary className="cursor-pointer select-none mb-2 font-semibold text-maroon-800 text-[0.9375rem]">{tr('By half-hour')}
             <span className="ml-2 text-[0.75rem] font-normal text-gray-500">{onlyMine ? tr('your slots') : tr('all poojaris')}</span></summary>
@@ -388,6 +366,7 @@ export default function PoojariQueue() {
         </details>
       )}
 
+      <CardsWrap folded={isPoojari && isQueueMode} count={visible.length}>
       {loading ? (
         <LoadingBlock label={tr('Loading pooja queue…')} />
       ) : error ? (
@@ -409,9 +388,6 @@ export default function PoojariQueue() {
                     <h2 className="font-semibold text-gray-800">{g.poojariId ? personName({ name: g.title }, lang) : g.title}</h2>
                     <span className="text-[0.75rem] text-gray-500">{g.rows.length} · {groupDue} {tr('to perform')}</span>
                     {g.hint && <span className="text-[0.75rem] text-gray-500">— {g.hint}</span>}
-                    {isAdmin && isToday && g.poojariId && groupDue > 0 && (
-                      <button onClick={() => markAllDue(g.poojariId)} className="ml-auto text-[0.75rem] font-semibold text-maroon-700 hover:underline">{tr('Mark all due')} ({groupDue})</button>
-                    )}
                   </div>
                 )}
                 {g.rows.length === 0 ? (
@@ -422,7 +398,7 @@ export default function PoojariQueue() {
                       <QueueCard key={b.key || b.id} b={b} lang={lang} user={user} isAdmin={isAdmin}
                         isQueueMode={isQueueMode} isToday={isToday} busy={busyId === b.id} poojaris={poojaris}
                         flash={flashId === b.id} onSetPerformer={setPerformer}
-                        onPerform={markPerformed} onUndo={undo} onReassign={reassign} />
+                        onReassign={reassign} />
                     ))}
                   </div>
                 )}
@@ -431,6 +407,7 @@ export default function PoojariQueue() {
           })}
         </div>
       )}
+      </CardsWrap>
 
       {/* Print Modal */}
       {showPrintModal && (
@@ -439,7 +416,7 @@ export default function PoojariQueue() {
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between no-print">
               <div>
                 <h3 className="font-bold text-gray-900 text-lg"><T>Print Pooja Report</T></h3>
-                <p className="text-sm text-gray-500">{dateLabel} · {visible.length} {tr('records')}</p>
+                <p className="text-sm text-gray-500">{printHeading}</p>
               </div>
               <button onClick={() => setShowPrintModal(false)} className="text-gray-400 hover:text-maroon-700"><X size={20} /></button>
             </div>
@@ -451,7 +428,7 @@ export default function PoojariQueue() {
                 <p className="text-sm text-gray-600">శ్రీ షిర్డీ సాయిబాబా దేవస్థానం</p>
                 <h2 className="text-lg font-semibold text-gray-800 mt-3">{isQueueMode ? tr('Pooja Queue Report') : tr('Pooja Performance Report')}</h2>
                 <p className="text-sm text-gray-600">
-                  <T>Date</T>: {dateLabel}
+                  {printHeading}
                   {isPoojari && meName && show === 'mine' && <span> · <T>Poojari</T>: {personName({ name: meName }, lang)}</span>}
                 </p>
               </div>
@@ -506,12 +483,13 @@ export default function PoojariQueue() {
   )
 }
 
-function QueueCard({ b, lang, user, isAdmin, isQueueMode, isToday, busy, poojaris, flash, onPerform, onUndo, onReassign, onSetPerformer }) {
+function QueueCard({ b, lang, isAdmin, isQueueMode, busy, poojaris, flash, onReassign, onSetPerformer }) {
   const performed = !!b.performed_on
   const finished = isFinished(b)
   const isDone = performed || finished
-  const canUndo = isQueueMode && isToday && b.done_today && (isAdmin || b.performed_by === user?.username)
-  const who = b.performed_by_poojari ? personName({ name: b.performed_by_poojari }, lang) : null
+  // Recorded automatically when the time window ended (performed_by "auto"): no poojari tapped it
+  const auto = b.performed_by === 'auto'
+  const who = b.performed_by_poojari ? personName({ name: b.performed_by_poojari }, lang) : auto ? tr('Auto (time over)') : null
 
   return (
     <div id={`qcard-${b.id}`} className={`bg-white rounded-xl border shadow-sm p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-shadow duration-500 ${isDone ? 'border-emerald-300 bg-gradient-to-r from-emerald-50/70 to-white' : 'border-gray-200'} ${flash ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}`}>
@@ -587,7 +565,7 @@ function QueueCard({ b, lang, user, isAdmin, isQueueMode, isToday, busy, poojari
           <div className="w-44" title={tr('Assign poojari')}>
             <Select className="input !py-1.5 text-[0.8125rem]" value={b.poojari_id ? String(b.poojari_id) : ''} disabled={busy}
               onChange={(e) => onReassign(b, e.target.value)}>
-              <option value="">{tr('Unassigned')}</option>
+              <option value="">{tr('All poojaris')}</option>
               {poojaris.map((p) => <option key={p.id} value={String(p.id)}>{personName(p, lang)}</option>)}
             </Select>
           </div>
@@ -597,22 +575,13 @@ function QueueCard({ b, lang, user, isAdmin, isQueueMode, isToday, busy, poojari
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 text-white px-3 py-1.5 text-[0.8125rem] font-bold shadow-sm">
               <CheckCircle2 size={15} /> {isQueueMode ? tr('Performed today') : tr('Performed')}
             </span>
-            {canUndo && (
-              <button onClick={() => onUndo(b)} disabled={busy} title={tr('Undo')} aria-label={tr('Undo')}
-                className="w-9 h-9 grid place-items-center rounded-lg border border-gray-200 text-gray-600 hover:text-red-600 hover:border-red-300 disabled:opacity-50">
-                {busy ? <Loader2 size={15} className="animate-spin" /> : <Undo2 size={15} />}
-              </button>
-            )}
           </>
         ) : finished ? (
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-400 text-white px-3 py-1.5 text-[0.8125rem] font-bold"><CheckCircle2 size={15} /> <T>Completed</T></span>
-        ) : isToday ? (
-          <button onClick={() => onPerform(b)} disabled={busy} className="btn-maroon !py-2 disabled:opacity-60">
-            {busy ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
-            {tr('Mark Performed')}
-          </button>
         ) : (
-          <span className="text-[0.75rem] text-gray-500"><T>Due on this day</T></span>
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 text-[0.75rem] font-semibold" title={tr('Recorded as performed automatically when its time slot ends.')}>
+            <Clock size={14} /> {tr('Auto-marked after its slot')}
+          </span>
         )}
       </div>
     </div>

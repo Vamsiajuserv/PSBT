@@ -6,7 +6,8 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, Combobox } from '../../../components/common/Field.jsx'
 import { toast } from '../../../components/common/Dialog.jsx'
 import { T, tr } from '../../../i18n/LanguageContext.jsx'
-import { staffName } from './shared.jsx'
+import { staffName, isAdminUser } from './shared.jsx'
+import { useAuth } from '../../../auth/AuthContext.jsx'
 
 const TYPES = ['Valuables', 'Cloth', 'Utensils', 'Consumables', 'General']
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
@@ -16,6 +17,9 @@ export default function StoreLocations() {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [drawer, setDrawer] = useState(null)
+  // Active / Inactive is the Administrator's decision (client, 2026-11-27); the Stores Officer adds and renames
+  const { user } = useAuth()
+  const canStatus = isAdminUser(user)
 
   const load = useCallback(() => {
     setLoading(true); setLoadErr('')
@@ -78,7 +82,11 @@ export default function StoreLocations() {
                 <Combobox className="input" value={drawer.loc_type} options={TYPES.map((t) => ({ value: t, label: tr(t) }))}
                   onChange={(e) => setDrawer({ ...drawer, loc_type: e.target.value.slice(0, 30) })} placeholder={tr('Select or type')} /></div>
               <div><label className="label"><T>Custodian</T></label><input maxLength={120} className="input" value={drawer.custodian} onChange={(e) => setDrawer({ ...drawer, custodian: e.target.value })} placeholder={tr('Person responsible for this location')} /></div>
-              <div><label className="label"><T>Status</T></label><Select className="input" value={drawer.active ? 'Active' : 'Inactive'} onChange={(e) => setDrawer({ ...drawer, active: e.target.value === 'Active' })}><option value="Active">{tr('Active')}</option><option value="Inactive">{tr('Inactive')}</option></Select></div>
+              <div><label className="label"><T>Status</T></label>
+                {canStatus
+                  ? <Select className="input" value={drawer.active ? 'Active' : 'Inactive'} onChange={(e) => setDrawer({ ...drawer, active: e.target.value === 'Active' })}><option value="Active">{tr('Active')}</option><option value="Inactive">{tr('Inactive')}</option></Select>
+                  : <div className="flex items-center gap-2 py-1.5"><Pill tone={drawer.active ? 'green' : 'gray'}>{tr(drawer.active ? 'Active' : 'Inactive')}</Pill>
+                      <span className="text-[0.75rem] text-gray-500">{tr('Only the Administrator can change this.')}</span></div>}</div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>

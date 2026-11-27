@@ -8,7 +8,7 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { useStoresMeta, isCommitteeUser, sourceRef, DeityBadge, StoresTabs } from './shared.jsx'
+import { useStoresMeta, isCommitteeUser, sourceRef, DeityBadge, BundleBadge, StoresTabs } from './shared.jsx'
 import { StockAuctionDrawer } from '../auction/LotAuction.jsx'
 
 // Creating an auction needs Auction write: Counter Staff, Committee, Administrator
@@ -50,13 +50,20 @@ export default function UnsoldItems() {
 
   // Committee only: the Open Sale price is their decision (that price is the approval)
   async function toOpenSale() {
+    // a bundle: how many of its pieces go on sale (all by default) — 2026-11-27
+    const bundles = chosen.filter((r) => r.bundle)
     const res = await promptDialog({ title: `${tr('Move to Open Sale')} (${chosen.length})`, confirmLabel: tr('Move to Open Sale'),
       message: `${chosen.map((r) => r.tag_id).join(', ')} — ${tr('Counter staff will sell each piece at this price.')}`,
-      fields: [{ k: 'price', label: tr('Open Sale price per piece (₹)'), type: 'number', required: true }] })
+      fields: [{ k: 'price', label: tr('Open Sale price per piece (₹)'), type: 'number', required: true },
+        ...bundles.map((r) => ({ k: `n${r.id}`, label: `${r.tag_id}: ${tr('How many?')} (1 – ${r.pieces})`, type: 'number', required: true, defaultValue: String(r.pieces) }))] })
     if (!res) return
+    const pieces = Object.fromEntries(bundles.map((r) => [r.id, Math.round(Number(res[`n${r.id}`]))]))
+    const bad = bundles.find((r) => !(pieces[r.id] >= 1 && pieces[r.id] <= r.pieces))
+    if (bad) { toast(`${bad.tag_id}: ${tr('enter how many pieces — 1 to')} ${bad.pieces}.`, 'error'); return }
     try {
-      await StoresAPI.moveToOpenSale({ piece_ids: chosen.map((r) => r.id), price: Number(res.price) })
-      toast(`${chosen.length} ${tr('piece(s) moved to Open Sale.')}`); window.dispatchEvent(new Event('stores:changed')); load()
+      await StoresAPI.moveToOpenSale({ piece_ids: chosen.map((r) => r.id), price: Number(res.price), pieces })
+      const n = chosen.reduce((t, r) => t + (r.bundle ? pieces[r.id] : 1), 0)
+      toast(`${n} ${tr('piece(s) moved to Open Sale.')}`); window.dispatchEvent(new Event('stores:changed')); load()
     } catch (ex) { toast(tr(getErrorMessage(ex, 'Could not move to Open Sale.')).replace(/^Value error, /, ''), 'error') }
   }
 
@@ -80,7 +87,7 @@ export default function UnsoldItems() {
           <div className="flex-1 min-w-[12rem] max-w-md"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>Search ID, item or donor</T></label>
             <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input className="input !pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('PAN-00012, silk, AUC-…')} /></div></div>
-          <div className="text-[0.8125rem] text-gray-600">{view.length !== rows.length ? `${view.length} / ` : ''}{rows.length} {tr('unsold pieces in store')}</div>
+          <div className="text-[0.8125rem] text-gray-600">{view.length !== rows.length ? `${view.length} / ` : ''}{rows.reduce((n, r) => n + (r.pieces || 1), 0)} {tr('unsold pieces in store')}</div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -96,7 +103,7 @@ export default function UnsoldItems() {
               {view.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50/60">
                   <td className="pl-5 pr-2 py-3"><Checkbox checked={!!picked[r.id]} onChange={() => setPicked((p) => ({ ...p, [r.id]: !p[r.id] }))} /></td>
-                  <td className="px-4 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link>{r.deity_used && <div className="mt-1"><DeityBadge item={r} /></div>}</td>
+                  <td className="px-4 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${r.tag_id}`}>{r.tag_id}</Link>{r.bundle && <div className="mt-1"><BundleBadge item={r} /></div>}{r.deity_used && <div className="mt-1"><DeityBadge item={r} /></div>}</td>
                   <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(r.description || r.item_name)}</div>
                     <div className="text-[0.6875rem] text-gray-500">{[tr(r.item_name), tr(r.details), r.weight_g ? `${r.weight_g} ${gramUnit()}` : ''].filter(Boolean).join(' · ')}</div></td>
                   <td className="px-4 py-3 text-center"><Pill tone={r.unsold_count >= 2 ? 'red' : 'orange'}>×{r.unsold_count}</Pill></td>

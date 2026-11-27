@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { CalendarDays, CheckCircle2, CalendarClock, Moon, Sun, ChevronDown, Calendar, Info, Loader2 } from 'lucide-react'
 import { toast } from '../../components/common/Dialog.jsx'
 import MasterScreen from '../../components/admin/MasterScreen.jsx'
@@ -7,6 +7,7 @@ import { FestivalsAPI, PoojasAPI, PanchangamAPI, AlmanacAPI } from '../../api/cl
 import { addDaysISO } from '../../lib/planTerms.js'
 import { NumberField, Select } from '../../components/common/Field.jsx'
 import { T, tr, stamp, teText } from '../../i18n/LanguageContext.jsx'
+import usePickList from '../../hooks/usePickList.js'
 
 // ── Panchangam Reference Component ─────────────────────────────────────────────
 // Provides tithi date suggestions and panchangam info as REFERENCE only.
@@ -17,6 +18,10 @@ function PanchangamReference({ data, setD }) {
   const [loading, setLoading] = useState(false)
   const [panchangam, setPanchangam] = useState(null)
   const [panchangamLoading, setPanchangamLoading] = useState(false)
+  // First date highlighted; ↑ / ↓ move, Enter picks (client 2026-11-25). The list takes the keys itself.
+  const datePick = usePickList(suggestions, (s) => selectDate(s.date), { open: !!showSuggestions && !loading })
+  const dateListRef = useRef(null)
+  useEffect(() => { if (showSuggestions && !loading && suggestions.length) dateListRef.current?.focus({ preventScroll: true }) }, [showSuggestions, loading, suggestions.length])
 
   // Fetch tithi date suggestions
   const fetchSuggestions = useCallback(async (tithiType) => {
@@ -98,7 +103,7 @@ function PanchangamReference({ data, setD }) {
               <T>No upcoming dates found</T>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div ref={dateListRef} tabIndex={-1} onKeyDown={datePick.onKeyDown} className="divide-y divide-gray-100 outline-none">
               <div className="px-3 py-2 bg-gray-50 text-[0.6875rem] text-gray-500 uppercase tracking-wide font-semibold">
                 <T>Upcoming</T> {tr(showSuggestions)} <T>Dates</T> ({suggestions.length})
               </div>
@@ -106,10 +111,11 @@ function PanchangamReference({ data, setD }) {
                 <button
                   key={idx}
                   type="button"
+                  {...datePick.rowProps(idx)}
                   onClick={() => selectDate(s.date)}
-                  className="w-full text-left px-3 py-2 hover:bg-amber-50 text-[0.8125rem] flex items-center justify-between group"
+                  className={`pick-row ${datePick.rowClass(idx)} w-full text-left px-3 py-2 text-[0.8125rem] flex items-center justify-between group`}
                 >
-                  <span className="text-gray-800 font-medium">
+                  <span className="pick-name text-gray-800 font-medium">
                     {stamp(new Date(s.date + 'T00:00:00').toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }))}
                   </span>
                   {s.name && (

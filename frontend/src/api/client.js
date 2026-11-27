@@ -206,6 +206,8 @@ export const AuthAPI = {
 export const DevoteesAPI = {
   list: (params = {}) => api.get('/devotees' + qs(params)),
   lookup: (params = {}) => api.get('/devotees/lookup' + qs(params)),
+  // Auction / Open Sale buyer box: devotees + outsiders who bought before (2026-11-27)
+  buyerLookup: (params = {}) => api.get('/devotees/buyer-lookup' + qs(params)),
   stats: () => api.get('/devotees/stats'),
   get: (id) => api.get(`/devotees/${id}`),
   summary: (id) => api.get(`/devotees/${id}/summary`),
@@ -227,6 +229,7 @@ export const PoojasAPI = {
   updatePlan: (planId, b) => api.put(`/poojas/plans/${planId}`, b),
   create: (b) => api.post('/poojas', b),
   update: (id, b) => api.put(`/poojas/${id}`, b),
+  setActive: (id, active) => api.put(`/poojas/${id}/active`, { active }),
   remove: (id, force = false) => api.del(`/poojas/${id}${force ? '?force=true' : ''}`),
   // Festival Pricing - for Committee role
   allPlans: () => api.get('/poojas/plans/all'),
@@ -253,6 +256,7 @@ export const BookingsAPI = {
   bulkQuickCreate: (b) => api.post('/bookings/bulk-quick-create', b),
   lookup: (ticket) => api.get('/bookings/lookup' + qs({ ticket })),
   checkDuplicate: (params) => api.get('/bookings/check-duplicate' + qs(params)),
+  activePlans: (params) => api.get('/bookings/active-plans' + qs(params)),
   complete: (id) => api.post(`/bookings/${id}/complete`),
   undoPerformed: (id) => api.post(`/bookings/${id}/undo-performed`),
   reschedule: (id, body) => api.post(`/bookings/${id}/reschedule`, body),
@@ -343,7 +347,7 @@ export const StoresAPI = {
   activity: (limit = 10) => api.get('/stores/activity' + qs({ limit })),
   item: (key) => api.get(`/stores/items/${encodeURIComponent(key)}`),
   move: (id, b) => api.post(`/stores/items/${id}/move`, b),
-  writeOff: (id, reason) => api.post(`/stores/items/${id}/write-off`, { reason }),
+  writeOff: (id, reason, pieces) => api.post(`/stores/items/${id}/write-off`, { reason, ...(pieces ? { pieces } : {}) }),
   place: (b) => api.post('/stores/items/place', b),
   awaitingCount: () => api.get('/stores/awaiting/count'),
   dayClosing: (date) => api.get('/stores/day-closing' + qs({ date })),
@@ -389,6 +393,7 @@ export const StoresAPI = {
   checks: (params = {}) => api.get('/stores/checks' + qs(params)),
   ledger: (cid) => api.get(`/stores/consumables/${cid}/ledger`),
   recordUse: (b) => api.post('/stores/consumables/use', b),
+  moveConsumable: (b) => api.post('/stores/consumables/move', b),
   useSlip: (id) => api.get(`/stores/consumables/use/${id}`),
   cancelUse: (id, reason) => api.post(`/stores/consumables/use/${id}/cancel`, { reason }),
   setConsumablesStart: (start_date) => api.put('/stores/consumables/start-date', { start_date }),
@@ -519,6 +524,7 @@ export const AuditAPI = {
   list: (limit = 100) => api.get(`/audit?limit=${limit}`),
   search: (params = {}) => api.get('/audit/search' + qs(params)),
   stats: () => api.get('/audit/stats'),
+  recordExport: (b) => api.post('/audit/export', b),   // a Download / Print, for the Audit Trail
 }
 export const DailyClosingAPI = {
   summary: (day) => api.get('/daily-closing/summary' + qs(day ? { day } : {})),

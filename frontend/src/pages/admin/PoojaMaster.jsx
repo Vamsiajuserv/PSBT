@@ -9,7 +9,9 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { Select, Toggle, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { useSortableTable, SortPanel } from '../../components/common/SortableTable.jsx'
-import { T, tr, clock12 } from '../../i18n/LanguageContext.jsx'
+import { T, tr, clock12, stamp } from '../../i18n/LanguageContext.jsx'
+
+const fmtDay = (iso) => (iso ? stamp(new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : '')
 import { sanitizeName, poojaFeeError } from '../../lib/validation.js'
 import { TEMPLE_HOURS, fromTimeInput, normalizeSlot, sortSlots, slotPeriod, isTempleHours } from '../../lib/slots.js'
 
@@ -169,6 +171,15 @@ export default function PoojaMaster() {
     if (!(await confirmDialog({ title: tr('Delete pooja') + ` "${tr(p.name)}"?`, message: tr('This cannot be undone. Poojas with bookings must be marked Inactive instead.'), tone: 'danger', confirmLabel: tr('Delete') }))) return
     try { await PoojasAPI.remove(p.id); toast(tr('Pooja deleted.')); load() }
     catch (ex) { toast(ex?.detail || tr('Could not delete this pooja.'), 'error') }
+  }
+  // One click Active / Inactive (client, 2026-11-26): an inactive pooja leaves the Counter Billing and
+  // Advance Booking lists; the Administrator switches a festival pooja on again before its season.
+  async function toggleActive(p) {
+    try {
+      await PoojasAPI.setActive(p.id, !p.active)
+      toast(`${tr(p.name)}: ${p.active ? tr('Inactive — hidden from Counter Billing and Advance Booking.') : tr('Active — shown in Counter Billing and Advance Booking.')}`)
+      load()
+    } catch (ex) { toast(ex?.detail || tr('Could not change the status.'), 'error') }
   }
 
   async function save(e) {
@@ -332,7 +343,21 @@ export default function PoojaMaster() {
                   <td className="px-5 py-3.5 text-[0.8125rem]">{rateLines(p).map((r, i) => <div key={i} className="text-gray-700">{r}</div>)}</td>
                   <td className="px-5 py-3.5 text-gray-700 text-[0.8125rem]">{slotSummary(p)}</td>
                   <td className="px-5 py-3.5 text-gray-500 text-[0.8125rem]">{validityDisplay(p)}</td>
-                  <td className="px-5 py-3.5"><Pill tone={p.active ? 'green' : 'gray'}>{p.active ? tr('Active') : tr('Inactive')}</Pill></td>
+                  <td className="px-5 py-3.5">
+                    {isAdmin ? (
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <Toggle checked={p.active} onChange={() => toggleActive(p)} title={p.active ? tr('Click to make Inactive') : tr('Click to make Active')} aria-label={tr('Status')} />
+                        <span className={`text-[0.8125rem] font-semibold ${p.active ? 'text-emerald-700' : 'text-gray-500'}`}>{p.active ? tr('Active') : tr('Inactive')}</span>
+                      </label>
+                    ) : <Pill tone={p.active ? 'green' : 'gray'}>{p.active ? tr('Active') : tr('Inactive')}</Pill>}
+                    {/* A festival pooja still Active after its festival: remind the Administrator to switch it off */}
+                    {p.season?.over && (
+                      <div className="mt-1.5 inline-flex flex-col rounded-md bg-amber-50 border border-amber-300 px-2 py-1 text-[0.6875rem] font-semibold text-amber-800">
+                        <span>⚠ {tr('Festival over — still Active')}</span>
+                        {p.season.next_start && <span className="font-normal">{tr('Next festival')}: {fmtDay(p.season.next_start)}</span>}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
                       {canWrite && <button onClick={() => openEdit(p)} title={tr("Edit")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700 hover:border-maroon-300"><Pencil size={15} /></button>}

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { visibleTabs } from '../../../lib/storesMenu.js'
+import { canAccessKey } from '../../../auth/access.js'
 import { X, Plus, Trash2, Printer, Tag } from 'lucide-react'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { Pill, inr, fmtDate } from '../../../components/admin/ui.jsx'
@@ -22,8 +23,9 @@ export const KEPT = 'Kept by Poojari'
 // Write-off Requested: a damaged piece waiting for the Committee (cannot be issued / sold meanwhile)
 export const WRITEOFF_REQ = 'Write-off Requested'
 export const STATUS_TONE = { [AWAITING]: 'orange', 'In Store': 'green', [ISSUED]: 'maroon', 'In Auction': 'amber', 'In Open Sale': 'violet',
-  [MISSING]: 'red', Sold: 'blue', 'Written Off': 'gray', [KEPT]: 'gray', [WRITEOFF_REQ]: 'amber' }
-export const STATUSES = [AWAITING, 'In Store', ISSUED, 'In Auction', 'In Open Sale', MISSING, 'Sold', 'Written Off', KEPT, WRITEOFF_REQ]
+  [MISSING]: 'red', Sold: 'blue', 'Written Off': 'gray', [KEPT]: 'gray', [WRITEOFF_REQ]: 'amber', 'Used Up': 'gray', Merged: 'gray' }
+// Used Up: a bundle whose every piece has gone out for good (2026-11-27)
+export const STATUSES = [AWAITING, 'In Store', ISSUED, 'In Auction', 'In Open Sale', MISSING, 'Sold', 'Written Off', KEPT, WRITEOFF_REQ, 'Used Up']
 
 // Where a piece (or a consumables receipt) came from. A counter donation shows its Donation ID
 // and receipt no. ("DON-0002797 · RCPT-2797"); hundi / manual pieces keep their own code.
@@ -44,10 +46,12 @@ export const DeityBadge = ({ item }) => (item?.deity_used
   ? <span title={item.deity_used_note ? `${tr('Used for')} ${tr(item.deity_used_note)}` : ''} className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap">{tr('Used')}</span>
   : null)
 
-// Tagging, moving and manual entries: Counter Staff, Stores Officer and Administrator (backend WRITE_MATRIX).
-// Committee and Accountant see the registers; the Committee verifies manual entries.
-export const canWriteStores = (user) => ['Admin', 'Administrator', 'Counter Staff', 'Stores Officer'].includes(user?.role)
+// Tagging, moving, recording use: Stores Officer and Administrator. Counter Staff, Committee and Accountant
+// only view stock (client, 2026-11-27); the Committee verifies manual entries.
+export const canWriteStores = (user) => ['Admin', 'Administrator', 'Stores Officer'].includes(user?.role)
 export const isAdminUser = (user) => ['Admin', 'Administrator'].includes(user?.role)
+// Print a lost sticker again (same ID): store work — not the counter (client, 2026-11-27)
+export const canPrintStickers = (user) => user?.role !== 'Counter Staff'
 export const isStoresOfficer = (user) => user?.role === 'Stores Officer'
 // Cancel a consumable use, change the consumables start date: Administrator or Stores Officer
 export const canManageStores = (user) => isAdminUser(user) || isStoresOfficer(user)
@@ -58,7 +62,7 @@ export const canSellOrDamage = (user) => ['Admin', 'Administrator', 'Counter Sta
 export const canDamageStock = (user) => canManageStores(user)
 // Issue & Return: custody of the store — Stores Officer and Administrator only
 export const canIssueStock = (user) => canManageStores(user)
-// Missing Items: mark found / report lost — Stores Officer, Counter Staff, Administrator;
+// Missing Items: mark found / report lost — Stores Officer, Administrator;
 // approve or reject a lost write-off — Committee and Administrator (never who reported it)
 export const canFollowMissing = (user) => ['Admin', 'Administrator', 'Stores Officer'].includes(user?.role)
 export const canDecideLost = (user) => isAdminUser(user) || user?.role === 'Committee'
@@ -66,8 +70,8 @@ export const canDecideLost = (user) => isAdminUser(user) || user?.role === 'Comm
 // (or Admin) closes a shortage — never whoever counted it
 export const canReceiveStock = (user) => canManageStores(user)
 export const canCloseShortage = (user) => isAdminUser(user) || user?.role === 'Committee'
-// Place an Awaiting Placement piece in a location: Stores Officer, Counter Staff, Administrator
-export const canPlaceStock = (user) => ['Admin', 'Administrator', 'Counter Staff', 'Stores Officer'].includes(user?.role)
+// Place an Awaiting Placement piece in a location: Stores Officer, Administrator
+export const canPlaceStock = (user) => ['Admin', 'Administrator', 'Stores Officer'].includes(user?.role)
 // Purchase requests: the Stores Officer (or Admin) raises / marks received; the Committee (or
 // Admin) approves — never whoever raised it. Festival kits: Stores Officer + Admin.
 export const canApprovePurchase = (user) => isAdminUser(user) || user?.role === 'Committee'
@@ -83,6 +87,14 @@ export function storeDetail(text) {
   if (!text || getLang() !== 'te') return text
   const s = String(text)
   let m
+  // A bundle (2026-11-27): "Bundle of 8 — From RCPT-12 (Ravi K) — placed in Shelf A"
+  if ((m = s.match(/^Bundle of (\d+) — (.+)$/))) return `${tr('Bundle of')} ${m[1]} — ${storeDetail(m[2])}`
+  if ((m = s.match(/^(\d+) of (\d+) → (\S+) — (.+)$/))) return `${m[1]} / ${m[2]} → ${m[3]} — ${storeDetail(m[4])}`
+  if ((m = s.match(/^(\d+) piece\(s\) from (\S+) — (.+)$/))) return `${m[1]} ${tr('pieces')} · ${m[2]} — ${storeDetail(m[3])}`
+  if ((m = s.match(/^(\d+) back from (\S+) — (.+)$/))) return `${m[1]} ${tr('pieces')} · ${m[2]} — ${storeDetail(m[3])}`
+  if ((m = s.match(/^into (\S+)$/))) return `${tr('Back into bundle')} ${m[1]}`
+  if ((m = s.match(/^issue (\S+)$/))) return `${tr('Issue')} ${m[1]}`
+  if ((m = s.match(/^kept — (\S+)$/))) return `${tr('Kept by poojari')} — ${m[1]}`
   // Gold / silver value: tagged at another value, or a piece corrected later
   if ((m = s.match(/^(₹\S+) instead of (₹\S+) \(receipt value\) — (.*)$/))) return `${m[1]} (${tr('receipt value')} ${m[2]}) — ${teScript(m[3])}`
   if (/^(Description|Size \/ colour|Weight|Purity|Value) .* → /.test(s)) {
@@ -138,6 +150,35 @@ export function useStoresMeta() {
   return { categories, locations, activeLocations }
 }
 
+// ── Bundle badge (2026-11-27): one tag for several pieces — "Bundle · 5 of 8 in store" ──
+export function BundleBadge({ item }) {
+  if (!item) return null
+  if (item.bundle) {
+    const all = item.pieces === item.tagged_pieces
+    return <span title={tr('One tag for several pieces')} className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+      {tr('Bundle')} · {all ? `${item.tagged_pieces} ${tr('pieces')}` : `${item.pieces} ${tr('of')} ${item.tagged_pieces} ${tr('in store')}`}</span>
+  }
+  if (item.bundle_id && item.pieces > 1) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">{item.pieces} {tr('pieces')}</span>
+  return null
+}
+
+// ── How many pieces of a bundle (2026-11-27): "How many? [ 3 ] of 8" — a single piece shows nothing ──
+export const bundleLeft = (item) => (item?.bundle ? item.pieces : null)
+export function HowMany({ item, value, onChange }) {
+  if (!item?.bundle) return null
+  return (
+    <span className="inline-flex items-center gap-1 text-[0.75rem] text-indigo-800">
+      {tr('How many?')}
+      <input type="number" min="1" max={item.pieces} step="1" value={value} onChange={(e) => onChange(e.target.value)}
+        aria-label={tr('How many?')} className="w-14 rounded border border-indigo-300 px-1.5 py-0.5 text-[0.78rem] bg-white" />
+      {tr('of')} {item.pieces}
+    </span>
+  )
+}
+export const piecesText = (l) => (l?.pieces > 1 ? ` · ${l.pieces} ${tr('pieces')}` : '')
+// Issue & Return says "items" (client, 2026-11-27): " · 3 items" for part of a bundle
+export const itemsText = (l) => (l?.pieces > 1 ? ` · ${l.pieces} ${tr('items')}` : '')
+
 // ── Sticker sheet (written by hand for now; prints on A4) ───────────────────
 export function StickerSheet({ items, title, onClose }) {
   const { lang } = useLang()
@@ -147,7 +188,7 @@ export function StickerSheet({ items, title, onClose }) {
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between no-print">
           <div><h3 className="font-serif text-lg font-bold text-maroon-800"><T>Sticker List</T></h3>
-            <div className="text-[0.75rem] text-gray-500">{title} · {items.length} {tr('pieces')} · <T>Copy each ID onto its sticker</T></div></div>
+            <div className="text-[0.75rem] text-gray-500">{title} · {items.length} {tr('sticker(s)')} · <T>Copy each ID onto its sticker</T></div></div>
           <button onClick={onClose} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={18} /></button>
         </div>
         <div className="overflow-y-auto p-5">
@@ -156,6 +197,8 @@ export function StickerSheet({ items, title, onClose }) {
               {items.map((i) => (
                 <div key={i.tag_id} className="border-2 border-dashed border-gray-400 rounded-lg p-3 text-[0.75rem] leading-snug break-inside-avoid">
                   <div className="font-mono font-bold text-[1.05rem] text-maroon-800">{i.tag_id}</div>
+                  {/* a bundle's sticker says how many pieces it was tagged with — the same sticker on every reprint */}
+                  {i.tagged_pieces > 1 && <div className="font-bold text-maroon-700">{tr('Bundle')} · {i.tagged_pieces} {tr('pieces')}</div>}
                   <div className="font-semibold text-gray-800">{tr(i.description || i.item_name)}</div>
                   {(i.details || i.weight_g) && <div className="text-gray-600">{[tr(i.details), i.weight_g ? `${qty(i.weight_g)} ${gramUnit()}` : ''].filter(Boolean).join(' · ')}</div>}
                   <div className="text-gray-700"><T>Donor</T>: <b>{personName({ name: i.donor_name }, lang)}</b></div>
@@ -194,9 +237,11 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
   const [saving, setSaving] = useState(false)
   const [stickers, setStickers] = useState(null)
   const [loadErr, setLoadErr] = useState('')
+  // Bundle tags (client, 2026-11-27): one ID for a group of pieces (8 panchas = PAN-00041) instead of one each
+  const [bundleMode, setBundleMode] = useState(false)
   // Reset (client, 2026-11-20): bumping `start` rebuilds the rows exactly as when the form opened
   const [start, setStart] = useState(0)
-  const resetTags = () => { setBulk({ description: '', details: '', est_value: '', location_id: '' }); setRows([]); setStart((n) => n + 1) }
+  const resetTags = () => { setBulk({ description: '', details: '', est_value: '', location_id: '' }); setRows([]); setBundleMode(false); setStart((n) => n + 1) }
 
   const isHundi = source.type === 'Hundi'
   useEffect(() => {
@@ -249,19 +294,23 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
   // The receipt value of a piece (cloth, utensils…: the devotee's value ÷ pieces). Gold / silver
   // pieces get no grams × rate × purity value here any more (client, 2026-11-20) — the server
   // fills a piece's value itself when it is left blank.
-  const expectedOf = () => (!isHundi && src?.piece_value != null && !src?.weight ? src.piece_value : null)
+  const expectedOf = (r) => (!isHundi && src?.piece_value != null && !src?.weight
+    ? src.piece_value * (bundleMode ? Math.max(1, Number(r?.pieces) || 1) : 1) : null)   // a bundle: its pieces' share
   const setRow = (i, patch) => setRows((rs) => rs.map((r, j) => {
     if (j !== i) return r
     const n = { ...r, ...patch }
     if ('est_value' in patch) n.autoValue = patch.autoValue ?? false
-    else if ('weight_g' in patch && r.autoValue !== false) {
+    else if (('weight_g' in patch || 'pieces' in patch) && r.autoValue !== false) {
       const e = expectedOf(n)
       if (e != null) n.est_value = String(e)
     }
     return n
   }))
   const removeRow = (i) => setRows((rs) => rs.filter((_, j) => j !== i))
-  const addRow = (extra = {}) => setRows((rs) => [...rs, blankRow({ location_id: bulk.location_id, ...extra })])
+  // Rows for the donated / counted pieces cannot be removed — every piece must be tagged; one really
+  // missing is recorded in Stores › Missing Items (client, 2026-11-26). Only a piece added here by
+  // mistake ("Add piece") can be removed again.
+  const addRow = (extra = {}) => setRows((rs) => [...rs, blankRow({ location_id: bulk.location_id, ...extra, added: true })])
   const applyAll = () => setRows((rs) => rs.map((r) => ({
     ...r,
     ...(bulk.description ? { description: bulk.description } : {}),
@@ -276,6 +325,24 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
 
   const differs = (r) => { const e = expectedOf(r); return e != null && r.est_value !== '' && Math.abs(Number(r.est_value) - e) >= 1 }
 
+  // Bundles: only cloth, utensils… counted in pieces (never gold / silver or hundi), with 2+ pieces left
+  const leftCount = src && src.progress?.mode === 'count' ? Math.max(0, Math.round(src.progress.needed - src.progress.done)) : 0
+  const canBundle = !isHundi && !!src && !src.weight && src.progress?.mode === 'count' && !src.progress.complete && leftCount > 1
+  const bundled = rows.reduce((n, r) => n + (Math.round(Number(r.pieces)) || 0), 0)
+  const homeLoc = () => bulk.location_id || rows.find((r) => r.location_id)?.location_id || ''
+  const pickMode = (bundle) => {
+    if (bundle === bundleMode) return
+    setBundleMode(bundle)
+    if (bundle) {
+      // one bundle with every piece left; the receipt value carries over for the whole bundle
+      setRows([blankRow({ description: src.item_desc || '', pieces: String(leftCount), location_id: homeLoc(),
+        ...(src.piece_value != null ? { est_value: String(src.piece_value * leftCount) } : {}) })])
+    } else setStart((n) => n + 1)           // back to one row per piece
+  }
+  const addBundle = () => setRows((rs) => [...rs, blankRow({ description: src?.item_desc || '', pieces: String(Math.max(1, leftCount - bundled)),
+    location_id: homeLoc(), added: true,
+    ...(src?.piece_value != null ? { est_value: String(src.piece_value * Math.max(1, leftCount - bundled)) } : {}) })])
+
   async function save() {
     if (!rows.length) return
     // Location is optional: a blank one leaves the piece Awaiting Placement (placed later)
@@ -283,6 +350,11 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
     if (missing >= 0) {
       toast(`${tr('Row')} ${missing + 1}: ${tr('fill in the category and weight (g) where asked.')}`, 'error')
       return
+    }
+    if (bundleMode) {
+      const bad = rows.findIndex((r) => !(Number(r.pieces) >= 1) || !Number.isInteger(Number(r.pieces)))
+      if (bad >= 0) { toast(`${tr('Bundle')} ${bad + 1}: ${tr('enter how many pieces are in it.')}`, 'error'); return }
+      if (bundled > leftCount) { toast(`${tr('Only')} ${leftCount} ${tr('piece(s) are left to tag — the bundles have')} ${bundled}.`, 'error'); return }
     }
     const noReason = rows.findIndex((r) => differs(r) && !(r.value_note || '').trim())
     if (noReason >= 0) {
@@ -299,9 +371,11 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
           weight_g: r.weight_g !== '' ? Number(r.weight_g) : null,
           est_value: r.est_value !== '' ? Number(r.est_value) : null, location_id: r.location_id ? Number(r.location_id) : null,
           value_note: differs(r) ? (r.value_note || '').trim() : null,
+          pieces: bundleMode ? Math.max(1, Math.round(Number(r.pieces) || 1)) : 1,
         })),
       })
-      toast(`${res.items.length} ${tr('piece(s) tagged')}: ${res.items[0].tag_id}${res.items.length > 1 ? ` … ${res.items[res.items.length - 1].tag_id}` : ''}`)
+      const tagged = res.items.reduce((n, i) => n + (i.tagged_pieces || 1), 0)
+      toast(`${tagged} ${tr('piece(s) tagged')}: ${res.items[0].tag_id}${res.items.length > 1 ? ` … ${res.items[res.items.length - 1].tag_id}` : ''}`)
       window.dispatchEvent(new Event('stores:changed'))   // sidebar badge
       setStickers(res.items)
       onDone?.(res.items)
@@ -328,7 +402,9 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
       <div className="relative w-full max-w-3xl bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
         <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
           <div><h3 className="font-serif text-xl font-bold text-maroon-800"><T>Tag Items</T></h3>
-            <p className="text-[0.8125rem] text-gray-500 mt-0.5"><T>Each piece gets its own ID. Write the ID on a sticker and keep the piece at the location chosen.</T>{' '}<T>Leave the location blank to place it later from the Stock Register.</T></p></div>
+            <p className="text-[0.8125rem] text-gray-500 mt-0.5">{bundleMode
+              ? <T>Each bundle gets one ID. Write the ID on one sticker, tie it to the bundle and keep it at the location chosen.</T>
+              : <><T>Each piece gets its own ID. Write the ID on a sticker and keep the piece at the location chosen.</T>{' '}<T>Leave the location blank to place it later from the Stock Register.</T></>}</p></div>
           <button onClick={close} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={20} /></button>
         </div>
         {loadErr && <div className="m-6 text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-3 text-sm">{loadErr}</div>}
@@ -356,7 +432,21 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
                 <button className="text-maroon-700 font-semibold hover:underline" onClick={() => setStickers(src.items)}><T>Show sticker list</T></button></div>
             )}
 
-            {!p.complete && rows.length > 0 && !isHundi && (
+            {canBundle && (
+              <div className="border border-gray-200 rounded-lg p-3">
+                <div className="text-[0.8125rem] font-semibold text-gray-700 mb-2"><T>How do you want to tag?</T></div>
+                <div className="flex flex-col sm:flex-row gap-2 text-[0.8125rem]">
+                  <label className={`flex-1 flex items-start gap-2 rounded-lg border px-3 py-2 cursor-pointer ${!bundleMode ? 'border-maroon-400 bg-maroon-50/40' : 'border-gray-200'}`}>
+                    <input type="radio" name="tagmode" checked={!bundleMode} onChange={() => pickMode(false)} className="mt-0.5 accent-maroon-700" />
+                    <span><b><T>One tag per piece</T></b><span className="block text-[0.75rem] text-gray-500">{leftCount} {tr('IDs')}, {leftCount} {tr('stickers')}</span></span></label>
+                  <label className={`flex-1 flex items-start gap-2 rounded-lg border px-3 py-2 cursor-pointer ${bundleMode ? 'border-maroon-400 bg-maroon-50/40' : 'border-gray-200'}`}>
+                    <input type="radio" name="tagmode" checked={bundleMode} onChange={() => pickMode(true)} className="mt-0.5 accent-maroon-700" />
+                    <span><b><T>Bundle tags</T></b><span className="block text-[0.75rem] text-gray-500"><T>One ID and one sticker for a group of pieces</T></span></span></label>
+                </div>
+              </div>
+            )}
+
+            {!p.complete && rows.length > 0 && !isHundi && !bundleMode && (
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end border border-gold-200 bg-cream/50 rounded-lg p-3">
                 <div className="col-span-2 sm:col-span-1"><label className="label"><T>Description for all</T></label><input className="input" value={bulk.description} onChange={(e) => setBulk({ ...bulk, description: e.target.value })} placeholder={tr('e.g. Pancha, silk border')} /></div>
                 <div><label className="label"><T>Size / colour</T></label><input className="input" value={bulk.details} onChange={(e) => setBulk({ ...bulk, details: e.target.value })} /></div>
@@ -381,7 +471,14 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
               </div>
             )) : !p.complete && (
               <div className="space-y-2">
-                {rows.map((r, i) => <TagRow key={i} r={r} i={i} weight={!!src.weight} locations={activeLocations} setRow={setRow} removeRow={removeRow} defaultValue={src.default_value} expected={expectedOf(r)} />)}
+                {rows.map((r, i) => <TagRow key={i} r={r} i={i} weight={!!src.weight} bundle={bundleMode} locations={activeLocations} setRow={setRow} removeRow={removeRow} defaultValue={src.default_value} expected={expectedOf(r)} />)}
+                {bundleMode && (
+                  <div className="flex items-center justify-between text-[0.78rem]">
+                    <button type="button" onClick={addBundle} disabled={bundled >= leftCount} className="font-semibold text-maroon-700 inline-flex items-center gap-1 disabled:opacity-40"><Plus size={13} /><T>Add another bundle</T></button>
+                    <span className={bundled > leftCount ? 'text-red-600 font-semibold' : bundled === leftCount ? 'text-emerald-700 font-semibold' : 'text-gray-500'}>
+                      {tr('Bundled')}: {bundled} {tr('of')} {leftCount} {tr('pieces')}{bundled === leftCount ? ' ✔' : ''}</span>
+                  </div>
+                )}
                 {src.weight && (
                   <div className="flex items-center justify-between text-[0.78rem]">
                     <button type="button" onClick={() => addRow()} className="font-semibold text-maroon-700 inline-flex items-center gap-1"><Plus size={13} /><T>Add piece</T></button>
@@ -397,8 +494,9 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
           <button onClick={close} className="btn-outline flex-1 justify-center">{p?.complete ? <T>Close</T> : <T>Tag later</T>}</button>
           {p && !p.complete && <ResetButton onReset={resetTags} disabled={saving} className="justify-center !px-3 shrink-0" />}
           {p && !p.complete && (
-            <button disabled={saving || !rows.length} onClick={save} className="btn-maroon flex-1 justify-center disabled:opacity-60">
-              <Tag size={15} className="mr-1" />{saving ? tr('Saving…') : `${tr('Tag')} ${rows.length} ${tr('piece(s)')}`}</button>
+            <button disabled={saving || !rows.length || (bundleMode && bundled > leftCount)} onClick={save} className="btn-maroon flex-1 justify-center disabled:opacity-60">
+              <Tag size={15} className="mr-1" />{saving ? tr('Saving…') : bundleMode
+                ? `${tr('Tag')} ${rows.length} ${tr('bundle(s)')} (${bundled} ${tr('pieces')})` : `${tr('Tag')} ${rows.length} ${tr('piece(s)')}`}</button>
           )}
         </div>
       </div>
@@ -406,11 +504,14 @@ export function TagItemsDrawer({ source, onClose, onDone }) {
   )
 }
 
-function TagRow({ r, i, weight, categories = [], hundi, locations, setRow, removeRow, defaultValue, expected }) {
+function TagRow({ r, i, weight, bundle, categories = [], hundi, locations, setRow, removeRow, defaultValue, expected }) {
   const off = expected != null && r.est_value !== '' && Math.abs(Number(r.est_value) - expected) >= 1
   return (
     <div className={`grid grid-cols-2 sm:grid-cols-12 gap-2 items-end border rounded-lg p-2 ${off ? 'border-amber-300 bg-amber-50/40' : 'border-gray-100'}`}>
-      <div className="col-span-2 sm:col-span-1 text-[0.75rem] text-gray-400 font-mono pb-2">#{i + 1}</div>
+      {bundle
+        ? <div className="col-span-2 sm:col-span-1"><label className="label"><T>Pieces *</T></label>
+            <NumberField min="1" step="1" value={r.pieces} onChange={(e) => setRow(i, { pieces: e.target.value })} /></div>
+        : <div className="col-span-2 sm:col-span-1 text-[0.75rem] text-gray-400 font-mono pb-2">#{i + 1}</div>}
       {hundi && (
         <div className={`col-span-2 ${weight ? 'sm:col-span-2' : 'sm:col-span-3'}`}><label className="label"><T>Category *</T></label>
           <Select className="input" value={r.category_id} onChange={(e) => setRow(i, { category_id: e.target.value })}>
@@ -425,12 +526,14 @@ function TagRow({ r, i, weight, categories = [], hundi, locations, setRow, remov
       </>) : !hundi && (
         <div className="col-span-2 sm:col-span-2"><label className="label"><T>Size / colour</T></label><input className="input" value={r.details} onChange={(e) => setRow(i, { details: e.target.value })} /></div>
       )}
-      {(!weight || expected != null) && <div className={weight || !hundi ? 'sm:col-span-2' : ''}><label className="label"><T>Value ₹</T></label><NumberField min="0" step="1" value={r.est_value} onChange={(e) => setRow(i, { est_value: e.target.value })} placeholder={defaultValue != null ? String(defaultValue) : ''} /></div>}
+      {(!weight || expected != null) && <div className={weight || !hundi ? 'sm:col-span-2' : ''}><label className="label">{bundle ? <T>Bundle value ₹</T> : <T>Value ₹</T>}</label><NumberField min="0" step="1" value={r.est_value} onChange={(e) => setRow(i, { est_value: e.target.value })} placeholder={defaultValue != null ? String(defaultValue) : ''} /></div>}
       <div className={`col-span-2 ${hundi || weight ? 'sm:col-span-2' : 'sm:col-span-3'}`}><label className="label"><T>Location</T></label>
         <Select className="input" value={r.location_id} onChange={(e) => setRow(i, { location_id: e.target.value })}>
           <option value="">{tr('Select')}</option>{locations.map((l) => <option key={l.id} value={l.id}>{tr(l.name)}</option>)}
         </Select></div>
-      <button type="button" onClick={() => removeRow(i)} title={tr('Remove row')} aria-label={tr('Remove row')} className="justify-self-end mb-1 w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-red-500 hover:border-red-300"><Trash2 size={14} /></button>
+      {r.added
+        ? <button type="button" onClick={() => removeRow(i)} title={tr('Remove row')} aria-label={tr('Remove row')} className="justify-self-end mb-1 w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-red-500 hover:border-red-300"><Trash2 size={14} /></button>
+        : <span className="w-8" aria-hidden="true" />}
       {expected != null && (
         <div className="col-span-2 sm:col-span-12 text-[0.75rem] flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-gray-500">{tr('Receipt value')}: <b className="text-gray-800">{inr(expected)}</b></span>
@@ -450,6 +553,7 @@ function TagRow({ r, i, weight, categories = [], hundi, locations, setRow, remov
  *  linked to its history. Read-only; tagging stays in Stores → Receive & Tag. */
 export function DonationItemsDialog({ donation, onClose }) {
   const { lang } = useLang()
+  const { user } = useAuth()
   const [src, setSrc] = useState(null)
   const [err, setErr] = useState('')
   useEffect(() => {
@@ -473,7 +577,7 @@ export function DonationItemsDialog({ donation, onClose }) {
           {!src && !err && <div className="text-sm text-gray-500"><T>Loading...</T></div>}
           {src && src.items.length === 0 && (
             <div className="text-sm text-gray-600"><T>No pieces are tagged yet.</T>{' '}
-              <Link to="/admin/stores/pending" className="text-maroon-700 font-semibold hover:underline"><T>Receive & Tag</T></Link></div>
+              {canAccessKey(user, 'stores/pending') && <Link to="/admin/stores/pending" className="text-maroon-700 font-semibold hover:underline"><T>Receive & Tag</T></Link>}</div>
           )}
           {src && src.items.length > 0 && (
             <table className="w-full text-sm">

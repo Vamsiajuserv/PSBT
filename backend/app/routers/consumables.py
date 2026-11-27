@@ -20,13 +20,14 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..helpers import ist_today, next_code_seq
-from ..models import ConsumableUse, Donation, DonationCategory, ManualStockEntry, Setting, User
+from ..models import (ConsumableMove, ConsumableUse, Donation, DonationCategory, ManualStockEntry, Setting,
+                      StoreLocation, StoreReceipt, User)
 from ..security import RequireModule, RequireRole, log_action, client_ip, require_admin, STORES_OFFICER
-from .stores import ReasonIn, _qty, _who
+from .stores import ReasonIn, _qty, _who, consumables_cutoff, consumable_needs_receiving
 
 router = APIRouter(prefix="/api/stores/consumables", tags=["consumables"])
 read = RequireModule("Stores")
-write = RequireModule("Stores", write=True)
+write = RequireRole(STORES_OFFICER)            # record use: Stores Officer + Administrator — Counter Staff only view (2026-11-27)
 # Cancelling a use and the start date: Administrator or the Stores Officer
 manage = RequireRole(STORES_OFFICER)
 START_KEY = "consumables_start_date"
@@ -39,6 +40,7 @@ class UseIn(BaseModel):
     issued_to: str | None = Field(default=None, max_length=120)
     used_on: date
     notes: str | None = Field(default=None, max_length=500)
+    location_id: int | None = None          # taken from this location (None = any — older screens)
 
     @field_validator("purpose")
     @classmethod
@@ -81,15 +83,52 @@ def manual_source(m: ManualStockEntry) -> str:
     return SRC_PURCHASED if m.source == PURCHASE_SOURCE else SRC_OTHER
 
 
-def _received(db: Session, cat: DonationCategory, start: date) -> tuple[Decimal, Decimal, Decimal]:
-    """(donated, purchased, opening & other) received since the start date."""
-    don = db.query(func.coalesce(func.sum(Donation.quantity), 0)).filter(
-        Donation.donation_type == "Material", Donation.voided.isnot(True), Donation.fund == cat.name,
-        Donation.donated_on >= start).scalar()
-    man = dict(db.query(ManualStockEntry.source == PURCHASE_SOURCE, func.coalesce(func.sum(ManualStockEntry.quantity), 0))
-               .filter(ManualStockEntry.category_id == cat.id, ManualStockEntry.status == "Verified")
-               .group_by(ManualStockEntry.source == PURCHASE_SOURCE).all())
-    return Decimal(str(don or 0)), Decimal(str(man.get(True) or 0)), Decimal(str(man.get(False) or 0))
+def donation_arrivals(db: Session, cats: list[DonationCategory], start: date) -> list[dict]:
+    """What each consumable donation brought into the store, by arrival. A donation made before the store
+    started receiving consumables (2026-11-27) arrived whole on its day, with no location; a later one
+    arrives when the Stores Officer receives it (and its rest, if it was short) — until then it waits."""
+    by_name = {c.name: c for c in cats}
+    cutoff = consumables_cutoff(db)
+    dons = db.query(Donation).filter(Donation.donation_type == "Material", Donation.voided.isnot(True),
+                                     Donation.fund.in_(list(by_name) or [""]), Donation.donated_on >= start).all()
+    recs = {r.donation_id: r for r in db.query(StoreReceipt).filter(
+        StoreReceipt.donation_id.in_([d.id for d in dons if consumable_needs_receiving(d, cutoff)] or [0])).all()}
+    out = []
+    for d in dons:
+        cid = by_name[d.fund].id
+        base = {"d": d, "category_id": cid, "rec": None, "location_id": None}
+        if not consumable_needs_receiving(d, cutoff):
+            out.append({**base, "qty": Decimal(str(d.quantity or 0)), "received": d.donated_on, "at": d.created_at})
+            continue
+        rec = recs.get(d.id)
+        if not rec:
+            out.append({**base, "qty": Decimal("0"), "received": None, "at": None,
+                        "waiting": Decimal(str(d.quantity or 0))})
+            continue
+        for ev in _receipt_events(rec):
+            out.append({**base, "rec": rec, "location_id": rec.location_id, "qty": ev[2],
+                        "received": max(_ist_day(ev[1]) or d.donated_on, d.donated_on), "at": ev[1], "by": ev[3]})
+    return out
+
+
+def _receipt_events(rec: StoreReceipt) -> list[tuple]:
+    """(action, at, qty, by) of each arrival recorded on a store receipt."""
+    import json
+    try:
+        evs = json.loads(rec.events or "[]")
+    except ValueError:
+        evs = []
+    out = []
+    for e in evs:
+        if e.get("action") in ("Received", "Received rest") and e.get("qty"):
+            try:
+                at = datetime.fromisoformat(e["at"]) if e.get("at") else rec.received_at
+            except ValueError:
+                at = rec.received_at
+            out.append((e["action"], at, Decimal(str(e["qty"])), e.get("by")))
+    if not out and rec.received:                      # no history kept: one arrival
+        out.append(("Received", rec.received_at, Decimal(str(rec.received)), rec.received_by))
+    return out
 
 
 def purchase_amounts(db: Session, cat_ids: list[int]) -> dict:
@@ -113,18 +152,12 @@ def _used(db: Session, cat_id: int) -> Decimal:
 
 
 def _balance(db: Session, cat: DonationCategory, start: date) -> dict:
-    don, pur, other = _received(db, cat, start)
-    used = _used(db, cat.id)
-    remaining = don + pur + other - used
-    low = cat.low_stock_level is not None and remaining <= Decimal(str(cat.low_stock_level))
-    return {"category_id": cat.id, "name": cat.name, "unit": cat.unit, **_split(don, pur, other),
-            "used": float(used), "remaining": float(remaining),
-            "low_stock_level": float(cat.low_stock_level) if cat.low_stock_level is not None else None, "low": low}
+    return _balance_of(cat, batches(db, cat, start), _used(db, cat.id))
 
 
 def _balance_of(cat: DonationCategory, rows: list[dict], used: Decimal) -> dict:
     """_balance from already-loaded batches (no queries) — same figures."""
-    total = lambda src: sum((r["qty"] for r in rows if r["source"] == src), Decimal("0"))
+    total = lambda src: sum((r["qty"] for r in rows if r["source"] == src and not r.get("moved")), Decimal("0"))
     don, pur, other = total(SRC_DONATED), total(SRC_PURCHASED), total(SRC_OTHER)
     remaining = don + pur + other - used
     low = cat.low_stock_level is not None and remaining <= Decimal(str(cat.low_stock_level))
@@ -147,8 +180,16 @@ def balances(db: Session = Depends(get_db), user=Depends(read)):
                 .filter(ConsumableUse.category_id.in_([c.id for c in cats] or [0]), ConsumableUse.status == "Active")
                 .group_by(ConsumableUse.category_id).all())
     spent = purchase_amounts(db, [c.id for c in cats])
+    names = _location_names(db)
+    waiting = {}
+    for a in donation_arrivals(db, cats, start):
+        if a.get("waiting"):
+            w = waiting.setdefault(a["category_id"], [Decimal("0"), 0])
+            w[0] += a["waiting"]; w[1] += 1
     for c in cats:
         b = _balance_of(c, every[c.id], Decimal(str(used.get(c.id) or 0)))
+        b["locations"] = where_kept(every[c.id], names)
+        b["waiting"], b["waiting_receipts"] = float(waiting.get(c.id, [0, 0])[0]), waiting.get(c.id, [0, 0])[1]
         b["pending_manual"] = pending.get(c.id, 0)
         b["purchased_amount"] = spent.get(c.id, 0.0)
         b["track_expiry"] = bool(c.track_expiry)
@@ -161,21 +202,29 @@ def balances(db: Session = Depends(get_db), user=Depends(read)):
 
 @router.get("/{cid}/ledger")
 def ledger(cid: int, db: Session = Depends(get_db), user=Depends(read)):
-    """Every receipt in and every use out, oldest first, with the running balance."""
+    """Every receipt in, every use out and every move between locations, oldest first, with the
+    running balance. A donation not yet received at the store is listed as waiting."""
     cat = _quantity_category(db, cid)
     start = _start(db)
+    names = _location_names(db)
+    at_ = lambda lid: names.get(lid) if lid else None
     rows = []
-    for d in db.query(Donation).filter(Donation.donation_type == "Material", Donation.voided.isnot(True),
-                                       Donation.fund == cat.name, Donation.donated_on >= start).all():
-        rows.append({"date": d.donated_on, "at": d.created_at, "kind": "Donation", "ref": d.receipt_no,
-                     "donation_code": d.donation_code, "source": SRC_DONATED,
-                     "detail": d.donor_name, "in": Decimal(str(d.quantity or 0)), "out": None, "status": "Active", "by": d.created_by,
-                     "expiry_date": str(d.expiry_date) if d.expiry_date else None})
+    for a in donation_arrivals(db, [cat], start):
+        d = a["d"]
+        common = {"kind": "Donation", "ref": d.receipt_no, "donation_code": d.donation_code, "source": SRC_DONATED,
+                  "out": None, "expiry_date": str(d.expiry_date) if d.expiry_date else None, "location": at_(a["location_id"])}
+        if a.get("waiting"):
+            rows.append({**common, "date": d.donated_on, "at": d.created_at, "detail": d.donor_name, "in": None,
+                         "waiting": float(a["waiting"]), "status": "Waiting", "by": d.created_by})
+        elif a["qty"] > 0:
+            rows.append({**common, "date": a["received"], "at": a["at"] or d.created_at, "detail": d.donor_name,
+                         "in": a["qty"], "status": "Active", "by": a.get("by") or d.created_by,
+                         "received_by": a.get("by")})
     for m in db.query(ManualStockEntry).filter(ManualStockEntry.category_id == cid, ManualStockEntry.status == "Verified").all():
-        rows.append({"date": m.verified_at.date() if m.verified_at else None, "at": m.verified_at, "kind": "Manual entry",
+        rows.append({"date": _ist_day(m.verified_at), "at": m.verified_at, "kind": "Manual entry",
                      "ref": m.code, "detail": f"{m.source} — {m.reason} (verified by {m.verified_by})", "source": manual_source(m),
                      "in": Decimal(str(m.quantity)), "out": None, "status": "Active", "by": m.created_by,
-                     "expiry_date": str(m.expiry_date) if m.expiry_date else None})
+                     "expiry_date": str(m.expiry_date) if m.expiry_date else None, "location": at_(m.location_id)})
     for u in db.query(ConsumableUse).filter(ConsumableUse.category_id == cid).all():
         detail = u.purpose + (f" — issued to {u.issued_to}" if u.issued_to else "") + (f" · {u.notes}" if u.notes else "")
         if u.batch_note:
@@ -183,7 +232,14 @@ def ledger(cid: int, db: Session = Depends(get_db), user=Depends(read)):
         if u.status == "Cancelled":
             detail += f" · cancelled by {u.cancelled_by}: {u.cancel_reason}"
         rows.append({"date": u.used_on, "at": u.created_at, "kind": "Use", "ref": u.code, "id": u.id, "detail": detail, "source": None,
-                     "in": None, "out": Decimal(str(u.quantity)), "status": u.status, "by": u.created_by})
+                     "in": None, "out": Decimal(str(u.quantity)), "status": u.status, "by": u.created_by,
+                     "location": at_(u.location_id)})
+    for mv in db.query(ConsumableMove).filter(ConsumableMove.category_id == cid).all():
+        rows.append({"date": mv.moved_on, "at": mv.created_at, "kind": "Move", "ref": mv.code, "source": None,
+                     "detail": f"{_qty(mv.quantity)} {cat.unit or ''}".strip() + f" · {at_(mv.from_location_id) or '—'} → "
+                               f"{at_(mv.to_location_id) or '—'}" + (f" · {mv.note}" if mv.note else ""),
+                     "in": None, "out": None, "moved": float(mv.quantity), "status": "Active", "by": mv.created_by,
+                     "from": at_(mv.from_location_id), "to": at_(mv.to_location_id)})
     rows.sort(key=lambda r: (r["date"] or date.min, r["at"] or datetime.min))
     bal = Decimal("0")
     out = []
@@ -193,8 +249,18 @@ def ledger(cid: int, db: Session = Depends(get_db), user=Depends(read)):
         out.append({**r, "date": str(r["date"]) if r["date"] else None, "at": r["at"].isoformat() if r["at"] else None,
                     "in": float(r["in"]) if r["in"] is not None else None,
                     "out": float(r["out"]) if r["out"] is not None else None, "balance": float(bal)})
-    return {**_balance(db, cat, start), "purchased_amount": purchase_amounts(db, [cat.id]).get(cat.id, 0.0),
-            "start_date": str(start), "entries": out}
+    rows_now = batches(db, cat, start)
+    return {**_balance_of(cat, rows_now, _used(db, cat.id)), "purchased_amount": purchase_amounts(db, [cat.id]).get(cat.id, 0.0),
+            "start_date": str(start), "entries": out, "locations": where_kept(rows_now, names)}
+
+
+def _now() -> datetime:
+    from datetime import timezone
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _location_names(db: Session) -> dict:
+    return {l.id: l.name for l in db.query(StoreLocation).all()}
 
 
 # ── Batches & expiry ─────────────────────────────────────────────────────────
@@ -203,21 +269,21 @@ WATCH_DAYS = 30        # amber
 
 
 def _receipts(db: Session, cats: list[DonationCategory], start: date) -> dict[int, list[dict]]:
-    """Every receipt (batch) of these consumables, by category id — two queries in all."""
-    by_name = {c.name: c.id for c in cats}
+    """Every receipt (batch) of these consumables, by category id, with where it is kept."""
     out = {c.id: [] for c in cats}
-    for d in db.query(Donation).filter(Donation.donation_type == "Material", Donation.voided.isnot(True),
-                                       Donation.fund.in_(list(by_name) or [""]), Donation.donated_on >= start).all():
-        out[by_name[d.fund]].append({"kind": "Donation", "source": SRC_DONATED, "id": d.id, "ref": d.receipt_no,
-                                     "donation_code": d.donation_code,
-                                     "received": d.donated_on,
-                                     "at": d.created_at, "qty": Decimal(str(d.quantity or 0)), "expiry": d.expiry_date,
-                                     "detail": d.donor_name})
+    for a in donation_arrivals(db, cats, start):
+        if a["qty"] <= 0:
+            continue
+        d = a["d"]
+        out[a["category_id"]].append({"kind": "Donation", "source": SRC_DONATED, "id": d.id, "ref": d.receipt_no,
+                                      "donation_code": d.donation_code, "received": a["received"],
+                                      "at": a["at"], "qty": a["qty"], "expiry": d.expiry_date,
+                                      "detail": d.donor_name, "location_id": a["location_id"]})
     for m in db.query(ManualStockEntry).filter(ManualStockEntry.category_id.in_(list(out) or [0]),
                                                ManualStockEntry.status == "Verified").all():
         out[m.category_id].append({"kind": "Manual", "source": manual_source(m), "id": m.id, "ref": m.code, "received": _ist_day(m.verified_at) or start,
                                    "at": m.verified_at, "qty": Decimal(str(m.quantity)), "expiry": m.expiry_date,
-                                   "detail": m.source})
+                                   "detail": m.source, "location_id": m.location_id})
     return out
 
 
@@ -243,23 +309,52 @@ def _take(batches: list[dict], qty: Decimal) -> list[tuple[dict, Decimal]]:
 
 
 def all_batches(db: Session, cats: list[DonationCategory], start: date | None = None) -> dict[int, list[dict]]:
-    """Every receipt of these consumables with what is left of it, by category id. Uses are
-    replayed in date order; each takes from the batches received by then, earliest expiry
-    first (whatever a back-dated use cannot find there comes out of later batches)."""
+    """Every receipt of these consumables with what is left of it and where, by category id. Uses and
+    moves are replayed in date order; each takes from the batches received by then, earliest expiry
+    first (whatever a back-dated one cannot find there comes out of later batches). A use from a
+    location — and every move — takes only from that location's batches; a move puts copies of what
+    it took (same best-before) at its new location."""
     start = start or _start(db)
     rows = _receipts(db, cats, start)
     for bs in rows.values():
         for b in bs:
             b["left"] = b["qty"]
-    uses = (db.query(ConsumableUse).filter(ConsumableUse.category_id.in_(list(rows) or [0]), ConsumableUse.status == "Active")
-            .order_by(ConsumableUse.used_on, ConsumableUse.created_at, ConsumableUse.id).all())
-    for u in uses:
-        bs = rows[u.category_id]
-        need = Decimal(str(u.quantity))
-        need -= sum(t for _, t in _take([b for b in bs if (b["received"] or date.min) <= u.used_on], need))
+    ids = list(rows) or [0]
+    events = [(u.used_on, u.created_at or datetime.min, 0, u.id, u) for u in db.query(ConsumableUse).filter(
+        ConsumableUse.category_id.in_(ids), ConsumableUse.status == "Active").all()]
+    events += [(m.moved_on, m.created_at or datetime.min, 1, m.id, m) for m in db.query(ConsumableMove).filter(
+        ConsumableMove.category_id.in_(ids)).all()]
+    events.sort(key=lambda e: e[:4])
+    for on, _, is_move, _, ev in events:
+        bs = rows[ev.category_id]
+        need = Decimal(str(ev.quantity))
+        loc = ev.from_location_id if is_move else ev.location_id
+        pool = bs if (loc is None and not is_move) else [b for b in bs if b["location_id"] == loc]
+        taken = _take([b for b in pool if (b["received"] or date.min) <= on], need)
+        need -= sum(t for _, t in taken)
         if need > 0:
+            more = _take(pool, need)
+            taken += more; need -= sum(t for _, t in more)
+        if need > 0 and not is_move:
             _take(bs, need)
+        if is_move:
+            for b, t in taken:
+                bs.append({**b, "qty": t, "left": t, "location_id": ev.to_location_id, "moved": True})
     return rows
+
+
+def where_kept(rows: list[dict], names: dict) -> list[dict]:
+    """What is left of one consumable, by location ("—" = no location yet)."""
+    left = {}
+    for b in rows:
+        if b["left"] > 0:
+            left[b["location_id"]] = left.get(b["location_id"], Decimal("0")) + b["left"]
+    return sorted(({"location_id": k, "location": names.get(k) if k else None, "left": float(v)} for k, v in left.items()),
+                  key=lambda x: (x["location"] is None, (x["location"] or "").lower()))
+
+
+def left_at(rows: list[dict], location_id: int | None) -> Decimal:
+    return sum((b["left"] for b in rows if b["location_id"] == location_id and b["left"] > 0), Decimal("0"))
 
 
 def batches(db: Session, cat: DonationCategory, start: date | None = None) -> list[dict]:
@@ -280,7 +375,7 @@ def _batch_dict(b: dict, cat: DonationCategory, today: date) -> dict:
             "detail": b["detail"], "received": str(b["received"]) if b["received"] else None,
             "quantity": float(b["qty"]), "left": float(b["left"]),
             "expiry_date": str(b["expiry"]) if b["expiry"] else None, "days_left": days, "status": status,
-            "track_expiry": bool(cat.track_expiry)}
+            "track_expiry": bool(cat.track_expiry), "location_id": b.get("location_id"), "location": b.get("location")}
 
 
 def _quantity_categories(db: Session):
@@ -317,10 +412,12 @@ def list_batches(show: str = "expiring", days: int = WATCH_DAYS, db: Session = D
     out = []
     cats = _quantity_categories(db)
     every = all_batches(db, cats, start)
+    names = _location_names(db)
     for c in cats:
         for b in every[c.id]:
             if b["left"] <= 0:
                 continue
+            b["location"] = names.get(b["location_id"]) if b.get("location_id") else None
             if show == "expiring" and (not b["expiry"] or (b["expiry"] - today).days > max(0, min(days, 3650))):
                 continue
             out.append(_batch_dict(b, c, today))
@@ -348,7 +445,7 @@ def set_expiry(kind: str, bid: int, body: ExpiryIn, request: Request, db: Sessio
     elif kind == "Manual":
         obj = db.get(ManualStockEntry, bid)
         if not obj or obj.status != "Verified":
-            raise HTTPException(404, "Verified manual entry not found")
+            raise HTTPException(404, "Verified purchased item entry not found")
         cat, ref, received = db.get(DonationCategory, obj.category_id), obj.code, _ist_day(obj.verified_at)
     else:
         raise HTTPException(404, "Unknown batch")
@@ -374,7 +471,8 @@ def _taken_note(taken: list[tuple[dict, Decimal]], unit: str | None) -> str | No
 
 
 def make_use(db: Session, user, cat: DonationCategory, quantity: Decimal, purpose: str, used_on: date,
-             issued_to: str | None = None, notes: str | None = None, start: date | None = None) -> ConsumableUse:
+             issued_to: str | None = None, notes: str | None = None, start: date | None = None,
+             location_id: int | None = None) -> ConsumableUse:
     """Record a use (not committed): checks the balance, notes the batches it comes from.
     `cat` must have been fetched with lock=True."""
     start = start or _start(db)
@@ -382,16 +480,26 @@ def make_use(db: Session, user, cat: DonationCategory, quantity: Decimal, purpos
         raise HTTPException(422, "The date of use cannot be in the future.")
     if used_on < start:
         raise HTTPException(422, f"Consumables are counted from {start}. Use a date on or after it.")
-    remaining = _balance(db, cat, start)["remaining"]
+    now = batches(db, cat, start)
+    remaining = _balance_of(cat, now, _used(db, cat.id))["remaining"]
     if quantity > Decimal(str(remaining)):
         raise HTTPException(422, f"Only {_qty(remaining)} {cat.unit or ''} of {cat.name} is left.".replace("  ", " "))
-    now = batches(db, cat, start)
-    taken = _take([b for b in now if b["left"] > 0], quantity)
+    pool = [b for b in now if b["left"] > 0]
+    if location_id is not None:
+        loc = db.get(StoreLocation, location_id)
+        if not loc:
+            raise HTTPException(404, "Location not found")
+        have = left_at(now, location_id)
+        if quantity > have:
+            raise HTTPException(422, f"Only {_qty(have)} {cat.unit or ''} of {cat.name} is at {loc.name}.".replace("  ", " "))
+        pool = [b for b in pool if b["location_id"] == location_id]
+    taken = _take(pool, quantity)
     seq = next_code_seq(db, "consumable_use", db.query(func.max(ConsumableUse.id)).scalar() or 0)
     u = ConsumableUse(code=f"USE-{seq:04d}", category_id=cat.id, quantity=quantity, purpose=purpose,
                       issued_to=(issued_to or "").strip() or None, used_on=used_on,
                       notes=(notes or "").strip() or None, batch_note=_taken_note(taken, cat.unit),
-                      created_by=user.username)
+                      location_id=location_id, created_by=user.username,
+                      created_at=_now())       # exact time: uses and moves of one day replay in the order made
     db.add(u); db.flush()
     return u
 
@@ -436,11 +544,49 @@ def write_off_expired(cid: int, body: WriteOffIn, request: Request, db: Session 
 def record_use(body: UseIn, request: Request, db: Session = Depends(get_db), user=Depends(write)):
     cat = _quantity_category(db, body.category_id, lock=True)
     start = _start(db)
-    u = make_use(db, user, cat, body.quantity, body.purpose, body.used_on, body.issued_to, body.notes, start)
+    u = make_use(db, user, cat, body.quantity, body.purpose, body.used_on, body.issued_to, body.notes, start,
+                 location_id=body.location_id)
     db.commit(); db.refresh(u)
     log_action(db, username=user.username, action="CREATE", entity="ConsumableUse",
                detail=f"{u.code} {cat.name} {_qty(body.quantity)} {cat.unit or ''} — {body.purpose}", ip=client_ip(request))
     return {"id": u.id, "code": u.code, **_balance(db, cat, start), "slip": _slip(db, u)}
+
+
+class MoveIn(BaseModel):
+    category_id: int
+    quantity: Decimal = Field(..., gt=0, le=1000000)
+    from_location_id: int | None = None        # None = stock not yet in a location ("—")
+    to_location_id: int
+    note: str | None = Field(default=None, max_length=300)
+
+
+@router.post("/move", status_code=201)
+def move_stock(body: MoveIn, request: Request, db: Session = Depends(get_db), user=Depends(write)):
+    """Move some of a consumable to another location (Oil Room → Kitchen). The balance is unchanged; the
+    best-before dates go with it. Stores Officer + Administrator."""
+    cat = _quantity_category(db, body.category_id, lock=True)
+    to = db.get(StoreLocation, body.to_location_id)
+    if not to or not to.active:
+        raise HTTPException(422, "Choose an active location to move it to.")
+    if body.from_location_id == body.to_location_id:
+        raise HTTPException(422, "It is already kept there — choose another location.")
+    names = _location_names(db)
+    if body.from_location_id is not None and body.from_location_id not in names:
+        raise HTTPException(404, "Location not found")
+    start = _start(db)
+    have = left_at(batches(db, cat, start), body.from_location_id)
+    where = names.get(body.from_location_id) or "—"
+    if body.quantity > have:
+        raise HTTPException(422, f"Only {_qty(have)} {cat.unit or ''} of {cat.name} is at {where}.".replace("  ", " "))
+    seq = next_code_seq(db, "consumable_move", db.query(func.max(ConsumableMove.id)).scalar() or 0)
+    mv = ConsumableMove(code=f"MOV-{seq:04d}", category_id=cat.id, quantity=body.quantity,
+                        from_location_id=body.from_location_id, to_location_id=to.id, moved_on=ist_today(),
+                        note=(body.note or "").strip() or None, created_by=user.username, created_at=_now())
+    db.add(mv); db.commit(); db.refresh(mv)
+    log_action(db, username=user.username, action="CREATE", entity="ConsumableMove",
+               detail=f"{mv.code} {cat.name} {_qty(body.quantity)} {cat.unit or ''} {where} → {to.name}", ip=client_ip(request))
+    rows = batches(db, cat, start)
+    return {"id": mv.id, "code": mv.code, "category_id": cat.id, "locations": where_kept(rows, names)}
 
 
 def _slip(db: Session, u: ConsumableUse) -> dict:
@@ -451,7 +597,8 @@ def _slip(db: Session, u: ConsumableUse) -> dict:
             "quantity": float(u.quantity), "purpose": u.purpose, "issued_to": u.issued_to,
             "used_on": str(u.used_on), "notes": u.notes, "issued_by": (who.name if who and who.name else u.created_by),
             "created_at": u.created_at.isoformat() if u.created_at else None, "status": u.status,
-            "cancel_reason": u.cancel_reason, "cancelled_by": u.cancelled_by, "batch_note": u.batch_note}
+            "cancel_reason": u.cancel_reason, "cancelled_by": u.cancelled_by, "batch_note": u.batch_note,
+            "location": (db.get(StoreLocation, u.location_id).name if u.location_id and db.get(StoreLocation, u.location_id) else None)}
 
 
 @router.get("/use/{uid}")
@@ -585,7 +732,7 @@ def set_start(body: StartIn, request: Request, db: Session = Depends(get_db), us
     if body.start_date > ist_today():
         raise HTTPException(422, "The start date cannot be in the future.")
     if db.query(ConsumableUse.id).first():
-        raise HTTPException(409, "Uses are already recorded — the start date is fixed now. Enter missing stock as a manual entry instead.")
+        raise HTTPException(409, "Uses are already recorded — the start date is fixed now. Enter missing stock in Purchased Items instead.")
     row = db.query(Setting).filter(Setting.skey == START_KEY).first()
     old = row.svalue if row else None
     if not row:

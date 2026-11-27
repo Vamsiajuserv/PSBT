@@ -51,6 +51,15 @@ class CommitteeFee(unittest.TestCase):
                 self.put(bad)
             self.assertEqual(cm.exception.status_code, 422, repr(bad))
 
+    def test_only_the_administrator_enters_the_price(self):
+        # client, 2026-11-26: the committee gives the price to the Administrator; the Committee role has no screen
+        for role in ("Committee", "Counter Staff", "Accountant"):
+            with self.assertRaises(HTTPException) as cm:
+                r.update_committee_fee(5, {"fee": 500}, self.req, self.db,
+                                       SimpleNamespace(username="u", role=role))
+            self.assertEqual(cm.exception.status_code, 403, role)
+        self.assertEqual(self.stored(), 0)                                    # unchanged
+
     def test_valid_values(self):
         for good, want in ((0, 0), (1, 1), (500, 500), ("750", 750), ("1116.00", 1116), (2500.0, 2500)):
             self.assertEqual(self.put(good)["fee"], want, repr(good))

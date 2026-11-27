@@ -8,7 +8,7 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select, DateField } from '../../../components/common/Field.jsx'
 import { promptDialog, confirmDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { canFollowMissing, canDecideLost, staffName, useStoresMeta, StoresTabs } from './shared.jsx'
+import { canFollowMissing, canDecideLost, staffName, useStoresMeta, piecesText } from './shared.jsx'
 
 const qty = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 })
 const errText = (ex, fallback) => tr(getErrorMessage(ex, fallback)).replace(/^Value error, /, '')
@@ -71,7 +71,7 @@ export default function MissingItems() {
   async function approve(c) {
     const ok = await confirmDialog({ title: `${tr('Approve write-off')} — ${c.tag_id}`, tone: 'danger', confirmLabel: tr('Approve'),
       message: isChange(c) ? `${tr(c.item_name)} — ${tr(c.report_reason)}. ${tr('The new value is saved on the piece.')}`
-        : `${tr(c.item_name)}${c.weight_g != null ? ` · ${qty(c.weight_g)} ${gramUnit()}` : ''} · ${inr(c.est_value || 0)} — ${tr(c.report_reason)}. ${c.kind === 'Damaged' ? tr('The piece is written off as damaged.') : tr('The piece is written off as lost.')}` })
+        : `${tr(c.item_name)}${piecesText(c)}${c.weight_g != null ? ` · ${qty(c.weight_g)} ${gramUnit()}` : ''} · ${inr(c.est_value || 0)} — ${tr(c.report_reason)}. ${c.kind === 'Damaged' ? tr('The piece is written off as damaged.') : tr('The piece is written off as lost.')}` })
     if (!ok) return
     try { await StoresAPI.approveLost(c.id); done(`${c.tag_id}: ${isChange(c) ? tr('change approved.') : c.kind === 'Damaged' ? tr('written off as damaged.') : tr('written off as lost.')}`) }
     catch (ex) { toast(errText(ex, 'Could not approve.'), 'error') }
@@ -91,9 +91,8 @@ export default function MissingItems() {
 
   return (
     <div>
-      <StoresTabs group="check" />
-      <PageTitle title={tr('Missing Items')} subtitle={tr('Pieces a stock check did not find — found again, or written off as lost with committee approval.')}
-        help={<span>{tr('A piece becomes Missing when a Stock Check does not find it; a damaged piece comes here when the Stores Officer asks to write it off.')} <b>{tr('Stores Officer')}:</b> {tr('mark it found, or report it lost.')} <b>{tr('Committee')}:</b> {tr('approves or rejects every write-off.')}</span>} />
+      <PageTitle title={tr('Write-offs & Approvals')} subtitle={tr('Items asked to be written off, and gold / silver weight changes — the Committee approves or rejects each one.')}
+        help={<span>{tr('An item comes here when the Stores Officer asks to write it off (Stock Register), or when a gold / silver weight is changed.')} <b>{tr('Committee')}:</b> {tr('approves or rejects every write-off.')}</span>} />
       <KpiGrid>
         <StatTile icon={SearchX} color="#dc2626" bg="bg-red-50" title={tr('Missing now')} value={sum ? num(sum.missing_now) : '—'} sub={tr('Open cases')} />
         <StatTile icon={Hourglass} color="#b45309" bg="bg-amber-50" title={tr('Awaiting committee')} value={sum ? num(sum.awaiting_committee) : '—'} sub={tr('Lost write-off asked for')} />
@@ -129,7 +128,7 @@ export default function MissingItems() {
               {rows.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50/60 align-top">
                   <td className="px-3 py-3 font-mono text-[0.78rem] whitespace-nowrap"><Link className="text-maroon-700 font-semibold hover:underline" to={`/admin/stores/item/${c.tag_id}`}>{c.tag_id}</Link></td>
-                  <td className="px-3 py-3"><div className="font-semibold text-gray-800">{tr(c.description || c.item_name)}</div>
+                  <td className="px-3 py-3"><div className="font-semibold text-gray-800">{tr(c.description || c.item_name)}{piecesText(c)}</div>
                     <div className="text-[0.6875rem] text-gray-500">{[tr(c.item_name), c.weight_g != null ? `${qty(c.weight_g)} ${gramUnit()}` : '', personName({ name: c.donor_name }, lang)].filter(Boolean).join(' · ')}</div></td>
                   <td className="px-3 py-3 text-gray-700">{tr(c.location || '—')}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-[0.8125rem]">{KIND_LABEL[c.kind] ? <Pill tone="orange">{tr(KIND_LABEL[c.kind])}</Pill> : <span className="font-mono">{c.check_code}</span>}{KIND_LABEL[c.kind] ? ' ' : ', '}{fmtDate(c.missing_since)}</td>

@@ -13,7 +13,10 @@ import { WasteAPI, VendorsAPI, CommitteeAPI, DevoteesAPI, WasteMaterialsAPI } fr
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
+import { colFilters } from '../../lib/exportGuard.js'
+import { monthStartISO, todayISO as periodToday } from '../../lib/period.js'
 import ResetButton from '../../components/common/ResetButton.jsx'
+import usePickList from '../../hooks/usePickList.js'
 import { Select, DateField, DateTimeField, NumberField, CountryCodeSelect, getCountryDigits, Combobox } from '../../components/common/Field.jsx'
 import { T, tr, trLocal, clock12, personName, useLang, getLang, staffName } from '../../i18n/LanguageContext.jsx'
 import { sanitizeName, sanitizePhone, validateName, validatePhone } from '../../lib/validation.js'
@@ -82,8 +85,8 @@ export default function WasteSales() {
     q, setQ, material, setMaterial, mode, setMode,
     start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
-    q: '', material: '', mode: '', start: '', end: '', page: 1,
-  })
+    q: '', material: '', mode: '', start: monthStartISO(), end: periodToday(), page: 1,   // opens on this month (2026-11-26)
+  }, { blankable: ['start', 'end'] })
 
   // Sortable table columns with filtering support
   const sortColumns = [
@@ -134,6 +137,9 @@ export default function WasteSales() {
   }
 
   // Check if user can verify a sale (not creator)
+  // Bill only for a sale the Committee has verified (client, 2026-11-27)
+  const canPrintBill = (sale) => !!sale && sale.status !== 'Void' && sale.verification_status === 'Verified'
+
   const canVerifySale = (sale) => {
     if (!isCommittee) return false
     if (sale.status === 'Void') return false
@@ -211,7 +217,7 @@ export default function WasteSales() {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        WasteAPI.sales({ q, material, mode, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'paid_at', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
+        WasteAPI.sales({ q, material, mode, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'paid_at', sort_dir: sorts[0]?.direction || 'desc', col_filters: filtersToParam(filters) }),
         WasteAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -240,6 +246,7 @@ export default function WasteSales() {
   // Devotee search for registered devotees who can also buy waste materials (Item 33)
   const [devQ, setDevQ] = useState('')
   const [devResults, setDevResults] = useState([])
+  const devPick = usePickList(devResults, (d) => onPickDevotee(d))
   useEffect(() => {
     if (!drawer || drawer.devotee_id || devQ.trim().length < 1) { setDevResults([]); return }
     const t = setTimeout(() => {
@@ -330,7 +337,9 @@ export default function WasteSales() {
         paid_at: isAdmin ? (m.paid_at || null) : null,   // Counter Staff: the sale is recorded as paid now
         verified_by: m.verified_by || null,
       })
-      setDrawer(null); setDevQ(''); load(); setPrintDoc(created)
+      // The bill is printed only after the Committee verifies the sale (client, 2026-11-27)
+      setDrawer(null); setDevQ(''); load()
+      toast(tr('Sale saved ({code}). Print the bill after the Committee verifies it.').replace('{code}', created?.code || ''), 'success')
     } catch (ex) {
       // Error is already handled by API client with toast
     } finally { setSaving(false) }
@@ -349,7 +358,8 @@ export default function WasteSales() {
   return (
     <div>
       <PageTitle title={tr("Other Material Sales Management")} subtitle={tr("Record other material sales, accept payments and generate receipt.")}
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Other Material Sales Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canWrite ? <button onClick={openNewSale} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Other Material Sale</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Other Material Sales Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal}
+          screen="Other Material Sales Register" start={start} end={end} available={total} filters={[['Search', q], ['Material', material], ['Payment mode', mode], ...colFilters(filters, sortColumns)]} />{canWrite ? <button onClick={openNewSale} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Other Material Sale</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       {user?.role !== 'Counter Staff' && (
         <KpiGrid>
@@ -437,6 +447,9 @@ export default function WasteSales() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5 text-gray-800">
                       <button onClick={() => setPrintDoc(s)} title={tr("View")} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 hover:text-maroon-700 hover:border-maroon-300"><Eye size={15} /></button>
+                      {canPrintBill(s) && (
+                        <button onClick={() => setPrintDoc(s)} title={tr("Print Bill")} className="w-8 h-8 grid place-items-center rounded-lg border border-maroon-200 text-maroon-700 hover:bg-maroon-50 hover:border-maroon-400"><Printer size={15} /></button>
+                      )}
                       {canVerifySale(s) && (
                         <>
                           <button onClick={() => setVerifyModal(s)} title={tr("Verify")} className="w-8 h-8 grid place-items-center rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400"><CheckCircle size={15} /></button>
@@ -499,13 +512,13 @@ export default function WasteSales() {
                       <label className="label"><T>Search Registered Devotee</T></label>
                       <div className="relative">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input className="input !pl-9" placeholder={tr("Search by name or mobile (min 2 chars)…")} value={devQ} onChange={(e) => setDevQ(e.target.value)} />
+                        <input className="input !pl-9" placeholder={tr("Search by name or mobile (min 2 chars)…")} value={devQ} onChange={(e) => setDevQ(e.target.value)} onKeyDown={devPick.onKeyDown} />
                         {devResults.length > 0 && (
                           <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1 max-h-48 overflow-y-auto">
-                            {devResults.map((d) => (
-                              <button type="button" key={d.id} onClick={() => onPickDevotee(d)} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
-                                <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
-                                <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
+                            {devResults.map((d, i) => (
+                              <button type="button" key={d.id} onClick={() => onPickDevotee(d)} {...devPick.rowProps(i)} className={`pick-row ${devPick.rowClass(i)} w-full text-left px-3 py-2 flex items-center gap-2`}>
+                                <span className="pick-avatar transition-colors w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
+                                <span><span className="pick-name font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
                               </button>
                             ))}
                           </div>
@@ -626,7 +639,7 @@ export default function WasteSales() {
               {/* Reset (client, 2026-11-20): back to a freshly opened sale form */}
               <ResetButton onReset={() => { openNewSale(); setDevQ(''); setDevResults([]); setFieldErrors({}) }} disabled={saving} className="justify-center shrink-0" />
               <button type="button" onClick={() => setDrawer(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{tr('Save Payment & Generate Receipt')} <Printer size={15} /></>}</button>
+              <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{tr('Save & Send for Verification')} <Check size={15} /></>}</button>
             </div>
           </form>
         </div>
@@ -635,7 +648,8 @@ export default function WasteSales() {
       {printDoc && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto print-modal" onClick={() => setPrintDoc(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg my-auto">
-            <div id="print-area">
+            {/* not verified → no print area, so even Ctrl+P prints nothing */}
+            <div id={canPrintBill(printDoc) ? 'print-area' : undefined}>
               <Receipt title={tr("Other Material Sale Receipt")} titleTe="ఇతర పదార్థ విక్రయ రసీదు" no={printDoc.code} subNo={fmtDate(printDoc.paid_at || printDoc.created_at)} subNoLabel="Date" amount={printDoc.amount}
                 rows={[
                   { en: 'Buyer', value: printDoc.buyer_name, valueTe: buyerLabel(printDoc.buyer_name) },
@@ -653,7 +667,10 @@ export default function WasteSales() {
                 footerNote={toWords(printDoc.amount)} />
             </div>
             <div className="flex gap-2 justify-center mt-4 no-print">
-              <button onClick={() => window.print()} className="btn-maroon"><Printer size={15} />{' '}<T>Print Receipt</T></button>
+              {canPrintBill(printDoc)
+                ? <button onClick={() => window.print()} className="btn-maroon"><Printer size={15} />{' '}<T>Print Bill</T></button>
+                : <span className="self-center text-[0.8125rem] text-amber-700">{printDoc.status === 'Void' || printDoc.verification_status === 'Rejected'
+                    ? tr('No bill for a rejected or voided sale.') : tr('The bill can be printed after the Committee verifies this sale.')}</span>}
               <button onClick={() => setPrintDoc(null)} className="btn-outline"><T>Close</T></button>
             </div>
           </div>

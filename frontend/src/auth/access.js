@@ -51,15 +51,17 @@ export const ACCESS = {
   audit: { module: 'Audit' },
 
   // ── Stores & Inventory (Stores module: Counter Staff, Committee, Accountant) ──
+  // Counter Staff only view stock (client, 2026-11-27): Stock Register, Consumable Stock, Item Tracker,
+  // and their billing — Unsold Items (auctions) and Open Sale. Store work screens are hidden.
   'stores/register': { module: 'Stores' },
-  'stores/pending': { module: 'Stores' },
+  'stores/pending': { module: 'Stores', excludeRoles: ['Counter Staff'] },
   'stores/consumables': { module: 'Stores' },
   'stores/unsold': { module: 'Stores' },
   'stores/deity-used': { module: 'Stores' },
   'stores/open-sale': { module: 'Stores' },
-  'stores/report': { module: 'Stores' },
-  'stores/check': { module: 'Stores' },
-  'stores/manual': { module: 'Stores' },
+  'stores/report': { module: 'Stores', excludeRoles: ['Counter Staff'] },
+  'stores/check': { module: 'Stores', excludeRoles: ['Counter Staff'] },
+  'stores/manual': { module: 'Stores', excludeRoles: ['Counter Staff'] },
   'stores/bought': { module: 'Stores' },
   'stores/item': { module: 'Stores' },
   // Store Locations: Administrator + Stores Officer (backend: RequireRole(STORES_OFFICER))
@@ -69,8 +71,8 @@ export const ACCESS = {
   // Stores Day Closing: Stores Officer + Administrator close it; Committee and Accountant view / print
   'stores/day-closing': { module: 'Stores', roles: ['Stores Officer', 'Committee', 'Accountant'] },
   // Issue & Return (issue/return: Stores Officer + Admin; others view) · Missing Items (Committee decides lost)
-  'stores/issue': { module: 'Stores' },
-  'stores/missing': { module: 'Stores' },
+  'stores/issue': { module: 'Stores', excludeRoles: ['Counter Staff'] },
+  'stores/missing': { module: 'Stores', excludeRoles: ['Counter Staff'] },
   // Purchase Requests (Stores Officer raises, Committee approves, Accountant views) · Valuables
   // Statement (view / print) · Festival Kits (Stores Officer works, Committee views)
 
@@ -87,7 +89,9 @@ export const ACCESS = {
   'auction-items': { adminOnly: true },
   vendors: { adminOnly: true },
   'waste-materials': { adminOnly: true },
-  committee: { module: 'Hundi', roles: ['Committee'] },  // Committee role for Festival Pricing
+  // Committee Member Master (members + festival pricing): Administrator only (client, 2026-11-26) —
+  // the committee gives the festival price to the Administrator, who enters it here
+  committee: { adminOnly: true },
   festivals: { adminOnly: true },
   almanac: { adminOnly: true },   // Pournami & festival days — yearly review against TTD
   settings: { adminOnly: true },

@@ -1,6 +1,6 @@
 """Dashboard stats + reports + audit log."""
 from datetime import date, datetime, timedelta
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -8,7 +8,7 @@ from ..database import get_db
 from ..models import (User, Booking, Donation, HundiCollection, Auction, Annadanam,
                       WasteSale, OpenSale, AuditLog, Festival)
 from ..schemas import AuditOut
-from ..security import RequireModule, RequireRole, ADMIN_ROLES
+from ..security import RequireModule, RequireRole, ADMIN_ROLES, get_current_user, log_action, client_ip
 from ..helpers import fmt_ist_time, sort_expr, apply_column_filters
 from ..helpers import ist_day, ist_today
 from .almanac import pending_review_count, pending_review_count_for_year
@@ -272,6 +272,25 @@ def reports_summary(start: date | None = None, end: date | None = None,
 # RATE_LIMIT rows are internal request counters for the rate limiter (helpers.enforce_rate_limit),
 # not user activity — keep them out of the Audit Trail.
 _NOT_RATE_LIMIT = AuditLog.action != "RATE_LIMIT"
+
+
+@router.post("/audit/export")
+def record_export(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Every Download / Print of a list is recorded in the Audit Trail — who took what, with which
+    filters and how many records (client, 2026-11-26): "Ravi · Donation Register · Excel · All dates
+    · 2,345 records"."""
+    screen = str(body.get("screen") or "").strip()[:60]
+    if not screen:
+        raise HTTPException(422, "Say which list was downloaded.")
+    fmt = str(body.get("format") or "").strip()[:20] or "Download"
+    summary = str(body.get("summary") or "").strip()[:600] or "All dates"
+    try:
+        records = max(0, int(body.get("records") or 0))
+    except (TypeError, ValueError):
+        records = 0
+    log_action(db, username=user.username, action="EXPORT", entity=screen,
+               detail=f"{fmt} · {summary} · {records} record(s)", ip=client_ip(request))
+    return {"ok": True}
 
 
 @router.get("/audit", response_model=list[AuditOut])

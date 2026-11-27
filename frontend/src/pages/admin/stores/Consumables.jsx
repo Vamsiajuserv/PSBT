@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { X, MinusCircle, BookOpen, Plus, CalendarDays, Ban, Printer, Receipt as ReceiptIcon, Trash2, Pencil, AlertTriangle, RotateCcw, ClipboardCheck } from 'lucide-react'
+import { X, MinusCircle, BookOpen, Plus, CalendarDays, Ban, Printer, Receipt as ReceiptIcon, Trash2, Pencil, AlertTriangle, RotateCcw, ClipboardCheck, ArrowRightLeft, Clock, ChevronRight, ChevronDown } from 'lucide-react'
 import { PageTitle, Pill, fmtDate, fmtStamp } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { useAuth } from '../../../auth/AuthContext.jsx'
@@ -8,11 +8,16 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { NumberField, DateField, Combobox, Select } from '../../../components/common/Field.jsx'
 import { promptDialog, confirmDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, getLang } from '../../../i18n/LanguageContext.jsx'
-import { canWriteStores, canManageStores, isAdminUser, staffName, storeDetail, sourceRef, sourceSplit } from './shared.jsx'
+import { canWriteStores, canManageStores, isAdminUser, staffName, storeDetail, sourceRef, sourceSplit, useStoresMeta } from './shared.jsx'
 import { useTemple } from '../../../lib/SiteContext.jsx'
+import { guardExport } from '../../../lib/exportGuard.js'
 
 const PURPOSES = ['Nithya Pooja – Deepam', 'Abhishekam', 'Annadanam', 'Prasadam', 'Festival', 'Homam', 'Other']
-const KIND_TONE = { Donation: 'blue', 'Manual entry': 'amber', Use: 'red' }
+const KIND_TONE = { Donation: 'blue', 'Manual entry': 'amber', Use: 'red', Move: 'gray' }
+// Where a consumable is kept (2026-11-27): "Oil Room 5 L · Kitchen 3 L"; stock from before then has no location
+const placeName = (name) => (name ? tr(name) : tr('No location'))
+const whereText = (locs, unit) => (locs || []).map((l) => `${placeName(l.location)} ${q3(l.left)} ${tr(unit || '')}`).join(' · ')
+const NONE = 'none'          // the select value for stock with no location
 // Where a receipt came from (ledger "Source" filter and pill)
 const SOURCES = ['Donated', 'Purchased', 'Opening & other']
 const SOURCE_TONE = { Donated: 'blue', Purchased: 'violet', 'Opening & other': 'amber' }
@@ -43,6 +48,25 @@ export default function Consumables() {
   const [startEdit, setStartEdit] = useState(null)
   const [slip, setSlip] = useState(null)
   const [tab, setTab] = useState('balance')
+  const [moveFor, setMoveFor] = useState(null)   // { item, from, to, quantity, note }
+  const { activeLocations } = useStoresMeta()
+  // ▸ Quick look (2026-11-27): an item's row opens in place — who gave it (last 5) beside what it was used for
+  const [quick, setQuick] = useState({})          // { category id: ledger | 'loading' | 'error' }
+  const fetchQuick = (cid) => StoresAPI.ledger(cid).then((d) => setQuick((q) => (cid in q ? { ...q, [cid]: d } : q)))
+    .catch(() => setQuick((q) => (cid in q ? { ...q, [cid]: 'error' } : q)))
+  const toggleQuick = (cid) => {
+    if (cid in quick) { setQuick(({ [cid]: _, ...rest }) => rest); return }
+    setQuick((q) => ({ ...q, [cid]: 'loading' })); fetchQuick(cid)
+  }
+  // Print the ledger as it is filtered on screen; the Audit Trail records it
+  const [printHeading, setPrintHeading] = useState('')
+  async function printLedger() {
+    const heading = await guardExport({ screen: 'Consumable Ledger', format: 'Print', start: lf.from || undefined, end: lf.to || undefined,
+      filters: [['Item', ledger.name], ['Search', lf.q], ['Source', lf.source]].filter(([, v]) => v), count: ledgerView.rows.length, user })
+    if (heading == null) return
+    setPrintHeading(heading)
+    setTimeout(() => window.print(), 50)
+  }
   const navigate = useNavigate()
 
   // Physical count: shortages waiting for a committee member (never the one who counted)
@@ -51,7 +75,7 @@ export default function Consumables() {
   const load = useCallback(() => {
     setLoading(true); setLoadErr('')
     StoresAPI.countPending().then((r) => setPending(r.items || [])).catch(() => setPending([]))
-    return StoresAPI.consumables().then(setData)
+    return StoresAPI.consumables().then((d) => { setData(d); setQuick((q) => { Object.keys(q).forEach((cid) => fetchQuick(Number(cid))); return q }) })
       .catch((ex) => { setLoadErr(errText(ex, "Couldn't load — check your connection and retry.")); setData(null) })
       .finally(() => setLoading(false))
   }, [])
@@ -70,11 +94,29 @@ export default function Consumables() {
       const r = await StoresAPI.recordUse({
         category_id: useFor.item.category_id, quantity: Number(useFor.quantity), purpose: useFor.purpose.trim(),
         issued_to: useFor.issued_to.trim() || null, used_on: useFor.used_on, notes: useFor.notes.trim() || null,
+        // stock with no location yet (older stock) is taken from wherever it expires first
+        location_id: useFor.from && useFor.from !== NONE ? Number(useFor.from) : null,
       })
       toast(`${r.code}: ${tr('recorded')} · ${q3(r.remaining)} ${tr(r.unit || '')} ${tr('left')}`)
       setUseFor(null); setSlip(r.slip); load(); changed()
     } catch (ex) { toast(errText(ex, 'Could not record the use.'), 'error') }
   }
+  // Move between locations: the balance stays, the best-before dates go with it
+  async function saveMove(e) {
+    e.preventDefault()
+    try {
+      const r = await StoresAPI.moveConsumable({ category_id: moveFor.item.category_id, quantity: Number(moveFor.quantity),
+        from_location_id: moveFor.from === NONE ? null : Number(moveFor.from), to_location_id: Number(moveFor.to),
+        note: moveFor.note.trim() || null })
+      toast(`${r.code}: ${tr('moved')} · ${whereText(r.locations, moveFor.item.unit)}`)
+      setMoveFor(null); load()
+    } catch (ex) { toast(errText(ex, 'Could not move it.'), 'error') }
+  }
+  const locKey = (l) => (l.location_id == null ? NONE : String(l.location_id))
+  const leftAt = (item, key) => (item.locations || []).find((l) => locKey(l) === key)?.left ?? 0
+  const openUse = (i) => setUseFor({ item: i, quantity: '', purpose: '', issued_to: '', used_on: todayISO(), notes: '',
+    from: (i.locations || []).length === 1 ? locKey(i.locations[0]) : '' })
+  const openMove = (i) => setMoveFor({ item: i, from: (i.locations || []).length === 1 ? locKey(i.locations[0]) : '', to: '', quantity: '', note: '' })
   const openSlip = (id) => StoresAPI.useSlip(id).then(setSlip).catch((ex) => toast(errText(ex, 'Could not load the issue slip.'), 'error'))
   async function cancelUse(entry) {
     const res = await promptDialog({ title: `${tr('Cancel use')} ${entry.ref}`, tone: 'danger', confirmLabel: tr('Cancel entry'),
@@ -142,9 +184,9 @@ export default function Consumables() {
 
   return (
     <div>
-      <PageTitle title={tr('Consumables Stock')} subtitle={tr('Oil, ghee, rice and other items used in the temple — received, used and what is left.')}
-        help={tr('Stock already in the store is entered once as an opening balance (Manual Entries), verified by the committee.')}
-        actions={canWrite && <Link to="/admin/stores/manual" className="btn-outline !py-2.5"><Plus size={16} />{' '}<T>Opening balance / manual entry</T></Link>} />
+      <PageTitle title={tr('Consumable Stock Management')} subtitle={tr('Oil, ghee, rice and other items used in the temple — received, used and what is left.')}
+        help={tr('Stock already in the store is entered once as an opening balance (Purchased Items), verified by the committee.')}
+        actions={canWrite && <Link to="/admin/stores/manual" className="btn-outline !py-2.5"><Plus size={16} />{' '}<T>Add Stock</T></Link>} />
 
       <div className="flex flex-wrap items-center gap-1 mb-3">
         {[['balance', 'Balance'], ['batches', 'Batches & Expiry']].map(([k, l]) => (
@@ -186,29 +228,42 @@ export default function Consumables() {
           <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
             <th className="px-4 py-3 font-semibold">{tr('Item')}</th><th className="px-4 py-3 font-semibold">{tr('Unit')}</th>
             <th className="px-4 py-3 font-semibold text-right">{tr('Received')}</th><th className="px-4 py-3 font-semibold text-right">{tr('Used')}</th>
-            <th className="px-4 py-3 font-semibold text-right">{tr('Remaining')}</th><th className="px-4 py-3 font-semibold">{tr('Next expiry')}</th><th className="px-4 py-3 font-semibold">{tr('Actions')}</th>
+            <th className="px-4 py-3 font-semibold text-right">{tr('Remaining')}</th><th className="px-4 py-3 font-semibold">{tr('Where kept')}</th><th className="px-4 py-3 font-semibold">{tr('Next expiry')}</th><th className="px-4 py-3 font-semibold">{tr('Actions')}</th>
           </tr></thead>
           <tbody className="divide-y divide-gray-100">
             {items.map((i) => (
-              <tr key={i.category_id} className="hover:bg-gray-50/60">
-                <td className="px-4 py-3"><div className="font-semibold text-gray-800">{tr(i.name)}</div>
-                  {i.pending_manual > 0 && <div className="text-[0.6875rem] text-amber-700">{i.pending_manual} {tr('manual entry(s) waiting for committee')}</div>}</td>
+              <Fragment key={i.category_id}>
+              <tr className={i.category_id in quick ? 'bg-maroon-50/30' : 'hover:bg-gray-50/60'}>
+                <td className="px-4 py-3"><button type="button" onClick={() => toggleQuick(i.category_id)} aria-expanded={i.category_id in quick}
+                    title={tr('Who gave it and what it was used for')} className="inline-flex items-center gap-1 font-semibold text-gray-800 hover:text-maroon-700">
+                    {i.category_id in quick ? <ChevronDown size={15} /> : <ChevronRight size={15} />}{tr(i.name)}</button>
+                  {i.pending_manual > 0 && <div className="text-[0.6875rem] text-amber-700">{i.pending_manual} {tr('purchased item(s) waiting for committee')}</div>}
+                  {i.waiting > 0 && <div className="text-[0.6875rem] text-amber-700"><Clock size={11} className="inline mr-0.5" />{tr('Waiting')}: {q3(i.waiting)} {tr(i.unit || '')} {tr('not received at the store yet')}</div>}</td>
                 <td className="px-4 py-3 text-gray-600">{tr(i.unit || '—')}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{q3(i.received)}
                   {i.received > 0 && <div className="text-[0.6875rem] text-gray-500 whitespace-nowrap">{sourceSplit(i.received_donations, i.received_purchased, i.received_other, i.purchased_amount)}</div>}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{q3(i.used)}</td>
                 <td className="px-4 py-3 text-right tabular-nums"><b>{q3(i.remaining)}</b>{i.low && <span className="ml-2"><Pill tone="red">{tr('Low')}</Pill></span>}</td>
+                <td className="px-4 py-3 text-[0.8125rem] text-gray-700">{(i.locations || []).length
+                  ? i.locations.map((l) => <div key={locKey(l)} className="whitespace-nowrap"><span className={l.location ? '' : 'text-gray-400'}>{placeName(l.location)}</span> <b className="tabular-nums">{q3(l.left)}</b></div>)
+                  : <span className="text-gray-400">—</span>}</td>
                 <td className="px-4 py-3 whitespace-nowrap">{i.next_expiry ? <><ExpiryPill b={i.next_expiry} /><div className="text-[0.6875rem] text-gray-500 mt-0.5">{fmtDate(i.next_expiry.expiry_date)} · {q3(i.next_expiry.left)} {tr(i.unit || '')}</div></>
                   : <span className="text-[0.75rem] text-gray-400">{i.track_expiry ? tr('No date entered') : '—'}</span>}</td>
                 <td className="px-4 py-3"><div className="flex gap-1.5 flex-nowrap">
                   <button onClick={() => openLedger(i.category_id)} title={tr('Ledger')} aria-label={tr('Ledger')} className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-gray-800 hover:text-maroon-700"><BookOpen size={15} /></button>
-                  {canWrite && i.remaining > 0 && <button onClick={() => setUseFor({ item: i, quantity: '', purpose: '', issued_to: '', used_on: todayISO(), notes: '' })} title={tr('Record use')} aria-label={tr('Record use')} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><MinusCircle size={15} /></button>}
+                  {canWrite && i.remaining > 0 && <button onClick={() => openMove(i)} title={tr('Move to another location')} aria-label={tr('Move to another location')} className="w-8 h-8 grid place-items-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"><ArrowRightLeft size={15} /></button>}
+                  {canWrite && i.remaining > 0 && <button onClick={() => openUse(i)} title={tr('Record use')} aria-label={tr('Record use')} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><MinusCircle size={15} /></button>}
                   {isAdmin && <button onClick={() => countItem(i)} title={tr('Count stock')} aria-label={tr('Count stock')} className="w-8 h-8 grid place-items-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"><ClipboardCheck size={15} /></button>}
                   {isAdmin && i.expired_left > 0 && <button onClick={() => writeOff(i)} title={tr('Write off expired')} aria-label={tr('Write off expired')} className="w-8 h-8 grid place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}
                 </div></td>
               </tr>
+              {i.category_id in quick && (
+                <tr><td colSpan={8} className="px-4 pb-4 pt-0 bg-maroon-50/30">
+                  <QuickLook item={i} data={quick[i.category_id]} lang={lang} onLedger={() => openLedger(i.category_id)} onRetry={() => fetchQuick(i.category_id)} />
+                </td></tr>)}
+              </Fragment>
             ))}
-            {items.length === 0 && <TableStates colSpan={7} loading={loading} error={loadErr} onRetry={load} empty={tr('No quantity items. Set Tracking = Quantity in Donation Master.')} />}
+            {items.length === 0 && <TableStates colSpan={8} loading={loading} error={loadErr} onRetry={load} empty={tr('No quantity items. Set Tracking = Quantity in Donation Master.')} />}
           </tbody>
         </table>
       </div>)}
@@ -224,9 +279,14 @@ export default function Consumables() {
             </div>
             <div className="px-5 py-4 grid grid-cols-2 gap-3">
               <div><label className="label">{tr('Quantity used')} ({tr(useFor.item.unit || '')}) *</label>
-                <NumberField required min="0" max={String(useFor.item.remaining)} step="0.001" value={useFor.quantity} onChange={(e) => setUseFor({ ...useFor, quantity: e.target.value })} /></div>
+                <NumberField required min="0" max={String(useFor.from ? leftAt(useFor.item, useFor.from) : useFor.item.remaining)} step="0.001" value={useFor.quantity} onChange={(e) => setUseFor({ ...useFor, quantity: e.target.value })} /></div>
               <div><label className="label"><T>Date *</T></label>
                 <DateField required min={data.start_date} max={todayISO()} value={useFor.used_on} onChange={(e) => setUseFor({ ...useFor, used_on: e.target.value })} /></div>
+              <div className="col-span-2"><label className="label"><T>From which location *</T></label>
+                <Select required className="input" value={useFor.from} onChange={(e) => setUseFor({ ...useFor, from: e.target.value })}>
+                  <option value="">{tr('Select')}</option>
+                  {(useFor.item.locations || []).map((l) => <option key={locKey(l)} value={locKey(l)}>{placeName(l.location)} ({q3(l.left)} {tr(useFor.item.unit || '')})</option>)}
+                </Select></div>
               <div className="col-span-2"><label className="label"><T>Used for *</T></label>
                 <Combobox required value={useFor.purpose} onChange={(e) => setUseFor({ ...useFor, purpose: e.target.value })} options={PURPOSES.map((p) => ({ value: p, label: tr(p) }))} placeholder={tr('Select or type')} className="input" /></div>
               <div className="col-span-2"><label className="label"><T>Issued to</T></label>
@@ -243,17 +303,57 @@ export default function Consumables() {
         </div>
       )}
 
+      {moveFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMoveFor(null)} />
+          <form onSubmit={saveMove} className="relative bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+              <div><h3 className="font-serif text-lg font-bold text-maroon-800">{tr('Move')} — {tr(moveFor.item.name)}</h3>
+                <div className="text-[0.75rem] text-gray-500">{whereText(moveFor.item.locations, moveFor.item.unit)}</div></div>
+              <button type="button" onClick={() => setMoveFor(null)} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={18} /></button>
+            </div>
+            <div className="px-5 py-4 grid grid-cols-2 gap-3">
+              <div className="col-span-2"><label className="label"><T>From *</T></label>
+                <Select required className="input" value={moveFor.from} onChange={(e) => setMoveFor({ ...moveFor, from: e.target.value })}>
+                  <option value="">{tr('Select')}</option>
+                  {(moveFor.item.locations || []).map((l) => <option key={locKey(l)} value={locKey(l)}>{placeName(l.location)} ({q3(l.left)} {tr(moveFor.item.unit || '')})</option>)}
+                </Select></div>
+              <div className="col-span-2"><label className="label"><T>To *</T></label>
+                <Select required className="input" value={moveFor.to} onChange={(e) => setMoveFor({ ...moveFor, to: e.target.value })}>
+                  <option value="">{tr('Select')}</option>
+                  {activeLocations.filter((l) => String(l.id) !== moveFor.from).map((l) => <option key={l.id} value={l.id}>{tr(l.name)}</option>)}
+                </Select></div>
+              <div className="col-span-2"><label className="label">{tr('Quantity')} ({tr(moveFor.item.unit || '')}) *</label>
+                <NumberField required min="0" step="0.001" max={String(moveFor.from ? leftAt(moveFor.item, moveFor.from) : moveFor.item.remaining)}
+                  value={moveFor.quantity} onChange={(e) => setMoveFor({ ...moveFor, quantity: e.target.value })} /></div>
+              <div className="col-span-2"><label className="label"><T>Note</T></label>
+                <input className="input" maxLength={300} value={moveFor.note} onChange={(e) => setMoveFor({ ...moveFor, note: e.target.value })} placeholder={tr('e.g. For this week\'s Annadanam')} /></div>
+              <div className="col-span-2 text-[0.75rem] text-gray-500">{tr('The balance does not change; best-before dates move with it.')}</div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+              <button type="button" onClick={() => setMoveFor(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
+              <button className="btn-maroon flex-1 justify-center"><ArrowRightLeft size={15} className="mr-1" /><T>Move</T></button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {ledger && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => setLedger(null)} />
-          <div className="relative w-full max-w-3xl bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
+          <div id="print-area" className="relative w-full max-w-3xl bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
             <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between">
               <div><h3 className="font-serif text-xl font-bold text-maroon-800">{tr(ledger.name)} — <T>Ledger</T></h3>
+                {printHeading && <p className="hidden print:block text-[0.75rem] text-gray-600">{printHeading}</p>}
+                {(ledger.locations || []).length > 0 && <p className="text-[0.75rem] text-gray-600">{tr('Where kept')}: {whereText(ledger.locations, ledger.unit)}</p>}
                 <p className="text-[0.8125rem] text-gray-500 mt-0.5">{tr('Received')} {q3(ledger.received)} · {tr('Used')} {q3(ledger.used)} · {tr('Remaining')} <b>{q3(ledger.remaining)} {tr(ledger.unit || '')}</b> · {tr('from')} {fmtDate(ledger.start_date)}</p>
                 {ledger.received > 0 && <p className="text-[0.75rem] text-gray-500">{tr('Received')}: {sourceSplit(ledger.received_donations, ledger.received_purchased, ledger.received_other, ledger.purchased_amount)}</p>}</div>
-              <button onClick={() => setLedger(null)} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={20} /></button>
+              <div className="flex items-center gap-3 no-print">
+                <button onClick={printLedger} disabled={!ledgerView.rows.length} className="btn-outline !py-2 disabled:opacity-50"><Printer size={15} />{' '}<T>Print</T></button>
+                <button onClick={() => setLedger(null)} className="text-gray-400 hover:text-maroon-700" aria-label={tr('Close')}><X size={20} /></button>
+              </div>
             </div>
-            <div className="px-6 py-3 flex flex-wrap items-end gap-3 border-b border-gray-100 bg-gray-50/40">
+            <div className="px-6 py-3 flex flex-wrap items-end gap-3 border-b border-gray-100 bg-gray-50/40 no-print">
               <div className="flex-1 min-w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>Search</T></label>
                 <input className="input" value={lf.q} onChange={(e) => setLf({ ...lf, q: e.target.value })} placeholder={tr('Receipt, donor, purpose…')} /></div>
               <div className="w-[8.5rem]"><label className="block text-[0.75rem] text-gray-500 mb-1"><T>Show</T></label>
@@ -276,20 +376,24 @@ export default function Consumables() {
                 <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
                   <th className="px-4 py-3 font-semibold">{tr('Date')}</th><th className="px-4 py-3 font-semibold">{tr('Entry')}</th>
                   <th className="px-4 py-3 font-semibold">{tr('Details')}</th><th className="px-4 py-3 font-semibold text-right">{tr('In')}</th>
-                  <th className="px-4 py-3 font-semibold text-right">{tr('Out')}</th><th className="px-4 py-3 font-semibold text-right">{tr('Balance')}</th><th className="px-2 py-3"></th>
+                  <th className="px-4 py-3 font-semibold text-right">{tr('Out')}</th><th className="px-4 py-3 font-semibold text-right">{tr('Balance')}</th><th className="px-2 py-3 no-print"></th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100">
                   {ledgerView.rows.map((e, k) => (
                     <tr key={k} className={e.status === 'Cancelled' ? 'text-gray-400 line-through' : ''}>
                       <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(e.date)}</td>
-                      <td className="px-4 py-2.5"><Pill tone={SOURCE_TONE[e.source] || KIND_TONE[e.kind] || 'gray'}>{tr(e.kind === 'Use' ? 'Used' : e.source || e.kind)}</Pill><div className="font-mono text-[0.7rem] text-gray-500 mt-0.5">{sourceRef(e, e.ref)}</div></td>
-                      <td className="px-4 py-2.5 text-[0.8125rem]">{e.kind === 'Donation' ? personName({ name: e.detail }, lang) : storeDetail(e.detail)}
+                      <td className="px-4 py-2.5"><Pill tone={e.status === 'Waiting' ? 'amber' : SOURCE_TONE[e.source] || KIND_TONE[e.kind] || 'gray'}>{tr(e.status === 'Waiting' ? 'Waiting' : e.kind === 'Use' ? 'Used' : e.kind === 'Move' ? 'Moved' : e.source || (e.kind === 'Manual entry' ? 'Purchased item' : e.kind))}</Pill><div className="font-mono text-[0.7rem] text-gray-500 mt-0.5">{sourceRef(e, e.ref)}</div></td>
+                      <td className="px-4 py-2.5 text-[0.8125rem]">{e.kind === 'Donation' ? personName({ name: e.detail }, lang)
+                        : e.kind === 'Move' ? `${q3(e.moved)} ${tr(ledger.unit || '')} · ${placeName(e.from)} → ${placeName(e.to)}`
+                        : storeDetail(e.detail)}
+                        {e.status === 'Waiting' && <div className="text-[0.6875rem] text-amber-700">{q3(e.waiting)} {tr(ledger.unit || '')} {tr('not received at the store yet')}</div>}
+                        {e.kind !== 'Move' && e.location && <div className="text-[0.6875rem] text-gray-600">{e.kind === 'Use' ? tr('From') : tr('Kept in')}: {tr(e.location)}</div>}
                         {e.expiry_date && <div className="text-[0.6875rem] text-amber-700">{tr('Expiry date')} {fmtDate(e.expiry_date)}</div>}
                         <div className="text-[0.6875rem] text-gray-400">{staffName(e.by)} · {fmtStamp(e.at)}</div></td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-emerald-700">{e.in != null ? `+${q3(e.in)}` : ''}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-red-600">{e.out != null ? `−${q3(e.out)}` : ''}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{q3(e.balance)}</td>
-                      <td className="px-2 py-2.5"><div className="flex gap-1">
+                      <td className="px-2 py-2.5 no-print"><div className="flex gap-1">
                         {e.kind === 'Use' && <button onClick={() => openSlip(e.id)} title={tr('Issue slip')} aria-label={tr('Issue slip')} className="w-7 h-7 grid place-items-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"><ReceiptIcon size={13} /></button>}
                         {isAdmin && e.kind === 'Use' && e.status === 'Active' && (
                         <button onClick={() => cancelUse(e)} title={tr('Cancel use')} aria-label={tr('Cancel use')} className="w-7 h-7 grid place-items-center rounded-lg border border-gray-200 text-red-500 hover:border-red-300"><Ban size={13} /></button>)}</div></td>
@@ -303,6 +407,58 @@ export default function Consumables() {
         </div>
       )}
       {slip && <IssueSlip slip={slip} onClose={() => setSlip(null)} />}
+    </div>
+  )
+}
+
+// ▸ Quick look under an item's row: the last 5 receipts (who gave it, how much, where it is kept — and
+// donations still waiting at the store) beside the last 5 uses. The full record is the Ledger.
+function QuickLook({ item, data, lang, onLedger, onRetry }) {
+  if (data === 'loading') return <div className="py-4 text-[0.8125rem] text-gray-500"><T>Loading...</T></div>
+  if (data === 'error' || !data) return <div className="py-4 text-[0.8125rem] text-red-600">{tr("Couldn't load — check your connection and retry.")} <button onClick={onRetry} className="underline font-semibold"><T>Retry</T></button></div>
+  const newest = (a, b) => (b.date || '').localeCompare(a.date || '') || (b.at || '').localeCompare(a.at || '')
+  const got = data.entries.filter((e) => e.in != null && e.status === 'Active').sort(newest).slice(0, 5)
+  const waiting = data.entries.filter((e) => e.status === 'Waiting')
+  const used = data.entries.filter((e) => e.kind === 'Use' && e.status === 'Active').sort(newest).slice(0, 5)
+  const unit = tr(item.unit || '')
+  const who = (e) => (e.kind === 'Donation' ? personName({ name: e.detail }, lang) : tr(e.source === 'Purchased' ? 'Purchase' : 'Opening & other'))
+  const usedFor = (e) => tr((e.detail || '').split(' — ')[0].split(' · ')[0])
+  const issuedTo = (e) => { const m = /— issued to ([^·]+)/.exec(e.detail || ''); return m ? staffName(m[1].trim()) : '' }
+  const cell = 'py-1.5 pr-3 text-[0.8125rem]'
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+        <div className="px-4 py-3">
+          <div className="text-[0.6875rem] font-bold uppercase tracking-wide text-emerald-700 mb-1">{tr('Received from')} <span className="text-gray-400 font-normal normal-case">({tr('last 5')})</span></div>
+          <table className="w-full"><tbody>
+            {got.map((e, k) => (
+              <tr key={k}><td className={`${cell} whitespace-nowrap text-gray-500`}>{fmtDate(e.date)}</td>
+                <td className={`${cell} font-semibold text-gray-800`}>{who(e)}<div className="font-mono text-[0.6875rem] font-normal text-gray-400">{sourceRef(e, e.ref)}</div></td>
+                <td className={`${cell} text-right tabular-nums whitespace-nowrap text-emerald-700`}>+{q3(e.in)} {unit}</td>
+                <td className={`${cell} text-gray-600`}>{placeName(e.location)}</td></tr>))}
+            {waiting.map((e, k) => (
+              <tr key={`w${k}`} className="text-amber-700"><td className={`${cell} whitespace-nowrap`}>{fmtDate(e.date)}</td>
+                <td className={`${cell} font-semibold`}><Clock size={11} className="inline mr-0.5" />{personName({ name: e.detail }, lang)}<div className="font-mono text-[0.6875rem] font-normal">{sourceRef(e, e.ref)}</div></td>
+                <td className={`${cell} text-right tabular-nums whitespace-nowrap`}>{q3(e.waiting)} {unit}</td>
+                <td className={cell}>{tr('Waiting at store')}</td></tr>))}
+            {!got.length && !waiting.length && <tr><td className={`${cell} text-gray-400`}>{tr('Nothing received yet.')}</td></tr>}
+          </tbody></table>
+        </div>
+        <div className="px-4 py-3">
+          <div className="text-[0.6875rem] font-bold uppercase tracking-wide text-red-600 mb-1">{tr('Used for')} <span className="text-gray-400 font-normal normal-case">({tr('last 5')})</span></div>
+          <table className="w-full"><tbody>
+            {used.map((e, k) => (
+              <tr key={k}><td className={`${cell} whitespace-nowrap text-gray-500`}>{fmtDate(e.date)}</td>
+                <td className={`${cell} font-semibold text-gray-800`}>{usedFor(e)}{issuedTo(e) && <div className="text-[0.6875rem] font-normal text-gray-500">{issuedTo(e)}</div>}</td>
+                <td className={`${cell} text-right tabular-nums whitespace-nowrap text-red-600`}>−{q3(e.out)} {unit}</td>
+                <td className={`${cell} text-gray-600`}>{e.location ? tr(e.location) : ''}</td></tr>))}
+            {!used.length && <tr><td className={`${cell} text-gray-400`}>{tr('Nothing used yet.')}</td></tr>}
+          </tbody></table>
+        </div>
+      </div>
+      <div className="px-4 py-2 border-t border-gray-100 text-right">
+        <button onClick={onLedger} className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-maroon-700 hover:underline"><BookOpen size={14} />{tr('Open full Ledger')}</button>
+      </div>
     </div>
   )
 }
@@ -328,6 +484,7 @@ function IssueSlip({ slip, onClose }) {
             {row(tr('Date'), fmtDate(slip.used_on))}
             {row(tr('Item'), tr(slip.item))}
             <div className="flex justify-between text-lg font-bold border-y border-gray-200 py-2"><span><T>Quantity issued</T>:</span><span className="text-maroon-700">{q3(slip.quantity)} {tr(slip.unit || '')}</span></div>
+            {row(tr('From'), slip.location ? tr(slip.location) : null)}
             {row(tr('Purpose'), tr(slip.purpose))}
             {row(tr('Issued to'), staffName(slip.issued_to))}
             {row(tr('Issued by'), staffName(slip.issued_by))}
@@ -380,9 +537,10 @@ function Batches({ canEdit }) {
           {['Item', 'Batch', 'Received', 'Left', 'Expiry date', 'Status', ''].map((h) => <th key={h} className={`px-4 py-3 font-semibold ${h === 'Left' ? 'text-right' : ''}`}>{tr(h)}</th>)}</tr></thead>
         <tbody className="divide-y divide-gray-100">
           {rows.map((b) => (
-            <tr key={`${b.kind}-${b.id}`} className={b.status === 'Expired' ? 'bg-red-50/60' : ''}>
+            <tr key={`${b.kind}-${b.id}-${b.location_id ?? NONE}-${b.left}`} className={b.status === 'Expired' ? 'bg-red-50/60' : ''}>
               <td className="px-4 py-2.5 font-semibold text-gray-800">{tr(b.name)}</td>
-              <td className="px-4 py-2.5"><span className="font-mono text-[0.78rem]">{sourceRef(b, b.ref)}</span><div className="text-[0.6875rem] text-gray-500">{b.source && <b className="font-semibold">{tr(b.source)} · </b>}{b.kind === 'Donation' ? staffName(b.detail) : tr(b.detail)}</div></td>
+              <td className="px-4 py-2.5"><span className="font-mono text-[0.78rem]">{sourceRef(b, b.ref)}</span><div className="text-[0.6875rem] text-gray-500">{b.source && <b className="font-semibold">{tr(b.source)} · </b>}{b.kind === 'Donation' ? staffName(b.detail) : tr(b.detail)}</div>
+                <div className="text-[0.6875rem] text-gray-600">{tr('Kept in')}: {placeName(b.location)}</div></td>
               <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(b.received)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums whitespace-nowrap"><b>{q3(b.left)}</b> <span className="text-gray-500">/ {q3(b.quantity)} {tr(b.unit || '')}</span></td>
               <td className="px-4 py-2.5 whitespace-nowrap">{b.expiry_date ? fmtDate(b.expiry_date) : '—'}</td>

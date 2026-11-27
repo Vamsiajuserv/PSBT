@@ -8,6 +8,7 @@ import { Select, Checkbox } from '../../../components/common/Field.jsx'
 import { confirmDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
 import { useStoresMeta, staffName, sourceRef, StoresTabs } from './shared.jsx'
+import { guardExport } from '../../../lib/exportGuard.js'
 
 // Who may record a check (backend: Counter Staff, Committee, Stores Officer, Administrator)
 const canCheck = (user) => ['Admin', 'Administrator', 'Stores Officer'].includes(user?.role)
@@ -19,29 +20,50 @@ export default function StockCheck() {
   const [lid, setLid] = useState('')
   const [expected, setExpected] = useState(null)
   const [found, setFound] = useState({})
+  // Bundles (2026-11-27): pieces counted, by record id — blank means every piece is there
+  const [counts, setCounts] = useState({})
   const [notes, setNotes] = useState('')
   const [checks, setChecks] = useState([])
   const [result, setResult] = useState(null)
   const [saving, setSaving] = useState(false)
+  // Print first says which location and how many pieces; the sheet carries it; the Audit Trail records it (2026-11-26)
+  const [printHeading, setPrintHeading] = useState('')
+  async function printChecklist() {
+    const heading = await guardExport({ screen: 'Stock Check', format: 'Print', noDates: true,
+      filters: [['Location', expected?.location]], count: nExpected, user })
+    if (heading == null) return
+    setPrintHeading(heading)
+    setTimeout(() => window.print(), 50)
+  }
 
   const loadChecks = () => StoresAPI.checks().then((r) => setChecks(r.items || [])).catch(() => setChecks([]))
   useEffect(() => { loadChecks() }, [])
   useEffect(() => {
-    setExpected(null); setFound({}); setResult(null); setNotes('')
+    setExpected(null); setFound({}); setCounts({}); setResult(null); setNotes('')
     if (!lid) return
     StoresAPI.expectedAt(lid).then(setExpected).catch((ex) => toast(tr(getErrorMessage(ex, 'Could not load the list.')), 'error'))
   }, [lid])
 
   const items = expected?.items || []
-  const nFound = items.filter((i) => found[i.id]).length
+  const many = (i) => (i.pieces || 1) > 1
+  // Pieces found: a ticked bundle counts what was entered (blank = all of them)
+  const gotOf = (i) => {
+    if (!found[i.id]) return 0
+    if (!many(i) || counts[i.id] === undefined || counts[i.id] === '') return i.pieces || 1
+    return Math.max(0, Math.min(i.pieces, Math.floor(Number(counts[i.id]) || 0)))
+  }
+  const nExpected = items.reduce((t, i) => t + (i.pieces || 1), 0)
+  const nFound = items.reduce((t, i) => t + gotOf(i), 0)
   async function save() {
-    const missing = items.length - nFound
+    const missing = nExpected - nFound
     if (missing && !(await confirmDialog({ title: tr('Save stock check'), confirmLabel: tr('Save'), tone: 'danger',
-      message: `${missing} ${tr('piece(s) not ticked will be marked Missing and listed under Missing Items for follow-up. Nothing is written off.')}` }))) return
+      message: `${missing} ${tr('piece(s) not found will be marked Missing and listed under Missing Items for follow-up. Nothing is written off.')}` }))) return
     setSaving(true)
     try {
       const r = await StoresAPI.recordCheck({ location_id: Number(lid), listed_ids: items.map((i) => i.id),
-        found_ids: items.filter((i) => found[i.id]).map((i) => i.id), notes: notes.trim() || null })
+        found_ids: items.filter((i) => found[i.id]).map((i) => i.id),
+        counts: Object.fromEntries(items.filter((i) => found[i.id] && many(i) && gotOf(i) !== i.pieces).map((i) => [i.id, gotOf(i)])),
+        notes: notes.trim() || null })
       setResult(r); toast(`${r.code}: ${r.found}/${r.expected} ${tr('found')}`); loadChecks()
       if (r.missing.length) window.dispatchEvent(new Event('stores:changed'))   // Missing Items badge
     } catch (ex) {
@@ -64,20 +86,28 @@ export default function StockCheck() {
                 <option value="">{tr('Select')}</option>{locations.map((l) => <option key={l.id} value={l.id}>{tr(l.name)} ({l.pieces})</option>)}
               </Select></div>
             {items.length > 0 && <>
-              <button onClick={() => window.print()} className="btn-outline !py-2.5"><Printer size={14} />{' '}<T>Print checklist</T></button>
+              <button onClick={printChecklist} className="btn-outline !py-2.5"><Printer size={14} />{' '}<T>Print checklist</T></button>
               <button onClick={() => setFound(Object.fromEntries(items.map((i) => [i.id, true])))} className="text-[0.8125rem] font-semibold text-maroon-700"><T>Tick all</T></button>
             </>}
           </div>
           {expected && (
             <div id="print-area">
-              <div className="px-5 pt-4 hidden print:block"><b>{tr('Stock Check')} — {tr(expected.location)}</b> · {new Date().toLocaleDateString('en-GB')}</div>
+              <div className="px-5 pt-4 hidden print:block"><b>{tr('Stock Check')} — {tr(expected.location)}</b> · {printHeading}</div>
               <div className="divide-y divide-gray-100">
                 {items.map((i) => (
                   <label key={i.id} className="flex items-center gap-3 px-5 py-2.5 text-[0.8125rem] cursor-pointer hover:bg-gray-50">
                     <Checkbox checked={!!found[i.id]} onChange={() => setFound((f) => ({ ...f, [i.id]: !f[i.id] }))} />
                     <span className="font-mono font-semibold text-maroon-700 w-24 shrink-0">{i.tag_id}</span>
                     <span className="flex-1 min-w-0"><span className="text-gray-800">{tr(i.description || i.item_name)}</span>{i.status === 'In Open Sale' && <> <Pill tone="violet">{tr('In Open Sale')}</Pill></>}
-                      <span className="text-gray-500">{[tr(i.details), i.weight_g ? `${i.weight_g} ${gramUnit()}` : ''].filter(Boolean).map((x) => ` · ${x}`).join('')}</span></span>
+                      <span className="text-gray-500">{[tr(i.details), i.weight_g ? `${i.weight_g} ${gramUnit()}` : ''].filter(Boolean).map((x) => ` · ${x}`).join('')}</span>
+                      {many(i) && (found[i.id]
+                        ? <span className="block mt-1 text-[0.75rem] text-indigo-800" onClick={(e) => { if (e.target.tagName !== 'INPUT') e.preventDefault() }}>{tr('Counted')}{' '}
+                            <input type="number" min="0" max={i.pieces} step="1" value={counts[i.id] ?? i.pieces} aria-label={tr('Counted')}
+                              onChange={(e) => setCounts((c) => ({ ...c, [i.id]: e.target.value }))}
+                              className="w-14 rounded border border-indigo-300 px-1.5 py-0.5 text-[0.78rem] bg-white no-print" />
+                            <span className="hidden print:inline">____</span>{' '}{tr('of')} {i.pieces} {tr('pieces')}
+                            {gotOf(i) < i.pieces && <span className="text-red-600"> · {i.pieces - gotOf(i)} {tr('short')}</span>}</span>
+                        : <span className="block mt-1 text-[0.75rem] text-indigo-800">{i.bundle ? `${tr('Bundle')} · ` : ''}{i.pieces} {tr('pieces')} <span className="hidden print:inline">· {tr('Counted')} ____</span></span>)}</span>
                     <span className="text-[0.75rem] text-gray-500 shrink-0 text-right">{personName({ name: i.donor_name }, lang)}<br /><span className="font-mono">{sourceRef(i)}</span></span>
                   </label>
                 ))}
@@ -87,7 +117,7 @@ export default function StockCheck() {
           )}
           {items.length > 0 && (
             <div className="p-5 border-t border-gray-100 space-y-3 no-print">
-              <div className="text-[0.875rem]"><b>{nFound}</b> / {items.length} {tr('found')}{items.length - nFound > 0 && <span className="text-red-600"> · {items.length - nFound} {tr('not ticked')}</span>}</div>
+              <div className="text-[0.875rem]"><b>{nFound}</b> / {nExpected} {tr('found')}{nExpected - nFound > 0 && <span className="text-red-600"> · {nExpected - nFound} {tr('not found')}</span>}</div>
               <input className="input" maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={tr('Notes (optional), e.g. who was present')} />
               {canCheck(user)
                 ? <button disabled={saving} onClick={save} className="btn-maroon !py-2.5 disabled:opacity-60"><ClipboardCheck size={15} />{' '}{saving ? tr('Saving…') : tr('Save stock check')}</button>

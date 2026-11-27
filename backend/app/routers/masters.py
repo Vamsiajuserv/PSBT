@@ -12,6 +12,7 @@ from ..security import RequireModule, RequireModuleOrRole, require_admin, log_ac
 from ..helpers import ist_today
 from ..almanac import DEFAULT_FESTIVALS
 from .almanac import festival_almanac_day
+from ..helpers import clean_mobile, clean_email  # mobile / email format (2026-11-26)
 
 
 def _require_field(body: dict, field: str, max_len: int = 200) -> str:
@@ -204,8 +205,8 @@ def cm_list(q: str = "", status: str = "", db: Session = Depends(get_db), user=D
 def cm_create(body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     name = _require_field(body, "name")
     x = CommitteeMember(code=_next_code(db, CommitteeMember, "CM-"), name=name,
-                        designation=_optional_field(body, "designation", 100), phone=_optional_field(body, "phone", 20),
-                        email=_optional_field(body, "email", 100), active=body.get("active", True))
+                        designation=_optional_field(body, "designation", 100), phone=clean_mobile(_optional_field(body, "phone", 20)),
+                        email=clean_email(_optional_field(body, "email", 100)), active=body.get("active", True))
     db.add(x); db.commit(); db.refresh(x)
     log_action(db, username=user.username, action="CREATE", entity="CommitteeMember", detail=x.name, ip=client_ip(request))
     return _cm(x)
@@ -216,6 +217,10 @@ def cm_update(iid: int, body: dict, request: Request, db: Session = Depends(get_
     x = db.get(CommitteeMember, iid)
     if not x:
         raise HTTPException(404, "Member not found")
+    if "phone" in body:
+        body["phone"] = clean_mobile(body["phone"])
+    if "email" in body:
+        body["email"] = clean_email(body["email"])
     for k in ("name", "designation", "phone", "email", "active"):
         if k in body:
             setattr(x, k, body[k])

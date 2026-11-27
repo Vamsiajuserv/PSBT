@@ -327,7 +327,7 @@ export default function Users() {
                   <div><label className="label"><T>Full Name (Telugu)</T></label><input className="input font-telugu" placeholder={tr("Full Name (Telugu)")} value={drawer.data.name_te || ''} onChange={(e) => setD({ name_te: sanitizeName(e.target.value) })} /><div className="text-[0.6875rem] text-gray-400 mt-1"><T>Shown when the user selects తెలుగు. Leave blank to keep the English spelling.</T></div></div>
                   <div>
                     <label className="label"><T>Email ID</T></label>
-                    <input type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} placeholder={tr("Enter email address (optional)")} value={drawer.data.email} onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setD({ email: e.target.value }) }} />
+                    <input type="text" inputMode="email" autoComplete="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} placeholder={tr("Enter email address (optional)")} value={drawer.data.email} onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setD({ email: e.target.value }) }} />
                     {fieldErrors.email && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.email}</div>}
                   </div>
                   <div>

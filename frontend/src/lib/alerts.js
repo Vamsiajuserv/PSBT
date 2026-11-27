@@ -43,7 +43,7 @@ export function alertText(a) {
         action: tr('Receive it into valuables and tag it in Receive & Tag') }
     case 'material':
       return { title: tr('Material donation'), body: join(who, item, qty),
-        action: p.tagged ? tr('Receive it into stores and tag it in Receive & Tag') : tr('Receive it into stores — check Consumables Stock') }
+        action: p.tagged ? tr('Receive it into stores and tag it in Receive & Tag') : tr('Receive it into stores in Receive & Tag (choose its location)') }
     case 'sponsorship':
       return { title: tr('Sponsorship donation'), body: join(who, fund, `₹${p.amount}`), action: tr('Plan the sponsored event') }
     case 'annadanam':
@@ -134,13 +134,13 @@ function storesText(p, join) {
   switch (p.stage) {
     case 'write_off':
       return { title: tr('Write-off waiting for approval'), body: join(head, p.what && tr(p.what), p.by && `${tr('Asked by')} ${p.by}`),
-        action: join(p.reason && `${tr('Reason')}: ${p.reason}`, tr('Open Missing Items and approve or reject it')) }
+        action: join(p.reason && `${tr('Reason')}: ${p.reason}`, tr('Open Write-offs & Approvals and approve or reject it')) }
     case 'change':
       return { title: tr('Gold / silver change waiting for approval'), body: join(head, p.kind && tr(KIND_TE[p.kind] || p.kind), p.by && `${tr('Asked by')} ${p.by}`),
-        action: join(p.what, tr('Open Missing Items and approve or reject it')) }
+        action: join(p.what, tr('Open Write-offs & Approvals and approve or reject it')) }
     case 'count':
       return { title: tr('Stock count shortage waiting for approval'), body: join(head, p.by && `${tr('Counted by')} ${p.by}`),
-        action: tr('Open Consumables Stock and approve or reject it') }
+        action: tr('Open Consumable Stock Management and approve or reject it') }
     case 'rejected':
       return { title: tr('Stores request rejected by the committee'), body: join(head, p.what && tr(p.what), p.by && `${tr('Rejected by')} ${p.by}`),
         action: join(p.reason && `${tr('Reason')}: ${p.reason}`) }

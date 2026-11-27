@@ -7,11 +7,12 @@ import {
 import { PageTitle, inr, fmtDate, fmtStamp } from '../../components/admin/ui.jsx'
 import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
-import { PoojaHistoryAPI, BookingsAPI } from '../../api/client.js'
+import { PoojaHistoryAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { confirmDialog, toast } from '../../components/common/Dialog.jsx'
+import { toast } from '../../components/common/Dialog.jsx'
 import { T, tr, trLocal, personName, useLang, teText, clock12 } from '../../i18n/LanguageContext.jsx'
 import { halfLabel } from '../../lib/halfSlots.js'
+import { festTicketNote } from '../../lib/festivalPlan.js'
 import { statusChip } from '../../lib/bookingStatus.js'
 
 const money2 = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -27,7 +28,8 @@ function durDays(pl) {
   return 1
 }
 const validityShort = (pl) => { const n = (pl?.plan_name || '').toLowerCase(); if (n.includes('daily')) return tr('1 Day'); if (n.includes('monthly')) return tr('1 Month'); if (n.includes('life')) return tr('Lifetime'); if (n.includes('one')) return tr('One-Time'); if (n.includes('year')) return tr('1 Year'); return pl?.frequency || tr('Selected Date') }
-function validityRange(pl, from) { const d = durDays(pl); if (d === null || !from) return tr('Lifetime'); const to = addDays(from, d - 1); return `${d} ${tr(d > 1 ? 'Days' : 'Day')} (${fmtDate(from)} ${tr('to')} ${fmtDate(to)})` }
+// The booking's own end date wins — a festival plan joined mid-festival ends with the festival (2026-11-26)
+function validityRange(pl, from, until) { if (until && from) { const d = Math.round((new Date(until) - new Date(from)) / 86400000) + 1; return `${d} ${tr(d > 1 ? 'Days' : 'Day')} (${fmtDate(from)} ${tr('to')} ${fmtDate(until)})` } const d = durDays(pl); if (d === null || !from) return tr('Lifetime'); const to = addDays(from, d - 1); return `${d} ${tr(d > 1 ? 'Days' : 'Day')} (${fmtDate(from)} ${tr('to')} ${fmtDate(to)})` }
 const bookedBy = (u) => (u === 'admin' ? { name: tr('Administrator'), sub: tr('Super Admin') } : { name: u || '—', sub: tr('Staff') })
 
 export default function BookingDetails() {
@@ -44,12 +46,6 @@ export default function BookingDetails() {
     PoojaHistoryAPI.detail(id).then(setD).catch((ex) => { setD(null); setLoadErr(ex?.detail || "Couldn't load this booking — check your connection and retry.") })
   }, [id])
   useEffect(() => { load() }, [load])
-  const canOperate = ['Admin', 'Administrator', 'Counter Staff', 'Poojari'].includes(user?.role)
-  async function complete() {
-    if (!(await confirmDialog({ title: `${tr('Mark performed')} — ${d.ticket_no || d.booking_code}?`, message: tr('It will move to Pooja History.') }))) return
-    try { await BookingsAPI.complete(id); toast(tr('Performance recorded.')); PoojaHistoryAPI.detail(id).then(setD) }
-    catch (ex) { toast(ex.detail || tr('Could not complete this booking.'), 'error') }
-  }
   if (loadErr) return <ErrorBlock message={loadErr} onRetry={load} />
   if (!d) return <LoadingBlock />
 
@@ -59,13 +55,13 @@ export default function BookingDetails() {
   const ticketNo = d.ticket_no || d.receipt_no
   const mode = modeLabel(d.payment_method)
   const isUpi = mode.includes('UPI')
-  const validRange = validityRange(plan, d.scheduled_date)
+  const validRange = validityRange(plan, d.scheduled_date, d.valid_until)
+  const festNote = festTicketNote(d, fmtDate)
 
   return (
     <div className="print-modal">
       <div className="text-[0.75rem] text-gray-400 mb-1 no-print"><Link to={listUrl} className="hover:text-maroon-600"><T>Pooja Management</T></Link> › <Link to={listUrl} className="hover:text-maroon-600"><T>Bookings</T></Link> › <span className="text-gray-500"><T>Booking Details</T></span></div>
       <div className="no-print"><PageTitle title={tr("Booking Details")} actions={<>
-        {canOperate && d.status === 'Confirmed' && d.payment_status !== 'Pending' && <button onClick={complete} className="btn-maroon !py-2.5"><CheckCircle2 size={15} />{' '}<T>Mark performed</T></button>}
         <button onClick={() => nav(listUrl)} className="btn-outline !py-2.5"><ArrowLeft size={15} />{' '}<T>Back to Bookings List</T></button>
       </>} /></div>
 
@@ -125,6 +121,7 @@ export default function BookingDetails() {
             {d.batch_slot && <TF icon={Clock} label={tr("Pooja slot")} value={halfLabel(d.batch_slot)} />}
             <TF icon={Calendar} label={tr("Booking Date")} value={fmtDate(d.created_at)} sub={fmtStamp(d.created_at).split(', ')[1]} />
             <TF icon={ShieldCheck} label={tr("Validity")} value={tr(validityShort(plan))} sub={validRange.includes('(') ? validRange.slice(validRange.indexOf('(')) : ''} />
+            {festNote && <TF icon={CalendarDays} label={tr("Festival plan")} value={festNote} wide />}
             <TF icon={IndianRupee} label={tr("Rate Type")} value={tr(plan.rate_type)} />
             <TF icon={IndianRupee} label={tr("Amount Paid (₹)")} value={money2(d.amount)} />
             <TF icon={CreditCard} label={tr("Payment Mode")} value={mode} />

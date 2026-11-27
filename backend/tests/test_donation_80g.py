@@ -73,6 +73,22 @@ class Donation80G(unittest.TestCase):
         self.assertFalse(d.g80)
         self.assertIsNotNone(d.pan)
 
+    def test_an_optional_pan_must_be_valid_too(self):
+        # client, 2026-11-26: "696441GDSD" used to be saved as typed (and unencrypted)
+        for bad in ("696441GDSD", "ABCDE1234", "abcde12345"):
+            self.assertEqual(self.status(lambda: self.give("General Donation", pan=bad)), 422, bad)
+        self.assertEqual(self.db.query(Donation).count(), 0)
+        with mock.patch.object(r, "encrypt_pan", side_effect=lambda p: f"ENC:{p}"):
+            d = self.give("General Donation", pan=" abcde1234f ")         # lower case / spaces are fine
+        self.assertEqual(d.pan, "ENC:ABCDE1234F")                         # goes through encryption
+        self.assertIsNone(self.give("General Donation", pan="  ").pan)    # blank stays blank
+
+    def test_donor_mobile_must_be_a_real_number(self):
+        # client, 2026-11-26: "12345" was saved as typed; a foreign number (country picker) is still taken
+        self.assertEqual(self.status(lambda: self.give("General Donation", mobile="12345")), 422)
+        d = self.give("General Donation", mobile="4155550123")             # foreign — kept, no devotee made
+        self.assertEqual((d.mobile, d.devotee_id), ("4155550123", None))
+
     def test_80g_refused_for_a_normal_donation(self):
         self.assertEqual(self.status(lambda: self.give("General Donation", g80=True, pan="ABCDE1234F")), 422)
         self.assertEqual(self.db.query(Donation).count(), 0)

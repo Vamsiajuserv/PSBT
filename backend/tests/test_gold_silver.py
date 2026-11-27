@@ -75,14 +75,18 @@ class GoldSilver(unittest.TestCase):
         dn._value_metal(self.db, pancha)                                          # other goods: the devotee's value kept
         self.assertEqual((pancha["purity"], pancha["est_value"], pancha["item_desc"]), (None, Decimal("1000"), "silk pancha"))
 
-    def test_hundi_gold_by_grams_only(self):
+    def test_hundi_gold_by_grams_with_an_optional_amount(self):
+        # client, 2026-11-26: the amount is optional for gold / silver — kept when given, ₹0 when blank
         lines = [{"item_type": "Gold", "item_name": "Gold", "unit": "Grams", "quantity": Decimal("10"), "value": 70000},
                  {"item_type": "Silver", "item_name": "Silver", "unit": "Grams", "quantity": Decimal("50"), "value": 0, "purity": "999"},
                  {"item_type": "Jewellery", "item_name": "Jewellery", "unit": "Amount", "quantity": None, "value": 15000, "purity": "22K"},
                  {"item_type": "Cash", "item_name": "₹500", "unit": "Count", "quantity": 4, "value": 2000}]
         misc._value_metal_lines(self.db, lines, None)
         self.assertEqual([(x["value"], x["purity"], x["rate_per_g"]) for x in lines],    # no purity on any line
-                         [(Decimal("0"), None, None), (Decimal("0"), None, None), (15000, None, None), (2000, None, None)])
+                         [(Decimal("70000"), None, None), (Decimal("0"), None, None), (15000, None, None), (2000, None, None)])
+        neg = [{"item_type": "Gold", "item_name": "Gold", "unit": "Grams", "quantity": Decimal("1"), "value": -5}]
+        with self.assertRaises(HTTPException):
+            misc._value_metal_lines(self.db, neg, None)
 
     def test_a_hundi_with_gold_is_accepted_without_a_value(self):
         lines = [{"item_type": "Gold", "item_name": "Gold", "unit": "Grams", "quantity": Decimal("10")},

@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consumable Stock — 5 Designs</title>
+<style>
+  :root{--maroon:#7A1F2B;--maroon-dk:#5A1520;--cream:#FBF8F3;--line:#EFE9DF;--ink:#1F2430;--muted:#4B5563}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--ink);background:#EDE7DC}
+  .picker{position:sticky;top:0;z-index:5;background:var(--maroon-dk);color:#fff;padding:12px 20px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .picker b{margin-right:10px}
+  .picker button{border:1px solid #ffffff55;background:transparent;color:#fff;border-radius:999px;padding:8px 14px;font:600 13px inherit;cursor:pointer}
+  .picker button.on{background:#FBF3E6;color:var(--maroon-dk)}
+  .design{display:none;max-width:1280px;margin:20px auto;background:var(--cream);border-radius:14px;box-shadow:0 4px 24px #0002;overflow:hidden;min-height:900px}
+  .design.on{display:block}
+  .cap{background:#fff;border-bottom:1px solid var(--line);padding:10px 20px;font-size:13px;color:var(--muted)}
+  h1{margin:4px 0 0;font-size:26px;color:var(--maroon-dk)}
+  .crumb{font-size:13px;color:#6B5E4E}
+  .btn{border:1px solid #E5DED2;background:#fff;border-radius:10px;padding:10px 16px;font:600 14px inherit;cursor:pointer;min-height:42px}
+  .btn.pri{background:var(--maroon);color:#fff;border-color:var(--maroon)}
+  .btn.red{color:#9B1C1C;border-color:#F5C2C2}.btn.blue{color:#1E3A8A;border-color:#C7D7F5}
+  .box{background:#fff;border:1px solid var(--line);border-radius:14px}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:11px 13px;background:#F7F3EC}
+  td{padding:11px 13px;border-top:1px solid var(--line);font-size:14px;vertical-align:top}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .don{background:#E6EEFF;color:#1E3A8A}.use{background:#FDE8E8;color:#9B1C1C}.mov{background:#EEF0F3;color:#374151}
+  .wait{background:#FFF1DC;color:#8A4B00}.pur{background:#F1E8FF;color:#5B21B6}.ok{background:#E3F5EC;color:#065F46}
+  .in{color:#047857;font-weight:700}.out{color:#B91C1C;font-weight:700}.mid{color:#374151;font-weight:700}
+  .mono{font-family:Consolas,ui-monospace,monospace;font-size:13px;color:#6B7280}
+  .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:14px}
+  .filters label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+  input,select{border:1px solid #E5DED2;border-radius:9px;padding:10px;font:14px inherit;background:#fff}
+  .tabs{display:flex;gap:4px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:4px;width:fit-content}
+  .tabs button{border:0;border-radius:9px;padding:10px 18px;font:600 14px inherit;background:transparent;color:var(--muted);cursor:pointer}
+  .tabs button.on{background:var(--maroon);color:#fff}
+  .chip{border:1px solid #E5DED2;background:#fff;border-radius:999px;padding:8px 15px;font:600 13px inherit;cursor:pointer}
+  .chip.on{background:var(--maroon);color:#fff;border-color:var(--maroon)}
+  .side{background:var(--maroon);color:#FBF3E6;padding:22px 14px;display:flex;flex-direction:column;gap:4px;min-width:210px}
+  .side a{color:#F3E3CC;text-decoration:none;padding:9px 12px;border-radius:8px;font-size:14px}
+  .side a.on{background:#FBF3E6;color:var(--maroon);font-weight:600}
+  .row{display:flex;flex-wrap:wrap}
+  .main{flex:1;min-width:0;padding:26px 30px;display:flex;flex-direction:column;gap:18px}
+  .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+  .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
+  .kpi small{font-size:12px;color:var(--muted)}.kpi div{font-size:24px;font-weight:700}
+  .seg{display:flex;background:#F7E9E3;border-radius:999px;padding:4px}
+  .seg button{border:0;border-radius:999px;padding:10px 22px;font:600 15px inherit;background:transparent;color:var(--maroon-dk);cursor:pointer}
+  .seg button.on{background:var(--maroon);color:#fff}
+  .under{display:flex;gap:22px;border-bottom:2px solid var(--line)}
+  .under span{padding:10px 2px;color:var(--muted)}.under span.on{color:var(--maroon);font-weight:700;border-bottom:3px solid var(--maroon);margin-bottom:-2px}
+  .cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:9px}
+  .card.sel{border:2px solid var(--maroon)}
+  .bar{height:8px;border-radius:999px;background:#F1EBE1;overflow:hidden}.bar i{display:block;height:8px;background:var(--maroon)}
+  .bar i.low{background:#C2410C}
+  .list button{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:9px;background:#fff;font:14px inherit;cursor:pointer}
+  .list button.on{background:var(--maroon);color:#fff}
+  .tl{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid #F1EBE1;align-items:flex-start}
+  .dot{width:12px;height:12px;border-radius:999px;margin-top:5px;flex:none}
+  .d-don{background:#1E40AF}.d-use{background:#B91C1C}.d-mov{background:#6B7280}.d-wait{background:#B45309}.d-pur{background:#6D28D9}
+  .hide{display:none!important}
+  @media (max-width:800px){.kpis,.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.side{display:none}}
+</style>
+</head>
+<body>
+
+<div class="picker" id="picker">
+  <b>Consumable Stock — pick a design:</b>
+  <button data-d="1" class="on">1 · Tabs</button>
+  <button data-d="2">2 · One register + switch</button>
+  <button data-d="3">3 · Item cards</button>
+  <button data-d="4">4 · Split view</button>
+  <button data-d="5">5 · Simple timeline</button>
+</div>
+
+<!-- ───────── DESIGN 1: Tabs ───────── -->
+<section class="design on" id="d1">
+  <div class="cap">Design 1 — Same screen as today, with tabs <b>Balance · History · Batches</b>. Click the tabs.</div>
+  <div class="row">
+    <nav class="side">
+      <b style="margin-bottom:12px">Stores &amp; Inventory</b>
+      <a href="#">Receive &amp; Tag</a><a href="#">Stock Register (Assets)</a><a href="#" class="on">Consumable Stock</a>
+      <a href="#">Issue &amp; Return</a><a href="#">Stock Check</a><a href="#">Day Closing</a>
+    </nav>
+    <div class="main">
+      <div class="head"><div><div class="crumb">Stores › Consumable Stock</div><h1>Consumable Stock</h1></div><button class="btn pri">+ Add Stock</button></div>
+      <div class="tabs" data-group="d1tabs">
+        <button data-t="bal">Balance</button><button data-t="his" class="on">History ★</button><button data-t="bat">Batches &amp; Expiry</button>
+      </div>
+      <div data-pane="d1tabs:bal" class="hide box" style="overflow-x:auto">
+        <table><thead><tr><th>Item</th><th>Received</th><th>Used</th><th>Left</th><th>Where kept</th><th>Next expiry</th><th>Actions</th></tr></thead>
+        <tbody id="d1bal"></tbody></table>
+      </div>
+      <div data-pane="d1tabs:his">
+        <div class="box filters">
+          <label>From<input value="01-11-2026" size="10"></label><label>To<input value="02-12-2026" size="10"></label>
+          <label>Item<select><option>All items</option><option>Oil</option><option>Ghee</option><option>Rice</option></select></label>
+          <label>What happened<select><option>All</option><option>Donated</option><option>Purchased</option><option>Used</option><option>Moved</option><option>Waiting</option></select></label>
+          <label>Location<select><option>All</option><option>Oil Room</option><option>Kitchen</option></select></label>
+          <label style="flex:1 1 180px">Search<input placeholder="Donor, receipt, purpose"></label>
+          <button class="btn">Print</button><button class="btn">Export</button>
+        </div>
+        <div class="box" style="overflow-x:auto;margin-top:14px">
+          <table><thead><tr><th>Date</th><th>Item</th><th>What happened</th><th>Receipt / slip</th><th>Donor / purpose</th><th>Qty</th><th>Where</th><th>By</th></tr></thead>
+          <tbody id="d1his"></tbody></table>
+          <div style="padding:12px 14px;border-top:1px solid var(--line);font-size:13px;background:#FCFAF6">This view: <b class="in">Oil +30 L</b> · <b class="out">−12 L used</b> · <b style="color:#8A4B00">Ghee 5 kg waiting</b></div>
+        </div>
+      </div>
+      <div data-pane="d1tabs:bat" class="hide box" style="overflow-x:auto">
+        <table><thead><tr><th>Item</th><th>Batch</th><th>Received</th><th>Left</th><th>Expiry date</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><b>Ghee</b></td><td class="mono">RCPT-101 · Ramesh<br>Kept in: Oil Room</td><td>01 Nov</td><td><b>4</b> / 5 kg</td><td>31 Dec</td><td><span class="badge use">5 days</span></td></tr>
+          <tr><td><b>Oil</b></td><td class="mono">MSE-007 · Purchase<br>Kept in: Oil Room</td><td>20 Nov</td><td><b>5</b> / 5 L</td><td>15 Jan</td><td><span class="badge wait">25 days</span></td></tr>
+          <tr><td><b>Oil</b></td><td class="mono">RCPT-1234 · Ramesh<br>Kept in: Oil Room</td><td>28 Nov</td><td><b>8</b> / 10 L</td><td>30 Mar</td><td><span class="badge ok">120 days</span></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── DESIGN 2: One register with switch ───────── -->
+<section class="design" id="d2">
+  <div class="cap">Design 2 — One <b>Stock Register</b> menu item with an <b>Assets / Consumables</b> switch at the top. Click the switch.</div>
+  <div class="main">
+    <div class="head"><h1>Stock Register</h1>
+      <div class="seg" data-group="d2seg"><button data-t="as">Assets (tagged)</button><button data-t="co" class="on">Consumables</button></div></div>
+    <div data-pane="d2seg:co" style="display:flex;flex-direction:column;gap:16px">
+      <div class="kpis">
+        <div class="kpi"><small>Items</small><div>4</div></div>
+        <div class="kpi"><small>Waiting at store</small><div style="color:#8A4B00">1</div></div>
+        <div class="kpi"><small>Low stock</small><div style="color:#B91C1C">1</div></div>
+        <div class="kpi"><small>Expiring in 7 days</small><div style="color:#B91C1C">1</div></div>
+      </div>
+      <div class="under"><span>Balance</span><span class="on">History</span><span>Batches &amp; Expiry</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        <input placeholder="Search donor, receipt, purpose" style="flex:1 1 240px">
+        <select><option>All items</option></select><select><option>Donated</option></select><select><option>This month</option></select>
+        <button class="btn pri">Print</button>
+      </div>
+      <div class="box" style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Item</th><th>What happened</th><th>Donor / purpose</th><th>Qty</th><th>Where</th><th>Receipt</th></tr></thead><tbody id="d2his"></tbody></table></div>
+    </div>
+    <div data-pane="d2seg:as" class="hide" style="display:flex;flex-direction:column;gap:16px">
+      <div class="under"><span class="on">In hand 245</span><span>Gone out 61</span><span>By item</span><span>History</span></div>
+      <div class="box" style="overflow-x:auto"><table><thead><tr><th>Piece</th><th>Item</th><th>Came from</th><th>Where now</th><th>Status</th></tr></thead><tbody>
+        <tr><td class="mono" style="color:var(--maroon);font-weight:700">PAN-00041</td><td>Pancha, cotton · Bundle of 8</td><td>Donated RCPT-1233</td><td>Rack 2</td><td><span class="badge ok">In Store</span></td></tr>
+        <tr><td class="mono" style="color:var(--maroon);font-weight:700">PAN-00041/1</td><td>Pancha, cotton · 3 pieces</td><td>Donated RCPT-1233</td><td>With Venkatesh</td><td><span class="badge wait">Issued</span></td></tr>
+        <tr><td class="mono" style="color:var(--maroon);font-weight:700">SLV-00007</td><td>Silver lamp · 120 g</td><td>Hundi HND-0021</td><td>Locker 1</td><td><span class="badge ok">In Store</span></td></tr>
+        <tr><td class="mono" style="color:var(--maroon);font-weight:700">UTN-00012</td><td>Brass plate</td><td>Purchased MSE-004</td><td>Rack 4</td><td><span class="badge pur">In auction</span></td></tr>
+      </tbody></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── DESIGN 3: Cards ───────── -->
+<section class="design" id="d3">
+  <div class="cap">Design 3 — A <b>card per item</b> (left, level bar, where kept) and the item's history below. Click a card.</div>
+  <div class="main">
+    <div class="head"><div><div class="crumb">Stores › Consumable Stock</div><h1>Consumable Stock</h1></div>
+      <div style="display:flex;gap:10px"><button class="btn">Batches &amp; Expiry</button><button class="btn pri">+ Add Stock</button></div></div>
+    <div class="cards" id="d3cards"></div>
+    <div class="box" style="padding:18px">
+      <div class="head" style="margin-bottom:8px"><h2 style="margin:0;font-size:18px;color:var(--maroon-dk)" id="d3title">Oil — history</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:8px" data-group="d3chips">
+          <button class="chip on" data-t="All">All</button><button class="chip" data-t="Donated">Donated</button><button class="chip" data-t="Purchased">Purchased</button>
+          <button class="chip" data-t="Used">Used</button><button class="chip" data-t="Moved">Moved</button><button class="btn">Print</button></div></div>
+      <div id="d3his"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── DESIGN 4: Split view ───────── -->
+<section class="design" id="d4">
+  <div class="cap">Design 4 — <b>Item list on the left</b>, the chosen item's totals and history on the right. Click an item.</div>
+  <div class="main">
+    <div class="head"><h1>Consumable Stock</h1><button class="btn pri">+ Add Stock</button></div>
+    <div class="row" style="gap:20px;align-items:flex-start">
+      <aside style="flex:1 1 260px;max-width:310px"><input placeholder="Find an item" style="width:100%;margin-bottom:10px"><div class="list" id="d4list"></div></aside>
+      <section style="flex:999 1 520px;min-width:0;display:flex;flex-direction:column;gap:14px">
+        <div class="box" style="padding:18px;display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:center">
+          <div><small style="color:var(--muted)">Selected item</small><div style="font-size:24px;font-weight:700;color:var(--maroon-dk)" id="d4name"></div><div style="font-size:13px" id="d4where"></div></div>
+          <div style="display:flex;gap:22px"><div><small style="color:var(--muted)">Received</small><div class="in" style="font-size:20px" id="d4rec"></div></div>
+            <div><small style="color:var(--muted)">Used</small><div class="out" style="font-size:20px" id="d4used"></div></div>
+            <div><small style="color:var(--muted)">Next expiry</small><div style="font-size:20px;font-weight:700" id="d4exp"></div></div></div>
+          <div style="display:flex;gap:8px"><button class="btn red">Record use</button><button class="btn blue">Move</button></div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px"><select><option>All entries</option><option>Donated</option><option>Used</option></select><select><option>All locations</option></select>
+          <input value="01-11-2026 → 02-12-2026"><input placeholder="Search donor / receipt" style="flex:1 1 150px"><button class="btn">Print</button></div>
+        <div class="box" style="overflow-x:auto"><table><thead><tr><th>Date</th><th>What</th><th>Donor / purpose</th><th>In</th><th>Out</th><th>Balance</th><th>Where</th></tr></thead><tbody id="d4his"></tbody></table></div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── DESIGN 5: Timeline ───────── -->
+<section class="design" id="d5">
+  <div class="cap">Design 5 — <b>Plain sentences</b>, newest first, with filter chips. Click the chips.</div>
+  <div class="main" style="max-width:900px;margin:0 auto;width:100%">
+    <div class="head"><div><div class="crumb">Stores › Consumable Stock › History</div><h1>What came in and went out</h1></div><button class="btn">Print</button></div>
+    <div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      <div class="kpi"><small>Came in this month</small><div class="in">Oil 30 L · Rice 25 kg</div></div>
+      <div class="kpi"><small>Used this month</small><div class="out">Oil 12 L</div></div>
+      <div class="kpi"><small>Waiting at store</small><div style="color:#8A4B00">Ghee 5 kg</div></div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-group="d5chips">
+      <button class="chip on" data-t="All">All</button><button class="chip" data-t="Donated">Donated</button><button class="chip" data-t="Purchased">Purchased</button>
+      <button class="chip" data-t="Used">Used</button><button class="chip" data-t="Moved">Moved</button><button class="chip" data-t="Waiting">Waiting</button>
+      <select style="margin-left:auto"><option>All items</option></select><select><option>This month</option></select>
+    </div>
+    <div class="box" style="padding:6px 20px" id="d5list"></div>
+  </div>
+</section>
+
+<script>
+const H = [
+  {d:'02 Dec', item:'Oil', k:'Donated', ref:'RCPT-1290', who:'Lakshmi', q:'+15 L', qc:'in', place:'Kitchen', by:'Store1', inq:'+15', outq:'', bal:'18'},
+  {d:'01 Dec', item:'Oil', k:'Used', ref:'USE-0005', who:'Annadanam · Raju', q:'−10 L', qc:'out', place:'Kitchen', by:'Store1', inq:'', outq:'−10', bal:'3'},
+  {d:'30 Nov', item:'Oil', k:'Moved', ref:'MOV-0001', who:'Oil Room → Kitchen', q:'3 L', qc:'mid', place:'', by:'Store1', inq:'', outq:'', bal:'13'},
+  {d:'30 Nov', item:'Ghee', k:'Waiting', ref:'RCPT-1240', who:'Suresh', q:'5 kg', qc:'mid', place:'Not received yet', by:'Counter1'},
+  {d:'29 Nov', item:'Oil', k:'Used', ref:'USE-0004', who:'Nithya Pooja · Venkatesh', q:'−2 L', qc:'out', place:'Oil Room', by:'Store1', inq:'', outq:'−2', bal:'13'},
+  {d:'28 Nov', item:'Oil', k:'Donated', ref:'RCPT-1234', who:'Ramesh', q:'+10 L', qc:'in', place:'Oil Room', by:'Store1', inq:'+10', outq:'', bal:'15'},
+  {d:'25 Nov', item:'Rice', k:'Donated', ref:'RCPT-1201', who:'Venkat Rao', q:'+25 kg', qc:'in', place:'Rice Store', by:'Store1'},
+  {d:'20 Nov', item:'Oil', k:'Purchased', ref:'MSE-007', who:'Temple purchase · ₹900', q:'+5 L', qc:'in', place:'Oil Room', by:'Store1', inq:'+5', outq:'', bal:'5'},
+];
+const CLS = {Donated:'don', Used:'use', Moved:'mov', Waiting:'wait', Purchased:'pur'};
+const ITEMS = [
+  {n:'Oil', left:'18 L', rec:'30 L', used:'12 L', where:'Oil Room 10 · Kitchen 8', exp:'120 days', ec:'ok', note:'5 L waiting at store', pct:60},
+  {n:'Ghee', left:'6 kg', rec:'8 kg', used:'2 kg', where:'Oil Room 6', exp:'5 days', ec:'use', note:'', pct:75},
+  {n:'Rice', left:'30 kg', rec:'50 kg', used:'20 kg', where:'Rice Store 30', exp:'No date', ec:'mov', note:'Low stock', pct:25, low:true},
+  {n:'Camphor', left:'25 pkt', rec:'40 pkt', used:'15 pkt', where:'Pooja Store 25', exp:'—', ec:'mov', note:'', pct:62},
+];
+const badge = (k) => `<span class="badge ${CLS[k]}">${k}</span>`;
+const $ = (id) => document.getElementById(id);
+
+// Design picker
+document.querySelectorAll('#picker button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('#picker button').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.design').forEach((s) => s.classList.toggle('on', s.id === 'd' + b.dataset.d));
+});
+// Tab / switch groups that show one pane
+document.querySelectorAll('[data-group]').forEach((g) => g.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => {
+  g.querySelectorAll('[data-t]').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelectorAll(`[data-pane^="${g.dataset.group}:"]`).forEach((p) => p.classList.toggle('hide', p.dataset.pane !== `${g.dataset.group}:${b.dataset.t}`));
+})));
+
+// Design 1
+$('d1bal').innerHTML = ITEMS.map((i) => `<tr><td><b>${i.n}</b><div style="font-size:12px;color:#8A4B00">${i.note}</div></td><td>${i.rec}</td><td>${i.used}</td>
+  <td><b style="font-size:16px">${i.left}</b></td><td>${i.where}</td><td><span class="badge ${i.ec}">${i.exp}</span></td>
+  <td><button class="btn" style="padding:6px 10px">Ledger</button> <button class="btn blue" style="padding:6px 10px">Move</button> <button class="btn red" style="padding:6px 10px">Use</button></td></tr>`).join('');
+$('d1his').innerHTML = H.map((h) => `<tr><td>${h.d}</td><td><b>${h.item}</b></td><td>${badge(h.k)}</td><td class="mono">${h.ref}</td><td>${h.who}</td><td class="${h.qc}">${h.q}</td><td>${h.place}</td><td style="color:#6B7280">${h.by}</td></tr>`).join('');
+// Design 2
+$('d2his').innerHTML = H.map((h) => `<tr><td>${h.d}</td><td><b>${h.item}</b></td><td>${badge(h.k)}</td><td>${h.who}</td><td class="${h.qc}">${h.q}</td><td>${h.place}</td><td class="mono">${h.ref}</td></tr>`).join('');
+// Design 3
+let d3item = 'Oil', d3kind = 'All';
+function d3() {
+  $('d3cards').innerHTML = ITEMS.map((i) => `<div class="card ${i.n === d3item ? 'sel' : ''}" data-n="${i.n}" style="cursor:pointer">
+    <div style="display:flex;justify-content:space-between"><b style="font-size:18px">${i.n}</b><span class="badge ${i.ec}">${i.exp}</span></div>
+    <div style="font-size:28px;font-weight:700;color:var(--maroon-dk)">${i.left} <small style="font-size:13px;color:var(--muted);font-weight:500">left</small></div>
+    <div class="bar"><i class="${i.low ? 'low' : ''}" style="width:${i.pct}%"></i></div>
+    <div style="font-size:13px">${i.where}</div><div style="font-size:12px;color:#8A4B00;min-height:15px">${i.note}</div>
+    <div style="display:flex;gap:8px"><button class="btn red" style="flex:1">Use</button><button class="btn blue" style="flex:1">Move</button></div></div>`).join('');
+  document.querySelectorAll('#d3cards .card').forEach((c) => c.onclick = () => { d3item = c.dataset.n; d3(); });
+  $('d3title').textContent = `${d3item} — history`;
+  const rows = H.filter((h) => h.item === d3item && (d3kind === 'All' || h.k === d3kind));
+  $('d3his').innerHTML = rows.length ? rows.map((h) => `<div style="display:grid;grid-template-columns:80px 110px minmax(0,1fr) 90px 120px;gap:12px;align-items:center;padding:11px 4px;border-top:1px solid #F1EBE1">
+    <span style="color:var(--muted)">${h.d}</span><span>${badge(h.k)}</span><span><b>${h.who}</b> <span class="mono">${h.ref}</span></span><span class="${h.qc}">${h.q}</span><span>${h.place}</span></div>`).join('')
+    : '<div style="padding:20px;color:var(--muted)">Nothing of this kind for this item.</div>';
+}
+document.querySelectorAll('[data-group="d3chips"] [data-t]').forEach((b) => b.addEventListener('click', () => { d3kind = b.dataset.t; d3(); }));
+d3();
+// Design 4
+let d4item = 'Oil';
+function d4() {
+  $('d4list').innerHTML = ITEMS.map((i) => `<button class="${i.n === d4item ? 'on' : ''}" data-n="${i.n}"><span><b style="font-size:16px">${i.n}</b><br><small style="opacity:.85">${i.where}</small></span><b style="font-size:18px">${i.left}</b></button>`).join('');
+  document.querySelectorAll('#d4list button').forEach((b) => b.onclick = () => { d4item = b.dataset.n; d4(); });
+  const i = ITEMS.find((x) => x.n === d4item);
+  $('d4name').textContent = `${i.n} · ${i.left} left`; $('d4where').textContent = `Kept in: ${i.where}`;
+  $('d4rec').textContent = i.rec; $('d4used').textContent = i.used; $('d4exp').textContent = i.exp;
+  const rows = H.filter((h) => h.item === d4item);
+  $('d4his').innerHTML = rows.map((h) => `<tr><td>${h.d}</td><td>${badge(h.k)}</td><td>${h.who}<div class="mono">${h.ref}</div></td><td class="in">${h.inq ?? ''}</td><td class="out">${h.outq ?? ''}</td><td><b>${h.bal ?? ''}</b></td><td>${h.place}</td></tr>`).join('')
+    || '<tr><td colspan="7" style="color:var(--muted)">No entries in this sample.</td></tr>';
+}
+d4();
+// Design 5
+const DOT = {Donated:'d-don', Used:'d-use', Moved:'d-mov', Waiting:'d-wait', Purchased:'d-pur'};
+const SENT = (h) => ({Donated:`${h.item} donated by ${h.who}`, Used:`${h.item} used for ${h.who.split(' · ')[0]}`, Moved:`${h.item} moved ${h.who}`,
+  Waiting:`${h.item} from ${h.who} — waiting at store`, Purchased:`${h.item} purchased by the temple`}[h.k]);
+const SUB = (h) => h.k === 'Waiting' ? `${h.ref} · billed at counter, not received yet` : `${h.ref}${h.place ? ' · ' + (h.k === 'Used' ? 'from ' : 'kept in ') + h.place : ''} · by ${h.by}`;
+function d5(kind) {
+  const rows = H.filter((h) => kind === 'All' || h.k === kind);
+  $('d5list').innerHTML = rows.map((h) => `<div class="tl"><div style="width:62px;flex:none;color:var(--muted);font-size:13px">${h.d}</div><div class="dot ${DOT[h.k]}"></div>
+    <div style="flex:1;min-width:0"><b>${SENT(h)}</b><div style="font-size:13px;color:var(--muted);margin-top:2px">${SUB(h)}</div></div><div class="${h.qc}" style="font-size:16px">${h.q}</div></div>`).join('')
+    || '<div style="padding:22px 0;color:var(--muted);text-align:center">Nothing of this kind in this period.</div>';
+}
+document.querySelectorAll('[data-group="d5chips"] [data-t]').forEach((b) => b.addEventListener('click', () => d5(b.dataset.t)));
+d5('All');
+</script>
+</body>
+</html>

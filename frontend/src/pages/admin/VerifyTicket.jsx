@@ -1,11 +1,10 @@
 import React, { useRef, useState } from 'react'
 import {
   ScanLine, Search, CheckCircle2, XCircle, User, Phone, CalendarDays, Clock,
-  Repeat, Loader2, RotateCcw, Undo2, AlertTriangle,
+  Repeat, Loader2, RotateCcw, AlertTriangle, Info,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { BookingsAPI, ApiError, getErrorMessage } from '../../api/client.js'
-import { confirmDialog } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, teText, stamp } from '../../i18n/LanguageContext.jsx'
 import { halfLabel } from '../../lib/halfSlots.js'
 
@@ -61,41 +60,14 @@ export default function VerifyTicket() {
     setResult(await lookup(result.booking_code))
   }
 
-  async function markPerformed() {
-    if (!result) return
-    setMarking(true); setError('')
-    try {
-      await BookingsAPI.complete(result.id)
-      await refresh()
-      setJustMarked(true)
-    } catch (err) {
-      setError(getErrorMessage(err, tr('Could not mark the pooja performed.')))
-    } finally {
-      setMarking(false)
-    }
-  }
-
-  async function undo() {
-    const ok = await confirmDialog({
-      title: tr("Undo today's performance?"),
-      message: `${tr(result.pooja)} · ${personName({ name: result.devotee_name }, lang)} — ${tr('the performance is given back to the ticket.')}`,
-      tone: 'danger', confirmLabel: tr('Undo'),
-    })
-    if (!ok) return
-    setMarking(true); setError('')
-    try {
-      await BookingsAPI.undoPerformed(result.id)
-      await refresh()
-      setJustMarked(false)
-    } catch (err) {
-      setError(getErrorMessage(err, tr('Could not undo the performance.')))
-    } finally {
-      setMarking(false)
-    }
-  }
-
   function reset() {
     setTicket(''); setResult(null); setError(''); setJustMarked(false); inputRef.current?.focus()
+  }
+
+  // Open one pooja of a bill on its own (its own ticket number)
+  async function openOne(code) {
+    setTicket(code); setBusy(true); setError('')
+    try { setResult(await lookup(code)) } catch (err) { setError(err instanceof ApiError ? err.detail : tr('Verification failed. Please try again.')) } finally { setBusy(false) }
   }
 
   const ok = result?.valid
@@ -135,8 +107,38 @@ export default function VerifyTicket() {
         </div>
       )}
 
+      {/* A Bill No. (the one QR of a slip with several poojas): every pooja of the bill (client, 2026-11-26) */}
+      {result?.bill && (
+        <div className="mt-4 card overflow-hidden">
+          <div className={`px-5 py-3 flex items-center gap-2 font-semibold ${result.valid_count ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
+            {result.valid_count ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+            {tr('{v} of {n} poojas valid today').replace('{v}', result.valid_count).replace('{n}', result.items.length)}
+          </div>
+          <div className="px-5 pt-4 pb-2">
+            <div className="text-lg font-bold text-gray-800">{personName({ name: result.devotee_name }, lang)}{result.mobile ? <span className="text-gray-600 font-normal text-[0.875rem]"> · {result.mobile}</span> : null}</div>
+            <div className="text-[0.75rem] text-gray-600 font-mono mt-0.5">{tr('Bill No')}: {result.bill_no} · ₹ {Number(result.total || 0).toLocaleString('en-IN')}</div>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {result.items.map((it) => (
+              <button key={it.id} type="button" onClick={() => openOne(it.ticket_no || it.booking_code)}
+                className="w-full text-left px-5 py-3 flex items-start gap-3 hover:bg-gray-50" title={tr('Open this pooja')}>
+                {it.valid ? <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" /> : <XCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />}
+                <span className="flex-1 min-w-0">
+                  <span className="block font-semibold text-gray-800">{tr(it.pooja)}{it.plan ? <span className="text-gray-600 font-normal"> · {tr(it.plan)}</span> : null}</span>
+                  <span className="block text-[0.75rem] text-gray-600">
+                    {fmtDate(it.scheduled_date)}{it.time_slot ? ` · ${clock12(it.time_slot)}` : ''}{it.batch_slot ? ` · ${halfLabel(it.batch_slot)}` : ''} · <span className="font-mono">#{it.ticket_no || it.booking_code}</span>
+                  </span>
+                  <span className={`block text-[0.75rem] font-semibold ${it.valid ? 'text-emerald-700' : 'text-amber-700'}`}>{verdictText(it)}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="px-5 py-2.5 text-[0.75rem] text-gray-500 flex items-center gap-1.5 border-t border-gray-100"><Info size={13} /> <T>Ticket checked. It is marked performed automatically when its time slot ends.</T></p>
+        </div>
+      )}
+
       {/* Result */}
-      {result && (
+      {result && !result.bill && (
         <div className="mt-4 card overflow-hidden">
           {/* Verdict banner */}
           <div className={`px-5 py-3 flex items-center gap-2 font-semibold ${ok || (justMarked && done) ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
@@ -150,17 +152,12 @@ export default function VerifyTicket() {
                 {perf.poojari_name ? ` ${tr('by')} ${personName({ name: perf.poojari_name }, lang)}` : ''}
                 {perf.performed_at ? ` · ${fmtTime(perf.performed_at)}` : ''}
               </span>
-              {perf.can_undo && (
-                <button onClick={undo} disabled={marking} className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-gray-600 hover:text-red-600 disabled:opacity-50">
-                  {marking ? <Loader2 size={13} className="animate-spin" /> : <Undo2 size={13} />} <T>Undo</T>
-                </button>
-              )}
             </div>
           )}
           {result.slot_passed && (
             <div className="px-5 py-2 border-b border-amber-100 bg-amber-50/60 flex items-start gap-2 text-[0.8125rem] text-amber-800">
               <AlertTriangle size={15} className="shrink-0 mt-0.5" />
-              <span>{tr("This ticket's time slot (${slot}) is over for today. You can still perform the pooja.").replace('${slot}', clock12(result.time_slot))}</span>
+              <span>{tr("This ticket's time slot (${slot}) is over for today — it is recorded as performed automatically.").replace('${slot}', clock12(result.time_slot))}</span>
             </div>
           )}
 
@@ -197,11 +194,10 @@ export default function VerifyTicket() {
               </div>
             )}
 
+            {/* Scanning only checks the ticket (client, 2026-11-26) — the pooja is recorded as performed
+                automatically when its time slot ends, whether or not the devotee came. */}
             {ok && (
-              <button onClick={markPerformed} disabled={marking}
-                className="btn-maroon w-full justify-center disabled:opacity-60">
-                {marking ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} <T>Mark Pooja Performed</T>
-              </button>
+              <div className="text-[0.75rem] text-gray-500 flex items-center gap-1.5"><Info size={13} /> <T>Ticket checked. It is marked performed automatically when its time slot ends.</T></div>
             )}
           </div>
         </div>

@@ -14,9 +14,10 @@ import { isAdminRole } from '../../auth/access.js'
 import { statusPill } from '../../lib/bookingStatus.js'
 import { Select, DateField, CountryCodeSelect, Combobox, getCountryDigits } from '../../components/common/Field.jsx'
 import { T, tr, personName, useLang, teText, teAddress, stamp } from '../../i18n/LanguageContext.jsx'
-import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail } from '../../lib/validation.js'
+import { sanitizeName, sanitizePhone, validateName, validatePhone, validateEmail, validatePAN } from '../../lib/validation.js'
 import { toast } from '../../components/common/Dialog.jsx'
 import ResetButton from '../../components/common/ResetButton.jsx'
+import usePickList from '../../hooks/usePickList.js'
 import { useTemple } from '../../lib/SiteContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 
@@ -319,6 +320,7 @@ export default function Devotees() {
   // Autocomplete search state
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const sugPick = usePickList(suggestions, (d) => { setShowSuggestions(false); openDetail(d.id) }, { open: showSuggestions })
   const searchRef = useRef(null)
 
   // Autocomplete: search when user types 2+ characters
@@ -408,6 +410,8 @@ export default function Devotees() {
       const emailResult = validateEmail(modal.data.email)
       if (!emailResult.valid) errors.email = emailResult.error
     }
+    const panResult = validatePAN(modal.data.pan_number)
+    if (!panResult.valid) errors.pan_number = panResult.error
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
@@ -476,6 +480,7 @@ export default function Devotees() {
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
+                onKeyDown={sugPick.onKeyDown}
                 onFocus={() => q.trim().length >= 2 && suggestions.length > 0 && setShowSuggestions(true)}
                 placeholder={tr("Search name or mobile number…")}
                 aria-label={tr("Search devotees")}
@@ -483,21 +488,22 @@ export default function Devotees() {
               />
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-64 overflow-y-auto">
-                  {suggestions.map((d) => (
+                  {suggestions.map((d, i) => (
                     <button
                       type="button"
                       key={d.id}
+                      {...sugPick.rowProps(i)}
                       onClick={() => {
                         setShowSuggestions(false)
                         openDetail(d.id)
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2"
+                      className={`pick-row ${sugPick.rowClass(i)} w-full text-left px-3 py-2 flex items-center gap-2`}
                     >
-                      <span className="w-8 h-8 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold shrink-0">
+                      <span className="pick-avatar w-8 h-8 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold shrink-0 transition-colors">
                         {(d.name || '?')[0].toUpperCase()}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="font-semibold text-gray-800 text-[0.8125rem] block truncate">{personName(d, lang)}</span>
+                        <span className="pick-name font-semibold text-gray-800 text-[0.8125rem] block truncate">{personName(d, lang)}</span>
                         <span className="text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span>
                       </span>
                     </button>
@@ -613,7 +619,7 @@ export default function Devotees() {
               </div>
               <div className="sm:col-span-2">
                 <label className="label"><T>Email</T></label>
-                <input type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} value={modal.data.email || ''}
+                <input type="text" inputMode="email" autoComplete="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} value={modal.data.email || ''}
                   onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setModal({ ...modal, data: { ...modal.data, email: e.target.value } }) }} />
                 {fieldErrors.email && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.email}</div>}
               </div>
@@ -646,8 +652,10 @@ export default function Devotees() {
               </div>
               <div>
                 <label className="label"><T>PAN Number</T></label>
-                <input className="input uppercase" maxLength={10} placeholder={tr("e.g. ABCDE1234F")} value={modal.data.pan_number || ''} onChange={(e) => setModal({ ...modal, data: { ...modal.data, pan_number: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') } })} />
-                <div className="text-[0.6875rem] text-gray-400 mt-0.5"><T>Required for 80G receipts above ₹50,000</T></div>
+                <input className={`input uppercase ${fieldErrors.pan_number ? 'border-red-400' : ''}`} maxLength={10} placeholder={tr("e.g. ABCDE1234F")} value={modal.data.pan_number || ''} onChange={(e) => { setFieldErrors((p) => ({ ...p, pan_number: null })); setModal({ ...modal, data: { ...modal.data, pan_number: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') } }) }} />
+                {fieldErrors.pan_number
+                  ? <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.pan_number}</div>
+                  : <div className="text-[0.6875rem] text-gray-400 mt-0.5"><T>Required for 80G receipts above ₹50,000</T></div>}
               </div>
               <div><label className="label"><T>Date of Birth</T></label>
                 <DateField className="input" value={modal.data.dob || ''} max={new Date().toISOString().split('T')[0]} onChange={(e) => setModal({ ...modal, data: { ...modal.data, dob: e.target.value } })} />

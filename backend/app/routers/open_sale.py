@@ -16,10 +16,11 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from .devotees import buyer_devotee
 from ..helpers import assert_txn_date_open, assert_utr, ist_today, next_code_seq, validate_pagination
 from ..models import DonationCategory, OpenSale, StockItem, StockMovement, StoreLocation
 from ..security import RequireModule, RequireRole, log_action, client_ip, get_current_user
-from .stores import _item_dict, _loc_names, _who, donation_codes, donation_code_match
+from .stores import _item_dict, _loc_names, _who, donation_codes, donation_code_match, take_pieces, merge_back, settle_bundle
 from .stores_issue import _day_bounds_utc
 
 router = APIRouter(prefix="/api/stores/open-sale", tags=["open-sale"])
@@ -40,7 +41,8 @@ def _inr(v) -> str:
 
 class MoveIn(BaseModel):
     piece_ids: list[int] = Field(..., min_length=1, max_length=500)
-    price: Decimal = Field(..., gt=0, le=100000000)
+    price: Decimal = Field(..., gt=0, le=100000000)               # per piece — a bundle sells at this × pieces
+    pieces: dict[int, int] = Field(default_factory=dict)         # bundles: how many of each go on sale (all if left out)
 
 
 class PriceIn(BaseModel):
@@ -52,6 +54,8 @@ class SellIn(BaseModel):
     buyer_mobile: str | None = Field(default=None, max_length=20)
     mode: str = Field(default="Cash", pattern="^(Cash|UPI/QR Code)$")
     txn_ref: str | None = Field(default=None, max_length=60)
+    pieces: int | None = Field(default=None, ge=1, le=500)      # several pieces of a bundle on sale: how many are bought
+    devotee_id: int | None = None                                # picked from the devotee search (None = outsider)
 
     @field_validator("buyer_name")
     @classmethod
@@ -59,11 +63,13 @@ class SellIn(BaseModel):
         v = (v or "").strip()
         if not v:
             raise ValueError("Enter the buyer's name.")
+        if not re.search(r"[^\W\d_]", v):              # digits only = a mobile typed into the name box
+            raise ValueError("Enter the buyer's name in letters — it goes on the receipt.")
         return v
 
     @model_validator(mode="after")
     def _ref(self):
-        if self.buyer_mobile and not re.fullmatch(r"\d{10}", self.buyer_mobile.strip()):
+        if self.buyer_mobile and not re.fullmatch(r"[6-9]\d{9}", self.buyer_mobile.strip()):
             raise ValueError("Mobile number must be 10 digits.")
         return self
 
@@ -75,6 +81,7 @@ def _move(db: Session, item: StockItem, user, action: str, detail: str) -> None:
 def _sale_dict(s: OpenSale) -> dict:
     return {"id": s.id, "receipt_no": s.receipt_no, "stock_item_id": s.stock_item_id, "tag_id": s.tag_id,
             "item_name": s.item_name, "buyer_name": s.buyer_name, "buyer_mobile": s.buyer_mobile,
+            "devotee_id": s.devotee_id, "devotee_code": s.devotee_code,
             "amount": float(s.amount), "payment_mode": s.payment_mode, "payment_ref": s.payment_ref,
             "price_set_by": s.price_set_by, "sold_by": s.sold_by, "sold_at": s.sold_at.isoformat() if s.sold_at else None}
 
@@ -123,7 +130,7 @@ def list_open_sales(db: Session = Depends(get_db), user=Depends(read), q: str = 
 
 @router.get("/count")
 def open_sale_count(db: Session = Depends(get_db), user=Depends(read)):
-    return {"total": db.query(func.count(StockItem.id)).filter(StockItem.status == "In Open Sale").scalar() or 0}
+    return {"total": int(db.query(func.coalesce(func.sum(StockItem.pieces), 0)).filter(StockItem.status == "In Open Sale").scalar() or 0)}
 
 
 @router.post("/move")
@@ -141,6 +148,8 @@ def move_to_open_sale(body: MoveIn, request: Request, db: Session = Depends(get_
                                  + ", ".join(sorted(bad)[:10]))
     now = datetime.now(timezone.utc)
     names = _loc_names(db)
+    # a bundle puts only the pieces asked for on sale (no new sticker); the rest stay in it
+    items = [take_pieces(db, i, body.pieces.get(i.id), user, "Open Sale") for i in items]
     for i in items:
         i.status, i.open_sale_price, i.open_sale_by, i.open_sale_at = "In Open Sale", body.price, _who(user), now
         _move(db, i, user, "Moved to Open Sale", f"price {_inr(body.price)} set by the committee; stays at {names.get(i.location_id, 'store')}")
@@ -179,6 +188,7 @@ def back_to_store(iid: int, request: Request, db: Session = Depends(get_db), use
     item = _on_sale(db, iid)
     item.status, item.open_sale_price = "In Store", None
     _move(db, item, user, "Back to store", f"taken off Open Sale by the committee; at {_loc_names(db).get(item.location_id, 'store')}")
+    item = merge_back(db, item, user, "taken off Open Sale by the committee")   # a bundle's pieces go back into it
     db.commit()
     log_action(db, username=user.username, action="UPDATE", entity="StockItem", detail=f"Off Open Sale {item.tag_id}",
                ip=client_ip(request))
@@ -189,18 +199,27 @@ def back_to_store(iid: int, request: Request, db: Session = Depends(get_db), use
 def sell(iid: int, body: SellIn, request: Request, db: Session = Depends(get_db), user=Depends(seller)):
     """Counter Staff / Administrator sell at the Committee's price — never another amount."""
     item = _on_sale(db, iid, lock=True)
+    if body.pieces and body.pieces > (item.pieces or 1):
+        raise HTTPException(422, f"{item.tag_id}: only {item.pieces} piece(s) are on sale.")
     today = ist_today()                                              # the temple's day, not the server's
     assert_txn_date_open(db, today, label="today")                 # money lands today: not on a closed day
     # One UTR rule on every bill (6–40 letters / digits, never on two bills) — 2026-11-15
     ref = assert_utr(db, body.txn_ref, required=True) if body.mode == "UPI/QR Code" else None
     seq = next_code_seq(db, "open_sale_receipt", db.query(func.max(OpenSale.id)).scalar() or 0)
+    # some of the pieces on sale bought: they leave as their own part, the rest stay on sale
+    item = take_pieces(db, item, body.pieces, user, f"Open Sale OSR-{today.year}-{seq:04d}") if item.bundle_id else item
+    n = item.pieces or 1
+    name = item.description or item.item_name
+    dev = buyer_devotee(db, body.devotee_id, body.buyer_mobile)       # a devotee, or None = outsider
     sale = OpenSale(receipt_no=f"OSR-{today.year}-{seq:04d}", stock_item_id=item.id, tag_id=item.tag_id,
-                    item_name=item.description or item.item_name, buyer_name=body.buyer_name,
-                    buyer_mobile=(body.buyer_mobile or "").strip() or None, amount=item.open_sale_price,
+                    item_name=(f"{name} × {n}" if n > 1 else name)[:120], buyer_name=body.buyer_name,
+                    buyer_mobile=(body.buyer_mobile or "").strip() or None,
+                    devotee_id=dev.id if dev else None, amount=Decimal(str(item.open_sale_price)) * n,
                     payment_mode=body.mode, payment_ref=ref,
                     price_set_by=item.open_sale_by, sold_by=user.username)
     db.add(sale); db.flush()
-    item.status, item.sold_amount = "Sold", item.open_sale_price
+    item.status, item.sold_amount = "Sold", sale.amount
+    settle_bundle(db, item, user)
     _move(db, item, user, "Sold (Open Sale)", f"to {body.buyer_name} for {_inr(sale.amount)} — {sale.receipt_no}, "
                                               f"{'Online' if body.mode == 'UPI/QR Code' else 'Cash'}")
     db.commit(); db.refresh(sale)

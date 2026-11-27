@@ -12,6 +12,8 @@ import { isAdminRole } from '../../auth/access.js'
 import { TagItemsDrawer, canWriteStores } from './stores/shared.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
+import { colFilters } from '../../lib/exportGuard.js'
+import { monthStartISO, todayISO as periodToday } from '../../lib/period.js'
 import { Select, DateField, DateTimeField, Checkbox, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { promptDialog, confirmDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, auditDetail } from '../../i18n/LanguageContext.jsx'
@@ -118,9 +120,10 @@ export default function Hundi() {
   const [stats, setStats] = useState(null)
   const [drawer, setDrawer] = useState(null)
   const [view, setView] = useState(null)
-  // Gold / silver counted by weight: grams only — no ₹ value (2026-11-15), no purity (client, 2026-11-20)
+  // Gold / silver counted by weight: the grams are the count, the ₹ amount is optional (client, 2026-11-26;
+  // was none since 2026-11-15), no purity (client, 2026-11-20)
   const lineMetal = (l) => (isGrams(l.unit) ? metalOf(l.item_type) : null)
-  const lineValue = (l) => (lineMetal(l) ? 0 : l.value)
+  const lineValue = (l) => (lineMetal(l) ? (l.value || 0) : l.value)
   const formTotal = (lines) => lines.reduce((s, l) => s + Number(lineValue(l) || 0), 0)
   const [committee, setCommittee] = useState([])
   const [banks, setBanks] = useState([])
@@ -133,8 +136,8 @@ export default function Hundi() {
     q, setQ, verification, setVerification, deposit, setDeposit,
     start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
-    q: '', verification: '', deposit: '', start: '', end: '', page: 1,
-  })
+    q: '', verification: '', deposit: '', start: monthStartISO(), end: periodToday(), page: 1,   // opens on this month (2026-11-26)
+  }, { blankable: ['start', 'end'] })
   const [saving, setSaving] = useState(false)
   // An error the server returned for the collection date, shown under that field.
   const [dateServerErr, setDateServerErr] = useState('')
@@ -224,7 +227,7 @@ export default function Hundi() {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        HundiAPI.list({ q, verification, deposit, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'collected_on', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
+        HundiAPI.list({ q, verification, deposit, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'collected_on', sort_dir: sorts[0]?.direction || 'desc', col_filters: filtersToParam(filters) }),
         HundiAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -413,6 +416,7 @@ export default function Hundi() {
     const items = m.lines
       .filter((l) => l.item_name.trim() && (lineMetal(l) ? Number(l.quantity) > 0 : lineValue(l) !== ''))
       .map((l) => ({
+        metal: !!lineMetal(l),
         hundi_item_id: (l.hundi_item_id && l.hundi_item_id !== 'custom') ? l.hundi_item_id : null,
         item_name: l.item_name.trim(),
         item_type: l.item_type || null,
@@ -427,12 +431,15 @@ export default function Hundi() {
       return
     }
 
-    // Validate all items have positive values
-    const invalidItems = items.filter((item) => item.value <= 0)
+    // Every line needs a value above ₹0 — except gold / silver, counted by grams with an optional amount
+    // (this check used to refuse every collection with a gold / silver line)
+    const invalidItems = items.filter((item) => (item.metal ? item.value < 0 : item.value <= 0))
     if (invalidItems.length > 0) {
       toast(tr('All item values must be greater than zero.'), 'error')
       return
     }
+
+    const sendItems = items.map(({ metal, ...x }) => x)   // `metal` is only for the check above
 
     // Validate quantity is not negative
     const negativeQty = items.filter((item) => item.quantity !== null && item.quantity < 0)
@@ -451,7 +458,7 @@ export default function Hundi() {
       }
       try {
         await HundiAPI.resubmit(m.resubmit.id, {
-          items, counting_completed_on: m.counting_completed_on || null,
+          items: sendItems, counting_completed_on: m.counting_completed_on || null,
           denomination: m.denomination || null, note: m.note.trim(),
         })
         toast(tr('Corrected and sent back for committee approval.'))
@@ -471,7 +478,7 @@ export default function Hundi() {
         counting_completed_on: m.counting_completed_on || null,
         denomination: m.denomination || null,
         officer: m.officer || null,
-        items,
+        items: sendItems,
         committee_member_ids: chosen.map((c) => c.id),
         committee_members: chosen.map((c) => c.name),
       })
@@ -512,7 +519,8 @@ export default function Hundi() {
   return (
     <div>
       <PageTitle title={tr("Hundi Management")} subtitle={tr("Manage physical hundi collections from the temple, counting, verification and bank deposits.")}
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Hundi Collection Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canRecord ? <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record New Collection</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Hundi Collection Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal}
+          screen="Hundi Collection Register" start={start} end={end} available={total} filters={[['Search', q], ['Verification', verification], ['Deposit', deposit], ...colFilters(filters, sortColumns)]} />{canRecord ? <button onClick={openCreate} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record New Collection</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       {isAdmin && setup && (setup.linked_members < setup.required_approvals || setup.store_locations < 1) && (
         <div role="alert" className="mb-4 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-[0.8125rem] text-amber-900 flex items-start gap-2">
@@ -710,8 +718,9 @@ export default function Hundi() {
                         {lineMetal(l) ? (<>
                             <div className="grid grid-cols-3 gap-2">
                               <NumberField min="0" max="999999" step="0.01" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Grams *")} value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} />
+                              <div className="col-span-2"><NumberField min="0" max="99999999" step="0.01" prefix="₹" className="!py-1.5 text-[0.78125rem]" placeholder={tr("Amount (optional)")} value={l.value} onChange={(e) => setLine(i, { value: e.target.value })} /></div>
                             </div>
-                            <div className="text-[0.6875rem] text-gray-500">{tr('Kept by weight — no value.')}</div>
+                            <div className="text-[0.6875rem] text-gray-500">{tr('Kept by weight. The amount is optional — as estimated by the counting team, not cash.')}</div>
                           </>) : (
                         <>
                         <div className="grid grid-cols-3 gap-2">

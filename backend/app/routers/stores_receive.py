@@ -26,10 +26,11 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..helpers import ist_today, next_code_seq
-from ..models import Donation, HundiCollection, StockItem, StoreReceipt, User
+from ..models import Donation, HundiCollection, StockItem, StoreLocation, StoreReceipt, User
 from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
 from .stores import (RECEIVED, SHORT, SHORT_CLOSED, WEIGHT_TOLERANCE, _category_by_name, _hundi_lines, _is_weight,
-                     _line_need, _who, needs_receiving, receipt_lines, receive_counts, receive_cutoff)
+                     _line_need, _who, needs_receiving, receipt_lines, receive_counts, receive_cutoff,
+                     consumables_cutoff, consumable_needs_receiving)
 
 router = APIRouter(prefix="/api/stores/receive", tags=["stores-receive"])
 read = RequireModule("Stores")
@@ -97,7 +98,7 @@ def _rec_dict(rec: StoreReceipt, d: Donation | None, names: dict, h: HundiCollec
             "status": rec.status, "donor_name": "Anonymous (Hundi)" if rec.hundi_id else (d.donor_name if d else None),
             "billed_by": names.get(src.created_by, src.created_by) if src else None,
             "billed_at": _iso(src.created_at) if src else None, "voided": bool(d and d.voided),
-            "store_location": h.store_location if h else None, "custodian": h.valuables_custodian if h else None,
+            "store_location": h.store_location if h else None, "location_id": rec.location_id, "custodian": h.valuables_custodian if h else None,
             "verified_by": h.verified_by if h else None,
             "received_by": rec.received_by, "received_by_user": rec.received_by_user, "received_at": _iso(rec.received_at),
             "short_code": rec.short_code, "short_reason": rec.short_reason, "short_note": rec.short_note,
@@ -106,11 +107,16 @@ def _rec_dict(rec: StoreReceipt, d: Donation | None, names: dict, h: HundiCollec
 
 
 def _receipt(db: Session, did: int) -> tuple[Donation, object]:
-    """A counter receipt that goes through Receive at store, and its tagged category."""
+    """A counter receipt that goes through Receive at store, and its category: tagged pieces, or a
+    consumable (oil, rice…) made after consumables started being received at the store (2026-11-27)."""
     d = db.get(Donation, did)
     if not d or d.donation_type != "Material":
         raise HTTPException(404, "Material donation receipt not found")
     cat = _category_by_name(db, d.fund)
+    if cat and cat.tracking == "Quantity":
+        if not consumable_needs_receiving(d, consumables_cutoff(db)):
+            raise HTTPException(409, f"{d.receipt_no} is already in Consumable Stock Management — nothing to receive.")
+        return d, cat
     if not cat or cat.tracking != "Tagged":
         raise HTTPException(422, f"'{d.fund}' is not tracked as tagged pieces — nothing to receive at the store.")
     return d, cat
@@ -154,6 +160,8 @@ class ReceiveIn(BaseModel):
     quantity: Decimal = Field(..., ge=0, le=Decimal("1000000"))
     reason: str | None = Field(default=None, max_length=60)
     note: str | None = Field(default=None, max_length=300)
+    location_id: int | None = None          # consumables: where it is kept (required for them)
+    expiry_date: date | None = None         # consumables: best before (optional)
 
 
 class RestIn(BaseModel):
@@ -181,11 +189,20 @@ def receive(did: int, body: ReceiveIn, request: Request, db: Session = Depends(g
         raise HTTPException(409, f"{d.receipt_no} was voided at the counter — nothing to receive.")
     if db.query(StoreReceipt).filter(StoreReceipt.donation_id == d.id).first():
         raise HTTPException(409, f"{d.receipt_no} is already received — reload the list.")
-    weight = _is_weight(cat.unit)
-    _check_qty(body.quantity, weight)
+    consumable = cat.tracking == "Quantity"
+    weight = _is_weight(cat.unit) and not consumable
+    if not consumable:
+        _check_qty(body.quantity, weight)
     billed = Decimal(str(d.quantity or 0))
     tol = WEIGHT_TOLERANCE if weight else Decimal("0")
-    unit = "g" if weight else "piece(s)"
+    unit = (cat.unit or "") if consumable else "g" if weight else "piece(s)"
+    loc = None
+    if consumable:
+        loc = db.get(StoreLocation, body.location_id) if body.location_id else None
+        if not loc or not loc.active:
+            raise HTTPException(422, "Choose the location where it is kept.")
+        if body.expiry_date and d.donated_on and body.expiry_date < d.donated_on:
+            raise HTTPException(422, "The best-before date cannot be before the day it was received.")
     if body.quantity > billed + tol:
         raise HTTPException(422, f"More than the counter receipt ({_qty(billed)} {unit}). "
                                  "Ask the counter to correct the receipt first.")
@@ -199,23 +216,26 @@ def receive(did: int, body: ReceiveIn, request: Request, db: Session = Depends(g
     if body.quantity <= 0 and not short:
         raise HTTPException(422, "Enter how much was received.")
     # "Fewer arrived" is recorded while tagging: never less than what is already tagged
-    tagged = db.query(StockItem).filter(StockItem.donation_id == d.id).all()
+    tagged = [] if consumable else db.query(StockItem).filter(StockItem.donation_id == d.id).all()
     done = sum((Decimal(str(i.weight_g or 0)) for i in tagged), Decimal("0")) if weight else Decimal(len(tagged))
     if body.quantity < done - tol:
         raise HTTPException(422, f"{_qty(done)} {unit} are already tagged from {d.receipt_no} — enter at least that.")
     now = _utcnow()
     rec = StoreReceipt(donation_id=d.id, receipt_no=d.receipt_no, item_name=d.fund, unit=cat.unit or d.unit,
-                       mode="weight" if weight else "count", billed=billed, received=body.quantity,
+                       mode="quantity" if consumable else "weight" if weight else "count", billed=billed, received=body.quantity,
+                       location_id=loc.id if loc else None,
                        status=SHORT if short else RECEIVED, received_by=_who(user), received_by_user=user.username,
                        received_at=now)
     if short:
         seq = next_code_seq(db, "store_shortage", db.query(func.count(StoreReceipt.short_code)).scalar() or 0)
         rec.short_code, rec.short_reason, rec.short_note = f"SHT-{seq:04d}", body.reason, note
     _add_event(rec, user, "Received", body.quantity, note if not short else f"{body.reason}" + (f" · {note}" if note else ""), now)
+    if consumable and body.expiry_date is not None:
+        d.expiry_date = body.expiry_date
     db.add(rec)
     db.commit(); db.refresh(rec)
     log_action(db, username=user.username, action="CREATE", entity="StoreReceipt",
-               detail=f"{d.receipt_no} received {_qty(body.quantity)} of {_qty(billed)} {unit}"
+               detail=f"{d.receipt_no} received {_qty(body.quantity)} of {_qty(billed)} {unit}" + (f" → {loc.name}" if loc else "")
                       + (f" — {rec.short_code} short {_qty(billed - body.quantity)}" if short else ""),
                ip=client_ip(request))
     return _rec_dict(rec, d, _staff_names(db, [d.created_by]))
@@ -231,11 +251,12 @@ def receive_rest(did: int, body: RestIn, request: Request, db: Session = Depends
     if d.voided:
         raise HTTPException(409, f"{d.receipt_no} was voided at the counter — the Committee closes this shortage.")
     weight = rec.mode == "weight"
-    _check_qty(body.quantity, weight)
+    if rec.mode != "quantity":
+        _check_qty(body.quantity, weight)
     billed, got = Decimal(str(rec.billed)), Decimal(str(rec.received))
     tol = WEIGHT_TOLERANCE if weight else Decimal("0")
     if got + body.quantity > billed + tol:
-        unit = "g" if weight else "piece(s)"
+        unit = (rec.unit or "") if rec.mode == "quantity" else "g" if weight else "piece(s)"
         raise HTTPException(422, f"Only {_qty(billed - got)} {unit} are still short on {d.receipt_no}.")
     note = (body.note or "").strip() or None
     now = _utcnow()
@@ -454,5 +475,7 @@ def day_receipts(db: Session, day: date) -> list[dict]:
         out.append({"receipt_no": rec.receipt_no, "item_name": rec.item_name, "mode": rec.mode,
                     "billed": float(billed), "received": float(sum(Decimal(str(e.get("qty") or 0)) for e in today)),
                     "short": float(short), "short_code": rec.short_code if short else None,
-                    "by": today[-1].get("by")})
+                    "by": today[-1].get("by"),
+                    # consumables only (litres, kg…): older signed closings have no such rows, so they stay unchanged
+                    **({"unit": rec.unit} if rec.mode == "quantity" else {})})
     return out

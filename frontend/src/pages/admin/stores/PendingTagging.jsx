@@ -7,7 +7,7 @@ import { TableStates } from '../../../components/common/states.jsx'
 import { Select } from '../../../components/common/Field.jsx'
 import { promptDialog, toast } from '../../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, gramUnit } from '../../../i18n/LanguageContext.jsx'
-import { TagItemsDrawer, canWriteStores, canReceiveStock, canCloseShortage, progressText, staffName, sourceRef } from './shared.jsx'
+import { TagItemsDrawer, canWriteStores, canReceiveStock, canCloseShortage, progressText, staffName, sourceRef, useStoresMeta } from './shared.jsx'
 import ResetButton from '../../../components/common/ResetButton.jsx'
 
 const SOURCE_TONE = { Donation: 'blue', Hundi: 'violet', Manual: 'amber' }
@@ -20,6 +20,10 @@ const amount = (n, weight) => `${qty(n)} ${weight ? gramUnit() : tr('piece(s)')}
 const lineAmt = (l, n) => (l.mode === 'value' ? (n > 0 ? `✔ ${tr('Received')}` : `✘ ${tr('Not received')}`) : amount(n, l.mode === 'weight'))
 const counted = (l) => (l.mode === 'value' ? inr(l.value) : amount(l.counted, l.mode === 'weight'))
 const isHundi = (r) => r.source_type === 'Hundi'
+// Consumables (oil, rice…) are received at the store with no IDs or stickers (2026-11-27)
+const isConsumable = (r) => !!r.consumable || r.mode === 'quantity'
+// An amount in the receipt's own terms: litres / kg for a consumable, grams or pieces otherwise
+const amountOf = (r, n) => (isConsumable(r) ? `${qty(n)} ${tr(r.unit || '')}` : amount(n, r.mode === 'weight' || !!r.weight))
 const PAGE = 20
 
 // Receive & Tag: every counter receipt, hundi custody, bought item and verified manual entry is
@@ -59,7 +63,8 @@ export default function PendingTagging() {
 
   const state = (r) => r.progress?.receive?.state
   const toTag = rows.filter((r) => !r.progress.complete)
-  const tagShown = type ? toTag.filter((r) => r.source_type === type) : toTag
+  const tagShown = type === 'Consumable' ? toTag.filter(isConsumable)
+    : type ? toTag.filter((r) => r.source_type === type && !isConsumable(r)) : toTag
   // 20 rows a page on every tab; the page stays the same height while switching tabs
   const listed = tab === 'tag' ? tagShown : shorts
   const pages = Math.max(1, Math.ceil(listed.length / PAGE))
@@ -69,7 +74,7 @@ export default function PendingTagging() {
   async function closeShortage(s) {
     const what = s.lines
       ? s.lines.filter((l) => l.short > 0).map((l) => `${tr(l.item_name)}: ${tr('counted')} ${counted(l)}, ${tr('received')} ${lineAmt(l, l.received)}`).join(' · ')
-      : `${tr(s.item_name)}: ${tr('billed')} ${amount(s.billed, s.mode === 'weight')}, ${tr('received')} ${amount(s.received, s.mode === 'weight')}`
+      : `${tr(s.item_name)}: ${tr('billed')} ${amountOf(s, s.billed)}, ${tr('received')} ${amountOf(s, s.received)}`
     const res = await promptDialog({ title: `${tr('Close shortage')} — ${s.short_code}`, confirmLabel: tr('Close shortage'),
       message: `${s.receipt_no} · ${what}. ${tr('The receipt is settled at what the store received.')}`,
       fields: [{ k: 'note', label: tr('Reason'), required: true, placeholder: tr('e.g. Receipt corrected at counter') }] })
@@ -87,7 +92,7 @@ export default function PendingTagging() {
 
   return (
     <div>
-      <PageTitle title={tr('Receive & Tag')} subtitle={tr('Counter receipts, hundi valuables and manual entries waiting to be received and given their IDs.')} />
+      <PageTitle title={tr('Receive & Tag')} subtitle={tr('Counter receipts, hundi valuables and purchased items waiting to be received and given their IDs.')} />
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden flex flex-col min-h-[36rem]">
         {/* One fixed-height bar for every tab (filters sit beside their label), and every tab has
             its one-line hint below — so neither the tabs nor the table move when switching tabs */}
@@ -98,7 +103,7 @@ export default function PendingTagging() {
           {tab === 'tag' && (
             <div className="flex items-center gap-2"><span className="text-[0.75rem] text-gray-500"><T>Source</T></span>
               <div className="w-[11rem]"><Select className="input !py-1.5" value={type} onChange={(e) => setType(e.target.value)}>
-                <option value="">{tr('All')}</option><option value="Donation">{tr('Donation')}</option><option value="Hundi">{tr('Hundi')}</option><option value="Manual">{tr('Manual entry')}</option>
+                <option value="">{tr('All')}</option><option value="Donation">{tr('Donation')}</option><option value="Hundi">{tr('Hundi')}</option><option value="Manual">{tr('Purchased item')}</option><option value="Consumable">{tr('Consumables')}</option>
               </Select></div></div>)}
           {tab === 'short' && (
             <label className="inline-flex items-center gap-2 text-[0.8125rem] text-gray-600">
@@ -113,14 +118,14 @@ export default function PendingTagging() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-gray-50/70 text-left text-[0.6875rem] uppercase tracking-wide text-gray-700">
-                {['Source', 'Donor', 'Item', 'Quantity', 'Tagged', 'Date', 'Actions'].map(th)}
+                {['Source', 'Donor', 'Item', 'Quantity', 'Tagged / received', 'Date', 'Actions'].map(th)}
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {cut(tagShown).map((r) => {
                   const rc = r.progress?.receive
                   return (
                     <tr key={`${r.source_type}-${r.source_id}`} className="hover:bg-gray-50/60">
-                      <td className="px-4 py-3"><div className="font-mono text-[0.78rem] text-gray-700">{sourceRef(r)}</div><Pill tone={SOURCE_TONE[r.source_type]}>{tr(r.source_type === 'Manual' ? 'Manual entry' : r.source_type)}</Pill></td>
+                      <td className="px-4 py-3"><div className="font-mono text-[0.78rem] text-gray-700">{sourceRef(r)}</div><Pill tone={SOURCE_TONE[r.source_type]}>{tr(r.source_type === 'Manual' ? 'Purchased item' : r.source_type)}</Pill></td>
                       <td className="px-4 py-3 text-gray-800">{personName({ name: r.donor_name }, lang)}{r.donor_mobile && <div className="text-[0.6875rem] text-gray-400">{r.donor_mobile}</div>}</td>
                       <td className="px-4 py-3 font-semibold text-gray-800">{tr(r.item_name)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{r.quantity != null ? `${Number(r.quantity).toLocaleString('en-IN')} ${tr(r.unit || '')}` : '—'}
@@ -128,12 +133,17 @@ export default function PendingTagging() {
                           {rc.state === 'Received' ? `✔ ${tr('Received at store')}`
                             : isHundi(r) ? `${rc.state === 'Short' ? `⚠ ${tr('Short at store')}` : tr('Shortage closed')}${rc.short_code ? ` · ${rc.short_code}` : ''}`
                             : `⚠ ${tr('Received at store')}: ${qty(rc.received)} / ${qty(rc.billed)}${rc.short_code ? ` · ${rc.short_code}` : ''}`}</div>}</td>
-                      <td className="px-4 py-3 text-[0.8125rem]"><Pill tone="amber">{progressText(r.progress)}</Pill></td>
+                      <td className="px-4 py-3 text-[0.8125rem]"><Pill tone="amber">{isConsumable(r) ? `${qty(r.progress.done)} / ${qty(r.progress.needed)} ${tr(r.unit || '')}` : progressText(r.progress)}</Pill>
+                        {isConsumable(r) && <div className="text-[0.6875rem] text-gray-500 mt-0.5">{tr('No stickers — consumable')}</div>}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-gray-600 text-[0.8125rem]">{fmtDate(r.date)}</td>
-                      <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5">{canWrite
+                      <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5">{isConsumable(r)
+                        ? (rc?.state === 'Short' ? <span className="text-[0.75rem] text-red-600">{tr('Short — see Shortages')}</span>
+                          : canReceive ? <button onClick={() => setReceiving({ row: r })} className="btn-maroon !py-1.5 !px-3 text-[0.78rem]"><PackageCheck size={14} />{' '}<T>Receive</T></button>
+                          : <span className="text-[0.75rem] text-gray-400"><T>The Stores Officer receives</T></span>)
+                        : canWrite
                         ? <button onClick={() => setTagging({ type: r.source_type, id: r.source_id })} className="btn-maroon !py-1.5 !px-3 text-[0.78rem]"><Tag size={14} />{' '}<T>Tag now</T></button>
-                        : <span className="text-[0.75rem] text-gray-400"><T>Counter staff tag</T></span>}
-                        {canReceive && r.source_type === 'Donation' && !rc && (
+                        : <span className="text-[0.75rem] text-gray-400"><T>The Stores Officer tags</T></span>}
+                        {canReceive && r.source_type === 'Donation' && !rc && !isConsumable(r) && (
                           <button onClick={() => setReceiving({ row: r, fewer: true })} className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 text-[0.75rem] font-semibold whitespace-nowrap"><AlertTriangle size={14} />{tr('Fewer arrived')}</button>)}</div></td>
                     </tr>)
                 })}
@@ -162,9 +172,9 @@ export default function PendingTagging() {
                         <td className="px-4 py-3 whitespace-nowrap">{s.lines.map((l) => <div key={l.line_id}>{lineAmt(l, l.received)}</div>)}</td>
                         <td className={`px-4 py-3 whitespace-nowrap font-semibold ${open ? 'text-red-700' : 'text-gray-500'}`}>{s.lines.map((l) => <div key={l.line_id}>{l.short > 0 ? (l.mode === 'value' ? tr('Not received') : amount(l.short, l.mode === 'weight')) : '—'}</div>)}</td>
                       </>) : (<>
-                        <td className="px-4 py-3 whitespace-nowrap">{amount(s.billed, w)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{amount(s.received, w)}</td>
-                        <td className={`px-4 py-3 whitespace-nowrap font-semibold ${open ? 'text-red-700' : 'text-gray-500'}`}>{s.short > 0 ? amount(s.short, w) : '—'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{amountOf(s, s.billed)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{amountOf(s, s.received)}</td>
+                        <td className={`px-4 py-3 whitespace-nowrap font-semibold ${open ? 'text-red-700' : 'text-gray-500'}`}>{s.short > 0 ? amountOf(s, s.short) : '—'}</td>
                       </>)}
                       <td className="px-4 py-3 text-[0.8125rem] text-gray-700">{s.lines ? `${tr('Custody')}: ${staffName(s.custodian || '—')}` : staffName(s.billed_by || '—')} → {staffName(s.received_by || '—')}<div className="text-[0.6875rem] text-gray-400">{fmtStamp(s.received_at)}</div></td>
                       <td className="px-4 py-3 text-[0.8125rem] text-gray-700 max-w-[14rem]">{tr(s.short_reason || '')}{s.short_note && <div className="text-[0.6875rem] text-gray-500">{s.short_note}</div>}</td>
@@ -196,7 +206,13 @@ export default function PendingTagging() {
 
 // Count a receipt in (rest = false), or the short part that arrived later (rest = true).
 function ReceiveDialog({ row, rest, fewer, onClose, onDone }) {
-  const weight = rest ? row.mode === 'weight' : !!row.weight
+  const cons = isConsumable(row)                   // a consumable: litres / kg, kept in a location, best before
+  const weight = !cons && (rest ? row.mode === 'weight' : !!row.weight)
+  const unitLabel = cons ? tr(row.unit || '') : weight ? gramUnit() : tr('piece(s)')
+  const amt = (v) => (cons ? `${qty(v)} ${unitLabel}` : amount(v, weight))
+  const { activeLocations } = useStoresMeta()
+  const [loc, setLoc] = useState('')
+  const [expiry, setExpiry] = useState(row.expiry_date || '')
   const billed = rest ? row.billed : row.quantity
   const already = rest ? row.received : 0
   const left = billed - already
@@ -208,7 +224,7 @@ function ReceiveDialog({ row, rest, fewer, onClose, onDone }) {
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const got = Number(n)
-  const valid = n !== '' && Number.isFinite(got) && got >= tagged && (!fewer || got < billed)
+  const valid = n !== '' && Number.isFinite(got) && got >= tagged && (!fewer || got < billed) && (!cons || rest || !!loc)
   const short = !rest && valid && got < billed - (weight ? 0.01 : 0)
 
   async function submit(e) {
@@ -218,10 +234,12 @@ function ReceiveDialog({ row, rest, fewer, onClose, onDone }) {
     try {
       if (rest) {
         const r = await StoresAPI.receiveRest(row.donation_id, { quantity: got, note: note.trim() || null })
-        onDone(r.status === 'Received' ? `${ref}: ${tr('rest received — shortage settled.')}` : `${ref}: ${tr('received')} ${amount(got, weight)}.`)
+        onDone(r.status === 'Received' ? `${ref}: ${tr('rest received — shortage settled.')}` : `${ref}: ${tr('received')} ${amt(got)}.`)
       } else {
-        const r = await StoresAPI.receive(row.source_id, { quantity: got, reason: short ? reason : null, note: note.trim() || null })
-        onDone(r.short_code ? `${ref}: ${tr('received')} ${amount(got, weight)} — ${r.short_code} ${tr('opened for the rest.')}` : `${ref}: ${tr('received — ready to tag.')}`)
+        const r = await StoresAPI.receive(row.source_id, { quantity: got, reason: short ? reason : null, note: note.trim() || null,
+          ...(cons ? { location_id: Number(loc), expiry_date: expiry || null } : {}) })
+        onDone(r.short_code ? `${ref}: ${tr('received')} ${amt(got)} — ${r.short_code} ${tr('opened for the rest.')}`
+          : cons ? `${ref}: ${tr('received')} ${amt(got)} — ${tr('now in Consumable Stock Management.')}` : `${ref}: ${tr('received — ready to tag.')}`)
       }
     } catch (ex) { toast(errText(ex, 'Could not record the receipt.'), 'error') } finally { setSaving(false) }
   }
@@ -236,14 +254,23 @@ function ReceiveDialog({ row, rest, fewer, onClose, onDone }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-3 text-[0.8125rem]">
-            <div className="rounded-lg bg-gray-50 px-3 py-2"><div className="text-gray-500">{tr('Counter receipt says')}</div><div className="font-bold text-gray-800">{amount(billed, weight)}</div>{row.item_desc && <div className="text-[0.6875rem] text-gray-500">{row.item_desc}</div>}</div>
-            <div className="rounded-lg bg-gray-50 px-3 py-2"><div className="text-gray-500">{rest ? tr('Still short') : fewer ? tr('Already tagged') : tr('Already received')}</div><div className="font-bold text-gray-800">{amount(rest ? left : fewer ? tagged : already, weight)}</div></div>
+            <div className="rounded-lg bg-gray-50 px-3 py-2"><div className="text-gray-500">{tr('Counter receipt says')}</div><div className="font-bold text-gray-800">{amt(billed)}</div>{row.item_desc && <div className="text-[0.6875rem] text-gray-500">{row.item_desc}</div>}</div>
+            <div className="rounded-lg bg-gray-50 px-3 py-2"><div className="text-gray-500">{rest ? tr('Still short') : fewer ? tr('Already tagged') : tr('Already received')}</div><div className="font-bold text-gray-800">{amt(rest ? left : fewer ? tagged : already)}</div></div>
           </div>
-          <div><label className="label">{rest ? tr('Received now *') : fewer ? tr('How many actually arrived *') : tr('Received at store *')} ({weight ? gramUnit() : tr('piece(s)')})</label>
-            <input required type="number" min={tagged} step={weight ? '0.001' : '1'} max={rest ? left : billed} className="input" value={n} onChange={(e) => setN(e.target.value)} /></div>
+          <div><label className="label">{rest ? tr('Received now *') : fewer ? tr('How many actually arrived *') : tr('Received at store *')} ({unitLabel})</label>
+            <input required type="number" min={tagged} step={cons ? 'any' : weight ? '0.001' : '1'} max={rest ? left : billed} className="input" value={n} onChange={(e) => setN(e.target.value)} /></div>
+          {cons && !rest && (<>
+            <div><label className="label">{tr('Location *')}</label>
+              <Select required className="input" value={loc} onChange={(e) => setLoc(e.target.value)}>
+                <option value="">{tr('Select')}</option>{activeLocations.map((l) => <option key={l.id} value={l.id}>{tr(l.name)}</option>)}
+              </Select></div>
+            <div><label className="label">{tr('Best before')} ({tr('optional')})</label>
+              <input type="date" className="input" min={row.date || undefined} value={expiry} onChange={(e) => setExpiry(e.target.value)} /></div>
+            <div className="text-[0.75rem] text-gray-500">{tr('No stickers for consumables.')}</div>
+          </>)}
           {short && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 space-y-2">
-              <div className="text-[0.8125rem] font-semibold text-red-700"><AlertTriangle size={14} className="inline mr-1" />{amount(billed - got, weight)} {tr('short — a shortage will open for the Committee.')}</div>
+              <div className="text-[0.8125rem] font-semibold text-red-700"><AlertTriangle size={14} className="inline mr-1" />{amt(billed - got)} {tr('short — a shortage will open for the Committee.')}</div>
               <div className="text-[0.75rem] text-gray-600"><T>Reason *</T></div>
               {SHORT_REASONS.map((x) => (
                 <label key={x} className="flex items-center gap-2 text-[0.8125rem] text-gray-800">
@@ -256,7 +283,7 @@ function ReceiveDialog({ row, rest, fewer, onClose, onDone }) {
         <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
           <button type="button" onClick={onClose} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
           {/* Reset (client, 2026-11-20): back to the values shown when this receipt's form opened */}
-          <ResetButton onReset={() => { setN(startN); setReason(''); setNote('') }} disabled={saving} className="justify-center !px-3 shrink-0" />
+          <ResetButton onReset={() => { setN(startN); setReason(''); setNote(''); setLoc(''); setExpiry(row.expiry_date || '') }} disabled={saving} className="justify-center !px-3 shrink-0" />
           <button disabled={saving || !valid} className="btn-maroon flex-1 justify-center disabled:opacity-60"><PackageCheck size={15} className="mr-1" />{saving ? tr('Saving…') : tr('Confirm received')}</button>
         </div>
       </form>

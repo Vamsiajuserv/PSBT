@@ -34,7 +34,7 @@ const RED_BADGES = new Set([ISSUE_TO, MISSING_TO, CONSUMABLES_TO])
 const SHOW_STORES_BADGES = false
 function useStoresBadges(user, pathname) {
   const [counts, setCounts] = useState({})
-  const allowed = SHOW_STORES_BADGES && canAccessKey(user, keyOf(PENDING_TO))
+  const allowed = SHOW_STORES_BADGES && canAccessKey(user, keyOf(REGISTER_TO))   // any Stores user (Counter has no Receive & Tag)
   useEffect(() => {
     if (!allowed) return undefined
     let alive = true

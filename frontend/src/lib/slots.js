@@ -1,3 +1,4 @@
+import { tr, clock12, teTerm } from '../i18n/LanguageContext.jsx'
 // Pooja time slots — fixed per plan in the Pooja Master ("08:15 AM" or
 // "09:00 AM - 11:30 AM"), or the Settings list for plans without fixed timings.
 // Same rules as the server (helpers.slot_is_over / bookings._check_date_and_slot).
@@ -60,3 +61,16 @@ export function slotIsOver(slot, date) {
 }
 
 export const planSlots = (plan) => (Array.isArray(plan?.time_slots) ? plan.time_slots : [])
+
+// "Slot closed — book in advance" (client, 2026-11-26): the same sentence as the server's, naming the
+// pooja and its time — "Today's Rudrabhishekam (08:30 AM) slot is closed — please book in advance."
+// `next` (a Pournami plan): "…for the next Pournami: 24 Dec 2026."
+export function closedSlotMsg(poojaName, slots, next) {
+  const times = (slots || []).filter(Boolean).map(clock12).join(', ')
+  const name = `${teTerm(poojaName || '')}${times ? ` (${times})` : ''}`
+  if (next !== undefined) {
+    return tr("Today's {name} slot is closed — please book in advance for the next {tithi}{when}.")
+      .replace('{name}', name).replace(/\{tithi\}/g, tr('Pournami')).replace('{when}', next ? `: ${next}` : '')
+  }
+  return tr("Today's {name} slot is closed — please book in advance.").replace('{name}', name)
+}

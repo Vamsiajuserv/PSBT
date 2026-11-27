@@ -44,13 +44,20 @@ export async function exportReportToPdf(result) {
 
   doc.setFontSize(15); doc.setTextColor(...MAROON)
   doc.text(rupee(result.title || 'Report'), 40, 42)
-  if (result.subtitle) { doc.setFontSize(9); doc.setTextColor(120); doc.text(rupee(result.subtitle), 40, 58) }
+  // The subtitle (period · filters · records · taken by) may be long: wrap it to the page width
+  let subLines = []
+  if (result.subtitle) {
+    doc.setFontSize(9); doc.setTextColor(120)
+    subLines = doc.splitTextToSize(rupee(result.subtitle), doc.internal.pageSize.getWidth() - 80)
+    doc.text(subLines, 40, 58)
+  }
+  const afterSub = 58 + Math.max(0, subLines.length - 1) * 11
   doc.setFontSize(8); doc.setTextColor(150)
-  doc.text(`Generated ${generatedAt()}`, 40, result.subtitle ? 72 : 58)
+  doc.text(`Generated ${generatedAt()}`, 40, result.subtitle ? afterSub + 14 : 58)
 
   autoTable(doc, {
     head, body, foot,
-    startY: result.subtitle ? 84 : 70,
+    startY: result.subtitle ? afterSub + 26 : 70,
     styles: { fontSize: 8, cellPadding: 4 },
     headStyles: { fillColor: MAROON, textColor: 255 },
     footStyles: { fillColor: [245, 240, 235], textColor: MAROON, fontStyle: 'bold' },

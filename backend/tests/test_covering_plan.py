@@ -118,7 +118,29 @@ class CoveringPlan(unittest.TestCase):
             with self.assertRaises(HTTPException) as cm:
                 r._apply_booking_rules(self.db, data, self.daily)
         self.assertEqual(cm.exception.status_code, 409)
-        self.assertIn("already covers this pooja", cm.exception.detail)
+        self.assertTrue(cm.exception.detail.startswith("Abhishekam: Praneeth Oleti's active Monthly booking (TKT-11, valid until "))
+        self.assertIn(f"already covers {TODAY:%d %b %Y}.", cm.exception.detail)
+
+    # ── the pooja is named (client, 2026-11-26: several poojas ticked — which one is blocked?) ──
+    def test_check_names_the_pooja_and_the_devotee(self):
+        m = self.book(self.monthly, TODAY - timedelta(days=5))
+        res = self.check(self.daily, TODAY)
+        self.assertEqual(res["pooja_name"], "Abhishekam")
+        self.assertEqual(res["message"], f"Abhishekam: Praneeth Oleti's active Monthly booking (TKT-11, valid until {m.valid_until:%d %b %Y}) already covers {TODAY:%d %b %Y}.")
+        res = self.check(self.monthly, TODAY + timedelta(days=1))
+        self.assertEqual(res["message"], f"Abhishekam: Praneeth Oleti already has an active Monthly booking (TKT-11, valid until {m.valid_until:%d %b %Y}).")
+
+    def test_active_plans_lists_what_the_devotee_holds(self):
+        m = self.book(self.monthly, TODAY - timedelta(days=5))
+        self.book(self.daily, TODAY)                                     # one day — not a plan to tag
+        self.book(self.yearly, TODAY - timedelta(days=400))              # expired — not listed
+        self.book(self.monthly, TODAY - timedelta(days=2), devotee_id=8, mobile="9000000000")   # someone else
+        with unittest.mock.patch.object(r, "ist_today", return_value=TODAY):
+            items = r.active_plans(devotee_id=7, mobile=None, db=self.db, user=None)["items"]
+            self.assertEqual([(i["pooja_id"], i["plan_name"], i["booking_code"], i["valid_until"]) for i in items],
+                             [(1, "Monthly", m.booking_code, str(m.valid_until))])
+            self.assertEqual(r.active_plans(devotee_id=None, mobile=None, db=self.db, user=None), {"items": []})
+            self.assertEqual(len(r.active_plans(devotee_id=None, mobile="8712311536", db=self.db, user=None)["items"]), 1)
 
 
 import unittest.mock  # noqa: E402

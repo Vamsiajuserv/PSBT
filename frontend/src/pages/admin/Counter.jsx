@@ -6,18 +6,21 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/UI.jsx'
 import { TicketShell, TF } from '../../components/admin/BookingTicket.jsx'
-import { DateField, Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
+import { Combobox, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { PoojasAPI, DevoteesAPI, BookingsAPI, FestivalsAPI, AlmanacAPI } from '../../api/client.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey } from '../../auth/access.js'
 import PaymentQr from '../../components/common/PaymentQr.jsx'
 import { toast, confirmDialog } from '../../components/common/Dialog.jsx'
+import usePickList from '../../hooks/usePickList.js'
 import { T, tr, useLang, personName, stamp, teTerm, clock12 } from '../../i18n/LanguageContext.jsx'
 import { sanitizePhone, sanitizeName, validatePhone, sanitizeVehicle } from '../../lib/validation.js'
 import { GOTHRAMS, NAKSHATRAMS, RASHIS } from '../../lib/sankalpam.js'
 import { planValidUntil, planSpan, addDaysISO } from '../../lib/planTerms.js'
+import { festDaysLeftMsg, festTicketNote } from '../../lib/festivalPlan.js'
+import { useActivePlans, activeTag } from '../../lib/activePlans.js'
 import ParticipantsInput from '../../components/common/ParticipantsInput.jsx'
-import { slotIsOver, slotPeriod, isRange, isTempleHours, NOTE_VEHICLE } from '../../lib/slots.js'
+import { slotIsOver, slotPeriod, isRange, isTempleHours, NOTE_VEHICLE, closedSlotMsg } from '../../lib/slots.js'
 import { halfLabel, halfRange, halfPeriod, PERIODS } from '../../lib/halfSlots.js'
 
 // ── Constants ──
@@ -40,11 +43,13 @@ const fmtDate = (d) => {
 const isPournamiPlan = (item) => item?.tithi_type === 'Pournami'
 
 // Date and validity shown for a pooja in the live booking panel
-const cartLineWhen = (item) => {
-  const from = item.scheduled_date || todayISO()
+const cartLineWhen = (item, festEnd) => {
+  // A Monthly / Life Long plan whose time is over today starts tomorrow (the server moves it) — show that range
+  const from = startsTomorrow(item) ? addDaysISO(todayISO(), 1) : (item.scheduled_date || todayISO())
   const day = from === todayISO() ? tr('Today') : stamp(fmtDate(from))
   const pournami = isPournamiPlan(item) ? ` (${tr('Pournami')})` : ''
-  const end = planValidUntil(item, from)
+  let end = planValidUntil(item, from)
+  if (festEnd && end && end > festEnd) end = festEnd     // a festival plan ends with the festival (client, 2026-11-26)
   if (end === null) return `${day}${pournami} · ${tr('Lifetime')}`
   if (end !== from) return `${day}${pournami} – ${stamp(fmtDate(end))}`
   return `${day}${pournami}`
@@ -86,13 +91,34 @@ const calcExpiry = (bookedDate, planName) => {
 // that is over today is still chosen — the plan then starts tomorrow in the same slot (the server
 // moves the start date). A Pournami / Amavasya plan is tied to its day and is never moved.
 const isDailyMulti = (item) => !item?.tithi_type && item?.category !== 'Festival' && /life|month/i.test(`${item?.plan_name || ''} ${item?.validity_type || ''}`)
+const startsTomorrow = (item) => isDailyMulti(item) && (item.scheduled_date || todayISO()) === todayISO()
+  && !!item.time_slot && slotIsOver(item.time_slot, todayISO())
 const openSlotsOf = (item, date) => (isDailyMulti(item) ? (item.time_slots || []) : (item.time_slots || []).filter((s) => !slotIsOver(s, date)))
 const pickSlot = (item, date) => {
   const open = openSlotsOf(item, date)
   return open.includes(item.time_slot) ? item.time_slot : (open[0] || '')
 }
 // Lines whose date the operator can change (see BookingItemDetails); the rest are for today
-const hasDatePicker = (item) => isPournamiPlan(item) || ['Monthly', 'Festival', 'Occasion'].includes(item.category)
+// Today is Pournami but this plan's fixed time is over (Sai Vratam after 9:00 AM) → today is not
+// offered; the line says the slot expired and to book the next Pournami in advance (client, 2026-11-25)
+const tithiTodayOver = (item) => (item?.time_slots || []).length > 0 && item.time_slots.every((s) => slotIsOver(s, todayISO()))
+// Counter Billing books a Pournami plan only for TODAY — on a Pournami day before its time.
+// Otherwise it is refused with a note to book the next Pournami from Advance Booking (client, 2026-11-25).
+const pournamiChoicesFor = (item, dates) => (tithiTodayOver(item) ? [] : dates.filter((d) => d.event_date === todayISO()))
+const pournamiExpiredFor = (item, dates) => tithiTodayOver(item) && dates.some((d) => d.event_date === todayISO())
+const counterPournamiBlock = (item, dates) => {
+  if (!dates.length) return tr('Pournami dates could not be loaded. Refresh the page.')
+  const t = todayISO()
+  const next = dates.find((d) => d.event_date > t)
+  // One message for both cases — not a Pournami today, or its time is over (client, 2026-11-26)
+  const closed = closedSlotMsg(item.pooja_name, item.time_slots, next ? stamp(fmtDate(next.event_date)) : '')
+  if (!dates.some((d) => d.event_date === t) || tithiTodayOver(item)) return closed
+  return null
+}
+// Counter Billing books TODAY's poojas only (client, 2026-11-26): a time that is over today, a later date
+// or a festival outside its window → this one message; future dates go through Advance Booking.
+// (Monthly / Life Long daily plans keep their 2026-11-18 rule: over today → start tomorrow.)
+const closedMsg = (item) => closedSlotMsg(item.pooja_name, item.time_slots)
 const slotLabel = (s) => (isTempleHours(s) ? `${tr('Temple hours')} ${clock12(s)}` : clock12(s))
 
 // Determine if pooja requires additional booking details
@@ -165,7 +191,7 @@ export default function Counter() {
   useEffect(() => {
     const from = todayISO()
     AlmanacAPI.pournamis(from, addDaysISO(from, 120))
-      .then((r) => setPournamiDates((r.items || []).filter((d) => d.event_date >= from).slice(0, 3)))
+      .then((r) => setPournamiDates((r.items || []).filter((d) => d.event_date >= from).slice(0, 4)))   // 3 shown + today, which may be over
       .catch(() => setPournamiDates([]))
   }, [])
 
@@ -192,6 +218,7 @@ export default function Counter() {
   const [name, setName] = useState('')
   const [mobileResults, setMobileResults] = useState(null)
   const [showMobileDropdown, setShowMobileDropdown] = useState(false)
+  const mobPick = usePickList(mobileResults, (d) => pickDevotee(d), { open: showMobileDropdown })
   const [devotee, setDevotee] = useState(null)
   const [lookedUpMobile, setLookedUpMobile] = useState('')
   const searchRef = useRef(0)
@@ -310,7 +337,20 @@ export default function Counter() {
     } else {
       setMobileError('')
     }
-    if (devotee && cleaned !== devotee.mobile) setDevotee(null)
+    // The number no longer matches the picked devotee → it is a different (new) devotee: clear
+    // everything that came with the old one — name, Sankalpam, beneficiary, participants, notes
+    // (client, 2026-11-25). The number just typed stays.
+    if (devotee && cleaned !== devotee.mobile) {
+      setDevotee(null)
+      setName('')
+      setGothram('')
+      setNakshatram('')
+      setRasi('')
+      setBeneficiary('')
+      setParticipants([])
+      setSpecialNotes('')
+      setDetailsApplied(false)
+    }
   }
 
   const handleNameChange = (val) => {
@@ -366,9 +406,12 @@ export default function Counter() {
   // Blocked cart lines by lineId, so the cart row itself is marked — the cart can
   // hold the same pooja on two plans (Daily + Monthly) and only one is blocked.
   const blockedLines = useMemo(() => new Map(dupWarnings.map((w) => [w.lineId, w])), [dupWarnings])
+  // Poojas this devotee already holds a plan for: tagged on the tiles, a ticked blocked tile turns red (2026-11-26)
+  const blockedKeys = new Set(selected.filter((i) => blockedLines.has(i.lineId)).map((i) => i.key))
 
   const selectedKey = selected.map(c => `${c.pooja_id}-${c.plan_id}-${c.scheduled_date}`).join(',')
   const mobileFor10 = mobile.trim().length === 10 ? mobile.trim() : null
+  const heldPlans = useActivePlans(devotee?.id, devotee?.id ? null : mobileFor10)
 
   // Check duplicates for long-term items
   useEffect(() => {
@@ -441,8 +484,8 @@ export default function Counter() {
       let amount = Number(entry.fee) || 0
       if (entry.category === 'Festival') {
         const fw = festivalFor(entry)
-        if (fw?.past) {
-          setError(tr('The festival window for this pooja is over') + ` (${fw.windows}).`)
+        if (fw?.past || (fw?.date && fw.date !== todayISO())) {   // over, or not started yet
+          setError(closedMsg(entry))
           return
         }
         if (!(amount > 0)) {
@@ -455,23 +498,18 @@ export default function Counter() {
         return
       }
 
-      // Determine default date based on category
-      let scheduled_date = todayISO()
-      if (entry.category === 'Festival') {
-        const fw = festivalFor(entry)
-        if (fw?.date) scheduled_date = fw.date
-      } else if (isPournamiPlan(entry)) {
-        if (pournamiDates.length > 0) scheduled_date = pournamiDates[0].event_date
+      // Counter lines are for today
+      const scheduled_date = todayISO()
+      if (isPournamiPlan(entry)) {
+        const block = counterPournamiBlock(entry, pournamiDates)
+        if (block) { setError(block); return }
       }
 
-      // Fixed timings: today's slot may already be over. A line with a date moves to
-      // tomorrow; a today-only line (Daily, Vehicle…) cannot be billed today.
+      // Fixed timings: today's time is over → closed, book in advance (never moved to another day).
+      // Monthly / Life Long keep every slot open here — the server starts them tomorrow.
       if (entry.time_slots?.length && openSlotsOf(entry, scheduled_date).length === 0) {
-        if (!hasDatePicker(entry)) {
-          setError(`${tr("Today's time slot for this pooja is over")}: ${teTerm(entry.pooja_name)} (${entry.time_slots.map(clock12).join(', ')}). ${tr('Book it for another date from Advance Booking.')}`)
-          return
-        }
-        if (scheduled_date === todayISO()) scheduled_date = addDaysISO(todayISO(), 1)
+        setError(closedMsg(entry))
+        return
       }
       // Vehicle poojas depend on the poojari — tell the devotee before billing
       if (entry.category === 'Vehicle' && !(await confirmDialog({ title: tr('Vehicle Pooja'), message: tr(NOTE_VEHICLE) + '\n\n' + tr('Please inform the devotee before booking.'), confirmLabel: tr('OK, Continue') }))) return
@@ -582,8 +620,10 @@ export default function Counter() {
         setError(`${tr('Choose a time slot for')} ${teTerm(item.pooja_name)} — ${tr('ask the devotee which time they want.')}`)
         return
       }
-      if (item.time_slots?.length && (!item.time_slot || slotIsOver(item.time_slot, item.scheduled_date || todayISO()))) {
-        setError(`${tr('Select a time slot for')} ${teTerm(item.pooja_name)} — ${tr("today's slot is over, choose another date")}.`)
+      // Monthly / Life Long: a time already over today is fine — the plan starts tomorrow (client, 2026-11-18)
+      if (item.time_slots?.length && (!item.time_slot || (!isDailyMulti(item) && slotIsOver(item.time_slot, item.scheduled_date || todayISO())))) {
+        setError(item.time_slot && !isDailyMulti(item) ? closedMsg(item)     // its time passed while in the cart
+          : `${tr('Select a time slot for')} ${teTerm(item.pooja_name)} — ${tr("today's slot is over, choose another date")}.`)
         return
       }
     }
@@ -652,7 +692,7 @@ export default function Counter() {
           pooja_name: cartItem.pooja_name || s.seva_name || 'Seva',
           plan_name: cartItem.plan_name || s.plan_name || 'Daily',
           amount: cartItem.amount || s.amount || 0,
-          booking: { id: s.id, booking_code: s.booking_code, ticket_no: s.ticket_no, receipt_no: s.receipt_no, seva_name: s.seva_name, plan_name: s.plan_name, amount: s.amount, valid_until: s.valid_until, scheduled_date: s.scheduled_date, time_slot: s.time_slot, batch_slot: s.batch_slot },
+          booking: { id: s.id, booking_code: s.booking_code, ticket_no: s.ticket_no, receipt_no: s.receipt_no, seva_name: s.seva_name, plan_name: s.plan_name, amount: s.amount, valid_until: s.valid_until, scheduled_date: s.scheduled_date, time_slot: s.time_slot, batch_slot: s.batch_slot, festival_id: s.festival_id, bill_no: s.bill_no },
         }
       })
 
@@ -666,6 +706,7 @@ export default function Counter() {
         mode,
         utr: online ? utr.trim() : '',
         ref: done[0]?.booking?.receipt_no || done[0]?.booking?.booking_code,
+        billNo: result.bill_no || '',   // several poojas: one Bill No., the slip's one QR verifies them all
         paidAt: stampNow(),
         failed: failedCount,
         _gothram: gothram || devotee?.gothram || '',
@@ -744,6 +785,7 @@ export default function Counter() {
                     <input
                       value={mobile}
                       onChange={(e) => handleMobileChange(e.target.value)}
+                      onKeyDown={mobPick.onKeyDown}
                       placeholder={tr("Enter Mobile Number")}
                       maxLength={getCountryDigits(countryCode)}
                       className={`input flex-1 !rounded-l-none !text-sm !py-2 ${mobileError ? 'border-red-400' : ''}`}
@@ -753,9 +795,9 @@ export default function Counter() {
                   {showMobileDropdown && mobileResults?.length > 0 && (
                     <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
                       <div className="px-3 py-1.5 bg-gray-50 border-b text-[10px] text-gray-600 font-medium"><T>Select to auto-fill</T></div>
-                      {mobileResults.map((d) => (
-                        <button key={d.id} onClick={() => pickDevotee(d)} className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 flex items-center justify-between border-b border-gray-50 last:border-0">
-                          <span className="font-medium text-gray-800">{personName(d, lang)}</span>
+                      {mobileResults.map((d, i) => (
+                        <button key={d.id} type="button" onClick={() => pickDevotee(d)} {...mobPick.rowProps(i)} className={`pick-row ${mobPick.rowClass(i)} w-full text-left px-3 py-2 text-sm flex items-center justify-between border-b border-gray-50 last:border-0`}>
+                          <span className="pick-name font-medium text-gray-800">{personName(d, lang)}</span>
                           <span className="text-gray-500 text-xs">{d.mobile}</span>
                         </button>
                       ))}
@@ -888,17 +930,20 @@ export default function Counter() {
               <div className="grid grid-cols-2 gap-2">
                 {filtered.map((s) => {
                   const isSelected = selected.some(sel => sel.key === s.key)
+                  const blocked = isSelected && blockedKeys.has(s.key)
+                  const held = activeTag(heldPlans, s.pooja_id, (d) => stamp(fmtDate(d)))
                   return (
                     <button
                       key={s.key}
                       onClick={() => toggleSelect(s)}
-                      className={`relative flex items-start gap-2 border-2 rounded-lg px-2.5 py-2 text-left transition-all ${isSelected ? 'border-maroon-500 bg-maroon-50/50 shadow-sm' : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50/30'}`}
+                      className={`relative flex items-start gap-2 border-2 rounded-lg px-2.5 py-2 text-left transition-all ${blocked ? 'border-red-500 bg-red-50 shadow-sm' : isSelected ? 'border-maroon-500 bg-maroon-50/50 shadow-sm' : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50/30'}`}
                     >
-                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? 'border-maroon-600 bg-maroon-600' : 'border-gray-300'}`}>
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${blocked ? 'border-red-600 bg-red-600' : isSelected ? 'border-maroon-600 bg-maroon-600' : 'border-gray-300'}`}>
                         {isSelected && <Check size={10} className="text-white" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-gray-800 leading-tight truncate">{lang === 'te' && s.name_te ? s.name_te : s.pooja_name}</div>
+                        <div className={`text-sm font-medium leading-tight truncate ${blocked ? 'text-red-700' : 'text-gray-800'}`}>{blocked && <AlertTriangle size={12} className="inline -mt-0.5 mr-1" />}{lang === 'te' && s.name_te ? s.name_te : s.pooja_name}</div>
+                        {held && <div className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-300 text-red-700 text-[10px] font-semibold px-1.5 py-px"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />{held}</div>}
                         <div className="flex items-center gap-1 mt-0.5">
                           <span className="text-[10px] text-gray-500">{tr(s.plan_name)}</span>
                           {s.category === 'Vehicle' && <Car size={10} className="text-gray-400" />}
@@ -995,9 +1040,10 @@ export default function Counter() {
                       <div className="min-w-0 flex-1">
                         <div className={`text-sm font-medium truncate ${blocked ? 'text-red-800' : 'text-gray-800'}`}>{lang === 'te' && item.name_te ? item.name_te : tr(item.pooja_name)} <span className={`text-xs font-normal ${blocked ? 'text-red-600' : 'text-gray-500'}`}>· {tr(item.plan_name)}</span></div>
                         <div className="text-[11px] text-gray-500 flex items-center gap-1">
-                          <CalendarDays size={11} className="shrink-0" />{cartLineWhen(item)}
+                          <CalendarDays size={11} className="shrink-0" />{cartLineWhen(item, festivalFor(item)?.fest?.end_date)}
                           {item.category === 'Vehicle' && item.vehicle_no && <span className="text-amber-600">· {item.vehicle_no}</span>}
                         </div>
+                        {(() => { const f = festivalFor(item)?.fest; const m = f && festDaysLeftMsg(item, item.scheduled_date || todayISO(), f, (d) => stamp(fmtDate(d)), teTerm(f.name)); return m ? <div className="text-[11px] font-semibold text-amber-700 flex items-start gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0 mt-0.5" />{m}</div> : null })()}
                         {item.time_slots?.length > 0 && <CartLineSlot item={item} onChange={(v) => updateItemMeta(item.lineId, 'time_slot', v)} />}
                         <CartLineBatch item={item} onChange={(v) => updateItemMeta(item.lineId, 'batch_slot', v)} />
                         {!blocked && sameDay.some((w) => w.lineId === item.lineId) && <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="shrink-0" />{tr('Already booked that day — will ask to confirm')}</div>}
@@ -1330,11 +1376,17 @@ function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, lang
             <label className="text-[10px] font-medium text-gray-600 mb-1 block flex items-center gap-1">
               <Moon size={10} /> <T>Pournami Date</T>
             </label>
+            {pournamiExpiredFor(item, pournamiDates) && (
+              <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-1.5 flex items-start gap-1" role="status">
+                <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+                <span>{closedSlotMsg(item.pooja_name, item.time_slots, '')}</span>
+              </div>
+            )}
             {pournamiDates.length === 0 ? (
               <div className="text-[10px] text-amber-700"><T>Pournami dates could not be loaded. Refresh the page.</T></div>
             ) : (
               <div className="flex flex-wrap gap-1.5">
-                {pournamiDates.map((d) => (
+                {pournamiChoicesFor(item, pournamiDates).map((d) => (
                   <button key={d.event_date} onClick={() => updateMeta('scheduled_date', d.event_date)}
                     title={`${lang === 'te' && d.name_te ? d.name_te : tr(d.name)}${d.provisional ? ` · ${tr('Provisional — awaiting confirmation against TTD')}` : ''}`}
                     className={`px-2 py-1 rounded text-[10px] font-medium transition-all duration-150 ${d.provisional ? 'border-dashed' : ''} ${item.scheduled_date === d.event_date ? 'bg-blue-600 text-white' : 'bg-white border border-blue-200 text-blue-700 hover:bg-blue-50'}`}>
@@ -1343,18 +1395,15 @@ function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, lang
                 ))}
               </div>
             )}
-            {pournamiDates.some((d) => d.provisional) && (
+            {pournamiChoicesFor(item, pournamiDates).some((d) => d.provisional) && (
               <div className="text-[9px] text-gray-500 mt-1">* <T>Provisional — awaiting confirmation against TTD</T></div>
             )}
           </div>
         )}
 
-        {/* Other monthly-category plans: any date from today */}
-        {item.category === 'Monthly' && !isPournamiPlan(item) && (
-          <div>
-            <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Date</T></label>
-            <DateField value={item.scheduled_date} min={todayISO()} onChange={(e) => updateMeta('scheduled_date', e.target.value)} className="!py-1.5 !text-xs" />
-          </div>
+        {/* Other monthly-category / occasion poojas: today only at the counter (later dates: Advance Booking) */}
+        {((item.category === 'Monthly' && !isPournamiPlan(item)) || item.category === 'Occasion') && (
+          <div className="text-[10px] text-gray-600"><T>Date</T>: <span className="font-medium text-gray-800">{stamp(fmtDate(item.scheduled_date))} ({tr('Today')})</span></div>
         )}
 
         {/* Festival: Date within window */}
@@ -1364,15 +1413,7 @@ function BookingItemDetails({ item, updateMeta, pournamiDates, festivalFor, lang
               <CalendarDays size={10} /> <T>Festival Date</T>
               <span className="text-[9px] text-amber-600 ml-1">({teTerm(fw.name)}: {stamp(fmtDate(fw.fest.start_date))} – {stamp(fmtDate(fw.fest.end_date))})</span>
             </label>
-            <DateField value={item.scheduled_date} min={fw.fest.start_date} max={fw.fest.end_date} onChange={(e) => updateMeta('scheduled_date', e.target.value)} className="!py-1.5 !text-xs" />
-          </div>
-        )}
-
-        {/* Occasion: Date */}
-        {item.category === 'Occasion' && (
-          <div>
-            <label className="text-[10px] font-medium text-gray-600 mb-1 block"><T>Date</T></label>
-            <DateField value={item.scheduled_date} min={todayISO()} onChange={(e) => updateMeta('scheduled_date', e.target.value)} className="!py-1.5 !text-xs" />
+            <div className="text-[10px] font-medium text-gray-800">{stamp(fmtDate(item.scheduled_date))} ({tr('Today')})</div>
           </div>
         )}
 
@@ -1411,9 +1452,14 @@ function BillReceiptModal({ bill, onClose, lang }) {
         </div>
 
         <div className="p-5" id="print-area">
-          <TicketShell code={booking?.booking_code || bill.ref} categories={(bill.lines || []).map((l) => l.category)}>
-            <TF label={tr("Receipt No")} value={bill.ref} mono />
-            <TF label={tr("Ticket No")} value={booking?.ticket_no || booking?.booking_code} mono />
+          {/* Several poojas: the QR is the Bill No. — Verify Ticket lists every pooja of the bill (client, 2026-11-26) */}
+          <TicketShell code={(isMultiItem && bill.billNo) || booking?.booking_code || bill.ref} categories={(bill.lines || []).map((l) => l.category)}>
+            {isMultiItem && bill.billNo
+              ? <TF label={tr("Bill No")} value={bill.billNo} mono />
+              : <TF label={tr("Receipt No")} value={bill.ref} mono />}
+            {isMultiItem && bill.billNo
+              ? <TF label={tr("Poojas")} value={`${bill.lines.length} ${tr('poojas')} · ${tr('one QR for all')}`} />
+              : <TF label={tr("Ticket No")} value={booking?.ticket_no || booking?.booking_code} mono />}
             <TF label={tr("Devotee")} value={<>{personName({ name: bill.name }, lang)}<span className="block text-[0.6875rem] text-gray-700 font-normal">{bill.mobile}</span></>} />
 
             {(bill._gothram || bill._nakshatram || bill._rasi) && (
@@ -1433,6 +1479,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
                 {(booking?.time_slot || line.time_slot) && <TF label={tr("Time Slot")} value={slotLabel(booking?.time_slot || line.time_slot)} />}
                 {booking?.batch_slot && <TF label={tr("Pooja slot")} value={halfLabel(booking.batch_slot)} />}
                 {line.vehicle_no && <TF label={tr("Vehicle No")} value={line.vehicle_no} />}
+                {festTicketNote(booking, (d) => stamp(fmtDate(d))) && <TF label={tr("Festival plan")} value={festTicketNote(booking, (d) => stamp(fmtDate(d)))} wide />}
               </>
             )}
 
@@ -1450,6 +1497,7 @@ function BillReceiptModal({ bill, onClose, lang }) {
                         {(l.booking?.time_slot || l.time_slot) && <span className="text-gray-600 text-[0.6875rem] ml-1">· {slotLabel(l.booking?.time_slot || l.time_slot)}</span>}
                         {l.booking?.batch_slot && <span className="block text-maroon-700 text-[0.6875rem] font-semibold">{tr('Pooja slot')}: {halfLabel(l.booking.batch_slot)}</span>}
                         {lineValidity(l) && <span className="block text-blue-700 text-[0.6875rem]"><T>Validity</T>: {lineValidity(l)}</span>}
+                        {festTicketNote(l.booking, (d) => stamp(fmtDate(d))) && <span className="block text-amber-800 text-[0.6875rem] font-semibold">{festTicketNote(l.booking, (d) => stamp(fmtDate(d)))}</span>}
                       </span>
                       <span className="font-semibold text-gray-700">₹{Number(l.amount || l.booking?.amount || 0).toLocaleString('en-IN')}</span>
                     </div>

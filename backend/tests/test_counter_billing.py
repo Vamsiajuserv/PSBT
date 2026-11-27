@@ -157,7 +157,7 @@ class CounterBilling(unittest.TestCase):
     # ── rules that already held — kept covered ──
     def test_second_active_monthly_is_refused(self):
         self.one(plan_id=2, plan_name="Monthly", scheduled_date=DAY + timedelta(days=1))
-        self.assertIn("already holds an active Monthly", self.error(self.one(plan_id=2, plan_name="Monthly", scheduled_date=DAY + timedelta(days=2))))
+        self.assertIn("Ashtotharam / Archana: Ravi already has an active Monthly booking", self.error(self.one(plan_id=2, plan_name="Monthly", scheduled_date=DAY + timedelta(days=2))))
 
     def test_past_date_and_wrong_time_are_refused(self):
         self.assertIn("past", self.error(self.one(scheduled_date=DAY - timedelta(days=1))))
@@ -282,12 +282,66 @@ class AdvanceBooking(CounterBilling):
         self.db.commit()
         self.assertEqual(self.cart(self.item(mobile="9000000202"), mode="Online", utr="UTR123456789")["success_count"], 1)
 
-    def test_festival_plan_must_end_inside_the_festival(self):
-        line = dict(pooja_id=4, seva_name="Karthika Masam Pooja", time_slot="06:00 AM - 09:00 PM")
-        out = self.cart(self.item(plan_id=6, plan_name="Full Month", **line))   # 14 Nov + 30 days > 10 Dec
-        self.assertIn("after Karthika Masam ends on 10 Dec 2026", out["failed"][0]["error"])
-        self.assertIn("1-Day plan instead", out["failed"][0]["error"])
-        self.assertEqual(self.cart(self.item(plan_id=5, plan_name="1-Day", **line))["success_count"], 1)
+    # A festival plan joined mid-festival (client, 2026-11-26): the full plan fee, valid from the booked
+    # day to the festival's last day, one pooja a day. Karthika Masam here is 11 Nov – 10 Dec.
+    KARTHIKA = dict(pooja_id=4, seva_name="Karthika Masam Pooja", time_slot="06:00 AM - 09:00 PM")
+
+    def test_full_month_mid_festival_runs_to_the_festival_end_at_full_fee(self):
+        out = self.cart(self.item(plan_id=6, plan_name="Full Month", amount=1, **self.KARTHIKA))
+        self.assertEqual(out["success_count"], 1, out)
+        b = self.db.query(Booking).one()
+        self.assertEqual((b.scheduled_date, b.valid_until, b.performances_allowed, float(b.amount)),
+                         (DAY, date(2026, 12, 10), 27, 2000.0))           # 14 Nov → 10 Dec, full ₹2000
+
+    def test_full_month_on_the_festival_last_day_is_one_pooja(self):
+        out = self.cart(self.item(plan_id=6, plan_name="Full Month", scheduled_date=date(2026, 12, 10), **self.KARTHIKA))
+        self.assertEqual(out["success_count"], 1, out)
+        b = self.db.query(Booking).one()
+        self.assertEqual((b.valid_until, b.performances_allowed, float(b.amount)), (date(2026, 12, 10), 1, 2000.0))
+
+    def test_one_day_festival_plan_is_unchanged(self):
+        self.assertEqual(self.cart(self.item(plan_id=5, plan_name="1-Day", **self.KARTHIKA))["success_count"], 1)
+        b = self.db.query(Booking).one()
+        self.assertEqual((b.valid_until, b.performances_allowed, float(b.amount)), (DAY, 1, 300.0))
+
+    def test_festival_plan_after_the_festival_is_still_refused(self):
+        out = self.cart(self.item(plan_id=6, plan_name="Full Month", scheduled_date=date(2026, 12, 11), **self.KARTHIKA))
+        self.assertEqual(out["success_count"], 0)
+        self.assertIn("festival window", out["failed"][0]["error"])
+
+    def test_counter_billing_also_takes_a_plan_mid_festival(self):
+        out = self.bill(self.item(plan_id=6, plan_name="Full Month", **self.KARTHIKA))
+        self.assertEqual(out["success_count"], 1, out)
+        b = self.db.query(Booking).one()
+        self.assertEqual((b.source, b.valid_until, b.performances_allowed), ("Counter", date(2026, 12, 10), 27))
+
+    def test_rescheduling_a_festival_plan_ends_it_with_the_festival(self):
+        self.cart(self.item(plan_id=6, plan_name="Full Month", scheduled_date=DAY + timedelta(days=1), **self.KARTHIKA))
+        b = self.db.query(Booking).one()
+        rb.reschedule_booking(b.id, {"scheduled_date": "2026-11-30"}, REQ, db=self.db, user=login("Admin"))
+        self.db.refresh(b)
+        self.assertEqual((b.scheduled_date, b.valid_until, b.performances_allowed), (date(2026, 11, 30), date(2026, 12, 10), 11))
+
+    def test_only_the_administrator_can_reschedule(self):
+        # client, 2026-11-26: Reschedule is removed for every role except the Administrator
+        self.cart(self.item(scheduled_date=DAY + timedelta(days=1)))
+        b = self.db.query(Booking).one()
+        for role in ("Counter Staff", "Poojari", "Accountant"):
+            with self.assertRaises(HTTPException) as cm:
+                rb.reschedule_booking(b.id, {"scheduled_date": "2026-11-30"}, REQ, db=self.db, user=login(role))
+            self.assertEqual(cm.exception.status_code, 403, role)
+        self.db.refresh(b)
+        self.assertEqual(b.scheduled_date, DAY + timedelta(days=1))          # unchanged
+        for role in ("Admin", "Administrator"):
+            rb.reschedule_booking(b.id, {"scheduled_date": "2026-11-30"}, REQ, db=self.db, user=login(role))
+        self.db.refresh(b)
+        self.assertEqual(b.scheduled_date, date(2026, 11, 30))
+
+    def test_clip_leaves_a_plan_that_fits_alone(self):
+        fest = SimpleNamespace(end_date=date(2026, 12, 10))
+        self.assertEqual(rb.clip_to_festival(9, date(2026, 11, 22), date(2026, 11, 14), fest), (9, date(2026, 11, 22)))
+        self.assertEqual(rb.clip_to_festival(9, date(2026, 12, 15), date(2026, 12, 7), fest), (4, date(2026, 12, 10)))
+        self.assertEqual(rb.clip_to_festival(30, date(2026, 12, 13), date(2026, 11, 14), None), (30, date(2026, 12, 13)))
 
     def test_ninety_days_ahead_by_default(self):
         self.assertEqual(self.cart(self.item(scheduled_date=DAY + timedelta(days=90)))["success_count"], 1)
@@ -339,18 +393,18 @@ class AdvanceBooking(CounterBilling):
         self.db.commit()
         self.assertEqual(ra.off_tithi_ids(self.db, [b], date(2026, 12, 1)), set())
 
-    def test_the_scheduled_poojari_is_shown_before_paying(self):
+    def test_no_poojari_chosen_means_all_poojaris_even_with_a_schedule(self):
+        # client, 2026-11-25: the Poojari Schedule no longer fills in a poojari — unchosen = all poojaris
         from app.models import Schedule
         self.db.add(Schedule(code="SCH-1", poojari_id=1, poojari_name="Sri Krishna Murthy", pooja_id=1,
                              pooja_name="Ashtotharam / Archana", schedule_type="Recurring", schedule_date=DAY,
                              status="Active"))
         self.db.commit()
         out = rb.batch_options_for(day=DAY + timedelta(days=1), time_slot="11:30 AM", pooja_id=1, db=self.db, user=COUNTER)
-        self.assertEqual(out["scheduled_poojari"]["name"], "Sri Krishna Murthy")
-        self.assertIsNone(rb.batch_options_for(day=DAY + timedelta(days=1), time_slot="11:30 AM", pooja_id=4,
-                                               db=self.db, user=COUNTER)["scheduled_poojari"])
+        self.assertIsNone(out["scheduled_poojari"])                                  # no "As scheduled" default
         line = self.cart(self.item(scheduled_date=DAY + timedelta(days=1)))
-        self.assertEqual(line["success"][0]["poojari_name"], "Sri Krishna Murthy")   # the same one is assigned
+        b = self.db.get(Booking, line["success"][0]["id"])
+        self.assertEqual((b.poojari_id, b.poojari_name), (None, None))               # all poojaris
 
     # ── who may bill ──
     def test_only_counter_staff_and_admin_bill(self):

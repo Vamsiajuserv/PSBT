@@ -10,8 +10,11 @@ import { AuctionAPI, AuctionItemsAPI, DevoteesAPI, SettingsAPI, getErrorMessage 
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { TableStates } from '../../components/common/states.jsx'
 import ResetButton from '../../components/common/ResetButton.jsx'
+import usePickList from '../../hooks/usePickList.js'
 import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filtersToParam } from '../../components/common/SortableTable.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
+import { colFilters } from '../../lib/exportGuard.js'
+import { monthStartISO, todayISO as periodToday } from '../../lib/period.js'
 import { Select, DateField, TimeField, NumberField, Combobox } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, staffName, auditDetail } from '../../i18n/LanguageContext.jsx'
@@ -114,8 +117,8 @@ export default function Auction() {
     q, setQ, status, setStatus, verification, approval, setApproval,
     payment, setPayment, start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
-    q: '', status: '', verification: '', approval: '', payment: '', start: '', end: '', page: 1,
-  })
+    q: '', status: '', verification: '', approval: '', payment: '', start: monthStartISO(), end: periodToday(), page: 1,   // opens on this month (2026-11-26)
+  }, { blankable: ['start', 'end'] })
   const [saving, setSaving] = useState(false)
 
   // State for all filtered records (for export when date filter applied)
@@ -207,6 +210,7 @@ export default function Auction() {
   // devotee type-ahead inside the drawer (Item 27 fix)
   const [dq, setDq] = useState('')
   const [results, setResults] = useState([])
+  const devPick = usePickList(results, (d) => { setM({ devotee: d, winner: d.name }); setResults([]); setDq('') })
   const picked = drawer?.devotee
   useEffect(() => {
     // Require at least 1 character for search (consistent with Annadanam/Donations)
@@ -224,7 +228,7 @@ export default function Auction() {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        AuctionAPI.list({ q, status, verification, approval, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'auction_date', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
+        AuctionAPI.list({ q, status, verification, approval, payment, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'auction_date', sort_dir: sorts[0]?.direction || 'desc', col_filters: filtersToParam(filters) }),
         AuctionAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -340,7 +344,7 @@ export default function Auction() {
       toast(tr('Cannot record results for future auctions. Please wait until the auction date.'), 'error')
       return
     }
-    if (m.outcome === 'Completed' && !/^\d{10}$/.test(m.mobile || '')) {
+    if (m.outcome === 'Completed' && !/^[6-9]\d{9}$/.test(m.mobile || '')) {
       toast(tr("Enter the winner's 10-digit mobile number."), 'error')
       return
     }
@@ -534,7 +538,8 @@ export default function Auction() {
   return (
     <div>
       <PageTitle title={tr("Auction Management")} subtitle={tr("Record temple auctions and their winning devotees.")}
-        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Auction Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />{canCreate ? <button onClick={() => setStockDrawer(true)} className="btn-maroon !py-2.5"><Boxes size={16} />{' '}<T>Auction from Stock</T></button> : !canWrite && <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
+        actions={<span className="inline-flex items-center gap-2"><ExportButtons title={tr("Auction Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal}
+          screen="Auction Register" start={start} end={end} available={total} filters={[['Search', q], ['Status', status], ['Verification', verification], ['Approval', approval], ['Payment', payment], ...colFilters(filters, SORT_COLUMNS)]} />{canCreate ? <button onClick={() => setStockDrawer(true)} className="btn-maroon !py-2.5"><Boxes size={16} />{' '}<T>Auction from Stock</T></button> : !canWrite && <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       {(
         // Status counts are the status filter (2026-11-15): click one to list just those
@@ -803,13 +808,13 @@ export default function Auction() {
                 {!drawer.devotee ? (
                   <div className="relative">
                     <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input className="input pr-9" placeholder={tr("Search name or mobile number…")} value={dq} onChange={(e) => setDq(e.target.value)} />
+                    <input className="input pr-9" placeholder={tr("Search name or mobile number…")} value={dq} onChange={(e) => setDq(e.target.value)} onKeyDown={devPick.onKeyDown} />
                     {results.length > 0 && (
                       <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1">
-                        {results.map((d) => (
-                          <button type="button" key={d.id} onClick={() => { setM({ devotee: d, winner: d.name }); setResults([]); setDq('') }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
-                            <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
+                        {results.map((d, i) => (
+                          <button type="button" key={d.id} onClick={() => { setM({ devotee: d, winner: d.name }); setResults([]); setDq('') }} {...devPick.rowProps(i)} className={`pick-row ${devPick.rowClass(i)} w-full text-left px-3 py-2 flex items-center gap-2`}>
+                            <span className="pick-avatar transition-colors w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
+                            <span><span className="pick-name font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
                           </button>
                         ))}
                       </div>
@@ -822,7 +827,7 @@ export default function Auction() {
                       <div className="flex items-center gap-2"><span className="font-semibold text-gray-800">{personName(drawer.devotee, lang)}</span><Pill tone="green"><T>Registered</T></Pill></div>
                       <div className="text-[0.75rem] text-gray-500">{tr('Mobile:')} {drawer.devotee.mobile}</div>
                     </div>
-                    <button type="button" onClick={() => { setM({ devotee: null }); setDq('') }} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
+                    <button type="button" onClick={() => { setM({ devotee: null, winner: '' }); setDq('') }} className="text-gray-400 hover:text-red-600"><X size={17} /></button>
                   </div>
                 )}
               </div>

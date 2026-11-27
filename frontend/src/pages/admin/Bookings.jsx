@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { FilterPanel } from '../../components/admin/ui.jsx'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Search, Ban, CheckCircle2, ChevronLeft, ChevronRight, CalendarClock, CalendarPlus, Users, X,
+  Search, Ban, ChevronLeft, ChevronRight, CalendarClock, CalendarPlus, Users, X,
   SlidersHorizontal, ArrowDown, ArrowUp, Phone,
 } from 'lucide-react'
 import { BookingsAPI, PoojasAPI, PoojarisAPI } from '../../api/client.js'
@@ -10,7 +10,7 @@ import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey, isAdminRole } from '../../auth/access.js'
 import { Select, DateField, Checkbox } from '../../components/common/Field.jsx'
-import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
+import { promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, clock12, personName, useLang, stamp, teTerm } from '../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 import { HourlySlotsView } from '../../components/admin/HourlySlots.jsx'
@@ -195,7 +195,8 @@ export default function Bookings() {
     try { await BookingsAPI.cancel(b.id, { reason: res.reason.trim(), refund_amount }); toast(tr('Booking cancelled.')); loadList() }
     catch (ex) { toast(ex.detail || tr('Could not cancel this booking.'), 'error') }
   }
-  const canReschedule = (b) => canOperate && b.status === 'Confirmed' && b.payment_status === 'Paid' && !(b.performances_done > 0)
+  // Reschedule is for the Administrator only (client, 2026-11-26)
+  const canReschedule = (b) => isAdmin && b.status === 'Confirmed' && b.payment_status === 'Paid' && !(b.performances_done > 0)
   async function reschedule(b) {
     const res = await promptDialog({
       title: `${tr('Reschedule')} ${b.ticket_no || b.booking_code}`,
@@ -206,11 +207,7 @@ export default function Bookings() {
     try { await BookingsAPI.reschedule(b.id, { scheduled_date: res.date }); toast(tr('Booking rescheduled.')); loadList() }
     catch (ex) { toast(ex.detail || tr('Could not reschedule this booking.'), 'error') }
   }
-  async function complete(b) {
-    if (!(await confirmDialog({ title: `${tr('Mark performed')} — ${b.ticket_no || b.booking_code}?`, message: tr('It will move to Pooja History.') }))) return
-    try { await BookingsAPI.complete(b.id); toast(tr('Performance recorded.')); loadList() }
-    catch (ex) { toast(ex.detail || tr('Could not complete this booking.'), 'error') }
-  }
+  // No "Mark performed" here (client, 2026-11-26): a pooja is recorded as performed automatically when its slot ends
 
   const planOptions = [...new Set((poojas || []).flatMap((p) => (p.plans || []).map((pl) => pl.plan_name)))]
   const moreCount = [draft.ts, draft.plan, draft.payment].filter(Boolean).length
@@ -256,9 +253,6 @@ export default function Bookings() {
   const statusBadge = (b) => <span className={`inline-flex px-2.5 py-0.5 rounded-full border text-[0.6875rem] font-semibold whitespace-nowrap ${statusChip(b.status)}`}>{tr(b.status)}</span>
   const actions = (b) => (
     <div className="flex flex-wrap items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-      {canOperate && b.status === 'Confirmed' && b.payment_status === 'Paid' && (
-        <button type="button" onClick={() => complete(b)} title={tr('Mark performed')} aria-label={`${tr('Mark performed')} ${b.ticket_no || b.booking_code}`}
-          className="w-8 h-8 grid place-items-center rounded-lg border border-gray-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300"><CheckCircle2 size={15} /></button>)}
       {canReschedule(b) && (
         <button type="button" onClick={() => reschedule(b)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-gray-200 text-[0.75rem] font-semibold text-blue-700 hover:bg-blue-50 hover:border-blue-300 whitespace-nowrap">
           <CalendarClock size={14} />{tr('Reschedule')}</button>)}

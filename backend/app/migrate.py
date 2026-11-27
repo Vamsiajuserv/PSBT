@@ -24,7 +24,8 @@ COLUMN_MIGRATIONS = {
     # Receive at store for hundi valuables (store_receipts itself is created by create_all)
     # Staff alerts addressed to particular logins (Hundi: the 2 assigned members), not only roles
     "staff_alerts": [("users", "VARCHAR(200)")],
-    "store_receipts": [("hundi_id", "INTEGER REFERENCES hundi_collections(id)"), ("lines", "TEXT")],
+    "store_receipts": [("hundi_id", "INTEGER REFERENCES hundi_collections(id)"), ("lines", "TEXT"),
+                       ("location_id", "INTEGER REFERENCES store_locations(id)")],
     # Stores Day Closing: Administrator reopen (with reason), earlier closings kept in history
     "stores_day_closings": [("status", "VARCHAR(12) DEFAULT 'Closed' NOT NULL"), ("reopened_by", "VARCHAR(120)"),
                             ("reopened_at", "TIMESTAMP"), ("reopen_reason", "TEXT"), ("history", "TEXT")],
@@ -38,15 +39,22 @@ COLUMN_MIGRATIONS = {
                              # Bought items (2026-11-15): the shop bill on the entry itself
                              ("shop_name", "VARCHAR(120)"), ("bill_no", "VARCHAR(60)"), ("bill_date", "DATE"),
                              ("bill_amount", "NUMERIC(12,2)")],
-    "consumable_uses": [("batch_note", "TEXT")],
+    "consumable_uses": [("batch_note", "TEXT"), ("location_id", "INTEGER REFERENCES store_locations(id)")],
     # Damaged pieces: a write-off request the Committee approves (2026-11-15)
     "missing_cases": [("kind", "VARCHAR(12) DEFAULT 'Missing'"), ("changes", "TEXT")],
     # Festival Kits: an issue slip made from a kit
     "issue_slips": [("kit_id", "INTEGER REFERENCES festival_kits(id)"), ("kit_name", "VARCHAR(120)")],
+    "auction_pieces": [("pieces", "INTEGER DEFAULT 1 NOT NULL")],   # bundles: pieces of one lot line (2026-11-27)
+    # Auction / Open Sale buyer who is a devotee (2026-11-27)
+    "auction_sales": [("devotee_id", "INTEGER REFERENCES devotees(id)")],
+    "open_sales": [("devotee_id", "INTEGER REFERENCES devotees(id)")],
     "stock_items": [("last_auction_code", "VARCHAR(30)"), ("unsold_count", "INTEGER DEFAULT 0 NOT NULL"),
                     ("open_sale_price", "NUMERIC(12,2)"), ("open_sale_by", "VARCHAR(120)"), ("open_sale_at", "TIMESTAMP"),
                     # Deity-Used Items: offered first at auction
-                    ("deity_used", "BOOLEAN DEFAULT FALSE NOT NULL"), ("deity_used_note", "VARCHAR(200)")],
+                    ("deity_used", "BOOLEAN DEFAULT FALSE NOT NULL"), ("deity_used_note", "VARCHAR(200)"),
+                    # Bundles: one tag for several pieces (2026-11-27)
+                    ("pieces", "INTEGER DEFAULT 1 NOT NULL"), ("tagged_pieces", "INTEGER DEFAULT 1 NOT NULL"),
+                    ("bundle_id", "INTEGER REFERENCES stock_items(id)")],
     "committee_members": [("name_te", "VARCHAR(160)")],
     # Purchase Requests: over-budget bills reviewed by the Committee (purchase_bills is created by create_all)
     "purchase_requests": [("received_by_user", "VARCHAR(60)"), ("over_budget", "BOOLEAN"), ("over_reason", "TEXT"),
@@ -66,6 +74,7 @@ COLUMN_MIGRATIONS = {
         ("rasi", "VARCHAR(40)"), ("beneficiary_name", "VARCHAR(120)"),
         ("participants", "TEXT"), ("special_notes", "TEXT"),
         ("batch_slot", "VARCHAR(5)"),        # half-hour pooja list (app/pooja_batches.py)
+        ("bill_no", "VARCHAR(30)"),          # shared by the poojas of one bill — one QR for all (2026-11-26)
         ("vehicle_no", "VARCHAR(20)"),
     ],
     "festivals": [
@@ -468,6 +477,12 @@ def run_migrations(engine) -> None:
                           "SELECT 'stores_receive_after_donation', CAST(COALESCE(MAX(id), 0) AS TEXT), 'system' "
                           "FROM donations "
                           "HAVING NOT EXISTS (SELECT 1 FROM settings WHERE skey = 'stores_receive_after_donation')"))
+        # Consumables received at the store (2026-11-27): consumable donations made from now on wait in
+        # Receive & Tag; every one already made counts as received (no location). Set once.
+        conn.execute(text("INSERT INTO settings (skey, svalue, updated_by) "
+                          "SELECT 'consumables_receive_after_donation', CAST(COALESCE(MAX(id), 0) AS TEXT), 'system' "
+                          "FROM donations "
+                          "HAVING NOT EXISTS (SELECT 1 FROM settings WHERE skey = 'consumables_receive_after_donation')"))
         # Deity-Used Items: pieces already back from an Alankaram / Festival issue slip are
         # marked once (with a history line), when the feature goes live. Set once, so a mark
         # the Stores Officer later removes is never put back.

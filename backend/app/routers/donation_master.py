@@ -30,7 +30,8 @@ def _stock_use(db: Session, c: DonationCategory) -> dict:
     return {
         "donations": db.query(func.count(Donation.id)).filter(Donation.donation_type == "Material",
                                                              Donation.fund == c.name).scalar() or 0,
-        "pieces": db.query(func.count(StockItem.id)).filter(StockItem.category_id == c.id).scalar() or 0,
+        "pieces": db.query(func.sum(StockItem.tagged_pieces)).filter(StockItem.category_id == c.id,
+                                                                     StockItem.bundle_id.is_(None)).scalar() or 0,
         "uses": db.query(func.count(ConsumableUse.id)).filter(ConsumableUse.category_id == c.id).scalar() or 0,
         "manual": db.query(func.count(ManualStockEntry.id)).filter(ManualStockEntry.category_id == c.id).scalar() or 0,
     }

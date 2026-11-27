@@ -9,19 +9,22 @@ import { useFilterableSortableTable, SortFilterPanel, SortableFilterableTh, filt
 import { PageTitle, StatTile, KpiGrid, Pill, Pager, inr, num, fmtDate, FilterPanel } from '../../components/admin/ui.jsx'
 import { TableStates, LOAD_ERROR } from '../../components/common/states.jsx'
 import ExportButtons from '../../components/common/ExportButtons.jsx'
+import { colFilters } from '../../lib/exportGuard.js'
+import { monthStartISO, todayISO as periodToday } from '../../lib/period.js'
 import { Receipt } from '../../components/common/Receipt.jsx'
 import { te } from '../../lib/telugu.js'
 import { DonationsAPI, DonationCategoriesAPI, DevoteesAPI, SettingsAPI, getErrorMessage } from '../../api/client.js'
 import { useAuth, useHasModule } from '../../auth/AuthContext.jsx'
 import { Select, DateField, Checkbox, NumberField, CountryCodeSelect, getCountryDigits } from '../../components/common/Field.jsx'
 import { T, tr, clock12, stamp, personName, useLang, teTerm } from '../../i18n/LanguageContext.jsx'
-import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
+import { sanitizePhone, sanitizeName, validatePhone, validatePAN } from '../../lib/validation.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
-import { TagItemsDrawer, canWriteStores, DonationItemsDialog } from './stores/shared.jsx'
+import { TagItemsDrawer, canManageStores, DonationItemsDialog } from './stores/shared.jsx'
 import { canAccessKey, isAdminRole } from '../../auth/access.js'
 import { metalOf, isGrams } from '../../lib/metal.js'
 import { AnnadanamForm, AnnadanamRegister, AnnadanamReceiptModal, canWriteAnnadanam } from './annadanam/shared.jsx'
 import ResetButton from '../../components/common/ResetButton.jsx'
+import usePickList from '../../hooks/usePickList.js'
 
 const TYPE_LABEL = { Cash: 'Cash Donation', Material: 'Material Donation', Sponsorship: 'Sponsorship', Annadanam: 'Annadanam' }
 const MODES = ['Cash', 'UPI/QR Code']
@@ -93,7 +96,22 @@ export default function Donations() {
   // devotee type-ahead search inside the drawer
   const [dq, setDq] = useState('')
   const [devResults, setDevResults] = useState([])
-  const [panErr, setPanErr] = useState('')
+  const devPick = usePickList(devResults, (d) => pickDevotee(d))
+  // Each form error shows under its own field, all at once (client, 2026-11-26: a UTR error used to appear
+  // under PAN; two wrong fields showed one at a time). { field: msg }; 'form' (server errors) shows beside Save.
+  const [formErrs, setFormErrs] = useState({})
+  const errOf = (f) => formErrs[f] || ''
+  // Editing a field clears its own message (and the "fix the errors" line; the other fields stay red)
+  const clearErr = (f) => { if (formErrs[f]) setFormErrs(({ [f]: _, form: __, ...rest }) => rest) }
+  const setFormErr = (v) => setFormErrs(v || {})
+  const showErrs = (errs) => {
+    setFormErrs(errs)
+    const first = Object.keys(errs)[0]
+    setTimeout(() => document.querySelector(`[data-err-field="${first}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 0)
+  }
+  const fail = (field, msg) => showErrs({ [field]: msg })
+  const errRing = (f) => (errOf(f) ? 'border-red-400 ring-1 ring-red-300' : '')
+  const ErrText = ({ f }) => (errOf(f) ? <div className="text-[0.71875rem] text-red-600 mt-1">{errOf(f)}</div> : null)
   const [mobileError, setMobileError] = useState('')  // Mobile validation error
 
   // filters - persisted in URL for state preservation across navigation
@@ -101,8 +119,8 @@ export default function Donations() {
     q, setQ, type, setType, category, setCategory, mode, setMode,
     start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
-    q: '', type: '', category: '', mode: '', start: '', end: '', page: 1,
-  })
+    q: '', type: '', category: '', mode: '', start: monthStartISO(), end: periodToday(), page: 1,   // opens on this month (2026-11-26)
+  }, { blankable: ['start', 'end'] })
 
   // Sortable table columns with filtering support
   const sortColumns = [
@@ -203,7 +221,7 @@ export default function Donations() {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        DonationsAPI.list({ q, type, category, mode, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'donated_on', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
+        DonationsAPI.list({ q, type, category, mode, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'donated_on', sort_dir: sorts[0]?.direction || 'desc', col_filters: filtersToParam(filters) }),
         DonationsAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -262,17 +280,19 @@ export default function Donations() {
   // 80G is only for Medical donations, and there it is mandatory (always on, PAN required);
   // every other donation has no 80G and the PAN is optional. The server enforces the same rule.
   const isMedicalFund = (name) => (name || '').toLowerCase().includes('medical')
+  // No category is picked for the staff (client, 2026-11-26): every tab starts at "Select a category"
+  // and the form has autoComplete="off": the browser offers no remembered text — staff pick or type every
+  // time; the devotee search and the category list (new Donation Master entries included) work as before
   function setDType(t) {
-    const first = (cats || []).find((c) => c.type === t)
     setDrawer((m) => ({
-      ...m, donation_type: t, fund: first?.name || '',
+      ...m, donation_type: t, fund: '',
       unit: '', quantity: '', amount: t === 'Material' ? '' : m.amount, item_desc: '', est_value: '', expiry_date: '',
-      g80: isMedicalFund(first?.name),
+      g80: false,
     }))
   }
   function setFund(name) {
     setDrawer((m) => ({ ...m, fund: name, g80: isMedicalFund(name), expiry_date: '' }))
-    setPanErr('')
+    clearErr('fund'); clearErr('pan')
   }
   function pickDevotee(dv) {
     setDrawer((m) => ({ ...m, devotee_id: dv.id, donor_name: dv.name, mobile: dv.mobile || '' }))
@@ -282,8 +302,8 @@ export default function Donations() {
   function resetDrawer() {
     const t = drawer?.donation_type || 'Cash'
     setDrawer({ ...newDonation(), donation_type: t })
-    if (t !== 'Cash') setDType(t)   // other tabs pre-pick their first category, like a tab click
-    setDq(''); setDevResults([]); setPanErr(''); setMobileError('')
+    if (t !== 'Cash') setDType(t)   // same as a tab click — no category picked
+    setDq(''); setDevResults([]); setFormErr(null); setMobileError('')
   }
   function clearDevotee() {
     setDrawer((m) => ({ ...m, devotee_id: '', donor_name: '', mobile: '' }))
@@ -301,44 +321,34 @@ export default function Donations() {
     if (saving) return
     const m = drawer
 
-    // Validate Donation Category is selected
-    if (!(m.fund || '').trim()) {
-      setPanErr(tr('Please select a Donation Category.'))
-      return
-    }
-
-    // Validate amount/quantity based on donation type
+    // Every check runs, so all wrong fields show together (client, 2026-11-26)
+    const errs = {}
+    if (!(m.fund || '').trim()) errs.fund = tr('Please select a Donation Category.')
     if (m.donation_type === 'Material') {
-      const qty = Number(m.quantity || 0)
-      if (qty <= 0) {
-        setPanErr(tr('Quantity must be greater than zero for material donations.'))
-        return
-      }
-    } else {
-      const amt = Number(m.amount || 0)
-      if (amt <= 0) {
-        setPanErr(tr('Amount must be greater than zero.'))
-        return
-      }
+      if (Number(m.quantity || 0) <= 0) errs.quantity = tr('Quantity must be greater than zero for material donations.')
+    } else if (Number(m.amount || 0) <= 0) {
+      errs.amount = tr('Amount must be greater than zero.')
     }
-
-    // 80G receipts require a PAN — block submit when eligible but PAN is missing.
-    if (isMedicalFund(m.fund) && !(m.pan || '').trim()) {
-      setPanErr(tr('PAN is required for tax-exemption (80G) receipts.'))
-      return
+    // A typed +91 mobile must be a whole, real one — a foreign one is checked by the server
+    if ((m.country_code || '+91') === '+91' && (m.mobile || '').trim()) {
+      const mob = validatePhone(m.mobile.trim())
+      if (!mob.valid) { errs.mobile = mob.error; setMobileError(mob.error) }
     }
-
-    // UTR is required for UPI/QR Code payments (non-material donations)
+    // UTR is required for online payments (non-material donations) — the one UTR rule on every bill
     if (m.donation_type !== 'Material' && m.mode === 'UPI/QR Code') {
       const trimmedUtr = (m.txn_ref || '').trim()
-      if (!trimmedUtr) {
-        setPanErr(tr('UTR / Transaction ID is required for online payments.'))
-        return
-      }
-      if (!/^[A-Za-z0-9]{6,40}$/.test(trimmedUtr)) {   // the one UTR rule on every bill
-        setPanErr(tr('The UTR must be 6–40 letters and digits.'))
-        return
-      }
+      if (!trimmedUtr) errs.utr = tr('UTR / Transaction ID is required for online payments.')
+      else if (!/^[A-Za-z0-9]{6,40}$/.test(trimmedUtr)) errs.utr = tr('The UTR must be 6–40 letters and digits.')
+    }
+    // 80G (Medical) needs a PAN; a typed PAN must be a real one even where it is optional
+    if (isMedicalFund(m.fund) && !(m.pan || '').trim()) errs.pan = tr('PAN is required for tax-exemption (80G) receipts.')
+    else {
+      const panCheck = validatePAN(m.pan)
+      if (!panCheck.valid) errs.pan = panCheck.error
+    }
+    if (Object.keys(errs).length) {
+      if (Object.keys(errs).length > 1) errs.form = tr('Please fix the errors above.')
+      showErrs(errs); return
     }
     // A very large amount: check it with the devotee first (Settings › Donations & Payments)
     let confirmed = false
@@ -349,7 +359,7 @@ export default function Donations() {
       })
       if (!confirmed) return
     }
-    setPanErr(''); setSaving(true)
+    setFormErr(null); setSaving(true)
     const payload = {
       donation_type: m.donation_type,
       devotee_id: m.devotee_id ? Number(m.devotee_id) : null,
@@ -370,14 +380,16 @@ export default function Donations() {
     }
     try {
       const created = await DonationsAPI.create(payload)
-      setDrawer(null); setDq(''); setDevResults([]); setPanErr(''); load()
+      setDrawer(null); setDq(''); setDevResults([]); setFormErr(null); load()
       if (print) setPrintDoc(created)
       const cat = cats.find((c) => c.name === created.fund)
-      if (created.donation_type === 'Material' && cat?.tracking === 'Tagged' && canWriteStores(user)) {
+      // The counter only receives the item; the Stores Officer tags it from Stores › Pending Tagging
+      // (client, 2026-11-26) — the tag screen opens here only for the Stores Officer / Administrator
+      if (created.donation_type === 'Material' && cat?.tracking === 'Tagged' && canManageStores(user)) {
         setTagSource({ type: 'Donation', id: created.id })   // opens once the receipt is closed
       }
     } catch (err) {
-      setPanErr(getErrorMessage(err, tr('Could not save the donation. Please try again.')))
+      fail('form', getErrorMessage(err, tr('Could not save the donation. Please try again.')))
     } finally {
       setSaving(false)
     }
@@ -391,7 +403,7 @@ export default function Donations() {
     const cls = 'mt-1 inline-flex items-center gap-1 text-[0.6875rem] font-semibold text-maroon-700 hover:underline'
     if (st.tracking === 'Quantity') {
       return canAccessKey(user, 'stores/consumables')
-        ? <div><Link to={`/admin/stores/consumables?item=${st.category_id}&q=${encodeURIComponent(d.donation_code || d.receipt_no)}`} className={cls}><Boxes size={12} />{tr('In Consumables Stock')}</Link></div>
+        ? <div><Link to={`/admin/stores/consumables?item=${st.category_id}&q=${encodeURIComponent(d.donation_code || d.receipt_no)}`} className={cls}><Boxes size={12} />{tr('In Consumable Stock Management')}</Link></div>
         : null
     }
     if (!canAccessKey(user, 'stores/register')) return null
@@ -420,7 +432,8 @@ export default function Donations() {
   return (
     <div>
       <PageTitle title={tr("Donation Management")} subtitle={tr("Record, manage and view all donations.")}
-        actions={<span className="inline-flex items-center gap-2">{view === 'donations' && <ExportButtons title={tr("Donation Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />}{canWrite ? <button onClick={() => { setDrawer({ ...newDonation(), donation_type: view === 'annadanam' && annadanamTab ? 'Annadanam' : 'Cash' }); setDq(''); setDevResults([]); setPanErr(''); setMobileError('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Donation</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
+        actions={<span className="inline-flex items-center gap-2">{view === 'donations' && <ExportButtons title={tr("Donation Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal}
+          screen="Donation Register" start={start} end={end} available={total} filters={[['Search', q], ['Type', type], ['Category', category], ['Payment mode', mode], ...colFilters(filters, sortColumns)]} />}{canWrite ? <button onClick={() => { setDrawer({ ...newDonation(), donation_type: view === 'annadanam' && annadanamTab ? 'Annadanam' : 'Cash' }); setDq(''); setDevResults([]); setFormErr(null); setMobileError('') }} className="btn-maroon !py-2.5"><Plus size={16} />{' '}<T>Record Donation</T></button> : <span className="px-2.5 py-1 rounded-full text-[0.6875rem] font-semibold bg-blue-50 text-blue-700"><T>View only</T></span>}</span>} />
 
       {showAnnadanam && (
         <div className="inline-flex mb-4 rounded-lg border border-gray-200 bg-white p-1 shadow-sm" role="tablist" aria-label={tr('Donation views')}>
@@ -565,7 +578,7 @@ export default function Donations() {
               <AnnadanamForm onCancel={() => setDrawer(null)}
                 onSaved={(created) => { setDrawer(null); setAnnadanamKey((k) => k + 1); setAnnadanamDoc(created) }} />
             ) : (
-          <form onSubmit={(e) => save(e, true)} className="flex-1 flex flex-col">
+          <form onSubmit={(e) => save(e, true)} autoComplete="off" className="flex-1 flex flex-col">
             <div className="px-6 py-5 space-y-5 flex-1">
               <div>
                 <label className="label"><T>Devotee (optional — leave blank for walk-in)</T></label>
@@ -581,13 +594,13 @@ export default function Donations() {
                 ) : (
                   <div className="relative">
                     <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input className="input pr-9" placeholder={tr("Search registered devotee by name / mobile…")} value={dq} onChange={(e) => setDq(e.target.value)} />
+                    <input autoComplete="off" className="input pr-9" placeholder={tr("Search registered devotee by name / mobile…")} value={dq} onChange={(e) => setDq(e.target.value)} onKeyDown={devPick.onKeyDown} />
                     {devResults.length > 0 && (
                       <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1">
-                        {devResults.map((d) => (
-                          <button type="button" key={d.id} onClick={() => pickDevotee(d)} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name?.[0]}</span>
-                            <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
+                        {devResults.map((d, i) => (
+                          <button type="button" key={d.id} onClick={() => pickDevotee(d)} {...devPick.rowProps(i)} className={`pick-row ${devPick.rowClass(i)} w-full text-left px-3 py-2 flex items-center gap-2`}>
+                            <span className="pick-avatar transition-colors w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name?.[0]}</span>
+                            <span><span className="pick-name font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
                           </button>
                         ))}
                       </div>
@@ -598,13 +611,14 @@ export default function Donations() {
 
               <div className="space-y-4">
                 <div><label className="label"><T>Donor Name *</T></label>
-                  <input required className="input" placeholder={tr("Donor Name")} value={personName({ name: drawer.donor_name }, lang)} onChange={(e) => setDrawer({ ...drawer, donor_name: sanitizeName(e.target.value) })} /></div>
-                <div><label className="label"><T>Mobile (Optional)</T></label>
+                  <input autoComplete="off" required className="input" placeholder={tr("Donor Name")} value={personName({ name: drawer.donor_name }, lang)} onChange={(e) => setDrawer({ ...drawer, donor_name: sanitizeName(e.target.value) })} /></div>
+                <div data-err-field="mobile"><label className="label"><T>Mobile (Optional)</T></label>
                   <div className="flex">
-                    <CountryCodeSelect value={drawer.country_code || '+91'} onChange={(e) => { setDrawer({ ...drawer, country_code: e.target.value }); setMobileError('') }} />
-                    <input className={`input flex-1 !rounded-l-none ${mobileError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`} placeholder={tr("Enter Mobile Number")} maxLength={getCountryDigits(drawer.country_code || '+91')} value={drawer.mobile} onChange={(e) => {
+                    <CountryCodeSelect value={drawer.country_code || '+91'} onChange={(e) => { setDrawer({ ...drawer, country_code: e.target.value, ...(drawer.devotee_id ? { devotee_id: '', donor_name: '' } : {}) }); setMobileError('') }} />
+                    <input autoComplete="off" className={`input flex-1 !rounded-l-none ${mobileError ? 'border-red-400 focus:border-red-500 focus:ring-red-200' : ''}`} placeholder={tr("Enter Mobile Number")} maxLength={getCountryDigits(drawer.country_code || '+91')} value={drawer.mobile} onChange={(e) => {
                       const cleaned = sanitizePhone(e.target.value)
-                      setDrawer({ ...drawer, mobile: cleaned })
+                      // A changed number is no longer the linked devotee → unlink and clear their name (client, 2026-11-25)
+                      setDrawer({ ...drawer, mobile: cleaned, ...(drawer.devotee_id && cleaned !== drawer.mobile ? { devotee_id: '', donor_name: '' } : {}) })
                       if ((drawer.country_code || '+91') === '+91') {
                         if (cleaned.length === 10) {
                           const validation = validatePhone(cleaned)
@@ -624,23 +638,23 @@ export default function Donations() {
                     <p className="text-[0.6875rem] text-blue-700 mt-1 flex items-center gap-1"><User size={11} />{tr('New devotee — registered on this mobile when the donation is saved.')}</p>)}</div>
               </div>
 
-              <div><label className="label"><T>Donation Category *</T></label>
+              <div data-err-field="fund"><label className="label"><T>Donation Category *</T></label>
                 {/* only Donation Master categories in use — a typed name would split the reports */}
-                <Select value={drawer.fund} onChange={(e) => setFund(e.target.value)} className="input" aria-label={tr('Donation Category')}>
+                <Select value={drawer.fund} onChange={(e) => setFund(e.target.value)} className={`input ${errRing('fund')}`} aria-label={tr('Donation Category')}>
                   <option value="">{tr('Select a category')}</option>
                   {[...new Set(drawerCats.map((c) => c.name))].map((n) => <option key={n} value={n}>{teTerm(n)}</option>)}
-                </Select></div>
+                </Select><ErrText f="fund" /></div>
 
               {drawer.donation_type === 'Material' && metal ? (
                 <div className="space-y-3">
                   {/* client, 2026-11-20: no purity; an optional amount like other goods */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div><label className="label">{tr('Weight *')} ({tr('grams')})</label><NumberField required step="0.01" min="0.01" max="999999" value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
+                    <div data-err-field="quantity"><label className="label">{tr('Weight *')} ({tr('grams')})</label><NumberField required step="0.01" min="0.01" max="999999" value={drawer.quantity} onChange={(e) => { setDrawer({ ...drawer, quantity: e.target.value }); clearErr('quantity') }} /><ErrText f="quantity" /></div>
                     <div><label className="label">{tr('Amount (₹)')} <span className="font-normal text-gray-400">{tr('(Optional)')}</span></label>
                       <NumberField min="0" max="99999999" step="1" allowDecimal={false} prefix="₹" value={drawer.est_value} onChange={(e) => setDrawer({ ...drawer, est_value: e.target.value })} /></div>
                   </div>
                   <div><label className="label"><T>What is it</T></label>
-                    <input className="input" maxLength={120} placeholder={tr('e.g. chain, ring, coin, lamp')} value={drawer.item_desc} onChange={(e) => setDrawer({ ...drawer, item_desc: e.target.value })} /></div>
+                    <input autoComplete="off" className="input" maxLength={120} placeholder={tr('e.g. chain, ring, coin, lamp')} value={drawer.item_desc} onChange={(e) => setDrawer({ ...drawer, item_desc: e.target.value })} /></div>
                   <div className="text-[0.75rem] text-gray-500"><Info size={13} className="inline mr-1" /><T>Gold and silver are kept by weight. The amount is optional — printed on the receipt as stated by the donor, not cash.</T></div>
                 </div>
               ) : drawer.donation_type === 'Material' ? (
@@ -650,13 +664,13 @@ export default function Donations() {
                     // balance kept in Litres; pieces are whole numbers, weights / volumes may have decimals (2026-11-15)
                     const whole = fundCat?.tracking === 'Tagged' || /^(nos|pieces?|packet|count|number)$/i.test((fundCat?.unit || '').trim())
                     return (<>
-                      <div><label className="label"><T>Quantity *</T></label><NumberField required step={whole ? '1' : '0.001'} min={whole ? '1' : '0.001'} max="999999" allowDecimal={!whole} value={drawer.quantity} onChange={(e) => setDrawer({ ...drawer, quantity: e.target.value })} /></div>
+                      <div data-err-field="quantity"><label className="label"><T>Quantity *</T></label><NumberField required step={whole ? '1' : '0.001'} min={whole ? '1' : '0.001'} max="999999" allowDecimal={!whole} value={drawer.quantity} onChange={(e) => { setDrawer({ ...drawer, quantity: e.target.value }); clearErr('quantity') }} /><ErrText f="quantity" /></div>
                       <div><label className="label"><T>Unit</T></label><div className="input bg-gray-50 text-gray-700">{fundCat?.unit ? tr(fundCat.unit) : '—'}</div></div>
                     </>)
                   })()}
                   {/* the devotee's own description and value (optional) — printed on the receipt, pre-filled at tagging */}
                   <div className="col-span-2"><label className="label"><T>What is it</T></label>
-                    <input className="input" maxLength={120} placeholder={tr('e.g. silk pancha, red · steel plate')} value={drawer.item_desc} onChange={(e) => setDrawer({ ...drawer, item_desc: e.target.value })} /></div>
+                    <input autoComplete="off" className="input" maxLength={120} placeholder={tr('e.g. silk pancha, red · steel plate')} value={drawer.item_desc} onChange={(e) => setDrawer({ ...drawer, item_desc: e.target.value })} /></div>
                   <div className="col-span-2"><label className="label">{tr('Value ₹ (optional)')}</label>
                     <NumberField min="0" max="99999999" step="1" allowDecimal={false} prefix="₹" value={drawer.est_value} onChange={(e) => setDrawer({ ...drawer, est_value: e.target.value })} />
                     <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('Ask the devotee (or see their bill). Printed on the receipt as "stated by donor" — not cash.')}</div></div>
@@ -666,18 +680,18 @@ export default function Donations() {
                       <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('From the packet. The Stores Officer can add it later if not known.')}</div></div>)}
                 </div>
               ) : (
-                <div><label className="label"><T>Amount (₹) *</T></label><NumberField required min="1" max="99999999" step="1" allowDecimal={false} prefix="₹" value={drawer.amount} onChange={(e) => setDrawer({ ...drawer, amount: e.target.value })} /></div>
+                <div data-err-field="amount"><label className="label"><T>Amount (₹) *</T></label><NumberField required min="1" max="99999999" step="1" allowDecimal={false} prefix="₹" value={drawer.amount} onChange={(e) => { setDrawer({ ...drawer, amount: e.target.value }); clearErr('amount') }} /><ErrText f="amount" /></div>
               )}
 
               {drawer.donation_type !== 'Material' && (
                 <>
                   <div><label className="label"><T>Payment Mode *</T></label>
                     <div className="flex gap-6 mt-1">{MODES.map((mo) => (
-                      <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => setDrawer({ ...drawer, mode: mo })} /> {tr(mo === 'UPI/QR Code' ? 'Online' : mo)}</label>
+                      <label key={mo} className="flex items-center gap-2 text-sm text-gray-700"><input autoComplete="off" type="radio" name="pmode" className="accent-maroon-700" checked={drawer.mode === mo} onChange={() => { setDrawer({ ...drawer, mode: mo }); clearErr('utr') }} /> {tr(mo === 'UPI/QR Code' ? 'Online' : mo)}</label>
                     ))}</div>
                   </div>
                   {drawer.mode === 'UPI/QR Code'
-                    ? <div><label className="label"><T>UTR / Transaction ID</T></label><input className="input" placeholder={tr("Enter UTR / transaction reference")} value={drawer.txn_ref} onChange={(e) => setDrawer({ ...drawer, txn_ref: e.target.value })} /></div>
+                    ? <div data-err-field="utr"><label className="label"><T>UTR / Transaction ID</T></label><input autoComplete="off" className={`input ${errRing('utr')}`} placeholder={tr("Enter UTR / transaction reference")} value={drawer.txn_ref} onChange={(e) => { setDrawer({ ...drawer, txn_ref: e.target.value }); clearErr('utr') }} /><ErrText f="utr" /></div>
                     : <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>UTR / Transaction ID is required only for online payments.</T></div>}
                 </>
               )}
@@ -687,7 +701,7 @@ export default function Donations() {
                   <DateField value={drawer.donated_on || todayISO()} min={daysBack(cfg.backdays)} max={todayISO()} onChange={(e) => setDrawer({ ...drawer, donated_on: e.target.value })} />
                   <div className="text-[0.6875rem] text-gray-500 mt-1">{tr('Administrator: up to {n} days back (Settings › Donations & Payments).').replace('{n}', cfg.backdays)}</div>
                 </>) : (
-                  <div className="relative"><input className="input bg-gray-50 pr-9" value={todayStamp()} readOnly /><Calendar size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" /></div>)}</div>
+                  <div className="relative"><input autoComplete="off" className="input bg-gray-50 pr-9" value={todayStamp()} readOnly /><Calendar size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" /></div>)}</div>
 
               {isMedicalFund(drawer.fund) ? (<>
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 text-[0.75rem] text-emerald-700 flex items-start gap-2"><Info size={15} className="text-emerald-500 shrink-0 mt-0.5" />{' '}<T>80G Tax Exemption enabled — PAN is mandatory for this receipt.</T></div>
@@ -696,23 +710,24 @@ export default function Donations() {
                 <div className="bg-blue-50/70 border border-blue-100 rounded-lg px-3 py-2.5 text-[0.75rem] text-gray-600 flex items-start gap-2"><Info size={15} className="text-blue-500 shrink-0 mt-0.5" />{' '}<T>Tax exemption (80G) is applicable only for Medical Donations.</T></div>
               )}
 
-              <div><label className="label">{tr("PAN")} {isMedicalFund(drawer.fund)
+              <div data-err-field="pan"><label className="label">{tr("PAN")} {isMedicalFund(drawer.fund)
                   ? <><span className="text-red-500">*</span><span className="text-[0.6875rem] text-gray-400 font-normal"> <T>(required for 80G)</T></span></>
                   : <span className="text-[0.6875rem] text-gray-400 font-normal"> <T>(Optional)</T></span>}</label>
-                <input className={`input uppercase ${panErr ? 'border-red-400 ring-1 ring-red-300' : isMedicalFund(drawer.fund) && !drawer.pan ? 'border-amber-400' : ''}`} placeholder={tr("Enter PAN Card Number")}
-                  value={drawer.pan} onChange={(e) => { setDrawer({ ...drawer, pan: e.target.value.toUpperCase() }); if (panErr) setPanErr('') }} />
-                {panErr && <div className="text-[0.71875rem] text-red-600 mt-1">{panErr}</div>}</div>
+                <input autoComplete="off" className={`input uppercase ${errOf('pan') ? errRing('pan') : isMedicalFund(drawer.fund) && !drawer.pan ? 'border-amber-400' : ''}`} placeholder={tr("Enter PAN Card Number")}
+                  value={drawer.pan} onChange={(e) => { setDrawer({ ...drawer, pan: e.target.value.toUpperCase() }); clearErr('pan') }} />
+                <ErrText f="pan" /></div>
 
               <div><label className="label"><T>Notes (Optional)</T></label>
-                <textarea className="input min-h-[4.5rem]" maxLength={250} placeholder={tr("Enter any additional notes…")} value={drawer.notes} onChange={(e) => setDrawer({ ...drawer, notes: e.target.value })} />
+                <textarea autoComplete="off" className="input min-h-[4.5rem]" maxLength={250} placeholder={tr("Enter any additional notes…")} value={drawer.notes} onChange={(e) => setDrawer({ ...drawer, notes: e.target.value })} />
                 <div className="text-right text-[0.6875rem] text-gray-400 mt-0.5">{(drawer.notes || '').length} / 250</div></div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
-              {panErr && <div className="text-[0.75rem] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3 text-center">{panErr}</div>}
-              <div className="flex gap-3">
-                <ResetButton onReset={resetDrawer} disabled={saving} className="justify-center !px-3" />
-                <button type="button" disabled={saving} onClick={(e) => save(e, false)} className="btn-outline flex-1 justify-center disabled:opacity-50"><T>Save</T></button>
-                <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60">{saving ? tr('Saving…') : <>{tr('Save & Print Receipt')} <Printer size={14} /></>}</button>
+              {errOf('form') && <div className="text-[0.75rem] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-3 text-center">{errOf('form')}</div>}
+              {/* Small buttons with short names on every tab (client, 2026-11-26): Reset · Save · Print (saves, then prints) */}
+              <div className="flex items-center justify-end gap-3">
+                <ResetButton onReset={resetDrawer} disabled={saving} className="!py-2 !px-4 !text-[0.875rem] !gap-1.5" />
+                <button type="button" disabled={saving} onClick={(e) => save(e, false)} className="btn-outline !py-2 !px-5 !text-[0.875rem] disabled:opacity-50"><T>Save</T></button>
+                <button disabled={saving} title={tr('Save & Print Receipt')} className="btn-maroon !py-2 !px-5 !text-[0.875rem] !gap-1.5 disabled:opacity-60">{saving ? tr('Saving…') : <><Printer size={14} />{tr('Print')}</>}</button>
               </div>
             </div>
           </form>

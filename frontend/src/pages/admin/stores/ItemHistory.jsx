@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Search, ArrowLeft, Pencil, Save, Sparkles } from 'lucide-react'
+import { Search, ArrowLeft, Pencil, Save } from 'lucide-react'
 import { PageTitle, Pill, inr, num, fmtDate, fmtStamp } from '../../../components/admin/ui.jsx'
 import { StoresAPI, getErrorMessage } from '../../../api/client.js'
 import { T, tr, gramUnit } from '../../../i18n/LanguageContext.jsx'
 import { NumberField } from '../../../components/common/Field.jsx'
 import { toast } from '../../../components/common/Dialog.jsx'
 import { useAuth } from '../../../auth/AuthContext.jsx'
-import { STATUS_TONE, staffName, storeDetail, canManageStores, sourceRef, DeityBadge } from './shared.jsx'
+import { STATUS_TONE, staffName, storeDetail, canManageStores, sourceRef, DeityBadge, BundleBadge } from './shared.jsx'
 import { canAccessKey } from '../../../auth/access.js'
 
 export default function ItemHistory() {
@@ -19,7 +19,6 @@ export default function ItemHistory() {
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
   const [fixing, setFixing] = useState(null)   // the correction form
-  const [deity, setDeity] = useState(null)     // mark / unmark Deity-Used: { note }
 
   useEffect(() => {
     setQ(tag || ''); setItem(null); setErr('')
@@ -54,7 +53,7 @@ export default function ItemHistory() {
         <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-5">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <div><div className="font-mono text-xl font-bold text-maroon-800">{item.tag_id}</div>
+              <div><div className="font-mono text-xl font-bold text-maroon-800 flex items-center gap-2">{item.tag_id} <BundleBadge item={item} /></div>
                 <div className="font-semibold text-gray-800">{tr(item.description || item.item_name)}</div></div>
               <div className="flex flex-col items-end gap-2">
                 <Pill tone={STATUS_TONE[item.status] || 'gray'}>{tr(item.status)}</Pill>
@@ -62,11 +61,8 @@ export default function ItemHistory() {
                 {item.pending_change && <div className="max-w-[16rem] text-right text-[0.6875rem] text-amber-800 bg-amber-50 rounded px-2 py-1">{tr('Waiting for the committee')}: {tr(item.pending_change)}</div>}
                 {canManageStores(user) && !['Sold', 'Written Off'].includes(item.status) && (
                   <button onClick={() => setFixing({ description: item.description || '', details: item.details || '', weight_g: item.weight_g ?? '',
-                    est_value: item.est_value ?? '', reason: '' })}
+                    reason: '', deity_used: !!item.deity_used, occasion: '' })}
                     className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-[0.75rem] font-semibold"><Pencil size={13} />{tr('Correct details')}</button>)}
-                {canManageStores(user) && !['Sold', 'Written Off'].includes(item.status) && (
-                  <button onClick={() => setDeity({ note: '' })}
-                    className="h-8 px-2.5 inline-flex items-center gap-1 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-50 text-[0.75rem] font-semibold whitespace-nowrap"><Sparkles size={13} />{item.deity_used ? tr('Remove used mark') : tr('Mark as used')}</button>)}
               </div>
             </div>
             {item.receipt_value != null && item.est_value != null && Math.abs(item.est_value - item.receipt_value) >= 1 && (
@@ -115,8 +111,8 @@ export default function ItemHistory() {
           </div>
         </div>
       )}
-      {fixing && item && <CorrectDialog item={item} form={fixing} setForm={setFixing} onDone={(d) => { setItem(d); setFixing(null) }} />}
-      {deity && item && <DeityUsedDialog item={item} form={deity} setForm={setDeity} onDone={(d) => { setItem({ ...item, ...d }); setDeity(null); StoresAPI.item(item.tag_id).then(setItem).catch(() => {}) }} />}
+      {fixing && item && <CorrectDialog item={item} form={fixing} setForm={setFixing}
+        onDone={() => { setFixing(null); StoresAPI.item(item.tag_id).then(setItem).catch(() => {}) }} />}
     </div>
   )
 }
@@ -126,19 +122,30 @@ function CorrectDialog({ item, form, setForm, onDone }) {
   const [saving, setSaving] = useState(false)
   const set = (patch) => setForm({ ...form, ...patch })
   const weight = item.weight_g != null
-  // the receipt value, shared by weight for gold / silver (no purity — client, 2026-11-20)
-  const suggested = item.receipt_value == null ? null
-    : item.weight_g ? Math.round(item.receipt_value * (Number(form.weight_g) || 0) / Number(item.weight_g)) : item.receipt_value
+  // "Used by the deity" lives here now (2026-11-27) — the mark is set by itself when a piece comes back from
+  // an Alankaram / Festival issue; this is for older pieces or a mistake
+  const same = (a, b) => String(a ?? '') === String(b ?? '')
+  const detailsChanged = !same(form.description, item.description) || !same(form.details, item.details)
+    || (weight && Number(form.weight_g) !== Number(item.weight_g))
+  const deityChanged = !!form.deity_used !== !!item.deity_used
   async function submit(e) {
     e.preventDefault()
+    if (!detailsChanged && !deityChanged) { toast(tr('Nothing was changed.'), 'error'); return }
     setSaving(true)
     try {
-      const d = await StoresAPI.correctItem(item.id, {
-        description: form.description, details: form.details,
-        weight_g: weight ? Number(form.weight_g) : null, est_value: form.est_value !== '' ? Number(form.est_value) : null,
-        reason: form.reason.trim(),
-      })
-      toast(d.pending_change && !item.pending_change ? `${item.tag_id}: ${tr('a lower weight was sent to the committee.')}` : `${item.tag_id}: ${tr('details corrected.')}`)
+      let d = null
+      if (detailsChanged) {
+        d = await StoresAPI.correctItem(item.id, {
+          description: form.description, details: form.details,
+          weight_g: weight ? Number(form.weight_g) : null,      // the value comes from the receipt — not corrected here
+          reason: form.reason.trim(),
+        })
+      }
+      if (deityChanged) {
+        await StoresAPI.setDeityUsed(item.id, { used: !!form.deity_used,
+          note: (form.deity_used && form.occasion.trim()) || form.reason.trim() })
+      }
+      toast(d?.pending_change && !item.pending_change ? `${item.tag_id}: ${tr('a lower weight was sent to the committee.')}` : `${item.tag_id}: ${tr('details corrected.')}`)
       onDone(d)
     } catch (ex) { toast(tr(getErrorMessage(ex, 'Could not save the correction.')).replace(/^Value error, /, ''), 'error') } finally { setSaving(false) }
   }
@@ -154,47 +161,19 @@ function CorrectDialog({ item, form, setForm, onDone }) {
           {/* gold / silver: weight only, no purity (client, 2026-11-20) */}
           {weight && <div><label className="label"><T>Weight g *</T></label><NumberField required min="0.001" step="0.001" value={form.weight_g} onChange={(e) => set({ weight_g: e.target.value })} /></div>}
           {weight && <div className="text-[0.75rem] text-amber-800 bg-amber-50 rounded-lg px-3 py-2"><T>Gold / silver: a lower weight goes to a committee member for approval; it changes only after that.</T></div>}
-          <div><label className="label"><T>Value ₹</T></label><NumberField min="0" step="1" prefix="₹" value={form.est_value} onChange={(e) => set({ est_value: e.target.value })} />
-            {suggested != null && <div className="text-[0.75rem] text-gray-500 mt-1">{tr('Receipt value')}: <b>{inr(suggested)}</b>{' '}
-              {Number(form.est_value) !== suggested && <button type="button" onClick={() => set({ est_value: String(suggested) })} className="text-maroon-700 font-semibold hover:underline">{tr('Use receipt value')}</button>}</div>}</div>
-          <div><label className="label"><T>Reason *</T></label><input required minLength={5} maxLength={300} className="input" value={form.reason} onChange={(e) => set({ reason: e.target.value })} placeholder={tr('e.g. Value typed wrong at tagging')} /></div>
+          <div className="text-[0.75rem] text-gray-500">{tr('Value')}: <b>{item.est_value != null ? inr(item.est_value) : '—'}</b> — {tr('comes from the receipt; it is not changed here.')}</div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2.5 space-y-2">
+            <label className="flex items-center gap-2 text-[0.8125rem] font-semibold text-amber-900">
+              <input type="checkbox" className="accent-maroon-700 w-4 h-4" checked={!!form.deity_used} onChange={(e) => set({ deity_used: e.target.checked })} />
+              {tr('Used by the deity')}</label>
+            <div className="text-[0.6875rem] text-amber-800">{tr('Set by itself when it comes back from Alankaram or Festival. Change it only for older items or a mistake.')}</div>
+            {form.deity_used && !item.deity_used && <input className="input" maxLength={200} value={form.occasion} onChange={(e) => set({ occasion: e.target.value })} placeholder={tr('Occasion, e.g. Dasara 2025 alankaram')} />}
+          </div>
+          <div><label className="label"><T>Reason *</T></label><input required minLength={5} maxLength={300} className="input" value={form.reason} onChange={(e) => set({ reason: e.target.value })} placeholder={tr('e.g. Description typed wrong at tagging')} /></div>
         </div>
         <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
           <button type="button" onClick={() => setForm(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
           <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60"><Save size={15} className="mr-1" />{saving ? tr('Saving…') : tr('Save correction')}</button>
-        </div>
-      </form>
-    </div>
-  )
-}
-
-// Mark / unmark a piece as Deity-Used (worn or used by the deity — offered first at auction).
-// For pieces used before this was tracked, or a mistake; the reason goes into its history.
-function DeityUsedDialog({ item, form, setForm, onDone }) {
-  const [saving, setSaving] = useState(false)
-  const marking = !item.deity_used
-  async function submit(e) {
-    e.preventDefault()
-    setSaving(true)
-    try {
-      const d = await StoresAPI.setDeityUsed(item.id, { used: marking, note: form.note.trim() })
-      toast(`${item.tag_id}: ${marking ? tr('marked as Deity-Used.') : tr('Deity-Used mark removed.')}`); onDone(d)
-    } catch (ex) { toast(tr(getErrorMessage(ex, 'Could not save.')).replace(/^Value error, /, ''), 'error') } finally { setSaving(false) }
-  }
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={() => setForm(null)} />
-      <form onSubmit={submit} className="relative bg-white rounded-xl shadow-2xl w-full max-w-md">
-        <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-serif text-lg font-bold text-maroon-800">{marking ? tr('Mark as Deity-Used') : tr('Remove Deity-Used mark')} — <span className="font-mono">{item.tag_id}</span></h3>
-          <div className="text-[0.75rem] text-gray-500">{marking ? tr('Deity-Used items are offered first at auction.') : tr('The piece will be auctioned like any other piece.')}</div></div>
-        <div className="px-5 py-4">
-          <label className="label">{marking ? tr('Occasion *') : tr('Reason *')}</label>
-          <input required autoFocus minLength={3} maxLength={200} className="input" value={form.note} onChange={(e) => setForm({ note: e.target.value })}
-            placeholder={marking ? tr('e.g. Dasara 2025 alankaram') : tr('e.g. Marked by mistake')} />
-        </div>
-        <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
-          <button type="button" onClick={() => setForm(null)} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-          <button disabled={saving} className="btn-maroon flex-1 justify-center disabled:opacity-60"><Save size={15} className="mr-1" />{saving ? tr('Saving…') : tr('Save')}</button>
         </div>
       </form>
     </div>

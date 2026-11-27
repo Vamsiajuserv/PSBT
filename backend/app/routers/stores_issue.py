@@ -23,7 +23,7 @@ from ..helpers import ist_today, next_code_seq, validate_pagination
 from ..models import IssueLine, IssueSlip, MissingCase, Poojari, StockItem, StockMovement, StoreLocation
 from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
 from .stores import (ISSUED, KEPT, MISSING, WRITEOFF_REQ, ACT_ISSUED, ACT_KEPT, ACT_RETURNED, ACT_FOUND, _location, _loc_names, _move,
-                     _who, mark_deity_used)
+                     _who, mark_deity_used, take_pieces, merge_back, settle_bundle, is_bundle)
 
 router = APIRouter(prefix="/api/stores", tags=["stores-issue-missing"])
 read = RequireModule("Stores")
@@ -61,6 +61,8 @@ class IssueIn(BaseModel):
     purpose: str = Field(..., min_length=2, max_length=80)
     return_by: date | None = None          # optional (2026-11-15): most things come back the same day
     notes: str | None = Field(default=None, max_length=500)
+    # Bundles (2026-11-27): how many pieces of a bundle go out, by its id — left out = all of them
+    pieces: dict[int, int] = Field(default_factory=dict)
 
     @field_validator("issued_to", "purpose")
     @classmethod
@@ -78,6 +80,8 @@ class ReturnLine(BaseModel):
     condition: str = Field(default="Good", pattern="^(Good|Damaged|Kept)$")
     note: str | None = Field(default=None, max_length=200)
     weight_g: Decimal | None = Field(default=None, gt=0, le=1000000)   # gold / silver: weighed when it comes back
+    # Bundles (2026-11-27): of the pieces out on this line, how many the poojari kept — the rest come back
+    kept: int | None = Field(default=None, ge=0, le=500)
 
 
 class ReturnIn(BaseModel):
@@ -94,6 +98,7 @@ def _slip_dict(db: Session, s: IssueSlip, names: dict | None = None) -> dict:
         lines.append({"id": l.id, "stock_item_id": l.stock_item_id, "tag_id": l.tag_id,
                       "item_name": it.item_name if it else None, "description": it.description if it else None,
                       "weight_g": float(it.weight_g) if it and it.weight_g is not None else None,
+                      "pieces": (it.tagged_pieces or 1) if it and it.bundle_id else 1,   # a bundle's part: pieces sent out
                       "from_location": names.get(l.from_location_id), "from_location_id": l.from_location_id,
                       "returned_at": _iso(l.returned_at), "returned_by": l.returned_by, "condition": l.condition,
                       "return_note": l.return_note, "return_location": names.get(l.return_location_id)})
@@ -114,14 +119,18 @@ def issue_meta(db: Session = Depends(get_db), user=Depends(read)):
 @router.get("/issue/summary")
 def issue_summary(db: Session = Depends(get_db), user=Depends(read)):
     today = ist_today()
-    open_q = db.query(IssueLine).filter(IssueLine.returned_at.is_(None))
-    out_now = open_q.count()
-    overdue = open_q.join(IssueSlip, IssueSlip.id == IssueLine.slip_id).filter(IssueSlip.return_by < today).count()
-    lines = (db.query(IssueLine, IssueSlip).join(IssueSlip, IssueSlip.id == IssueLine.slip_id)
+    # pieces, not lines: a bundle's part out on a slip counts all its pieces (2026-11-27)
+    pcs = func.coalesce(func.sum(StockItem.tagged_pieces), 0)
+    open_q = (db.query(pcs).select_from(IssueLine).join(StockItem, StockItem.id == IssueLine.stock_item_id)
+              .filter(IssueLine.returned_at.is_(None)))
+    out_now = int(open_q.scalar() or 0)
+    overdue = int(open_q.join(IssueSlip, IssueSlip.id == IssueLine.slip_id).filter(IssueSlip.return_by < today).scalar() or 0)
+    lines = (db.query(IssueLine, IssueSlip, StockItem.tagged_pieces).join(IssueSlip, IssueSlip.id == IssueLine.slip_id)
+             .join(StockItem, StockItem.id == IssueLine.stock_item_id)
              .filter(or_(IssueSlip.issued_at >= datetime.combine(today, datetime.min.time()) - IST,
                          IssueLine.returned_at >= datetime.combine(today, datetime.min.time()) - IST)).all())
-    issued_today = sum(1 for l, s in lines if _ist_day(s.issued_at) == today)
-    returned_today = sum(1 for l, s in lines if _ist_day(l.returned_at) == today)
+    issued_today = sum((n or 1) for l, s, n in lines if _ist_day(s.issued_at) == today)
+    returned_today = sum((n or 1) for l, s, n in lines if _ist_day(l.returned_at) == today)
     return {"out_now": out_now, "overdue": overdue, "issued_today": issued_today, "returned_today": returned_today}
 
 
@@ -171,6 +180,9 @@ def create_slip(db: Session, user, body: IssueIn) -> IssueSlip:
     if bad:
         raise HTTPException(409, f"Only pieces In Store can be issued: {', '.join(bad[:10])} — reload the list.")
     seq = next_code_seq(db, "issue_slip", db.query(func.max(IssueSlip.id)).scalar() or 0)
+    # a bundle sends out only the pieces asked for (a part, no new sticker) and stays on its shelf
+    asked = getattr(body, "pieces", None) or {}
+    items = [take_pieces(db, i, asked.get(i.id), user, f"issue ISS-{seq:04d}") for i in items]
     slip = IssueSlip(code=f"ISS-{seq:04d}", issued_to=body.issued_to, poojari_id=body.poojari_id, purpose=body.purpose,
                      return_by=body.return_by, notes=(body.notes or "").strip() or None, status="Open",
                      issued_by=_who(user), created_by=user.username)
@@ -178,7 +190,7 @@ def create_slip(db: Session, user, body: IssueIn) -> IssueSlip:
     for i in items:
         db.add(IssueLine(slip_id=slip.id, stock_item_id=i.id, tag_id=i.tag_id, from_location_id=i.location_id))
         i.status = ISSUED
-        weight = f" · {_qty(i.weight_g)} g" if i.weight_g is not None else ""
+        weight = f" · {_qty(i.weight_g)} g" if i.weight_g is not None else (f" · {i.pieces} pieces" if i.bundle_id else "")
         _move(db, i, user, ACT_ISSUED, f"to {body.issued_to} for {body.purpose}{weight} — {slip.code}"
                                         + (f", return by {body.return_by}" if body.return_by else ""))
     db.flush()
@@ -191,7 +203,7 @@ def issue_items(body: IssueIn, request: Request, db: Session = Depends(get_db), 
     slip = create_slip(db, user, body)
     db.commit(); db.refresh(slip)
     log_action(db, username=user.username, action="CREATE", entity="IssueSlip",
-               detail=f"{slip.code}: {len(slip.lines)} piece(s) to {body.issued_to} for {body.purpose}, return by {body.return_by}",
+               detail=f"{slip.code}: {sum((db.get(StockItem, l.stock_item_id).tagged_pieces or 1) for l in slip.lines)} piece(s) to {body.issued_to} for {body.purpose}, return by {body.return_by}",
                ip=client_ip(request))
     return _slip_dict(db, slip)
 
@@ -227,7 +239,16 @@ def return_items(sid: int, body: ReturnIn, request: Request, db: Session = Depen
             line.returned_at, line.returned_by, line.condition, line.return_note = now, _who(user), "Kept", note
             item.status = KEPT
             _move(db, item, user, ACT_KEPT, f"{slip.code} · {slip.issued_to} · {note}")
+            settle_bundle(db, item, user)          # a bundle whose every piece is gone is Used Up
             continue
+        if r.kept:                               # some of a bundle's pieces kept, the rest come back
+            if not item.bundle_id or r.kept >= (item.pieces or 1):
+                raise HTTPException(422, f"{line.tag_id}: choose Kept by poojari when every piece was kept.")
+            if not note or len(note) < 3:
+                raise HTTPException(422, f"{line.tag_id}: write why the poojari kept it.")
+            k = take_pieces(db, item, r.kept, user, f"kept — {slip.code}")
+            k.status = KEPT
+            _move(db, k, user, ACT_KEPT, f"{slip.code} · {slip.issued_to} · {note}")
         # Gold / silver come back on the scale (2026-11-15): another weight than when it went out
         # (more than 0.01 g) goes to the committee as a weight change — the piece is back in store either way
         if item.weight_g is not None:
@@ -238,6 +259,9 @@ def return_items(sid: int, body: ReturnIn, request: Request, db: Session = Depen
                 weighed.append((request_change(db, item, user, "Weight", {"weight_g": str(r.weight_g)},
                                                f"Weighed on return of {slip.code}" + (f" · {note}" if note else "")), item))
         dest = to
+        if item.bundle_id:                      # a bundle's pieces go back into the bundle, on its shelf
+            root = db.get(StockItem, item.bundle_id)
+            dest = db.get(StoreLocation, root.location_id) if root and root.location_id else dest
         if dest is None:
             prev = db.get(StoreLocation, line.from_location_id) if line.from_location_id else None
             if not prev or not prev.active:
@@ -250,6 +274,7 @@ def return_items(sid: int, body: ReturnIn, request: Request, db: Session = Depen
         _move(db, item, user, ACT_RETURNED, f"{slip.code} · {cond}" + (f" · {note}" if note else "") + f" — back to {dest.name}")
         # back from use: marked Used, with what it was used for (any purpose, 2026-11-15)
         mark_deity_used(db, item, user, f"{slip.purpose} — {slip.code}" + (f" ({slip.kit_name})" if slip.kit_name else ""))
+        merge_back(db, item, user, f"{slip.code} · {cond}" + (f" · {note}" if note else ""))
     left = sum(1 for l in slip.lines if not l.returned_at)
     slip.status = "Returned" if left == 0 else "Partly returned"
     db.commit(); db.refresh(slip)
@@ -290,6 +315,7 @@ def _case_dict(c: MissingCase, item: StockItem | None, names: dict) -> dict:
             "item_name": item.item_name if item else None, "description": item.description if item else None,
             "weight_g": float(item.weight_g) if item and item.weight_g is not None else None,
             "est_value": float(item.est_value) if item and item.est_value is not None else None,
+            "pieces": (item.tagged_pieces or 1) if item and item.bundle_id else 1,   # a bundle's part (2026-11-27)
             "donor_name": item.donor_name if item else None,
             "location": names.get(c.location_id), "location_id": c.location_id, "status": c.status,
             "missing_since": _iso(since), "days": (ist_today() - _ist_day(since)).days if since else None,
@@ -384,6 +410,7 @@ def mark_found(cid: int, body: FoundIn, request: Request, db: Session = Depends(
     c.status, c.found_by, c.found_at, c.found_location_id, c.found_note = "Found", _who(user), _utcnow(), loc.id, note
     item.status, item.location_id = "In Store", loc.id
     _move(db, item, user, ACT_FOUND, f"in {loc.name}" + (f" · {note}" if note else ""))
+    merge_back(db, item, user, f"found — {c.tag_id}")       # a bundle's missing pieces go back into it
     db.commit()
     log_action(db, username=user.username, action="UPDATE", entity="MissingCase",
                detail=f"{c.tag_id} found in {loc.name}", ip=client_ip(request))
@@ -434,6 +461,7 @@ def approve_lost(cid: int, request: Request, db: Session = Depends(get_db), user
     c.status, c.decided_by, c.decided_at = "Lost", _who(user), _utcnow()
     item.status, item.open_sale_price = "Written Off", None
     _move(db, item, user, "Written off", f"{'Damaged' if damaged else 'Lost'} — {c.report_reason} (approved by {_who(user)})")
+    settle_bundle(db, item, user)                             # a bundle whose every piece is gone is Used Up
     db.commit()
     log_action(db, username=user.username, action="UPDATE", entity="MissingCase",
                detail=f"{c.tag_id}: written off as lost (asked by {c.reported_by})", ip=client_ip(request))
@@ -463,6 +491,7 @@ def reject_lost(cid: int, body: ReasonIn, request: Request, db: Session = Depend
         c.status, c.decided_by, c.decided_at, c.decision_note = "Rejected", _who(user), _utcnow(), body.reason
         if item.status == WRITEOFF_REQ:
             item.status = "In Store" if item.location_id else "Awaiting Placement"
+            merge_back(db, item, user, f"write-off rejected — {c.tag_id}")   # a bundle's pieces go back into it
     else:
         c.status, c.decided_by, c.decided_at, c.decision_note = "Missing", _who(user), _utcnow(), body.reason
     _move(db, item, user, "Write-off rejected", f"{body.reason} ({_who(user)})")

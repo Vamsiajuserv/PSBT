@@ -206,6 +206,8 @@ class Booking(Base):
     # Set at billing: the current half-hour, or the next one once its list was sent to the
     # poojari (see app/pooja_batches.py). A fixed-time pooja keeps its own half-hour.
     batch_slot = Column(String(5), nullable=True)
+    # One bill of several poojas shares a Bill No. — its QR verifies them all (client, 2026-11-26)
+    bill_no = Column(String(30), nullable=True, index=True)
     status = Column(String(20), default="Confirmed", nullable=False)   # Confirmed | Pending | Cancelled | Completed
     payment_status = Column(String(20), default="Paid", nullable=False)  # Paid | Pending | Failed
     payment_method = Column(String(20), nullable=True)                 # Cash | UPI | Card | Online
@@ -958,6 +960,12 @@ class StockItem(Base):
     # Set on return from an Alankaram / Festival issue slip, or marked by the Stores Officer.
     deity_used = Column(Boolean, default=False, nullable=False)
     deity_used_note = Column(String(200), nullable=True)     # "Alankaram — ISS-0012" / the officer's reason
+    # Bundles (client, 2026-11-27): one tag for several pieces (8 panchas = PAN-00041). `pieces` is what
+    # this record holds now, `tagged_pieces` what it was tagged with. A *part* (bundle_id set) is pieces
+    # taken out of a bundle — no sticker of its own; back in store it merges into its bundle.
+    pieces = Column(Integer, default=1, nullable=False)
+    tagged_pieces = Column(Integer, default=1, nullable=False)
+    bundle_id = Column(Integer, ForeignKey("stock_items.id"), nullable=True, index=True)
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -991,9 +999,26 @@ class ConsumableUse(Base):
     cancel_reason = Column(Text, nullable=True)
     cancelled_by = Column(String(120), nullable=True)
     batch_note = Column(Text, nullable=True)                  # which batch(es) it was taken from, oldest expiry first
+    location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)   # taken from (NULL = any)
     created_by = Column(String(60), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
+
+class ConsumableMove(Base):
+    """Consumable stock moved between store locations (Oil Room → Kitchen). The best-before
+    dates go with it; the balance does not change (2026-11-27)."""
+    __tablename__ = "consumable_moves"
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(20), unique=True, nullable=False)    # MOV-0001
+    category_id = Column(Integer, ForeignKey("donation_categories.id"), nullable=False, index=True)
+    quantity = Column(Numeric(12, 3), nullable=False)
+    from_location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)   # NULL = no location yet
+    to_location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=False)
+    moved_on = Column(Date, nullable=False)
+    note = Column(Text, nullable=True)
+    created_by = Column(String(60), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
 
 class AuctionSale(Base):
     """One buyer's purchase in a lot auction: which pieces, for how much, and their payment."""
@@ -1003,6 +1028,14 @@ class AuctionSale(Base):
     auction_id = Column(Integer, ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
     buyer_name = Column(String(120), nullable=False)
     buyer_mobile = Column(String(20), nullable=True)
+    # The buyer, when they are a devotee (picked from the search or found by mobile — 2026-11-27);
+    # NULL = an outsider (name + mobile only)
+    devotee_id = Column(Integer, ForeignKey("devotees.id"), nullable=True, index=True)
+    devotee = relationship("Devotee")
+
+    @property
+    def devotee_code(self):
+        return self.devotee.code if self.devotee else None
     amount = Column(Numeric(12, 2), nullable=False)
     payment_status = Column(String(20), default="Pending", nullable=False)   # Pending | Paid
     payment_mode = Column(String(30), nullable=True)
@@ -1027,6 +1060,7 @@ class AuctionPiece(Base):
     result = Column(String(20), default="Pending", nullable=False)   # Pending | Sold | Unsold
     sale_id = Column(Integer, ForeignKey("auction_sales.id", ondelete="SET NULL"), nullable=True)
     sold_amount = Column(Numeric(12, 2), nullable=True)
+    pieces = Column(Integer, default=1, nullable=False)       # a bundle's part: how many pieces (2026-11-27)
 
     auction = relationship("Auction", back_populates="pieces")
 
@@ -1059,6 +1093,14 @@ class OpenSale(Base):
     item_name = Column(String(200), nullable=False)
     buyer_name = Column(String(120), nullable=False)
     buyer_mobile = Column(String(20), nullable=True)
+    # The buyer, when they are a devotee (picked from the search or found by mobile — 2026-11-27);
+    # NULL = an outsider (name + mobile only)
+    devotee_id = Column(Integer, ForeignKey("devotees.id"), nullable=True, index=True)
+    devotee = relationship("Devotee")
+
+    @property
+    def devotee_code(self):
+        return self.devotee.code if self.devotee else None
     amount = Column(Numeric(12, 2), nullable=False)
     payment_mode = Column(String(30), nullable=False)          # Cash | UPI/QR Code
     payment_ref = Column(String(60), nullable=True)
@@ -1176,6 +1218,7 @@ class StoreReceipt(Base):
     mode = Column(String(10), default="count", nullable=False)            # count | weight (grams) | lines (hundi)
     billed = Column(Numeric(12, 3), nullable=False)                       # receipt quantity (hundi: number of lines)
     received = Column(Numeric(12, 3), nullable=False)                     # counted in so far (hundi: lines complete)
+    location_id = Column(Integer, ForeignKey("store_locations.id"), nullable=True)   # consumables: kept here
     lines = Column(Text, nullable=True)                                   # hundi JSON: [{line_id, item_name, mode, counted, received}]
     status = Column(String(20), default="Received", nullable=False, index=True)  # Received | Short | Short closed
     received_by = Column(String(120), nullable=True)

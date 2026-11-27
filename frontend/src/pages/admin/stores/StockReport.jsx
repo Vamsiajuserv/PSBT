@@ -52,9 +52,9 @@ export default function StockReport() {
   // One table for the details export: a Section column groups the rows
   const detailExport = detail ? [
     ...detail.remaining.map((x) => ({ section: tr('Remaining'), pieces: `${x.awaiting_placement ? `${x.awaiting_placement} ${tr('awaiting placement')} · ` : ''}${x.in_store} ${tr('in store')} · ${x.in_auction} ${tr('in auction')} · ${x.in_open_sale || 0} ${tr('in Open Sale')}`, ref: x.location, person: '', amount: null, status: x.unsold_before.length ? `${tr('Unsold before')}: ${x.unsold_before.join(', ')}` : '', date: '' })),
-    ...detail.sold.map((x) => ({ section: tr('Sold'), pieces: x.tag_id, ref: x.auction, person: x.buyer || '', amount: x.amount, status: x.payment === 'Paid' ? `${tr('Paid')} · ${tr(modeLabel(x.payment_mode))} · ${x.receipt_no}` : tr(x.payment || '—'), date: fmtDate(x.date) })),
+    ...detail.sold.map((x) => ({ section: tr('Sold'), pieces: x.tag_id + (x.pieces > 1 ? ` × ${x.pieces}` : ''), ref: x.auction, person: x.buyer || '', amount: x.amount, status: x.payment === 'Paid' ? `${tr('Paid')} · ${tr(modeLabel(x.payment_mode))} · ${x.receipt_no}` : tr(x.payment || '—'), date: fmtDate(x.date) })),
     ...detail.received.map((x) => ({ section: tr('Received'), pieces: x.pieces, ref: sourceRef(x), person: x.donor || '', amount: null, status: '', date: fmtDate(x.date) })),
-    ...detail.written_off.map((x) => ({ section: tr('Written Off'), pieces: x.tag_id, ref: '', person: x.by || '', amount: null, status: x.reason || '', date: fmtDate(x.date) })),
+    ...detail.written_off.map((x) => ({ section: tr('Written Off'), pieces: x.tag_id + (x.pieces > 1 ? ` × ${x.pieces}` : ''), ref: '', person: x.by || '', amount: null, status: x.reason || '', date: fmtDate(x.date) })),
     ...detail.auctions.map((x) => ({ section: tr('Auction'), pieces: `${x.pieces} · ${tr('sold')} ${x.sold ?? '—'} · ${tr('unsold')} ${x.unsold ?? '—'}`, ref: x.code, person: '', amount: x.amount, status: `${tr(x.status)} · ${tr(x.verification)} · ${tr('paid')} ${x.paid}`, date: fmtDate(x.date) })),
   ] : []
   const detailCols = [
@@ -79,7 +79,7 @@ export default function StockReport() {
     <div>
       <StoresTabs group="reports" />
       <PageTitle title={tr('Stock Report')} subtitle={tr('What came in, what went out and what is left, for any period. Closing = Opening + Received − Sold − Used / Written off.')}
-        actions={data && <ExportButtons title={`${tr('Stock Report')} ${period}`} columns={exportCols} rows={exportRows} />} />
+        actions={data && <ExportButtons title={`${tr('Stock Report')} ${period}`} columns={exportCols} rows={exportRows} screen="Stock Report" start={data?.start} end={data?.end} />} />
       <form onSubmit={(e) => { e.preventDefault(); load() }} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-wrap gap-3 items-end mb-5">
         <div className="w-[10rem]"><label className="block text-[0.75rem] text-gray-500 mb-1.5"><T>From</T></label>
           <DateField required value={range.start} max={range.end} onChange={(e) => setRange({ ...range, start: e.target.value })} className="input" /></div>
@@ -132,7 +132,7 @@ export default function StockReport() {
                             <div className="space-y-4">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="text-[0.8125rem] text-gray-700"><b>{tr(detail.category)}</b> · {period} · {tr('Closing')} {r.closing} = {r.awaiting_placement ? `${tr('Awaiting Placement')} ${r.awaiting_placement} + ` : ''}{tr('In Store')} {r.in_store}{r.issued ? ` + ${tr('Issued')} ${r.issued}` : ''} + {tr('In Auction')} {r.in_auction} + {tr('In Open Sale')} {r.in_open_sale}{r.missing ? ` + ${tr('Missing')} ${r.missing}` : ''}</div>
-                                <ExportButtons title={`${tr(detail.category)} — ${tr('Stock details')} ${period}`} columns={detailCols} rows={detailExport} />
+                                <ExportButtons title={`${tr(detail.category)} — ${tr('Stock details')} ${period}`} columns={detailCols} rows={detailExport} screen="Stock Report — details" start={data?.start} end={data?.end} filters={[['Category', detail.category]]} />
                               </div>
                               <Section title={tr('Remaining — where the pieces are')}>
                                 <table className="w-full text-[0.8125rem]"><Head cols={[[tr('Location')], [tr('Awaiting Placement'), 1], [tr('In Store'), 1], [tr('Issued'), 1], [tr('Missing'), 1], [tr('In Auction'), 1], [tr('In Open Sale'), 1], [tr('Came back unsold before')]]} />
@@ -145,7 +145,7 @@ export default function StockReport() {
                               <Section title={tr('Sold')} count={detail.sold.length}>
                                 <table className="w-full text-[0.8125rem]"><Head cols={[[tr('Piece')], [tr('Auction')], [tr('Buyer')], [tr('Amount'), 1], [tr('Payment')], [tr('Date')]]} />
                                   <tbody className="divide-y divide-gray-100">{detail.sold.map((x) => (
-                                    <tr key={x.tag_id}><td className="px-3 py-2 font-mono">{x.tag_id}</td><td className="px-3 py-2 font-mono">{x.auction || '—'}</td>
+                                    <tr key={x.tag_id}><td className="px-3 py-2 font-mono">{x.tag_id}{x.pieces > 1 && <span className="text-indigo-700"> × {x.pieces}</span>}</td><td className="px-3 py-2 font-mono">{x.auction || '—'}</td>
                                       <td className="px-3 py-2">{x.buyer ? personName({ name: x.buyer }, lang) : '—'}</td><td className="px-3 py-2 text-right">{inr(x.amount)}</td>
                                       <td className="px-3 py-2">{x.payment === 'Paid' ? <><Pill tone="green">{tr('Paid')}</Pill> <span className="text-[0.72rem] text-gray-500">{tr(modeLabel(x.payment_mode))} · {x.receipt_no}</span></> : <Pill tone="amber">{tr(x.payment || 'Pending')}</Pill>}</td>
                                       <td className="px-3 py-2 whitespace-nowrap">{fmtDate(x.date)}</td></tr>))}
@@ -162,7 +162,7 @@ export default function StockReport() {
                                 <Section title={tr('Written Off')} count={detail.written_off.length}>
                                   <table className="w-full text-[0.8125rem]"><Head cols={[[tr('Piece')], [tr('Reason')], [tr('By')], [tr('Date')]]} />
                                     <tbody className="divide-y divide-gray-100">{detail.written_off.map((x) => (
-                                      <tr key={x.tag_id}><td className="px-3 py-2 font-mono">{x.tag_id}</td><td className="px-3 py-2">{tr(x.reason)}</td><td className="px-3 py-2">{staffName(x.by)}</td><td className="px-3 py-2 whitespace-nowrap">{fmtDate(x.date)}</td></tr>))}</tbody></table>
+                                      <tr key={x.tag_id}><td className="px-3 py-2 font-mono">{x.tag_id}{x.pieces > 1 && <span className="text-indigo-700"> × {x.pieces}</span>}</td><td className="px-3 py-2">{tr(x.reason)}</td><td className="px-3 py-2">{staffName(x.by)}</td><td className="px-3 py-2 whitespace-nowrap">{fmtDate(x.date)}</td></tr>))}</tbody></table>
                                 </Section>
                               )}
                               <Section title={tr('Auctions in this period')} count={detail.auctions.length}>

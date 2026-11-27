@@ -151,6 +151,17 @@ function SlotsEditor({ value, onChange }) {
   )
 }
 
+// Same rules as the server's _TEMPLE_FORMATS (routers/settings.py)
+const TEMPLE_FORMATS = [
+  ['phone', /^\+?[\d\s\-()]{10,20}$/, 'The temple phone number looks wrong — like +91 040 2335 3589 or 9876543210.'],
+  ['email', /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/, 'The temple email looks wrong — like name@gmail.com.'],
+  ['website', /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(\/\S*)?$/, 'The website looks wrong — like www.saibabatemple.org.'],
+  ['pincode', /^[1-9]\d{5}$/, 'The pincode must be 6 digits.'],
+  ['ifsc', /^[A-Z]{4}0[A-Z0-9]{6}$/, 'The IFSC code looks wrong — 11 characters like SBIN0001234.'],
+  ['gst_number', /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, 'The GST number looks wrong — 15 characters like 36AAAAA0000A1Z5.'],
+  ['account_number', /^\d{9,18}$/, 'The bank account number must be 9 to 18 digits.'],
+]
+
 export default function Settings() {
   const { lang } = useLang()
   const { user } = useAuth()
@@ -162,6 +173,7 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   const [loadErr, setLoadErr] = useState('')
   const [saveErr, setSaveErr] = useState('')
+  const [fieldErrs, setFieldErrs] = useState({})   // each wrong Temple Information field, all at once (2026-11-26)
   // What the server last returned — Save sends only the fields changed since,
   // never the records other modules keep in the same settings table.
   const loaded = useRef({})
@@ -181,8 +193,24 @@ export default function Settings() {
 
   async function save() {
     setSaveErr('')
+    const changed = Object.fromEntries(Object.entries(data).filter(([k, v]) => v !== loaded.current[k]))
+    // Temple Information formats (client, 2026-11-26) — the server checks the same; blank is allowed.
+    // Every wrong field is marked together, each with its own message.
+    const errs = {}
+    for (const [k, re, msg] of TEMPLE_FORMATS) {
+      const v = String(changed[k] ?? '').trim()
+      if (k in changed && v && (!re.test(k === 'ifsc' || k === 'gst_number' ? v.toUpperCase() : v) || (k === 'phone' && v.replace(/\D/g, '').length < 10))) {
+        errs[k] = tr(msg)
+      }
+    }
+    setFieldErrs(errs)
+    const wrong = Object.keys(errs)
+    if (wrong.length === 1) { setSaveErr(errs[wrong[0]]); return }
+    if (wrong.length > 1) {
+      const labelOf = (k) => CATS.flatMap((c) => c.subs).flatMap((x) => x.fields || []).find((f) => f.k === k)?.label || k
+      setSaveErr(`${tr('Please fix the errors above.')} (${wrong.map((k) => tr(labelOf(k))).join(', ')})`); return
+    }
     try {
-      const changed = Object.fromEntries(Object.entries(data).filter(([k, v]) => v !== loaded.current[k]))
       const res = await SettingsAPI.update(changed)
       receive(res); setSaved(true); setTimeout(() => setSaved(false), 2500)
     } catch (ex) {
@@ -274,8 +302,10 @@ export default function Settings() {
                   ) : f.type === 'select' ? (
                     <Select className="input" value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)}>{f.options.map((o) => <option key={o} value={o}>{tr(o)}</option>)}</Select>
                   ) : (
-                    <input className={`input ${f.telugu ? 'font-telugu' : ''}`} value={data[f.k] || ''} onChange={(e) => set(f.k, e.target.value)} />
+                    <input className={`input ${f.telugu ? 'font-telugu' : ''} ${fieldErrs[f.k] ? 'border-red-400 ring-1 ring-red-300' : ''}`} value={data[f.k] || ''}
+                      onChange={(e) => { set(f.k, e.target.value); if (fieldErrs[f.k]) setFieldErrs(({ [f.k]: _, ...rest }) => rest) }} />
                   )}
+                  {fieldErrs[f.k] && <div className="text-[0.71875rem] text-red-600 mt-1">{fieldErrs[f.k]}</div>}
                   {f.hint && <div className="text-[0.6875rem] text-gray-400 mt-1"><T>{f.hint}</T></div>}
                 </div>
               ))}

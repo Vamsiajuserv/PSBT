@@ -160,6 +160,33 @@ def temple_location(db: Session) -> Location:
         return TEMPLE_PUNJAGUTTA
 
 
+# Temple Information formats (client, 2026-11-26) — a blank value is allowed; a typed one must be real.
+# The phone / email / website are shown on the public site, the bank details go on hundi deposits.
+_TEMPLE_FORMATS = {
+    "phone": (r"\+?[\d\s\-()]{10,20}", "The temple phone number looks wrong — like +91 040 2335 3589 or 9876543210."),
+    "email": (r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", "The temple email looks wrong — like name@gmail.com."),
+    "website": (r"(https?://)?[\w\-]+(\.[\w\-]+)+(/\S*)?", "The website looks wrong — like www.saibabatemple.org."),
+    "pincode": (r"[1-9]\d{5}", "The pincode must be 6 digits."),
+    "ifsc": (r"[A-Z]{4}0[A-Z0-9]{6}", "The IFSC code looks wrong — 11 characters like SBIN0001234."),
+    "gst_number": (r"\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]", "The GST number looks wrong — 15 characters like 36AAAAA0000A1Z5."),
+    "account_number": (r"\d{9,18}", "The bank account number must be 9 to 18 digits."),
+}
+
+
+def _validate_temple_settings(body_dict: dict) -> None:
+    for key, (pattern, msg) in _TEMPLE_FORMATS.items():
+        if key not in body_dict:
+            continue
+        raw = str(body_dict[key] or "").strip()
+        if key in ("ifsc", "gst_number"):
+            raw = raw.upper()
+        if key == "phone" and raw and len(re.sub(r"\D", "", raw)) < 10:
+            raise HTTPException(422, msg)
+        if raw and not re.fullmatch(pattern, raw):
+            raise HTTPException(422, msg)
+        body_dict[key] = raw
+
+
 def _validate_panchang_settings(body_dict: dict) -> None:
     for key, lo, hi in (("panchang_latitude", -90, 90), ("panchang_longitude", -180, 180),
                         ("temple_latitude", -90, 90), ("temple_longitude", -180, 180)):
@@ -278,6 +305,7 @@ def update_settings(body: SettingsUpdateIn, request: Request,
             raise HTTPException(422, err)
     _validate_booking_settings(body_dict)
     _validate_panchang_settings(body_dict)
+    _validate_temple_settings(body_dict)
     body_dict["updated_by"] = getattr(user, "name", None) or user.username
     body_dict["updated_at"] = now
     for k, v in body_dict.items():

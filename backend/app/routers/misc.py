@@ -14,10 +14,11 @@ from ..schemas import (AuctionApproveIn, AuctionResubmitIn, HundiCreate, HundiOu
                        AuctionRejectIn, AuctionPaymentIn,
                        AnnadanamCreate, AnnadanamOut, DonationVoidIn)
 from ..helpers import validate_pagination, sort_expr, apply_column_filters
-from ..helpers import ist_day, ist_paid_day, ist_date_of, ist_today
+from ..helpers import ist_day, ist_paid_day, ist_date_of, ist_today, ist_paid_time, ist_now
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip, ADMIN_ROLES
 from .. import staff_alerts
 from ..helpers import next_code_seq, assert_positive, assert_txn_date_open, ist_now, ist_today, IST_OFFSET, assert_utr, day_is_closed
+from ..helpers import clean_mobile, is_indian_mobile  # mobile / email format (2026-11-26)
 
 # ── Hundi ────────────────────────────────────────────────────────────────────
 hundi_router = APIRouter(prefix="/api/hundi", tags=["hundi"])
@@ -237,14 +238,18 @@ HUNDI_SORT_COLUMNS = {
 
 
 def _value_metal_lines(db: Session, lines: list[dict], day: date) -> None:
-    """Gold / silver counted by weight: kept by grams only — no ₹ value and no daily rate
-    (2026-11-15). No purity on any line (client, 2026-11-20): one sent is ignored."""
+    """Gold / silver counted by weight: the grams are the count; the ₹ amount is optional — the counting
+    team's estimate, blank = ₹0 (client, 2026-11-26; was always ₹0 since 2026-11-15). No daily rate, and
+    no purity on any line (client, 2026-11-20): one sent is ignored."""
     from .metal_rates import metal_of
     from .stores import _is_weight
     for li in lines:
         li["purity"] = li["rate_per_g"] = None
         if metal_of(li.get("item_type")) and _is_weight(li.get("unit")) and Decimal(str(li.get("quantity") or 0)) > 0:
-            li["value"] = Decimal("0")
+            amount = Decimal(str(li.get("value") or 0))
+            if amount < 0:
+                raise HTTPException(422, "The gold / silver amount cannot be negative.")
+            li["value"] = amount
 
 
 @hundi_router.get("", response_model=dict)
@@ -709,7 +714,7 @@ def _winner_mobile(db: Session, name: str | None, mobile: str | None) -> tuple[s
     """A sale needs the winner's 10-digit mobile (to contact them for payment); it links the devotee
     on that number or registers them (one devotee per phone)."""
     m = (mobile or "").strip()
-    if not (m.isdigit() and len(m) == 10):
+    if not is_indian_mobile(m):
         raise HTTPException(422, "Enter the winner's 10-digit mobile number.")
     from .devotees import link_devotee_by_mobile
     return m, link_devotee_by_mobile(db, name, m)
@@ -1267,11 +1272,23 @@ def reauction(aid: int, body: AuctionReauctionIn, request: Request,
         piece_ids = [i.id for i in db.query(StockItem).filter(
             StockItem.id.in_([p.stock_item_id for p in orig.pieces]), StockItem.status == "In Store",
             StockItem.last_auction_code == orig.code).all()]
+        # A bundle's unsold pieces went back into the bundle (2026-11-27): auction as many again from it
+        from .stores import MERGED
+        again: dict[int, int] = {}
+        for part in db.query(StockItem).filter(StockItem.id.in_([p.stock_item_id for p in orig.pieces]),
+                                               StockItem.status == MERGED, StockItem.last_auction_code == orig.code).all():
+            root = db.get(StockItem, part.bundle_id)
+            if root and root.status == "In Store" and (root.pieces or 0) > 0:
+                again[root.id] = min((root.pieces or 0), again.get(root.id, 0) + (part.tagged_pieces or 1))
+        piece_ids += [rid for rid in again if rid not in piece_ids]
         if not piece_ids:
             raise HTTPException(409, "None of this lot's pieces are still in store to re-auction.")
         per_piece = body.base_amount if body.base_amount is not None else orig.pieces[0].base_price
+        if orig.pieces and orig.pieces[0].pieces and orig.pieces[0].pieces > 1 and body.base_amount is None:
+            per_piece = Decimal(str(orig.pieces[0].base_price)) / orig.pieces[0].pieces   # a bundle line's base is for all its pieces
         new = create_lot(db, user, orig.stock_category_id, piece_ids, per_piece, body.auction_date, body.start_time,
-                         orig.description, body.notes or f"Re-auction of {orig.code}", reauction_of=orig.code)
+                         orig.description, body.notes or f"Re-auction of {orig.code}", reauction_of=orig.code,
+                         pieces=again)
         orig.reauctioned_to = new.code
         _au_log(orig, user, "Re-auctioned", f"as {new.code} on {body.auction_date} — base {_inr(per_piece)} each")
         db.commit(); db.refresh(new)
@@ -1327,7 +1344,7 @@ def annadanam_stats(db: Session = Depends(get_db), user=Depends(an_read)):
 # Column mapping for server-side sorting (Annadanam)
 ANNADANAM_SORT_COLUMNS = {
     "code": Annadanam.code,
-    "paid_at": Annadanam.paid_at,
+    "paid_at": ist_paid_time(Annadanam.paid_at, Annadanam.created_at),   # latest paid first, none left out
     "donor": Annadanam.donor,
     "mobile": Annadanam.mobile,
     "plates": Annadanam.plates,
@@ -1401,7 +1418,9 @@ def create_annadanam(body: AnnadanamCreate, request: Request,
         if (ist_today() - day).days > days:
             raise HTTPException(422, f"A donation can be dated at most {days} days back (Settings › Donations & Payments).")
     assert_txn_date_open(db, data.get("paid_at"), label="payment date")
+    data["paid_at"] = data.get("paid_at") or ist_now().replace(microsecond=0)   # always when it was paid (IST)
     # A walk-in donor's mobile links (or registers) the devotee — one devotee per phone
+    data["mobile"] = clean_mobile(data.get("mobile"), foreign_ok=True) if "mobile" in data else None
     if not data.get("devotee_id") and data.get("mobile"):
         from .devotees import link_devotee_by_mobile
         data["devotee_id"] = link_devotee_by_mobile(db, data.get("donor"), data["mobile"])

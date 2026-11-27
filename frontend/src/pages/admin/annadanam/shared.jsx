@@ -16,7 +16,10 @@ import { AnnadanamAPI, DevoteesAPI, SettingsAPI, FestivalsAPI } from '../../../a
 import { useAuth } from '../../../auth/AuthContext.jsx'
 import { TableStates } from '../../../components/common/states.jsx'
 import ExportButtons from '../../../components/common/ExportButtons.jsx'
+import { colFilters } from '../../../lib/exportGuard.js'
+import { monthStartISO, todayISO as periodToday } from '../../../lib/period.js'
 import ResetButton from '../../../components/common/ResetButton.jsx'
+import usePickList from '../../../hooks/usePickList.js'
 import { Select, DateField, DateTimeField, Combobox } from '../../../components/common/Field.jsx'
 import { T, tr, clock12, personName, useLang, getLang, stamp } from '../../../i18n/LanguageContext.jsx'
 import { useFilterParams } from '../../../hooks/useUrlState.js'
@@ -195,6 +198,7 @@ export function AnnadanamForm({ onSaved, onCancel }) {
   // devotee search
   const [dq, setDq] = useState('')
   const [results, setResults] = useState([])
+  const devPick = usePickList(results, (d) => { setM({ devotee: d }); setResults([]) }, { open: !m.devotee })
   useEffect(() => {
     if (m.devotee || dq.trim().length < 1) { setResults([]); return }
     const t = setTimeout(() => DevoteesAPI.lookup({ q: dq, size: 6 }).then((r) => setResults(r.items || [])).catch(() => toast(tr('Failed to search devotees'), 'error')), 250)
@@ -243,13 +247,13 @@ export function AnnadanamForm({ onSaved, onCancel }) {
             <input className="input pr-9" placeholder={tr("Search name or mobile number…")}
               readOnly={!!m.devotee}
               value={m.devotee ? `${personName(m.devotee, lang)} / ${m.devotee.mobile}` : dq}
-              onChange={(e) => !m.devotee && setDq(e.target.value)} />
+              onChange={(e) => !m.devotee && setDq(e.target.value)} onKeyDown={devPick.onKeyDown} />
             {!m.devotee && results.length > 0 && (
               <div className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-lg py-1">
-                {results.map((d) => (
-                  <button type="button" key={d.id} onClick={() => { setM({ devotee: d }); setResults([]) }} className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
-                    <span><span className="font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
+                {results.map((d, i) => (
+                  <button type="button" key={d.id} onClick={() => { setM({ devotee: d }); setResults([]) }} {...devPick.rowProps(i)} className={`pick-row ${devPick.rowClass(i)} w-full text-left px-3 py-2 flex items-center gap-2`}>
+                    <span className="pick-avatar transition-colors w-7 h-7 rounded-full bg-amber-50 text-amber-700 grid place-items-center text-[0.75rem] font-bold">{d.name[0]}</span>
+                    <span><span className="pick-name font-semibold text-gray-800 text-[0.8125rem]">{personName(d, lang)}</span><span className="block text-[0.6875rem] text-gray-400">{d.code} · {d.mobile}</span></span>
                   </button>
                 ))}
               </div>
@@ -343,10 +347,11 @@ export function AnnadanamForm({ onSaved, onCancel }) {
         </div>
       </div>
       {saveErr && <div className="px-6 pt-3 text-[0.75rem] text-red-600">{saveErr}</div>}
-      <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-        <button type="button" onClick={onCancel} className="btn-outline flex-1 justify-center"><T>Cancel</T></button>
-        <ResetButton onReset={reset} disabled={saving} className="justify-center !px-3" />
-        <button type="submit" disabled={!m.devotee || saving} className="btn-maroon flex-1 justify-center disabled:opacity-50">{saving ? tr('Saving…') : <>{tr('Save Payment & Generate Receipt')} <Printer size={15} /></>}</button>
+      {/* Small buttons with short names, like the Donations form (client, 2026-11-26): Cancel · Reset · Print */}
+      <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
+        <button type="button" onClick={onCancel} className="btn-outline !py-2 !px-4 !text-[0.875rem]"><T>Cancel</T></button>
+        <ResetButton onReset={reset} disabled={saving} className="!py-2 !px-4 !text-[0.875rem] !gap-1.5" />
+        <button type="submit" disabled={!m.devotee || saving} title={tr('Save Payment & Generate Receipt')} className="btn-maroon !py-2 !px-5 !text-[0.875rem] !gap-1.5 disabled:opacity-50">{saving ? tr('Saving…') : <><Printer size={14} />{tr('Print')}</>}</button>
       </div>
     </form>
   )
@@ -376,8 +381,8 @@ export function AnnadanamRegister() {
   const {
     q, setQ, mode, setMode, start, setStart, end, setEnd, page, setPage, setFilters,
   } = useFilterParams({
-    q: '', mode: '', start: '', end: '', page: 1,
-  })
+    q: '', mode: '', start: monthStartISO(), end: periodToday(), page: 1,   // opens on this month (2026-11-26)
+  }, { blankable: ['start', 'end'] })
 
   // Sortable table columns with filtering support
   const sortColumns = [
@@ -449,7 +454,7 @@ export function AnnadanamRegister() {
     setLoading(true); setLoadErr('')
     try {
       const [d, s] = await Promise.all([
-        AnnadanamAPI.list({ q, mode, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'paid_at', sort_dir: sorts[0]?.direction || ((start || end) ? 'asc' : 'desc'), col_filters: filtersToParam(filters) }),
+        AnnadanamAPI.list({ q, mode, start, end, page, size: SIZE, sort_by: sorts[0]?.key || 'paid_at', sort_dir: sorts[0]?.direction || 'desc', col_filters: filtersToParam(filters) }),
         AnnadanamAPI.stats().catch(() => null),
       ])
       setRows(d.items); setTotal(d.total); if (s) setStats(s)
@@ -506,7 +511,8 @@ export function AnnadanamRegister() {
           </div>
           <button onClick={() => { setPage(1); setReloadTrigger(t => t + 1) }} className="btn-maroon !py-2.5 shrink-0"><Search size={14} />{' '}<T>Apply</T></button>
           <button onClick={() => { setFilters({ q: '', mode: '', start: '', end: '', page: 1 }); setReloadTrigger(t => t + 1) }} className="btn-outline !py-2.5 shrink-0"><RotateCcw size={14} />{' '}<T>Clear</T></button>
-          <ExportButtons title={tr("Annadanam Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal} />
+          <ExportButtons title={tr("Annadanam Register")} columns={EXPORT_COLS} rows={exportRows} total={exportTotal}
+          screen="Annadanam Register" start={start} end={end} available={total} filters={[['Search', q], ['Payment mode', mode], ...colFilters(filters, sortColumns)]} />
         </div>
         </FilterPanel>
 

@@ -10,7 +10,7 @@ import { LoadingBlock, ErrorBlock } from '../../components/common/states.jsx'
 import { Select, Combobox, DateField } from '../../components/common/Field.jsx'
 import { confirmDialog, promptDialog, toast } from '../../components/common/Dialog.jsx'
 import { T, tr, personName, useLang, stamp, teText, teAddress, clock12 } from '../../i18n/LanguageContext.jsx'
-import { sanitizePhone, sanitizeName, validatePhone } from '../../lib/validation.js'
+import { sanitizePhone, sanitizeName, validatePhone, validateEmail, validatePAN } from '../../lib/validation.js'
 import { statusChip } from '../../lib/bookingStatus.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { canAccessKey } from '../../auth/access.js'
@@ -387,17 +387,19 @@ export default function DevoteeDetails() {
           )}
 
           {tab === 'annadanam' && (
-            <Table cols={['ID', 'Beneficiaries (Plates)', 'Amount (₹)', 'Occasion', 'Date']}>
+            /* Latest first by the day it was paid (client, 2026-11-26) — "Annadanam on" is the optional planned day */
+            <Table cols={['ID', 'Beneficiaries (Plates)', 'Amount (₹)', 'Occasion', 'Donated on', 'Annadanam on']}>
               {d.annadanam.map((a) => (
                 <tr key={a.code} className="hover:bg-gray-50/60">
                   <td className="px-5 py-4 font-mono text-sm text-gray-500">{a.code}</td>
                   <td className="px-5 py-4 text-gray-700">{a.plates}</td>
                   <td className="px-5 py-4 font-semibold text-gray-800">{num(a.amount)}</td>
                   <td className="px-5 py-4 text-gray-600">{a.occasion ? tr(a.occasion) : '—'}</td>
-                  <td className="px-5 py-4 text-gray-500 text-sm">{fmtDate(a.date)}</td>
+                  <td className="px-5 py-4 text-gray-500 text-sm whitespace-nowrap">{fmtStamp(a.donated_at)}</td>
+                  <td className="px-5 py-4 text-gray-500 text-sm whitespace-nowrap">{a.scheduled_on ? fmtDate(a.scheduled_on) : '—'}</td>
                 </tr>
               ))}
-              {d.annadanam.length === 0 && <tr><td colSpan={5} className="px-5 py-12 text-center text-gray-500"><T>No annadanam sponsorships yet.</T></td></tr>}
+              {d.annadanam.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-500"><T>No annadanam sponsorships yet.</T></td></tr>}
             </Table>
           )}
 
@@ -456,24 +458,22 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [mobileError, setMobileError] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [panError, setPanError] = useState('')
   async function save(e) {
     e.preventDefault()
     setErr('')
     if (!data.name?.trim() || !data.mobile?.trim()) { setErr(tr('Name and mobile are required.')); return }
     if (/[A-Za-z]/.test(data.name_te || '')) { setErr(tr('Type the name in Telugu letters, or leave it blank.')); return }
-    // Validate mobile number - must be exactly 10 digits for Indian numbers
+    // Mobile, email and PAN are all checked, so every wrong field shows together (client, 2026-11-26)
     const mobileTrimmed = (data.mobile || '').trim()
-    if (mobileTrimmed.length !== 10) {
-      setErr(tr('Please Enter 10 digits Mobile Number'))
-      setMobileError(tr('Please Enter 10 digits Mobile Number'))
-      return
-    }
-    const mobileValidation = validatePhone(mobileTrimmed)
-    if (!mobileValidation.valid) {
-      setErr(mobileValidation.error)
-      setMobileError(tr('Invalid Mobile Number'))
-      return
-    }
+    const mob = mobileTrimmed.length !== 10 ? tr('Please Enter 10 digits Mobile Number')
+      : (validatePhone(mobileTrimmed).valid ? '' : tr('Invalid Mobile Number'))
+    const em = validateEmail(data.email).error || ''
+    const pan = validatePAN(data.pan_number).error || ''
+    setMobileError(mob); setEmailError(em); setPanError(pan)
+    const wrong = [mob, em, pan].filter(Boolean)
+    if (wrong.length) { setErr(wrong.length > 1 ? tr('Please fix the errors above.') : wrong[0]); return }
     setBusy(true)
     try {
       await DevoteesAPI.update(data.id, {
@@ -523,7 +523,10 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
             </div>
             <div>
               <label className="label"><T>Email</T></label>
-              <input className="input" type="email" value={data.email || ''} onChange={(e) => onChange({ ...data, email: e.target.value })} />
+              <input className={`input ${emailError ? 'border-red-400' : ''}`} type="text" inputMode="email" autoComplete="email" placeholder={tr('email@example.com')} value={data.email || ''}
+                onChange={(e) => { onChange({ ...data, email: e.target.value }); if (emailError) setEmailError(validateEmail(e.target.value).error || '') }}
+                onBlur={(e) => setEmailError(validateEmail(e.target.value).error || '')} />
+              {emailError && <div className="text-[0.7rem] text-red-500 mt-0.5">{emailError}</div>}
             </div>
             <div>
               <label className="label"><T>City</T></label>
@@ -568,7 +571,10 @@ function EditDevoteeModal({ data, onChange, onClose, onSaved }) {
             </div>
             <div>
               <label className="label"><T>PAN Number</T></label>
-              <input className="input uppercase" maxLength={10} placeholder={tr("e.g. ABCDE1234F")} value={data.pan_number || ''} onChange={(e) => onChange({ ...data, pan_number: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} />
+              <input className={`input uppercase ${panError ? 'border-red-400' : ''}`} maxLength={10} placeholder={tr("e.g. ABCDE1234F")} value={data.pan_number || ''}
+                onChange={(e) => { onChange({ ...data, pan_number: e.target.value.toUpperCase().replace(/[^A-Z0-9*]/g, '') }); setPanError('') }}
+                onBlur={(e) => setPanError(validatePAN(e.target.value).error || '')} />
+              {panError && <div className="text-[0.7rem] text-red-500 mt-0.5">{panError}</div>}
             </div>
             <div>
               <label className="label"><T>Preferred Language</T></label>

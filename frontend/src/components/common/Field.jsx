@@ -244,7 +244,10 @@ export function Select({ value, onChange, children, className = '', disabled = f
 // Multi-select dropdown for filters with "Select All" capability
 
 // selectAll={false} hides the Select All / Clear All button (e.g. picking poojas for a booking).
-export function MultiSelect({ value = [], onChange, children, className = '', disabled = false, placeholder, title, allLabel, selectAll: showSelectAll = true }) {
+// `tags` {value: text} adds a red tag beside an option; `chips` lists the ticked options in the field,
+// those in `flagged` (a Set of values) in red with ⚠ — Advance Booking marks the poojas a devotee
+// already holds a plan for (2026-11-26).
+export function MultiSelect({ value = [], onChange, children, className = '', disabled = false, placeholder, title, allLabel, selectAll: showSelectAll = true, tags, chips = false, flagged, doneButton = false }) {
   const { t } = useLang()
   const ph = placeholder || t('Select…')
   const allLbl = allLabel || t('Select All')
@@ -295,9 +298,24 @@ export function MultiSelect({ value = [], onChange, children, className = '', di
         onClick={() => setOpen((o) => !o)}
         className={`input flex items-center justify-between gap-2 text-left disabled:bg-gray-50 disabled:text-gray-400 ${open ? 'ring-2 ring-gold-400 border-transparent' : ''} ${className}`}
       >
-        <span className={`truncate ${vals.size > 0 ? 'text-gray-800' : 'text-gray-400'}`}>
-          {t(displayLabel)}
-        </span>
+        {chips && vals.size > 0 ? (
+          <span className="flex flex-wrap gap-1 min-w-0">
+            {items.filter((o) => vals.has(o.value)).map((o) => {
+              const bad = flagged?.has(o.value)
+              return (
+                <span key={o.value} className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[0.75rem] font-medium ${bad ? 'border-red-400 bg-red-50 text-red-700' : 'border-gold-300 bg-gold-50 text-gray-800'}`}>
+                  {bad && <span aria-hidden="true">⚠</span>}{t(o.label)}
+                  <span role="button" tabIndex={-1} aria-label={t('Remove')} onClick={(e) => { e.stopPropagation(); toggle(o.value) }}
+                    className={`ml-0.5 ${bad ? 'text-red-500 hover:text-red-800' : 'text-gray-400 hover:text-maroon-700'}`}><X size={12} /></span>
+                </span>
+              )
+            })}
+          </span>
+        ) : (
+          <span className={`truncate ${vals.size > 0 ? 'text-gray-800' : 'text-gray-400'}`}>
+            {t(displayLabel)}
+          </span>
+        )}
         <ChevronDown size={15} className={`shrink-0 text-maroon-700/50 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
@@ -323,7 +341,7 @@ export function MultiSelect({ value = [], onChange, children, className = '', di
             ) : <span />}
             {vals.size > 0 && <span className="text-[0.75rem] text-gray-400">{vals.size} {t('selected')}</span>}
           </div>
-          <div className="overflow-y-auto py-1" style={{ maxHeight: (pos?.maxHeight ?? 300) - (searchable ? 80 : 40) }}>
+          <div className="overflow-y-auto py-1" style={{ maxHeight: (pos?.maxHeight ?? 300) - (searchable ? 80 : 40) - (doneButton ? 48 : 0) }}>
             {shown.length === 0 && <div className="px-3 py-2.5 text-[0.8125rem] text-gray-400">{t('No matches')}</div>}
             {shown.map((o, i) => {
               if (o.group) {
@@ -346,10 +364,19 @@ export function MultiSelect({ value = [], onChange, children, className = '', di
                     {sel && <Check size={12} strokeWidth={3.5} />}
                   </span>
                   <span className="truncate">{o.label ? t(o.label) : <span className="text-gray-400">—</span>}</span>
+                  {tags?.[o.value] && <span className="ml-auto shrink-0 inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-300 text-red-700 text-[0.6875rem] font-semibold px-2 py-0.5"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />{tags[o.value]}</span>}
                 </button>
               )
             })}
           </div>
+          {/* The list stays open while ticking; Done closes it (Advance Booking, client 2026-11-26) */}
+          {doneButton && (
+            <div className="px-3 py-2 border-t border-gold-100 bg-cream/50 flex justify-end">
+              <button type="button" onClick={() => setOpen(false)} className="btn-maroon !py-1.5 !px-4 !text-[0.8125rem]">
+                {vals.size > 0 ? `${t('Done')} (${vals.size} ${t('selected')})` : t('Done')}
+              </button>
+            </div>
+          )}
         </Popover>
       )}
     </>

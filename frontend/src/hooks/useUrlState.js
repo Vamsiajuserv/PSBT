@@ -31,12 +31,17 @@ import { useSearchParams } from 'react-router-dom'
  * @param {Object} defaults - Default values for each filter key
  * @returns {[Object, Function]} - Current state and setter function
  */
-export function useUrlState(defaults) {
+// `blankable`: keys whose default is not blank but which the user may clear on purpose — e.g. a
+// register that opens on "this month" (start/end) yet can be set to all dates: the cleared value is
+// kept in the URL as an empty `start=` so it is not taken back to the default (2026-11-26).
+export function useUrlState(defaults, { blankable = [] } = {}) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Stabilize defaults reference to prevent unnecessary re-renders
   const defaultsRef = useRef(defaults)
   defaultsRef.current = defaults
+  const blankRef = useRef(blankable)
+  blankRef.current = blankable
 
   // Parse current URL params into state object
   const state = useMemo(() => {
@@ -46,7 +51,9 @@ export function useUrlState(defaults) {
       const urlValue = searchParams.get(key)
       const defaultValue = defs[key]
 
-      if (urlValue === null || urlValue === '') {
+      if (urlValue === '' && blankRef.current.includes(key)) {
+        result[key] = ''                 // cleared on purpose (blankable)
+      } else if (urlValue === null || urlValue === '') {
         // Use default value if not in URL
         result[key] = defaultValue
       } else if (typeof defaultValue === 'number') {
@@ -75,8 +82,10 @@ export function useUrlState(defaults) {
     for (const [key, value] of Object.entries(updates)) {
       const defaultValue = defs[key]
 
-      // Remove param if it matches default (keeps URLs clean)
-      if (value === defaultValue || value === '' || value === null || value === undefined) {
+      if (blankRef.current.includes(key) && (value === '' || value === null) && defaultValue !== '') {
+        newParams.set(key, '')          // cleared on purpose — not the default
+      } else if (value === defaultValue || value === '' || value === null || value === undefined) {
+        // Remove param if it matches default (keeps URLs clean)
         newParams.delete(key)
       } else {
         newParams.set(key, String(value))
@@ -107,8 +116,8 @@ export function useUrlState(defaults) {
  *     end: '',
  *   })
  */
-export function useFilterParams(defaults) {
-  const [state, setState, resetState] = useUrlState(defaults)
+export function useFilterParams(defaults, opts) {
+  const [state, setState, resetState] = useUrlState(defaults, opts)
 
   // Create individual setters for each key
   const setters = useMemo(() => {

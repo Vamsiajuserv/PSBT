@@ -19,11 +19,13 @@ from ..database import get_db
 from ..helpers import IST_OFFSET, ist_today, next_code_seq, validate_pagination
 from ..models import (ConsumableUse, Donation, DonationCategory, HundiCollection, HundiCollectionItem, ManualStockEntry,
                       Setting, StockItem, StockMovement, StoreLocation, StoreReceipt, User)
-from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER
+from ..security import RequireModule, RequireRole, log_action, client_ip, STORES_OFFICER, ADMIN_ROLES
+from ..helpers import clean_mobile  # mobile / email format (2026-11-26)
 
 router = APIRouter(prefix="/api/stores", tags=["stores"])
 read = RequireModule("Stores")
-write = RequireModule("Stores", write=True)
+# Every store entry (tag, place, move…) is the Stores Officer's; Counter Staff only view stock (client, 2026-11-27)
+write = RequireRole(STORES_OFFICER)            # Stores Officer + Administrator
 # Store Locations: Administrator or the Stores Officer (RequireRole always admits Administrator)
 manage_locations = RequireRole(STORES_OFFICER)
 
@@ -40,10 +42,14 @@ KEPT = "Kept by Poojari"
 # Write-off Requested: a damaged piece waiting for a Committee member to approve its write-off — it can
 # not be issued, auctioned or sold meanwhile; rejected → back In Store (2026-11-15)
 WRITEOFF_REQ = "Write-off Requested"
-STATUSES = (AWAITING, "In Store", ISSUED, "In Auction", "In Open Sale", MISSING, "Sold", "Written Off", KEPT, WRITEOFF_REQ)
+# Bundles (2026-11-27): a part — pieces taken out of a bundle — that came back into its bundle is kept only as
+# history (Merged, 0 pieces); a bundle whose every piece has left for good is Used Up.
+MERGED = "Merged"
+USED_UP = "Used Up"
+STATUSES = (AWAITING, "In Store", ISSUED, "In Auction", "In Open Sale", MISSING, "Sold", "Written Off", KEPT, WRITEOFF_REQ, USED_UP)
 # Stock Register tabs (2026-11-16): what the temple still holds / what has left for good
 IN_HAND = (AWAITING, "In Store", ISSUED, "In Auction", "In Open Sale", MISSING, WRITEOFF_REQ)
-GONE_OUT = ("Sold", "Written Off", KEPT)
+GONE_OUT = ("Sold", "Written Off", KEPT, USED_UP)
 # Movement actions: "Tagged" = tagged straight into a location (unchanged); the other two are
 # the two halves of the placement step. The Stock Report replays these.
 TAGGED_UNPLACED = "Tagged — awaiting placement"
@@ -88,6 +94,8 @@ class TagRow(BaseModel):
     location_id: int | None = None
     # Why the value differs from the receipt value (the devotee's stated value per piece)
     value_note: str | None = Field(default=None, max_length=200)
+    # Bundle (2026-11-27): one tag for this many pieces — cloth, utensils… (never gold / silver or hundi)
+    pieces: int = Field(default=1, ge=1, le=500)
 
 
 class TagIn(BaseModel):
@@ -98,6 +106,19 @@ class TagIn(BaseModel):
 
 class MoveIn(BaseModel):
     location_id: int
+
+
+class WriteOffIn(BaseModel):
+    reason: str = Field(..., max_length=500)
+    pieces: int | None = Field(default=None, ge=1, le=500)   # a bundle: how many of its pieces are damaged (all if left out)
+
+    @field_validator("reason")
+    @classmethod
+    def _reason(cls, v):
+        v = (v or "").strip()
+        if len(v) < 5:
+            raise ValueError("Enter the reason (at least 5 characters).")
+        return v
 
 
 class PlaceIn(BaseModel):
@@ -228,6 +249,62 @@ def receive_cutoff(db: Session) -> int | None:
         return None
 
 
+# Consumables (oil, rice…) are received at the store too, from 2026-11-27: a donation made after the
+# go-live (id > this setting) counts in the balance only once received, in a location. Donations up to
+# it count as received, no location. No setting = the step is off (tests, a fresh database).
+CONSUMABLES_RECEIVE_KEY = "consumables_receive_after_donation"
+
+
+def consumables_cutoff(db: Session) -> int | None:
+    row = db.query(Setting).filter(Setting.skey == CONSUMABLES_RECEIVE_KEY).first()
+    try:
+        return int(row.svalue) if row and row.svalue not in (None, "") else None
+    except ValueError:
+        return None
+
+
+def consumable_needs_receiving(d: Donation, cutoff: int | None) -> bool:
+    return cutoff is not None and d.id > cutoff
+
+
+def _pending_consumables(db: Session) -> list[dict]:
+    """Consumable donations waiting to be received at the store (or short) — Receive & Tag rows."""
+    cutoff = consumables_cutoff(db)
+    if cutoff is None:
+        return []
+    cats = {c.name: c for c in db.query(DonationCategory).filter(DonationCategory.type == "Material",
+                                                                 DonationCategory.tracking == "Quantity").all()}
+    dons = (db.query(Donation).filter(Donation.donation_type == "Material", Donation.voided.isnot(True),
+                                      Donation.fund.in_(list(cats) or [""]), Donation.id > cutoff)
+            .order_by(Donation.id.desc()).all())
+    recs = _receipt_rows(db, [d.id for d in dons])
+    names = dict(db.query(User.username, User.name).filter(
+        User.username.in_({d.created_by for d in dons if d.created_by} or {""})).all())
+    out = []
+    for d in dons:
+        rec = recs.get(d.id)
+        if rec and rec.status != SHORT:
+            continue
+        cat = cats[d.fund]
+        billed = Decimal(str(d.quantity or 0))
+        got = Decimal(str(rec.received)) if rec else Decimal("0")
+        info = receive_info(d, rec, cutoff) or {"state": TO_RECEIVE, "billed": float(billed), "received": 0.0}
+        if rec:
+            info["location_id"] = rec.location_id
+        out.append({"source_type": "Donation", "source_id": d.id, "source_ref": d.receipt_no, "consumable": True,
+                    "donation_code": d.donation_code, "donor_name": d.donor_name, "donor_mobile": d.mobile,
+                    "item_name": d.fund, "quantity": float(billed), "unit": cat.unit or d.unit,
+                    "date": str(d.donated_on) if d.donated_on else None,
+                    "billed_by": (names.get(d.created_by) or d.created_by) if d.created_by else None,
+                    "billed_at": d.created_at.isoformat() if d.created_at else None,
+                    "item_desc": d.item_desc, "category_id": cat.id,
+                    "expiry_date": str(d.expiry_date) if d.expiry_date else None,
+                    "track_expiry": bool(cat.track_expiry),
+                    "progress": {"mode": "quantity", "needed": float(billed), "done": float(got),
+                                 "complete": False, "receive": info}})
+    return out
+
+
 def needs_receiving(d: Donation, cutoff: int | None) -> bool:
     """Receive at store merged into tagging (2026-11-15): every receipt is tagged straight away;
     when fewer pieces arrived the tagger records it ("Fewer arrived" → shortage for the Committee).
@@ -278,14 +355,15 @@ def _progress(db: Session, source_type: str, obj) -> dict:
         unit, needed = obj.unit, Decimal(str(obj.quantity or 0))
     else:
         return _hundi_progress(db, obj)
-    items = q.all()
+    items = q.filter(StockItem.bundle_id.is_(None)).all()   # a bundle's parts are not tagged pieces of their own
     if _is_weight(unit):
         done = sum((Decimal(str(i.weight_g or 0)) for i in items), Decimal("0"))
         out = {"mode": "weight", "needed": float(needed), "done": float(done), "pieces": len(items),
                "complete": done >= needed - WEIGHT_TOLERANCE}
     else:
-        out = {"mode": "count", "needed": float(needed), "done": len(items), "pieces": len(items),
-               "complete": len(items) >= needed}
+        n = sum((i.tagged_pieces or 1) for i in items)          # a bundle of 8 counts 8 pieces (2026-11-27)
+        out = {"mode": "count", "needed": float(needed), "done": n, "pieces": n, "tags": len(items),
+               "complete": n >= needed}
     if source_type == "Donation":
         out["receive"] = receive_info(obj, rec, cutoff)
     return out
@@ -413,6 +491,9 @@ def _item_dict(i: StockItem, loc_names: dict, codes: dict | None = None) -> dict
             "open_sale_price": float(i.open_sale_price) if i.open_sale_price is not None else None,
             "open_sale_by": i.open_sale_by, "open_sale_at": i.open_sale_at.isoformat() if i.open_sale_at else None,
             "deity_used": bool(i.deity_used), "deity_used_note": i.deity_used_note,
+            # bundles (2026-11-27): pieces held now / when tagged; a part names its bundle
+            "pieces": i.pieces if i.pieces is not None else 1, "tagged_pieces": i.tagged_pieces or 1,
+            "bundle": (i.tagged_pieces or 1) > 1 and i.bundle_id is None, "bundle_id": i.bundle_id,
             "created_by": i.created_by}
 
 
@@ -436,15 +517,20 @@ def _loc_dict(l: StoreLocation, counts: dict) -> dict:
 
 @router.get("/locations")
 def list_locations(db: Session = Depends(get_db), user=Depends(read)):
-    counts = dict(db.query(StockItem.location_id, func.count(StockItem.id))
+    counts = dict(db.query(StockItem.location_id, func.coalesce(func.sum(StockItem.pieces), 0))
                   .filter(StockItem.status.in_(ON_SHELF)).group_by(StockItem.location_id).all())
     rows = db.query(StoreLocation).order_by(StoreLocation.name).all()
     return {"items": [_loc_dict(l, counts) for l in rows]}
 
 
+LOC_STATUS_ADMIN = "Only the Administrator can make a location active or inactive."
+
+
 @router.post("/locations", status_code=201)
 def create_location(body: LocationIn, request: Request, db: Session = Depends(get_db), user=Depends(manage_locations)):
     name = body.name.strip()
+    if not body.active and user.role not in ADMIN_ROLES:
+        raise HTTPException(403, LOC_STATUS_ADMIN)
     if db.query(StoreLocation).filter(func.lower(StoreLocation.name) == name.lower()).first():
         raise HTTPException(409, "A location with this name already exists.")
     seq = next_code_seq(db, "store_location", db.query(func.max(StoreLocation.id)).scalar() or 0)
@@ -461,16 +547,30 @@ def update_location(lid: int, body: LocationIn, request: Request, db: Session = 
     loc = db.get(StoreLocation, lid)
     if not loc:
         raise HTTPException(404, "Location not found")
-    in_store = db.query(func.count(StockItem.id)).filter(StockItem.location_id == lid,
+    # Making a location active / inactive is a setup decision: the Administrator's (client, 2026-11-27).
+    # The Stores Officer still adds locations and edits name, type and custodian.
+    if bool(body.active) != bool(loc.active) and user.role not in ADMIN_ROLES:
+        raise HTTPException(403, LOC_STATUS_ADMIN)
+    in_store = db.query(func.coalesce(func.sum(StockItem.pieces), 0)).filter(StockItem.location_id == lid,
                                                           StockItem.status.in_(ON_SHELF)).scalar() or 0
     if not body.active and in_store:
         raise HTTPException(409, f"{in_store} piece(s) are still kept here — move them before deactivating.")
     # pieces out on issue, missing or waiting for a write-off still belong to this shelf (2026-11-15)
-    away = db.query(func.count(StockItem.id)).filter(StockItem.location_id == lid,
+    away = db.query(func.coalesce(func.sum(StockItem.pieces), 0)).filter(StockItem.location_id == lid,
                                                      StockItem.status.in_((ISSUED, MISSING, WRITEOFF_REQ))).scalar() or 0
     if not body.active and away:
         raise HTTPException(409, f"{away} piece(s) of this location are out on issue, missing or waiting for a write-off — "
                                  "settle them before deactivating.")
+    if not body.active and loc.active:
+        # consumables are kept in locations too (2026-11-27): oil / rice still here would be stranded
+        from .consumables import _quantity_categories, all_batches
+        cats = _quantity_categories(db)
+        every = all_batches(db, cats)
+        held = [(c, sum((b["left"] for b in every[c.id] if b["location_id"] == lid and b["left"] > 0), Decimal("0")))
+                for c in cats]
+        what = ", ".join(f"{_qty(q)} {c.unit or ''} of {c.name}".replace("  ", " ") for c, q in held if q > 0)
+        if what:
+            raise HTTPException(409, f"{what} still kept here — move it before deactivating.")
     name = body.name.strip()
     if db.query(StoreLocation).filter(func.lower(StoreLocation.name) == name.lower(), StoreLocation.id != lid).first():
         raise HTTPException(409, "A location with this name already exists.")
@@ -514,12 +614,12 @@ def _source_obj(db: Session, source_type: str, source_id: int):
         return h, None
     m = db.get(ManualStockEntry, source_id)
     if not m:
-        raise HTTPException(404, "Manual entry not found")
+        raise HTTPException(404, "Purchased item entry not found")
     cat = db.get(DonationCategory, m.category_id)
     if not cat or cat.tracking != "Tagged":
         raise HTTPException(422, "This entry is a quantity item — it is counted under Consumables Stock, not tagged.")
     if m.status != "Verified":
-        raise HTTPException(409, "A manual entry is tagged only after a committee member verifies it.")
+        raise HTTPException(409, "A purchased item entry is tagged only after a committee member verifies it.")
     return m, cat
 
 
@@ -563,8 +663,9 @@ def _pending_donations(db: Session, tagged: dict) -> list[dict]:
     cutoff = receive_cutoff(db)
     recs = _receipt_rows(db, [d.id for d in dons if needs_receiving(d, cutoff)])
     done = {did: (n, Decimal(str(w or 0))) for did, n, w in db.query(
-        StockItem.donation_id, func.count(StockItem.id), func.sum(StockItem.weight_g))
-        .filter(StockItem.donation_id.in_([d.id for d in dons])).group_by(StockItem.donation_id).all()}
+        StockItem.donation_id, func.sum(StockItem.tagged_pieces), func.sum(StockItem.weight_g))
+        .filter(StockItem.donation_id.in_([d.id for d in dons]), StockItem.bundle_id.is_(None))
+        .group_by(StockItem.donation_id).all()}
     names = dict(db.query(User.username, User.name).filter(
         User.username.in_({d.created_by for d in dons if d.created_by} or {""})).all())
     out = []
@@ -602,6 +703,7 @@ def pending_tagging(db: Session = Depends(get_db), user=Depends(read)):
     tagged = {c.name: c for c in db.query(DonationCategory).filter(DonationCategory.type == "Material",
                                                                    DonationCategory.tracking == "Tagged").all()}
     out = _pending_donations(db, tagged) if tagged else []
+    out += _pending_consumables(db)             # oil, rice… waiting to be received (2026-11-27)
     hundis = (db.query(HundiCollection).filter(HundiCollection.verification_status == "Verified",
                                                HundiCollection.valuables_status == "In Store")
               .order_by(HundiCollection.id.desc()).all())
@@ -635,18 +737,17 @@ def untagged_donations(db: Session, day: date | None = None) -> list[dict]:
     grouped query for the tagging done so far (used by the sidebar badge and Daily Closing)."""
     cats = {c.name: c for c in db.query(DonationCategory).filter(DonationCategory.type == "Material",
                                                                  DonationCategory.tracking == "Tagged").all()}
-    if not cats:
-        return []
     q = db.query(Donation).filter(Donation.donation_type == "Material", Donation.voided.isnot(True),
-                                  Donation.fund.in_(list(cats)))
+                                  Donation.fund.in_(list(cats) or [""]))
     if day:
         q = q.filter(Donation.donated_on == day)
     dons = q.all()
     cutoff = receive_cutoff(db)
     recs = _receipt_rows(db, [d.id for d in dons if needs_receiving(d, cutoff)])
     done = {did: (n, Decimal(str(w or 0))) for did, n, w in db.query(
-        StockItem.donation_id, func.count(StockItem.id), func.sum(StockItem.weight_g))
-        .filter(StockItem.donation_id.in_([d.id for d in dons] or [0])).group_by(StockItem.donation_id).all()}
+        StockItem.donation_id, func.sum(StockItem.tagged_pieces), func.sum(StockItem.weight_g))
+        .filter(StockItem.donation_id.in_([d.id for d in dons] or [0]), StockItem.bundle_id.is_(None))
+        .group_by(StockItem.donation_id).all()}
     out = []
     for d in dons:
         n, grams = done.get(d.id, (0, Decimal("0")))
@@ -659,13 +760,20 @@ def untagged_donations(db: Session, day: date | None = None) -> list[dict]:
             out.append({"source_id": d.id, "receipt_no": d.receipt_no, "donor_name": d.donor_name, "item_name": d.fund,
                         "quantity": float(need), "unit": d.unit, "tagged": float(grams) if weight else n,
                         "mode": "weight" if weight else "count"})
+    # Consumables not yet received at the store (or short): "tagged" is what the store received
+    for c in _pending_consumables(db):
+        if day and c["date"] != str(day):
+            continue
+        out.append({"source_id": c["source_id"], "receipt_no": c["source_ref"], "donor_name": c["donor_name"],
+                    "item_name": c["item_name"], "quantity": c["quantity"], "unit": c["unit"],
+                    "tagged": c["progress"]["done"], "mode": "quantity"})
     return out
 
 
 @router.get("/pending/count")
 def pending_count(db: Session = Depends(get_db), user=Depends(read)):
     """How many sources still wait for tagging (or receiving) — cheap enough for the sidebar badge."""
-    n = len(untagged_donations(db))
+    n = len(untagged_donations(db))           # includes consumables still to be received
     hundis = db.query(HundiCollection).filter(HundiCollection.verification_status == "Verified",
                                               HundiCollection.valuables_status == "In Store").all()
     from collections import defaultdict
@@ -705,16 +813,20 @@ def unsold_items(category_id: int | None = None, db: Session = Depends(get_db), 
     items = q.order_by(StockItem.unsold_count.desc(), StockItem.tag_id).all()
     # Base price the piece was last offered at, from its latest lot
     last = {}
+    # a bundle's unsold pieces went back into it: its last base comes from its parts' lot lines (per piece)
+    part_of = {pid: rid for pid, rid in db.query(StockItem.id, StockItem.bundle_id)
+               .filter(StockItem.bundle_id.in_([i.id for i in items] or [0])).all()}
     for ap, code in (db.query(AuctionPiece, Auction.code).join(Auction, Auction.id == AuctionPiece.auction_id)
-                     .filter(AuctionPiece.stock_item_id.in_([i.id for i in items] or [0])).order_by(AuctionPiece.id).all()):
-        last[ap.stock_item_id] = float(ap.base_price)
+                     .filter(AuctionPiece.stock_item_id.in_([i.id for i in items] + list(part_of) or [0]))
+                     .order_by(AuctionPiece.id).all()):
+        last[part_of.get(ap.stock_item_id, ap.stock_item_id)] = float(ap.base_price) / (ap.pieces or 1)
     names, codes = _loc_names(db), donation_codes(db, items)
     return {"items": [{**_item_dict(i, names, codes), "last_base_price": last.get(i.id)} for i in items]}
 
 
 @router.get("/unsold/count")
 def unsold_count(db: Session = Depends(get_db), user=Depends(read)):
-    return {"total": _unsold_query(db).count()}
+    return {"total": int(_unsold_query(db).with_entities(func.coalesce(func.sum(StockItem.pieces), 0)).scalar() or 0)}
 
 
 @router.get("/source/{source_type}/{source_id}")
@@ -756,6 +868,8 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
         raise HTTPException(409, "Receive this receipt at the store first — count what actually arrived, then tag.")
     if body.source_type in ("Donation", "Manual"):
         weight = _is_weight(cat.unit)
+        if weight and any(r.pieces > 1 for r in body.rows):
+            raise HTTPException(422, "Gold / silver is tagged one piece at a time, by weight — not as a bundle.")
         if weight:
             if any(r.weight_g is None for r in body.rows):
                 raise HTTPException(422, "Enter the weight (g) of every piece.")
@@ -765,11 +879,13 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
                 raise HTTPException(422, f"Only {_qty(left)} g is left to tag — these pieces weigh {_qty(adding)} g.")
         else:
             left = int(Decimal(str(progress["needed"]))) - int(progress["done"])
-            if len(body.rows) > left:
+            if sum(r.pieces for r in body.rows) > left:        # a bundle row counts all its pieces
                 raise HTTPException(422, f"Only {left} piece(s) are left to tag for this receipt"
                                          + (" (as received at the store)." if progress.get("receive") else "."))
         cats = {None: cat}
     else:
+        if any(r.pieces > 1 for r in body.rows):
+            raise HTTPException(422, "Hundi valuables are tagged one piece at a time — not as a bundle.")
         lines = {l["line_id"]: l for l in progress["lines"]}
         cats = {}
         adding_by_line: dict[int, Decimal] = {}
@@ -819,6 +935,7 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
         e = piece_value(src) if src is not None and body.source_type != "Manual" else None
         if e is None:
             continue
+        e = e * r.pieces                                   # a bundle's value is all its pieces' share
         expected[n] = e
         if r.est_value is None:
             r.est_value = e
@@ -831,14 +948,16 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
         item = StockItem(tag_id=_next_tag(db, c.id_prefix), category_id=c.id, item_name=c.name,
                          description=(r.description or "").strip() or None, details=(r.details or "").strip() or None,
                          weight_g=r.weight_g, purity=None,
-                         est_value=r.est_value if r.est_value is not None else c.default_value,
+                         est_value=r.est_value if r.est_value is not None
+                         else (c.default_value * r.pieces if c.default_value is not None else None),
                          location_id=r.location_id, status="In Store" if r.location_id else AWAITING,
-                         hundi_line_id=r.hundi_line_id, **common)
+                         hundi_line_id=r.hundi_line_id, pieces=r.pieces, tagged_pieces=r.pieces, **common)
         db.add(item); db.flush()
+        bundle = f"Bundle of {r.pieces} — " if r.pieces > 1 else ""
         if r.location_id:
-            _move(db, item, user, "Tagged", f"From {item.source_ref} ({item.donor_name}) — placed in {locations[r.location_id].name}")
+            _move(db, item, user, "Tagged", f"{bundle}From {item.source_ref} ({item.donor_name}) — placed in {locations[r.location_id].name}")
         else:
-            _move(db, item, user, TAGGED_UNPLACED, f"From {item.source_ref} ({item.donor_name})")
+            _move(db, item, user, TAGGED_UNPLACED, f"{bundle}From {item.source_ref} ({item.donor_name})")
         e = expected.get(n)
         if e is not None and item.est_value is not None and abs(Decimal(str(item.est_value)) - e) >= 1:
             _move(db, item, user, VALUE_SET, f"₹{_qty(item.est_value)} instead of ₹{_qty(e)} (receipt value) — "
@@ -846,7 +965,7 @@ def tag_items(body: TagIn, request: Request, db: Session = Depends(get_db), user
         created.append(item)
     db.commit()
     log_action(db, username=user.username, action="CREATE", entity="StockItem",
-               detail=f"Tagged {len(created)} piece(s) from {common['source_ref']}: "
+               detail=f"Tagged {sum(i.pieces for i in created)} piece(s) from {common['source_ref']}: "
                       f"{created[0].tag_id}…{created[-1].tag_id}", ip=client_ip(request))
     names = _loc_names(db)
     codes = donation_codes(db, created)
@@ -863,7 +982,7 @@ def list_items(q: str = "", category_id: int | None = None, status: str = "", lo
     """origin: Donated (counter / hundi) · Bought (with a shop bill) · Other (opening / old stock).
     order=deity_first: by ID — the auction pick list."""
     page, size = validate_pagination(page, size)
-    query = db.query(StockItem)
+    query = db.query(StockItem).filter(StockItem.status != MERGED)   # a part back in its bundle is only history
     if q:
         like = f"%{q.strip()}%"
         query = query.filter(or_(StockItem.tag_id.ilike(like), StockItem.donor_name.ilike(like),
@@ -938,8 +1057,8 @@ def _attach_came_from(db: Session, out: list[dict], rows: list[StockItem]) -> No
 def items_by_type(location_id: int | None = None, origin: str = "", db: Session = Depends(get_db), user=Depends(read)):
     """Stock Register "By item" (2026-11-16): how many pieces of each item type are in store, issued,
     in auction / Open Sale, missing — in hand in all — and how many have gone out; grams for gold / silver."""
-    q = db.query(StockItem.category_id, StockItem.item_name, StockItem.status, func.count(StockItem.id),
-                 func.coalesce(func.sum(StockItem.weight_g), 0), func.coalesce(func.sum(StockItem.est_value), 0))
+    q = db.query(StockItem.category_id, StockItem.item_name, StockItem.status, func.coalesce(func.sum(StockItem.pieces), 0),
+                 func.coalesce(func.sum(StockItem.weight_g), 0), func.coalesce(func.sum(StockItem.est_value), 0)).filter(StockItem.status != MERGED)
     if location_id:
         q = q.filter(StockItem.location_id == location_id)
     bought = select(ManualStockEntry.id).where(ManualStockEntry.source == BOUGHT_SOURCE)
@@ -996,8 +1115,8 @@ def _attach_issue_and_missing(db: Session, rows: list[dict]) -> None:
 @router.get("/summary")
 def summary(category_id: int | None = None, db: Session = Depends(get_db), user=Depends(read)):
     """Counts and values per status. Received must always equal the sum of the statuses."""
-    q = db.query(StockItem.status, func.count(StockItem.id), func.coalesce(func.sum(StockItem.est_value), 0),
-                 func.coalesce(func.sum(StockItem.sold_amount), 0))
+    q = db.query(StockItem.status, func.coalesce(func.sum(StockItem.pieces), 0), func.coalesce(func.sum(StockItem.est_value), 0),
+                 func.coalesce(func.sum(StockItem.sold_amount), 0)).filter(StockItem.status != MERGED)
     if category_id:
         q = q.filter(StockItem.category_id == category_id)
     by = {s: {"count": 0, "est_value": 0.0, "sold_amount": 0.0} for s in STATUSES}
@@ -1007,7 +1126,7 @@ def summary(category_id: int | None = None, db: Session = Depends(get_db), user=
     received = sum(v["count"] for v in by.values())
     pending_manual = db.query(func.count(ManualStockEntry.id)).filter(
         ManualStockEntry.status == "Pending Verification").scalar() or 0
-    deity = db.query(func.count(StockItem.id)).filter(StockItem.deity_used.is_(True), StockItem.status == "In Store")
+    deity = db.query(func.coalesce(func.sum(StockItem.pieces), 0)).filter(StockItem.deity_used.is_(True), StockItem.status == "In Store")
     if category_id:
         deity = deity.filter(StockItem.category_id == category_id)
     return {"received": received, "by_status": by,
@@ -1018,7 +1137,7 @@ def summary(category_id: int | None = None, db: Session = Depends(get_db), user=
 @router.get("/deity-used/summary")
 def deity_used_summary(category_id: int | None = None, db: Session = Depends(get_db), user=Depends(read)):
     """Deity-Used Items screen tiles: pieces per status with their estimated / sold value."""
-    q = (db.query(StockItem.status, func.count(StockItem.id), func.coalesce(func.sum(StockItem.est_value), 0),
+    q = (db.query(StockItem.status, func.coalesce(func.sum(StockItem.pieces), 0), func.coalesce(func.sum(StockItem.est_value), 0),
                   func.coalesce(func.sum(StockItem.sold_amount), 0)).filter(StockItem.deity_used.is_(True)))
     if category_id:
         q = q.filter(StockItem.category_id == category_id)
@@ -1093,7 +1212,7 @@ class CorrectIn(BaseModel):
     description: str | None = Field(default=None, max_length=200)
     details: str | None = Field(default=None, max_length=120)
     weight_g: Decimal | None = Field(default=None, gt=0, le=1000000)
-    est_value: Decimal | None = Field(default=None, ge=0, le=100000000)
+    est_value: Decimal | None = Field(default=None, ge=0, le=100000000)   # ignored: the value comes from the receipt
     reason: str = Field(..., max_length=300)
 
     @field_validator("reason")
@@ -1108,8 +1227,9 @@ class CorrectIn(BaseModel):
 @router.put("/items/{iid}/correct")
 def correct_item(iid: int, body: CorrectIn, request: Request, db: Session = Depends(get_db),
                  user=Depends(RequireRole(STORES_OFFICER))):
-    """Correct a piece's description, size / colour, weight or value — with the reason,
-    kept in its history. Weight never goes beyond what its receipt / hundi line received."""
+    """Correct a piece's description, size / colour or weight — with the reason, kept in its history.
+    Weight never goes beyond what its receipt / hundi line received. The value is not corrected here
+    (client, 2026-11-27): it comes from the receipt, so the store cannot change a money figure alone."""
     item = db.query(StockItem).filter(StockItem.id == iid).with_for_update().first()
     if not item:
         raise HTTPException(404, "Item not found")
@@ -1117,7 +1237,7 @@ def correct_item(iid: int, body: CorrectIn, request: Request, db: Session = Depe
         raise HTTPException(409, f"{item.tag_id} is {item.status.lower()} — its details can no longer be corrected.")
     clean = lambda x: (x or "").strip() or None
     new = {"description": clean(body.description), "details": clean(body.details),     # no purity (client, 2026-11-20)
-           "weight_g": body.weight_g if item.weight_g is not None else None, "est_value": body.est_value}
+           "weight_g": body.weight_g if item.weight_g is not None else None}
     if item.weight_g is not None and body.weight_g is None:
         raise HTTPException(422, "Enter the weight (g).")
     labels = CORRECT_LABELS
@@ -1260,6 +1380,111 @@ def mark_deity_used(db: Session, item: StockItem, user, note: str) -> None:
     _move(db, item, user, ACT_DEITY_ON, f"Used for {note}")
 
 
+# ── Bundles: take pieces out, put them back (2026-11-27) ─────────────────────
+# One tag for several pieces (PAN-00041 = 8 panchas). Taking some out makes a *part* (PAN-00041/1, no
+# sticker of its own) that moves like any single piece — issued, sold, auctioned, written off. Back in the
+# store a part goes into its bundle again; the bundle itself always stays on its shelf.
+ACT_TAKEN, ACT_PART, ACT_BACK, ACT_INTO = "Pieces taken out", "Taken out of bundle", "Pieces back", "Back in bundle"
+
+
+def is_bundle(item: StockItem) -> bool:
+    return (item.tagged_pieces or 1) > 1 and item.bundle_id is None
+
+
+def _share(value, n: int, of: int):
+    if value is None or not of:
+        return None
+    return (Decimal(str(value)) * n / of).quantize(Decimal("0.01"))
+
+
+def take_pieces(db: Session, item: StockItem, n: int | None, user, why: str) -> StockItem:
+    """n pieces of `item` for an issue / sale / write-off… Returns the record that moves: the item itself
+    (a single piece, or a part taken whole), or a new part holding the n pieces. A bundle never moves —
+    even "all 8" leaves it on its shelf with 0, so the pieces can come back into it."""
+    have = item.pieces if item.pieces is not None else 1
+    n = have if n is None else int(n)
+    if have < 1:
+        raise HTTPException(409, f"{item.tag_id}: no pieces left in this bundle — reload the list.")
+    if n < 1 or n > have:
+        raise HTTPException(422, f"{item.tag_id}: only {have} piece(s) here — take 1 to {have}.")
+    if not is_bundle(item) and n == have:
+        return item
+    root = item if item.bundle_id is None else db.get(StockItem, item.bundle_id)
+    seq = db.query(func.count(StockItem.id)).filter(StockItem.bundle_id == root.id).scalar() or 0
+    part = StockItem(tag_id=f"{root.tag_id}/{seq + 1}", category_id=item.category_id, item_name=item.item_name,
+                     description=item.description, details=item.details, est_value=_share(item.est_value, n, have),
+                     location_id=item.location_id, status=item.status, source_type=item.source_type,
+                     source_ref=item.source_ref, donation_id=item.donation_id, manual_entry_id=item.manual_entry_id,
+                     donor_name=item.donor_name, donor_mobile=item.donor_mobile, received_on=item.received_on,
+                     open_sale_price=item.open_sale_price, open_sale_by=item.open_sale_by, open_sale_at=item.open_sale_at,
+                     unsold_count=item.unsold_count or 0, last_auction_code=item.last_auction_code,
+                     deity_used=item.deity_used, deity_used_note=item.deity_used_note,
+                     pieces=n, tagged_pieces=n, bundle_id=root.id, created_by=user.username)
+    db.add(part); db.flush()
+    if item.est_value is not None:
+        item.est_value = Decimal(str(item.est_value)) - (part.est_value or 0)
+    item.pieces = have - n
+    _move(db, item, user, ACT_TAKEN, f"{n} of {have} → {part.tag_id} — {why}")
+    _move(db, part, user, ACT_PART, f"{n} piece(s) from {item.tag_id} — {why}")
+    return part
+
+
+def merge_back(db: Session, part: StockItem, user, why: str) -> StockItem:
+    """A part back In Store goes into its bundle again (on the bundle's shelf). Returns the bundle."""
+    if not part.bundle_id or part.status != "In Store":
+        return part
+    root = db.query(StockItem).filter(StockItem.id == part.bundle_id).with_for_update().first()
+    if root is None:
+        return part
+    n = part.pieces or 0
+    root.pieces = (root.pieces or 0) + n
+    if part.est_value is not None:
+        root.est_value = Decimal(str(root.est_value or 0)) + Decimal(str(part.est_value))
+    if root.status == USED_UP:
+        root.status = "In Store"
+    if part.deity_used and not root.deity_used:
+        root.deity_used, root.deity_used_note = True, part.deity_used_note
+    if part.unsold_count:                    # back unsold from an auction: the bundle may go to Open Sale
+        root.unsold_count = max(root.unsold_count or 0, part.unsold_count)
+        root.last_auction_code = part.last_auction_code or root.last_auction_code
+    _move(db, root, user, ACT_BACK, f"{n} back from {part.tag_id} — {why}")
+    _move(db, part, user, ACT_INTO, f"into {root.tag_id}")
+    part.status, part.pieces, part.est_value, part.location_id = MERGED, 0, Decimal("0"), root.location_id
+    return root
+
+
+def unmerge(db: Session, part: StockItem, user, why: str) -> StockItem:
+    """Undo a merge (an auction result corrected): the part takes its pieces out of the bundle again."""
+    if part.status != MERGED:
+        return part
+    root = db.query(StockItem).filter(StockItem.id == part.bundle_id).with_for_update().first()
+    n = part.tagged_pieces or 1
+    if root is None or (root.pieces or 0) < n:
+        raise HTTPException(409, f"{part.tag_id}: its pieces are no longer all in bundle "
+                                 f"{root.tag_id if root else ''} — the result cannot be corrected.")
+    value = _share(root.est_value, n, root.pieces)
+    root.pieces -= n
+    if value is not None:
+        root.est_value = Decimal(str(root.est_value)) - value
+    part.pieces, part.est_value, part.status = n, value, "In Store"
+    _move(db, root, user, ACT_TAKEN, f"{n} of {root.pieces + n} → {part.tag_id} — {why}")
+    _move(db, part, user, ACT_PART, f"{n} piece(s) from {root.tag_id} — {why}")
+    return part
+
+
+def settle_bundle(db: Session, item: StockItem, user) -> None:
+    """After pieces left for good (sold, kept, written off): a bundle with nothing on the shelf and
+    nothing out is Used Up."""
+    root = db.get(StockItem, item.bundle_id) if item.bundle_id else item
+    if root is None or not is_bundle(root) or (root.pieces or 0) > 0 or root.status != "In Store":
+        return
+    out = (db.query(func.count(StockItem.id))
+           .filter(StockItem.bundle_id == root.id, StockItem.status.in_(IN_HAND)).scalar() or 0)
+    if not out:
+        root.status = USED_UP
+        _move(db, root, user, USED_UP, "Every piece of this bundle has gone out")
+
+
 @router.put("/items/{iid}/deity-used")
 def set_deity_used(iid: int, body: DeityUsedIn, request: Request, db: Session = Depends(get_db),
                    user=Depends(RequireRole(STORES_OFFICER))):
@@ -1287,7 +1512,7 @@ def set_deity_used(iid: int, body: DeityUsedIn, request: Request, db: Session = 
 
 @router.post("/items/place")
 def place_items(body: PlaceIn, request: Request, db: Session = Depends(get_db),
-                user=Depends(RequireRole("Counter Staff", STORES_OFFICER))):
+                user=Depends(write)):
     """Put tagged pieces that are Awaiting Placement on a shelf: they become In Store at the
     chosen location, and each piece's history records who placed it, where and when.
     Several pieces may be placed in one location at once."""
@@ -1315,11 +1540,11 @@ def place_items(body: PlaceIn, request: Request, db: Session = Depends(get_db),
 @router.get("/awaiting/count")
 def awaiting_count(db: Session = Depends(get_db), user=Depends(read)):
     """Pieces tagged but not yet placed — for the sidebar badge and the Stores Overview."""
-    return {"total": db.query(func.count(StockItem.id)).filter(StockItem.status == AWAITING).scalar() or 0}
+    return {"total": db.query(func.coalesce(func.sum(StockItem.pieces), 0)).filter(StockItem.status == AWAITING).scalar() or 0}
 
 
 @router.post("/items/{iid}/write-off")
-def write_off(iid: int, body: ReasonIn, request: Request, db: Session = Depends(get_db),
+def write_off(iid: int, body: WriteOffIn, request: Request, db: Session = Depends(get_db),
               user=Depends(RequireRole(STORES_OFFICER))):
     """Ask to write a damaged piece off (Stores Officer / Administrator, reason mandatory, 2026-11-15).
     Nobody writes a piece off alone: it waits as Write-off Requested until a Committee member — never
@@ -1333,13 +1558,16 @@ def write_off(iid: int, body: ReasonIn, request: Request, db: Session = Depends(
         raise HTTPException(409, f"{item.tag_id} is in Open Sale — the Committee takes it back to the store first.")
     if item.status not in ("In Store", AWAITING):
         raise HTTPException(409, f"Only a piece in store can be written off (this one is {item.status}).")
+    # a bundle: only the damaged pieces wait for the write-off (1 torn pancha of 8); the rest stay in it
+    item = take_pieces(db, item, getattr(body, "pieces", None), user, "write-off asked")
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     case = MissingCase(stock_item_id=item.id, tag_id=item.tag_id, kind="Damaged", location_id=item.location_id,
                        status="Write-off requested", missing_since=now, reported_by=_who(user),
                        reported_by_user=user.username, reported_at=now, report_reason=body.reason)
     db.add(case)
     item.status = WRITEOFF_REQ
-    _move(db, item, user, "Write-off requested", f"Damaged — {body.reason}")
+    _move(db, item, user, "Write-off requested", f"Damaged — {body.reason}"
+          + (f" · {item.pieces} pieces" if item.bundle_id else ""))
     db.commit()
     from ..staff_alerts import stores_alert
     stores_alert(db, "write_off", entity="MissingCase", entity_id=case.id, actor=user,
@@ -1431,7 +1659,7 @@ def create_manual(body: ManualIn, request: Request, db: Session = Depends(get_db
     seq = next_code_seq(db, "manual_stock", db.query(func.max(ManualStockEntry.id)).scalar() or 0)
     m = ManualStockEntry(code=f"MSE-{seq:04d}", category_id=cat.id, item_name=cat.name, quantity=body.quantity,
                          unit=cat.unit, source=body.source, donor_name=(body.donor_name or "").strip() or None,
-                         donor_mobile=(body.donor_mobile or "").strip() or None, location_id=body.location_id,
+                         donor_mobile=clean_mobile(body.donor_mobile), location_id=body.location_id,
                          reason=reason, expiry_date=body.expiry_date, created_by=user.username,
                          shop_name=body.shop_name, bill_no=body.bill_no,
                          bill_date=(body.bill_date or ist_today()) if with_bill else body.bill_date,
@@ -1468,7 +1696,7 @@ def _stock_category(db: Session, category_id: int, quantity: Decimal, location_i
 def _pending_manual(db: Session, mid: int, user) -> ManualStockEntry:
     m = db.get(ManualStockEntry, mid)
     if not m:
-        raise HTTPException(404, "Manual entry not found")
+        raise HTTPException(404, "Purchased item entry not found")
     if m.status != "Pending Verification":
         raise HTTPException(409, f"This entry is already {m.status.lower()}.")
     if m.created_by == user.username:

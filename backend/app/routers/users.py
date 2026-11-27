@@ -8,6 +8,7 @@ from ..database import get_db
 from ..models import User, Role, Setting, Poojari, CommitteeMember
 from ..schemas import UserCreate, UserUpdate, UserOut
 from ..security import hash_password, require_admin, log_action, client_ip, MODULES
+from ..helpers import clean_mobile  # mobile / email format (2026-11-26)
 from sqlalchemy import func
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -87,7 +88,7 @@ def create_user(body: UserCreate, request: Request,
         modules = [m for m in ((r.modules if r else "") or "").split(",") if m]
     u = User(
         poojari_id=poojari_id, committee_member_id=committee_member_id,
-        name=body.name, name_te=body.name_te, username=username, email=body.email, mobile=body.mobile,
+        name=body.name, name_te=body.name_te, username=username, email=body.email, mobile=clean_mobile(body.mobile),
         employee_id=emp, role=role, is_active=body.is_active,
         modules=",".join(modules), password_hash=hash_password(body.password),
         twofa_enabled=body.twofa_enabled,
@@ -140,6 +141,8 @@ def update_user(uid: int, body: UserUpdate, request: Request,
     if not u:
         raise HTTPException(404, "User not found")
     data = body.model_dump(exclude_unset=True)
+    if "mobile" in data:
+        data["mobile"] = clean_mobile(data["mobile"])
     if "password" in data and data["password"]:
         u.password_hash = hash_password(data.pop("password"))
         u.must_change_password = True  # Force password change after admin reset

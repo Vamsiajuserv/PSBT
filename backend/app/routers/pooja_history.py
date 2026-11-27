@@ -44,6 +44,7 @@ def _row(b: Booking) -> dict:
         "perform_dates": b.perform_dates,   # Yearly plans: the pooja dates fixed at booking
         "time_slot": b.time_slot,
         "valid_until": str(b.valid_until) if b.valid_until else None,
+        "festival_id": b.festival_id,       # a festival plan ends with its festival (ticket note)
         "amount": float(b.amount or 0),
         "ticket_no": b.ticket_no or b.receipt_no,
         "receipt_no": b.receipt_no,

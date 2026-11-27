@@ -25,7 +25,9 @@ from ..models import DonationCategory, ManualStockEntry, StoreLocation, StoresDa
 from ..security import RequireModule, RequireRole, require_admin, log_action, client_ip, STORES_OFFICER
 from .stock_report import _piece_histories, _quantity_rows
 from .stores import (PLACED, TAGGED_UNPLACED, ACT_ISSUED, ACT_KEPT, ACT_RETURNED, ACT_MISSING, ACT_FOUND, _who, pending_count,
-                     receive_counts, donation_codes)
+                     receive_counts, donation_codes, ACT_TAKEN, ACT_PART, ACT_BACK, ACT_INTO)
+
+BUNDLE_MOVES = (ACT_TAKEN, ACT_PART, ACT_BACK, ACT_INTO)   # pieces between a bundle and its parts: not in / out
 
 router = APIRouter(prefix="/api/stores/day-closing", tags=["stores-day-closing"])
 read = RequireModule("Stores")
@@ -34,41 +36,6 @@ closer = RequireRole(STORES_OFFICER)          # Stores Officer + Administrator
 
 SHELF = ("store", "open")                     # physically on a store shelf (as Stock Check counts)
 SOLD_ACTIONS = ("Sold", "Sold (Open Sale)")
-
-
-def next_state(state: str | None, action: str) -> str | None:
-    """One step of a piece's life, the same transitions the Stock Report replays."""
-    if action == "Tagged":
-        return "store"
-    if action == TAGGED_UNPLACED:
-        return "awaiting"
-    if action == PLACED and state == "awaiting":
-        return "store"
-    if action == ACT_ISSUED and state == "store":
-        return "issued"
-    if action == ACT_RETURNED and state == "issued":
-        return "store"
-    if action == ACT_MISSING and state in ("store", "open"):
-        return "missing"
-    if action == ACT_FOUND and state == "missing":
-        return "store"
-    if action == "Put in auction" and state == "store":
-        return "auction"
-    if action == "Unsold" and state == "auction":
-        return "store"
-    if action == "Sold" and state in ("store", "auction"):
-        return "sold"
-    if action == "Moved to Open Sale" and state == "store":
-        return "open"
-    if action == "Sold (Open Sale)" and state == "open":
-        return "sold"
-    if action == "Written off" and state in ("awaiting", "store", "auction", "open", "missing"):
-        return "out"
-    if action == ACT_KEPT and state == "issued":       # kept by the poojari: leaves stock
-        return "out"
-    if action == "Back to store" and state in ("sold", "auction", "open"):
-        return "store"
-    return state
 
 
 def location_after(action: str, detail: str | None) -> str | None:
@@ -104,62 +71,62 @@ def build_day(db: Session, day: date, user=None) -> dict:
 
     for iid, item in items.items():
         state = where = None
+        n = 0                                          # pieces this record holds (a bundle of 8 → 8)
         fallback = current.get(item.location_id)      # for a history that never names its location
         start = None
         tagged_today = False
-        for ev_day, action, detail, _by, _at in events.get(iid, []):
+        for ev_day, action, detail, _by, _at, k, new in events.get(iid, []):
             if ev_day is None or ev_day > day:
                 break
             if ev_day == day and start is None:
-                start = (state, where)
-            new = next_state(state, action)
+                start = (state, where, n)
             new_where = location_after(action, detail) or where or (fallback if new in SHELF else None)
-            if ev_day == day:
+            if ev_day == day and action not in BUNDLE_MOVES:
                 on_before, on_after = state in SHELF, new in SHELF
                 if on_before and on_after and new_where != where:
-                    locs[where]["moved_out"] += 1
-                    locs[new_where]["moved_in"] += 1
+                    locs[where]["moved_out"] += k
+                    locs[new_where]["moved_in"] += k
                 elif not on_before and on_after:
                     col = ("placed_in" if action in ("Tagged", PLACED) else
                            "back_from_issue" if action == ACT_RETURNED else "returned")
-                    locs[new_where][col] += 1
+                    locs[new_where][col] += k
                 elif on_before and not on_after:
-                    locs[where]["issued_out" if action == ACT_ISSUED else "left"] += 1
+                    locs[where]["issued_out" if action == ACT_ISSUED else "left"] += k
                 if action in ("Tagged", TAGGED_UNPLACED):
-                    kpis["received"] += 1
+                    kpis["received"] += k
                     tagged_today = True
                     g = received.setdefault(item.source_ref or "—", {
                         "source_type": item.source_type, "source_ref": item.source_ref,
                         "donation_code": codes.get(item.donation_id), "donor_name": item.donor_name,
                         "item_name": item.item_name, "tagged": 0, "placed": 0})
-                    g["tagged"] += 1
+                    g["tagged"] += k
                 if action in ("Tagged", PLACED) and new in SHELF:
-                    kpis["placed"] += 1
+                    kpis["placed"] += k
                 if action == "Moved" and new_where != where:
-                    kpis["moved"] += 1
+                    kpis["moved"] += k
                 if new == "sold" and state != "sold" and action in SOLD_ACTIONS:
-                    kpis["sold"] += 1
+                    kpis["sold"] += k
                 if new == "out" and state != "out":
                     if action == ACT_KEPT:      # kept by the poojari after use — its own figure (2026-11-15);
-                        kpis["kept"] = kpis.get("kept", 0) + 1   # only on days that had one, so older
+                        kpis["kept"] = kpis.get("kept", 0) + k   # only on days that had one, so older
                     else:                                        # signed closings stay unchanged
-                        kpis["written_off"] += 1
+                        kpis["written_off"] += k
                 if action == ACT_ISSUED and new == "issued" and state != "issued":
-                    kpis["issued"] += 1
+                    kpis["issued"] += k
                 if action == ACT_RETURNED and state == "issued":
-                    kpis["returned"] += 1
-            state, where = new, new_where
-        s0, w0 = start if start is not None else (state, where)   # nothing today: the day starts as it ends
+                    kpis["returned"] += k
+            state, where, n = new, new_where, k
+        s0, w0, n0 = start if start is not None else (state, where, n)   # nothing today: the day starts as it ends
         if s0 in SHELF:
-            locs[w0]["opening"] += 1
+            locs[w0]["opening"] += n0
         if state in SHELF:
-            locs[where]["closing"] += 1
-        unplaced_open += s0 == "awaiting"
-        kpis["unplaced"] += state == "awaiting"
-        kpis["out_on_issue"] += state == "issued"
-        kpis["missing"] += state == "missing"
+            locs[where]["closing"] += n
+        unplaced_open += n0 * (s0 == "awaiting")
+        kpis["unplaced"] += n * (state == "awaiting")
+        kpis["out_on_issue"] += n * (state == "issued")
+        kpis["missing"] += n * (state == "missing")
         if tagged_today:
-            received[item.source_ref or "—"]["placed"] += state not in (None, "awaiting")
+            received[item.source_ref or "—"]["placed"] += (item.tagged_pieces or 1) * (state not in (None, "awaiting"))
 
     active = {l.name for l in db.query(StoreLocation).filter(StoreLocation.active.is_(True)).all()}
     rows = [{"location": name or "—", **locs.get(name, _blank_loc())}

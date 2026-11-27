@@ -414,6 +414,7 @@ class BookingOut(ORM):
     performances_done: Optional[int] = None
     last_performed_on: Optional[date] = None
     festival_id: Optional[int] = None
+    bill_no: Optional[str] = None          # one bill of several poojas — its QR verifies them all
     gothram: Optional[str] = None
     nakshatram: Optional[str] = None
     rasi: Optional[str] = None
@@ -620,6 +621,7 @@ class AuctionPieceOut(ORM):
     id: int
     stock_item_id: int
     tag_id: str
+    pieces: int = 1                     # a bundle's part: several pieces on one line (2026-11-27)
     base_price: Decimal
     result: str
     sale_id: Optional[int] = None
@@ -630,6 +632,8 @@ class AuctionSaleOut(ORM):
     id: int
     buyer_name: str
     buyer_mobile: Optional[str] = None
+    devotee_id: Optional[int] = None          # the buyer is a devotee (None = outsider)
+    devotee_code: Optional[str] = None
     amount: Decimal
     payment_status: str
     payment_mode: Optional[str] = None
@@ -644,6 +648,7 @@ class AuctionStockCreate(BaseModel):
     category_id: int
     piece_ids: list[int] = Field(..., min_length=1, max_length=500)
     base_price: Decimal = Field(..., gt=0, le=100000000)        # reserve price per piece
+    pieces: dict[int, int] = Field(default_factory=dict)      # bundles: how many of each (by id); left out = all
     auction_date: date
     start_time: str = Field(..., min_length=1, max_length=20)
     description: Optional[str] = Field(default=None, max_length=500)
@@ -653,6 +658,7 @@ class AuctionStockCreate(BaseModel):
 class LotLineIn(BaseModel):
     buyer_name: str = Field(..., min_length=1, max_length=120)
     buyer_mobile: Optional[str] = Field(default=None, max_length=20)
+    devotee_id: Optional[int] = None                           # picked from the devotee search (None = outsider)
     piece_ids: list[int] = Field(..., min_length=1)            # AuctionPiece ids
     amount: Decimal = Field(..., gt=0, le=100000000)
 
@@ -662,6 +668,8 @@ class LotLineIn(BaseModel):
         v = v.strip()
         if not v:
             raise ValueError("Enter the buyer's name.")
+        if not re.search(r"[^\W\d_]", v):              # digits only = a mobile typed into the name box
+            raise ValueError("Enter the buyer's name in letters — it goes on the receipt.")
         return v
 
 

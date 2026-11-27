@@ -302,7 +302,7 @@ export default function MasterScreen({ config }) {
                     </>
                   ) : f.type === 'email' ? (
                     <>
-                      <input type="email" className={`input ${fieldErrors[f.k] ? 'border-red-400' : ''}`}
+                      <input type="text" inputMode="email" autoComplete="email" className={`input ${fieldErrors[f.k] ? 'border-red-400' : ''}`}
                         placeholder={tr("Enter Email")} value={drawer.data[f.k] || ''} onChange={(e) => { clearFieldError(f.k); setD({ [f.k]: e.target.value }) }} />
                       {fieldErrors[f.k] && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors[f.k]}</div>}
                     </>

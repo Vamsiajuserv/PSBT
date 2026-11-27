@@ -120,11 +120,67 @@ def stats(db: Session = Depends(get_db), user=Depends(read)):
             "active_plans": active_plans, "life_long_plans": life_long, "categories": len(CATEGORIES)}
 
 
+SEASON_REMIND_DAYS = 30   # the Administrator switches a festival pooja on about a month before (client)
+
+
+def _seasons(db: Session) -> dict[int, dict]:
+    """Festival poojas: is their festival running, when is the next, when did the last one end — and
+    `over` when the pooja is still Active though no festival is running or due within a month, so the
+    Pooja Master can remind the Administrator to switch it off (client, 2026-11-26)."""
+    from ..helpers import ist_today
+    from ..models import Festival
+    today = ist_today()
+    out: dict[int, dict] = {}
+    fests = db.query(Festival).filter(Festival.status == "Active", Festival.start_date.isnot(None),
+                                      Festival.end_date.isnot(None)).all()
+    for f in fests:
+        for raw in (f.pooja_ids or "").split(","):
+            if not raw.strip().isdigit():
+                continue
+            d = out.setdefault(int(raw), {"running": False, "next_start": None, "last_end": None})
+            if f.start_date <= today <= f.end_date:
+                d["running"] = True
+            elif f.start_date > today and (d["next_start"] is None or f.start_date < d["next_start"]):
+                d["next_start"] = f.start_date
+            elif f.end_date < today and (d["last_end"] is None or f.end_date > d["last_end"]):
+                d["last_end"] = f.end_date
+    for d in out.values():
+        due_soon = d["next_start"] is not None and (d["next_start"] - today).days <= SEASON_REMIND_DAYS
+        d["over"] = not d["running"] and not due_soon and d["last_end"] is not None
+        d["next_start"] = str(d["next_start"]) if d["next_start"] else None
+        d["last_end"] = str(d["last_end"]) if d["last_end"] else None
+    return out
+
+
 @router.get("/admin")
 def list_admin(db: Session = Depends(get_db), user=Depends(read)):
     """All poojas (incl. inactive) with all plans — for the Pooja Master screen."""
     poojas = db.query(Pooja).order_by(Pooja.id.desc()).all()
-    return {"categories": CATEGORIES, "items": [_pooja_dict(p, all_plans=True) for p in poojas]}
+    seasons = _seasons(db)
+    items = []
+    for p in poojas:
+        row = _pooja_dict(p, all_plans=True)
+        if p.category == "Festival" and p.id in seasons:
+            row["season"] = {**seasons[p.id], "over": p.active and seasons[p.id]["over"]}
+        items.append(row)
+    return {"categories": CATEGORIES, "items": items}
+
+
+@router.put("/{pid}/active")
+def set_active(pid: int, body: dict, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    """One-click Active / Inactive from the Pooja Master list (client, 2026-11-26). An inactive pooja
+    leaves the Counter Billing and Advance Booking lists and cannot be booked; switched on again
+    before its season."""
+    p = db.get(Pooja, pid)
+    if not p:
+        raise HTTPException(404, "Pooja not found")
+    if "active" not in body:
+        raise HTTPException(422, "Say whether the pooja is active.")
+    p.active = bool(body["active"])
+    db.commit(); db.refresh(p)
+    log_action(db, username=user.username, action="UPDATE", entity="Pooja",
+               detail=f"{p.name} → {'Active' if p.active else 'Inactive'}", ip=client_ip(request))
+    return _pooja_dict(p, all_plans=True)
 
 
 @router.get("/grouped")
@@ -300,10 +356,10 @@ def list_all_plans(db: Session = Depends(get_db), user=Depends(committee_read)):
 @router.put("/plans/{plan_id}/committee-fee")
 def update_committee_fee(plan_id: int, body: dict, request: Request,
                          db: Session = Depends(get_db), user=Depends(committee_read)):
-    """Update fee for a committee-decided plan. Only Committee role can do this."""
-    # Verify user has Committee role
-    if user.role not in ("Admin", "Administrator", "Committee"):
-        raise HTTPException(403, "Only Committee members can update committee-decided prices.")
+    """Update fee for a committee-decided plan. The Administrator enters the price the committee gives
+    him (client, 2026-11-26 — the Committee role no longer has this screen)."""
+    if user.role not in ("Admin", "Administrator"):
+        raise HTTPException(403, "Only the Administrator can enter the festival price decided by the committee.")
 
     pl = db.get(PoojaPlan, plan_id)
     if not pl:

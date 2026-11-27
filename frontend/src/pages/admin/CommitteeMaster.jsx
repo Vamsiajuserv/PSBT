@@ -25,7 +25,7 @@ export default function CommitteeMaster() {
   const { user } = useAuth()
   const { lang } = useLang()
   const [tab, setTab] = useState('members')
-  const isCommittee = user?.role === 'Committee' || ['Admin', 'Administrator'].includes(user?.role)
+  const isCommittee = ['Admin', 'Administrator'].includes(user?.role)   // the Administrator enters festival prices
 
   return (
     <div>
@@ -291,7 +291,7 @@ function MembersTab() {
               </div>
               <div>
                 <label className="label"><T>Email</T></label>
-                <input type="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} placeholder={tr("Enter Email Address")} value={drawer.data.email || ''}
+                <input type="text" inputMode="email" autoComplete="email" className={`input ${fieldErrors.email ? 'border-red-400' : ''}`} placeholder={tr("Enter Email Address")} value={drawer.data.email || ''}
                   onChange={(e) => { setFieldErrors((p) => ({ ...p, email: null })); setDrawer({ ...drawer, data: { ...drawer.data, email: e.target.value } }) }} />
                 {fieldErrors.email && <div className="text-[0.7rem] text-red-500 mt-0.5">{fieldErrors.email}</div>}
               </div>

@@ -15,6 +15,7 @@ import { T, tr } from '../../i18n/LanguageContext.jsx'
 import { reportText } from '../../lib/reportText.js'
 import { useFilterParams } from '../../hooks/useUrlState.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import { guardExport } from '../../lib/exportGuard.js'
 
 // Calendar dates in the temple's time zone (IST). toISOString() is UTC, which
 // before 5:30 AM IST is still yesterday — and shifts local month-ends back a day.
@@ -54,8 +55,8 @@ export default function Reports() {
   const {
     start, setStart, end, setEnd, category, setCategory, report, setReport, rq, setRq,
   } = useFilterParams({
-    start: '', end: '', category: '', report: '', rq: '',
-  })
+    start: firstOfMonth(), end: today(), category: '', report: '', rq: '',   // opens on this month (2026-11-26)
+  }, { blankable: ['start', 'end'] })
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [loadErr, setLoadErr] = useState('')
@@ -169,10 +170,24 @@ export default function Reports() {
   function reset() { setStart(firstOfMonth()); setEnd(today()); setRq(''); setSorts([]); if (cats[0]) { setCategory(cats[0].key); setReport(cats[0].reports[0]) } }
 
   const [exporting, setExporting] = useState(false)
+  // Download first says what is taken (report, period, records); the file heading repeats it with who
+  // took it; the Audit Trail records it (client, 2026-11-26)
+  async function withHeading(format) {
+    const heading = await guardExport({ screen: tr(report || 'Report'), format,
+      start: start ? (result?.range?.start ?? start) : '', end: end ? (result?.range?.end ?? end) : '', count: result?.rows?.length || 0, user })
+    return heading == null ? null : { ...result, subtitle: [result.subtitle, heading].filter(Boolean).join(' · ') }
+  }
   async function exportExcel() {
     if (!result || exporting) return
+    const doc = await withHeading('Excel')
+    if (!doc) return
     setExporting(true)
-    try { await exportReportToExcel(result) } finally { setExporting(false) }
+    try { await exportReportToExcel(doc) } finally { setExporting(false) }
+  }
+  async function exportPdf() {
+    if (!result?.rows?.length) return
+    const doc = await withHeading('PDF')
+    if (doc) exportReportToPdf(doc)
   }
 
   // Text cells read in the active language (see lib/reportText.js).
@@ -273,7 +288,7 @@ export default function Reports() {
               {result?.subtitle && <p className="text-[0.8125rem] text-gray-500 mt-0.5">{tr(result.subtitle)}</p>}
             </div>
             <div className="flex gap-2 no-print">
-              <button onClick={() => exportReportToPdf(result)} disabled={!result?.rows?.length} className="btn-outline !py-2 text-red-600 border-red-200 disabled:opacity-60"><FileText size={15} />{' '}<T>Export PDF</T></button>
+              <button onClick={exportPdf} disabled={!result?.rows?.length} className="btn-outline !py-2 text-red-600 border-red-200 disabled:opacity-60"><FileText size={15} />{' '}<T>Export PDF</T></button>
               <button onClick={exportExcel} disabled={exporting} className="btn-outline !py-2 text-emerald-700 border-emerald-200 disabled:opacity-60"><FileSpreadsheet size={15} /> {exporting ? tr('Exporting…') : tr('Export Excel')}</button>
             </div>
           </div>

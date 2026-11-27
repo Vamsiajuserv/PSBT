@@ -19,6 +19,7 @@ from ..site_content import DEFAULT_CONTENT, TEMPLE_EXTRAS
 from ..routers.settings import DEFAULTS as SETTINGS_DEFAULTS
 from ..helpers import ist_today
 from .almanac import almanac_days, POURNAMI, FESTIVAL
+from ..helpers import clean_mobile, clean_email  # mobile / email format (2026-11-26)
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -236,8 +237,8 @@ def contact(body: ContactIn, db: Session = Depends(get_db)):
         return {"ok": True}
     if not (body.mobile or body.email):
         raise HTTPException(422, "Please provide a mobile number or an email so we can reach you.")
-    msg = ContactMessage(name=body.name.strip(), mobile=(body.mobile or "").strip() or None,
-                         email=(body.email or "").strip() or None,
+    msg = ContactMessage(name=body.name.strip(), mobile=clean_mobile(body.mobile, foreign_ok=True),
+                         email=clean_email(body.email),
                          subject=(body.subject or "General").strip(), message=body.message.strip())
     db.add(msg)
     db.commit()

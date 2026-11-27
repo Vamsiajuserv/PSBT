@@ -15,6 +15,7 @@ from ..helpers import (gen_code, next_code_seq, assert_positive, assert_txn_date
                        validate_pagination, sort_expr, apply_column_filters)
 from ..helpers import ist_paid_day, ist_date_of
 from ..security import ADMIN_ROLES
+from ..helpers import clean_mobile  # mobile / email format (2026-11-26)
 
 router = APIRouter(prefix="/api/waste", tags=["waste"])
 # Waste sales is Admin/authorised only — gated behind the "Counter" write capability.
@@ -144,7 +145,7 @@ def create_vendor(body: dict, request: Request, db: Session = Depends(get_db), u
     # Use atomic counter to avoid duplicate code issues after deletions
     max_id = db.query(func.max(WasteVendor.id)).scalar() or 0
     seq = next_code_seq(db, "waste_vendor", max_id)
-    v = WasteVendor(code=gen_code("WV", seq, 2), name=name, phone=body.get("phone"),
+    v = WasteVendor(code=gen_code("WV", seq, 2), name=name, phone=clean_mobile(body.get("phone")),
                     material_types=_vendor_materials(db, body.get("material_types")), active=body.get("active", True))
     db.add(v); db.commit(); db.refresh(v)
     log_action(db, username=user.username, action="CREATE", entity="WasteVendor", detail=v.name, ip=client_ip(request))
@@ -156,6 +157,8 @@ def update_vendor(vid: int, body: dict, request: Request, db: Session = Depends(
     v = db.get(WasteVendor, vid)
     if not v:
         raise HTTPException(404, "Vendor not found")
+    if "phone" in body:
+        body["phone"] = clean_mobile(body["phone"])
     for k in ("name", "phone", "active"):
         if k in body:
             setattr(v, k, body[k])
@@ -284,7 +287,7 @@ def create_sale(body: dict, request: Request, db: Session = Depends(get_db), use
     s = WasteSale(code=f"WMS-{year}-{str(seq).zfill(4)}",
                   vendor_id=(int(vendor_id) if vendor_id not in (None, "") else None),
                   vendor_name=body.get("buyer_name") or body.get("vendor_name", "Buyer"),
-                  mobile=body.get("mobile"), material=body["material"],
+                  mobile=clean_mobile(body.get("mobile")), material=body["material"],
                   unit=body.get("unit", "Kilogram (kg)"), weight_kg=weight, rate=rate, amount=amount,
                   mode=mode, txn_ref=ref, paid_at=paid_dt, payment_ref=ref,
                   verification_status="Pending",

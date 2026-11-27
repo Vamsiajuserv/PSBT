@@ -17,10 +17,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from .devotees import buyer_devotee
 from ..helpers import assert_txn_date_open, assert_utr, ist_today, next_code_seq
 from ..models import Auction, AuctionPiece, AuctionSale, DonationCategory, StockItem, StockMovement, StoreLocation
 from ..schemas import AuctionOut, AuctionPaymentIn, AuctionStockCreate, DonationVoidIn, LotResultIn
 from ..security import RequireModule, RequireRole, log_action, client_ip
+from ..helpers import is_indian_mobile  # mobile / email format (2026-11-26)
 
 router = APIRouter(prefix="/api/auctions", tags=["auction-lots"])
 a_write = RequireModule("Auction", write=True)
@@ -60,8 +62,11 @@ def _lot(db: Session, aid: int) -> Auction:
 
 
 def create_lot(db: Session, user, category_id: int, piece_ids: list[int], base_price: Decimal, auction_date: date,
-               start_time: str, description: str | None, notes: str | None, reauction_of: str | None = None) -> Auction:
-    """Shared by create and re-auction: pieces must be In Store and of one tagged category."""
+               start_time: str, description: str | None, notes: str | None, reauction_of: str | None = None,
+               pieces: dict | None = None) -> Auction:
+    """Shared by create and re-auction: pieces must be In Store and of one tagged category. A bundle sends
+    only `pieces[id]` of its pieces (all when left out) as one line of the lot — sold whole to one buyer."""
+    from .stores import take_pieces
     from .misc import _au_log
     cat = db.get(DonationCategory, category_id)
     if not cat or cat.tracking != "Tagged":
@@ -80,18 +85,22 @@ def create_lot(db: Session, user, category_id: int, piece_ids: list[int], base_p
     from .misc import check_auction_date
     check_auction_date(db, auction_date, user)        # today … the Advance Booking window ahead
     seq = next_code_seq(db, "auction", db.query(func.max(Auction.id)).scalar() or 0)
-    total = base_price * len(items)
+    code = f"AUC-{ist_today().year}-{str(seq).zfill(4)}"
+    items = [take_pieces(db, i, (pieces or {}).get(i.id), user, f"auction {code}") for i in items]
+    count = sum((i.pieces or 1) for i in items)                     # pieces, a bundle's part counting all of its
+    total = base_price * count
     tags = [i.tag_id for i in items]
-    au = Auction(code=f"AUC-{ist_today().year}-{str(seq).zfill(4)}", item=f"{cat.name} × {len(items)}",
+    au = Auction(code=code, item=f"{cat.name} × {count}",
                  description=description, base_amount=total, current_amount=total, bids=0, status="Scheduled",
                  auction_date=auction_date, start_time=start_time, notes=notes, from_stock=True,
                  stock_category_id=cat.id, reauction_of=reauction_of, created_by=user.username,
                  approval_status="Pending")
     _au_log(au, user, "Created", (f"Re-auction of {reauction_of} — " if reauction_of else "")
-            + f"lot of {len(items)}: {_range(tags)} — base {_inr(base_price)} each")
+            + f"lot of {count}: {_range(tags)} — base {_inr(base_price)} each")
     db.add(au); db.flush()
     for i in items:
-        au.pieces.append(AuctionPiece(stock_item_id=i.id, tag_id=i.tag_id, base_price=base_price))
+        n = i.pieces or 1
+        au.pieces.append(AuctionPiece(stock_item_id=i.id, tag_id=i.tag_id, base_price=base_price * n, pieces=n))
         i.status, i.last_auction_code = "In Auction", au.code
         _move(db, i, user, "Put in auction", f"{au.code} on {auction_date} — base {_inr(base_price)}")
     return au
@@ -100,7 +109,7 @@ def create_lot(db: Session, user, category_id: int, piece_ids: list[int], base_p
 @router.post("/stock", response_model=AuctionOut, status_code=201)
 def create_stock_auction(body: AuctionStockCreate, request: Request, db: Session = Depends(get_db), user=Depends(a_create)):
     au = create_lot(db, user, body.category_id, body.piece_ids, body.base_price, body.auction_date, body.start_time,
-                    (body.description or "").strip() or None, (body.notes or "").strip() or None)
+                    (body.description or "").strip() or None, (body.notes or "").strip() or None, pieces=body.pieces)
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="CREATE", entity="Auction",
                detail=f"{au.code} lot {au.item}", ip=client_ip(request))
@@ -123,7 +132,7 @@ def record_lot_result(aid: int, body: LotResultIn, request: Request, db: Session
     # Each buyer's 10-digit mobile — to contact them for payment (2026-11-15)
     for line in body.lines:
         m = (line.buyer_mobile or "").strip()
-        if not (m.isdigit() and len(m) == 10):
+        if not is_indian_mobile(m):
             raise HTTPException(422, f"{line.buyer_name}: enter the buyer's 10-digit mobile number.")
     seen: set[int] = set()
     for n, line in enumerate(body.lines, start=1):
@@ -136,7 +145,7 @@ def record_lot_result(aid: int, body: LotResultIn, request: Request, db: Session
         reserve = sum((Decimal(str(pieces[pid].base_price)) for pid in line.piece_ids), Decimal("0"))
         if line.amount < reserve:
             raise HTTPException(422, f"{line.buyer_name}: {_inr(line.amount)} is below the base of {_inr(reserve)} "
-                                     f"for {len(line.piece_ids)} piece(s).")
+                                     f"for {sum((pieces[pid].pieces or 1) for pid in line.piece_ids)} piece(s).")
     # Re-recording replaces the earlier lines (only before any buyer paid — _lot checks that).
     corrected = au.verification_status == "Verified" and au.status in ("Completed", "Unsold")
     if corrected:
@@ -147,8 +156,9 @@ def record_lot_result(aid: int, body: LotResultIn, request: Request, db: Session
     db.flush()
     total = Decimal("0")
     for line in body.lines:
+        dev = buyer_devotee(db, line.devotee_id, line.buyer_mobile)
         sale = AuctionSale(buyer_name=line.buyer_name, buyer_mobile=(line.buyer_mobile or "").strip() or None,
-                           amount=line.amount)
+                           devotee_id=dev.id if dev else None, amount=line.amount)
         au.sales.append(sale); db.flush()
         # Split the buyer's amount over their pieces; the last piece takes the paise left over.
         share = (line.amount / len(line.piece_ids)).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
@@ -157,8 +167,8 @@ def record_lot_result(aid: int, body: LotResultIn, request: Request, db: Session
             p.result, p.sale_id = "Sold", sale.id
             p.sold_amount = share if k < len(line.piece_ids) - 1 else line.amount - share * (len(line.piece_ids) - 1)
         total += line.amount
-    sold = len(seen)
-    unsold = len(pieces) - sold
+    sold = sum((pieces[pid].pieces or 1) for pid in seen)                 # pieces: a bundle's line counts all
+    unsold = sum((p.pieces or 1) for p in pieces.values()) - sold
     au.status = "Completed" if body.lines else "Unsold"
     au.current_amount = total
     au.winner = (", ".join(l.buyer_name for l in body.lines)[:120]) or None
@@ -167,8 +177,8 @@ def record_lot_result(aid: int, body: LotResultIn, request: Request, db: Session
     db.flush()
     apply_outcome(db, au, user)
     _finalise_result(au, user)
-    summary = (f"Sold {sold} of {len(pieces)} to {len(body.lines)} buyer(s) for {_inr(total)}" if body.lines
-               else f"Unsold — none of the {len(pieces)} pieces") + (f"; {unsold} unsold" if body.lines and unsold else "")
+    summary = (f"Sold {sold} of {sold + unsold} to {len(body.lines)} buyer(s) for {_inr(total)}" if body.lines
+               else f"Unsold — none of the {sold + unsold} pieces") + (f"; {unsold} unsold" if body.lines and unsold else "")
     _au_log(au, user, "Result corrected" if corrected else "Result recorded", summary)
     db.commit(); db.refresh(au)
     log_action(db, username=user.username, action="UPDATE", entity="Auction", detail=f"{au.code} {summary}",
@@ -179,6 +189,7 @@ def record_lot_result(aid: int, body: LotResultIn, request: Request, db: Session
 def apply_outcome(db: Session, au: Auction, user) -> str:
     """Result recorded (or an old result approved): sold pieces become Sold, unsold pieces go
     back to their store."""
+    from .stores import merge_back, settle_bundle
     buyers = {s.id: s.buyer_name for s in au.sales}
     sold = unsold = 0
     for p in au.pieces:
@@ -186,21 +197,26 @@ def apply_outcome(db: Session, au: Auction, user) -> str:
         if p.result == "Sold":
             item.status, item.sold_amount = "Sold", p.sold_amount
             _move(db, item, user, "Sold", f"to {buyers.get(p.sale_id)} for {_inr(p.sold_amount)} in {au.code}")
-            sold += 1
+            settle_bundle(db, item, user)
+            sold += p.pieces or 1
         else:
             item.status = "In Store"
             item.unsold_count = (item.unsold_count or 0) + 1
             _move(db, item, user, "Unsold", f"in {au.code}, back to {_loc_name(db, item.location_id)}")
-            unsold += 1
+            merge_back(db, item, user, f"unsold in {au.code}")     # a bundle's pieces go back into it
+            unsold += p.pieces or 1
     return f"{sold} sold to {len(au.sales)} buyer(s) for {_inr(au.current_amount)}, {unsold} back to store"
 
 
 def undo_outcome(db: Session, au: Auction, user) -> None:
     """Correcting a recorded result: this lot's pieces go back to In Auction first."""
+    from .stores import MERGED, unmerge
     for p in au.pieces:
         item = db.get(StockItem, p.stock_item_id)
         if item.last_auction_code != au.code:
             continue
+        if item.status == MERGED and p.result != "Sold":           # unsold pieces went back into their bundle
+            unmerge(db, item, user, f"{au.code} result corrected")
         if item.status == "Sold":
             item.status, item.sold_amount = "In Auction", None
         elif item.status == "In Store" and p.result != "Sold":
@@ -213,11 +229,13 @@ def undo_outcome(db: Session, au: Auction, user) -> None:
 
 def release_pieces(db: Session, au: Auction, user, why: str) -> None:
     """Auction voided: every piece still tied to it returns to its store location."""
+    from .stores import merge_back
     for p in au.pieces:
         item = db.get(StockItem, p.stock_item_id)
         if item.status in ("In Auction", "Sold") and item.last_auction_code == au.code:
             item.status, item.sold_amount = "In Store", None
             _move(db, item, user, "Back to store", f"{why} — {au.code}; back to {_loc_name(db, item.location_id)}")
+            merge_back(db, item, user, f"{why} — {au.code}")
 
 
 @router.post("/{aid}/sales/{sid}/payment", response_model=AuctionOut)
@@ -295,6 +313,8 @@ def buyer_did_not_pay(aid: int, sid: int, body: DonationVoidIn, request: Request
             item.unsold_count = (item.unsold_count or 0) + 1
             _move(db, item, user, "Back to store", f"{sale.buyer_name} did not pay in {au.code}; back to {_loc_name(db, item.location_id)}")
             back.append(item.tag_id)
+            from .stores import merge_back
+            merge_back(db, item, user, f"{sale.buyer_name} did not pay in {au.code}")
     sale.payment_status = "Not Paid"
     au.current_amount = sum((Decimal(str(s.amount)) for s in au.sales if s.payment_status != "Not Paid"), Decimal("0"))
     if not any(s.payment_status != "Not Paid" for s in au.sales):

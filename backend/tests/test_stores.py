@@ -249,6 +249,25 @@ class Stores(unittest.TestCase):
         self.assertIn("out on issue", self.status(409, lambda: r.update_location(
             1, r.LocationIn(name="Rack 2A", active=False), self.req, self.db, self.admin)))
 
+    def test_only_the_administrator_makes_a_location_active_or_inactive(self):
+        """Client, 2026-11-27: the Stores Officer adds and renames locations; Active / Inactive is the Administrator's."""
+        officer = login("store1", "Stores Officer")
+        loc = r.create_location(r.LocationIn(name="Back Room", loc_type="General"), self.req, self.db, officer)
+        self.assertIn("Only the Administrator", self.status(403, lambda: r.create_location(
+            r.LocationIn(name="Old Shed", active=False), self.req, self.db, officer)))
+        out = r.update_location(loc["id"], r.LocationIn(name="Back Room 1", custodian="Store1"), self.req, self.db, officer)
+        self.assertEqual((out["name"], out["active"]), ("Back Room 1", True))               # renamed, still active
+        self.assertIn("Only the Administrator", self.status(403, lambda: r.update_location(
+            loc["id"], r.LocationIn(name="Back Room 1", active=False), self.req, self.db, officer)))
+        self.assertFalse(r.update_location(loc["id"], r.LocationIn(name="Back Room 1", active=False),
+                                           self.req, self.db, self.admin)["active"])
+        # an inactive location: the officer may still fix its name, but not switch it back on
+        r.update_location(loc["id"], r.LocationIn(name="Back Room (closed)", active=False), self.req, self.db, officer)
+        self.status(403, lambda: r.update_location(loc["id"], r.LocationIn(name="Back Room (closed)", active=True),
+                                                   self.req, self.db, officer))
+        self.assertTrue(r.update_location(loc["id"], r.LocationIn(name="Back Room", active=True),
+                                          self.req, self.db, self.admin)["active"])
+
 
 if __name__ == "__main__":
     unittest.main()

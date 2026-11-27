@@ -33,7 +33,8 @@ export const phonePattern = /^[6-9]\d{9}$/
 export function validatePhone(value) {
   if (!value || !value.trim()) return { valid: true, error: null }
   const digits = value.replace(/\D/g, '')
-  if (digits.length !== 10) return { valid: true, error: null }
+  // A typed number must be a whole one (client, 2026-11-26) — "12345" used to pass as valid
+  if (digits.length !== 10) return { valid: false, error: tr('Please Enter 10 digits Mobile Number') }
   if (!phonePattern.test(digits)) return { valid: false, error: tr('Invalid Mobile Number. Please Enter Valid Mobile Number') }
   return { valid: true, error: null }
 }
@@ -117,9 +118,13 @@ export function sanitizeItemName(value) {
 // ── PAN Validation ──
 export const panPattern = /^[A-Z]{5}[0-9]{4}[A-Z]$/
 
+// The masked PAN the API sends back on an edit form (XXXXXX234F / XXXXXX****) means "unchanged".
+export const maskedPanPattern = /^X{6}([0-9]{3}[A-Z]|\*{4})$/
+
 export function validatePAN(value) {
   if (!value || !value.trim()) return { valid: true, error: null } // PAN is optional unless required
   const upper = value.toUpperCase().trim()
+  if (maskedPanPattern.test(upper)) return { valid: true, error: null }
   if (!panPattern.test(upper)) return { valid: false, error: tr('Invalid PAN format (e.g. ABCDE1234F)') }
   return { valid: true, error: null }
 }

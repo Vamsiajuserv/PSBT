@@ -99,14 +99,15 @@ class Metals(unittest.TestCase):
                          (Decimal("1000"), "silk pancha", None, None))
 
     # ── hundi lines ──────────────────────────────────────────────────────────
-    def test_hundi_gold_lines_are_kept_by_grams_only(self):
+    def test_hundi_gold_lines_keep_grams_and_an_optional_amount(self):
+        # client, 2026-11-26: the ₹ amount of a gold / silver line is optional — kept when given, ₹0 when blank
         lines = [{"item_type": "Gold", "item_name": "Gold", "unit": "Grams", "quantity": Decimal("10"), "value": 1, "purity": "22K"},
-                 {"item_type": "Silver", "item_name": "Silver", "unit": "Grams", "quantity": Decimal("5"), "value": 1},
+                 {"item_type": "Silver", "item_name": "Silver", "unit": "Grams", "quantity": Decimal("5")},
                  {"item_type": "Jewellery", "item_name": "Jewellery", "unit": "Count", "quantity": 2, "value": 15000, "purity": "22K"},
                  {"item_type": "Cash", "item_name": "Rs 500", "unit": "Count", "quantity": 4, "value": 2000}]
         misc._value_metal_lines(self.db, lines, None)
         self.assertEqual([(x["purity"], x["rate_per_g"], x["value"]) for x in lines],
-                         [(None, None, Decimal("0")), (None, None, Decimal("0")), (None, None, 15000), (None, None, 2000)])
+                         [(None, None, Decimal("1")), (None, None, Decimal("0")), (None, None, 15000), (None, None, 2000)])
 
     def test_hundi_gold_line_ignores_any_purity(self):
         line = {"item_type": "Gold", "item_name": "Gold", "unit": "Grams", "quantity": Decimal("10"), "purity": "925"}
@@ -168,6 +169,16 @@ class Metals(unittest.TestCase):
         self.assertEqual((case.status, case.kind, case.stock_item_id), ("Change requested", "Correction", iid))
         self.assertEqual(json.loads(case.changes), {"weight_g": "5.5"})
         self.assertIn("already waiting", self.status(409, lambda: self.fix(iid, weight_g=Decimal("5"))))
+
+    def test_the_value_is_not_corrected_here(self):
+        """The value comes from the receipt (client, 2026-11-27): a value sent is ignored."""
+        iid = self._gold_piece()
+        before = self.db.get(StockItem, iid).est_value
+        self.assertIn("Nothing", self.status(422, lambda: self.fix(iid, est_value=Decimal("1"), description="chain")))
+        out = self.fix(iid, est_value=Decimal("1"), description="gold chain")      # other changes still apply
+        self.assertEqual(out["description"], "gold chain")
+        self.assertEqual(self.db.get(StockItem, iid).est_value, before)
+        self.assertNotIn("Value", out["history"][-1]["detail"])
 
     def test_a_purity_correction_is_no_longer_possible(self):
         iid = self._gold_piece()

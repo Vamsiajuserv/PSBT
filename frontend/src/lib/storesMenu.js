@@ -18,10 +18,6 @@ export const STORES_TABS = {
     ['/admin/stores/unsold', 'Unsold Items'],
     ['/admin/stores/open-sale', 'Open Sale'],
   ],
-  check: [
-    ['/admin/stores/check', 'Stock Check'],
-    ['/admin/stores/missing', 'Missing Items'],
-  ],
   reports: [
     ['/admin/stores/report', 'Stock Report'],
   ],
@@ -31,11 +27,11 @@ export const STORES_SECTIONS = [
   { items: [{ to: '/admin/stores/overview', label: 'Stores Overview', icon: LayoutDashboard }] },
   { heading: 'Receive', items: [
     { to: '/admin/stores/pending', label: 'Receive & Tag', icon: Tag },
-    { to: '/admin/stores/manual', label: 'Manual Entries', icon: FilePlus2 },
+    { to: '/admin/stores/manual', label: 'Purchased Items', icon: FilePlus2 },
   ] },
   { heading: 'In the Store', items: [
     { to: '/admin/stores/register', label: 'Stock Register', icon: Boxes },
-    { to: '/admin/stores/consumables', label: 'Consumables Stock', icon: Droplets },
+    { to: '/admin/stores/consumables', label: 'Consumable Stock Management', icon: Droplets },
     { to: '/admin/stores/issue', label: 'Issue & Return', icon: ArrowRightLeft },
   ] },
   { heading: 'Sales', items: [
@@ -50,7 +46,9 @@ export const STORES_SECTIONS = [
   ] },
   // Check & Close last (client request 2026-11-12)
   { heading: 'Check & Close', items: [
-    { tabs: 'check', label: 'Stock Check', icon: ClipboardCheck },
+    // Stock Check removed (client, 2026-11-27): Missing Items is its own line, renamed — the Committee's
+    // place to approve write-offs and gold / silver weight changes
+    { to: '/admin/stores/missing', label: 'Write-offs & Approvals', icon: ClipboardCheck },
     { to: '/admin/stores/day-closing', label: 'Stores Day Closing', icon: CalendarCheck },
   ] },
 ]

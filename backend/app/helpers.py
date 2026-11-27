@@ -69,6 +69,29 @@ def _ist_day_sqlite(element, compiler, **kw):
     return "DATE(%s, '+330 minutes')" % compiler.process(element.clauses, **kw)
 
 
+class ist_time(_FunctionElement):
+    """SQL: a UTC timestamp column as IST clock time (to sort it with an IST paid_at)."""
+    name = "ist_time"
+    inherit_cache = True
+
+
+@_compiles(ist_time)
+def _ist_time_pg(element, compiler, **kw):
+    return "(%s + INTERVAL '330 minutes')" % compiler.process(element.clauses, **kw)
+
+
+@_compiles(ist_time, "sqlite")
+def _ist_time_sqlite(element, compiler, **kw):
+    return "DATETIME(%s, '+330 minutes')" % compiler.process(element.clauses, **kw)
+
+
+def ist_paid_time(paid_col, created_col):
+    """SQL: when it was paid, as IST clock time — paid_at, else created_at (UTC) moved to IST. Sorting
+    on paid_at alone put every row without one (counter entries) last (client, 2026-11-26)."""
+    from sqlalchemy import func as _func
+    return _func.coalesce(paid_col, ist_time(created_col))
+
+
 def ist_paid_day(paid_col, created_col):
     """The IST day of a payment: paid_at is IST clock time already; else created_at (UTC)."""
     from sqlalchemy import func as _func
@@ -216,6 +239,41 @@ def assert_txn_date_open(db: Session, d, *, allow_future=False, label="date") ->
         raise HTTPException(422, f"The {label} cannot be in the future.")
     if day_is_closed(db, d):
         raise HTTPException(409, f"{d} has been closed in Daily Closing — no further entries can be recorded for that day.")
+
+
+# ── Mobile / email format (client, 2026-11-26) ──
+# An Indian mobile is 10 digits starting 6–9. Screens with a country picker (Counter, Advance Booking,
+# Donations, Contact) check +91 numbers on screen and may send a foreign one, so there `foreign_ok`
+# also takes 7–15 digits; only a valid Indian number is ever auto-registered as a devotee.
+_INDIAN_MOBILE = re.compile(r"[6-9]\d{9}")
+
+
+def is_indian_mobile(v) -> bool:
+    return bool(_INDIAN_MOBILE.fullmatch(str(v or "").strip()))
+
+
+def clean_mobile(v, *, foreign_ok: bool = False) -> str | None:
+    """The mobile cleaned (spaces / dashes dropped), None when blank; 422 when malformed."""
+    s = re.sub(r"[\s\-]", "", str(v or ""))
+    if not s:
+        return None
+    if _INDIAN_MOBILE.fullmatch(s):
+        return s
+    if foreign_ok:
+        if re.fullmatch(r"\+?\d{7,15}", s):
+            return s
+        raise HTTPException(422, "Enter a valid mobile number (digits only).")
+    raise HTTPException(422, "Enter a valid 10-digit mobile number (starting with 6, 7, 8 or 9).")
+
+
+def clean_email(v) -> str | None:
+    """The email trimmed, None when blank; 422 unless it looks like name@domain.tld."""
+    s = str(v or "").strip()
+    if not s:
+        return None
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", s):
+        raise HTTPException(422, "Enter a valid email address (e.g. name@gmail.com).")
+    return s
 
 
 def assert_utr(db: Session, utr, *, required: bool) -> str | None:
